@@ -1,0 +1,7 @@
+.codex
+agent_context_sync.config.json
+logs/
+__pycache__/
+*.py[cod]
+*.tar.gz
+.DS_Store

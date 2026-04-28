@@ -1,0 +1,12 @@
+{
+  "scan_roots": [
+    "/data-1",
+    "/home/USER/projects"
+  ],
+  "max_depth": 3,
+  "scope": "all",
+  "direction": "bidirectional",
+  "prefer": "none",
+  "mode": "symlink",
+  "include_config_only": false
+}

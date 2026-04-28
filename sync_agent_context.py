@@ -145,7 +145,10 @@ def refresh_command_for(root: Path) -> str:
         script_ref = script.relative_to(root.resolve())
     except ValueError:
         script_ref = script
-    return f"python {script_ref} sync . --direction bidirectional"
+    python = Path(sys.executable).name or "python3"
+    if python == "python":
+        python = "python3"
+    return f"{python} {script_ref} sync . --direction bidirectional"
 
 
 def read_text(path: Path) -> str:

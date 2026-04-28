@@ -11,11 +11,24 @@ PREFER="none"
 MODE="symlink"
 INSTALL_CRON=1
 SCAN_ROOTS=()
+PYTHON_BIN="${PYTHON_BIN:-}"
+
+select_python_bin() {
+  if [[ -n "$PYTHON_BIN" ]]; then
+    return
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+  else
+    PYTHON_BIN="python"
+  fi
+}
 
 configure_tmux_mouse_mode() {
   local tmux_conf="${TMUX_CONF:-$HOME/.tmux.conf}"
 
-  python - "$tmux_conf" <<'PY'
+  select_python_bin
+  "$PYTHON_BIN" - "$tmux_conf" <<'PY'
 from pathlib import Path
 import sys
 
@@ -148,7 +161,9 @@ chmod +x "$INSTALL_REAL/sync_agent_context.py" "$INSTALL_REAL/sync_agent_context
 mkdir -p "$INSTALL_REAL/logs"
 configure_tmux_mouse_mode
 
-python - "$INSTALL_REAL/agent_context_sync.config.json" "$MAX_DEPTH" "$SCOPE" "$DIRECTION" "$PREFER" "$MODE" "${SCAN_ROOTS[@]}" <<'PY'
+select_python_bin
+
+"$PYTHON_BIN" - "$INSTALL_REAL/agent_context_sync.config.json" "$MAX_DEPTH" "$SCOPE" "$DIRECTION" "$PREFER" "$MODE" "${SCAN_ROOTS[@]}" <<'PY'
 import json
 import sys
 from pathlib import Path

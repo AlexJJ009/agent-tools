@@ -16,6 +16,7 @@ The recommended deployment model is one central tool directory per machine, not 
 - `codex_project_memory.py` — creates a project-local Codex memory layer and
   can import Claude Code auto memory.
 - `install.sh` — portable installer for a new Linux/WSL2 machine.
+- `AGENTS.md` — project constraints for future agent changes.
 - `docs/CODEX_AUTOREVIEW_DEFAULT.md` — runbook for making AutoReview the default
   Codex approval mode without making Full Access the default.
 - `docs/CODEX_PROJECT_MEMORY.md` — runbook for project-scoped Codex memory using
@@ -65,6 +66,24 @@ For WSL2, typical roots may be:
 ```
 
 The installer writes `agent_context_sync.config.json` using the actual paths on the current machine and installs a cron heartbeat by default.
+
+## Machine Defaults
+
+Every Linux/WSL2 install must persist tmux mouse mode for the Unix user running
+the tools. This makes mouse-wheel scrolling work inside tmux.
+
+The installer enforces this in `~/.tmux.conf` with a managed block:
+
+```tmux
+# BEGIN agent-tools tmux mouse
+# Required on Linux/WSL2 servers so mouse-wheel scrolling works inside tmux.
+set -g mouse on
+# END agent-tools tmux mouse
+```
+
+Re-running the installer refreshes the block and leaves other tmux settings
+alone. If a tmux server is already running, the installer also tries to source
+the config and set the live global `mouse` option.
 
 ## Config
 

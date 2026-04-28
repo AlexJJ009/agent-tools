@@ -12,6 +12,51 @@ MODE="symlink"
 INSTALL_CRON=1
 SCAN_ROOTS=()
 
+configure_tmux_mouse_mode() {
+  local tmux_conf="${TMUX_CONF:-$HOME/.tmux.conf}"
+
+  python - "$tmux_conf" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1]).expanduser()
+begin = "# BEGIN agent-tools tmux mouse"
+end = "# END agent-tools tmux mouse"
+block = "\n".join([
+    begin,
+    "# Required on Linux/WSL2 servers so mouse-wheel scrolling works inside tmux.",
+    "set -g mouse on",
+    end,
+])
+
+path.parent.mkdir(parents=True, exist_ok=True)
+text = path.read_text(encoding="utf-8") if path.exists() else ""
+
+while True:
+    start = text.find(begin)
+    if start == -1:
+        break
+    stop = text.find(end, start)
+    if stop == -1:
+        break
+    stop += len(end)
+    text = text[:start].rstrip() + "\n\n" + text[stop:].lstrip()
+
+new_text = text.rstrip()
+if new_text:
+    new_text += "\n\n"
+new_text += block + "\n"
+
+if new_text != (path.read_text(encoding="utf-8") if path.exists() else ""):
+    path.write_text(new_text, encoding="utf-8")
+PY
+
+  if command -v tmux >/dev/null 2>&1; then
+    tmux source-file "$tmux_conf" >/dev/null 2>&1 || true
+    tmux set-option -g mouse on >/dev/null 2>&1 || true
+  fi
+}
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -101,6 +146,7 @@ fi
 
 chmod +x "$INSTALL_REAL/sync_agent_context.py" "$INSTALL_REAL/sync_agent_context_cron.sh" "$INSTALL_REAL/codex_project_memory.py" "$INSTALL_REAL/install.sh"
 mkdir -p "$INSTALL_REAL/logs"
+configure_tmux_mouse_mode
 
 python - "$INSTALL_REAL/agent_context_sync.config.json" "$MAX_DEPTH" "$SCOPE" "$DIRECTION" "$PREFER" "$MODE" "${SCAN_ROOTS[@]}" <<'PY'
 import json
@@ -134,6 +180,7 @@ fi
 
 echo "Installed agent context sync tools in $INSTALL_REAL"
 echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
+echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
 if [[ "$INSTALL_CRON" -eq 1 ]]; then
   echo "Cron: $SCHEDULE $INSTALL_REAL/sync_agent_context_cron.sh"
 else

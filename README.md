@@ -19,6 +19,9 @@ The recommended deployment model is one central tool directory per machine, not 
 - `AGENTS.md` — project constraints for future agent changes.
 - `docs/CODEX_AUTOREVIEW_DEFAULT.md` — runbook for making AutoReview the default
   Codex approval mode without making Full Access the default.
+- `docs/CODEX_WSL2_PROXY.md` — WSL2-only Codex proxy wrapper runbook for the
+  local Windows v2rayN HTTP proxy path; do not treat it as a cross-platform
+  default.
 - `docs/CODEX_PROJECT_MEMORY.md` — runbook for project-scoped Codex memory using
   `.codex/project-memory/`.
 - `docs/AGENT_MEMORY_SYNC.md` — runbook for bidirectional Claude Code / Codex

@@ -3,5 +3,7 @@ agent_context_sync.config.json
 logs/
 __pycache__/
 *.py[cod]
+*.sqlite
+*.sqlite3
 *.tar.gz
 .DS_Store

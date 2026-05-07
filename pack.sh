@@ -9,6 +9,10 @@ OUT="${1:-$PARENT_DIR/agent-tools-portable.tar.gz}"
 tar \
   --exclude="$PACKAGE_NAME/logs" \
   --exclude="$PACKAGE_NAME/__pycache__" \
+  --exclude="*/__pycache__" \
+  --exclude="*.pyc" \
+  --exclude="*.sqlite" \
+  --exclude="*.sqlite3" \
   --exclude="$PACKAGE_NAME/*.tar.gz" \
   -C "$PARENT_DIR" \
   -czf "$OUT" \

@@ -10,6 +10,8 @@ DIRECTION="bidirectional"
 PREFER="none"
 MODE="symlink"
 INSTALL_CRON=1
+INSTALL_REGISTRY=1
+REGISTRY_INIT_DB=0
 SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
 
@@ -84,6 +86,8 @@ Options:
   --direction VALUE        claude-to-codex|codex-to-claude|bidirectional. Default: bidirectional.
   --prefer VALUE           none|claude|codex. Default: none.
   --mode VALUE             symlink|copy. Default: symlink.
+  --no-registry            Do not install experiment-registry links.
+  --registry-init-db       Initialize the local registry DB if missing.
   --no-cron                Write config but do not install crontab entry.
   -h, --help               Show this help.
 EOF
@@ -127,6 +131,14 @@ while [[ $# -gt 0 ]]; do
       INSTALL_CRON=0
       shift
       ;;
+    --no-registry)
+      INSTALL_REGISTRY=0
+      shift
+      ;;
+    --registry-init-db)
+      REGISTRY_INIT_DB=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -154,10 +166,14 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   cp "$SOURCE_DIR/install.sh" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/README.md" ]] && cp "$SOURCE_DIR/README.md" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/docs" ]] && cp -R "$SOURCE_DIR/docs" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/experiment_registry" ]] && cp -R "$SOURCE_DIR/experiment_registry" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/agent_context_sync.config.example.json" ]] && cp "$SOURCE_DIR/agent_context_sync.config.example.json" "$INSTALL_REAL/"
 fi
 
 chmod +x "$INSTALL_REAL/sync_agent_context.py" "$INSTALL_REAL/sync_agent_context_cron.sh" "$INSTALL_REAL/codex_project_memory.py" "$INSTALL_REAL/install.sh"
+if [[ -d "$INSTALL_REAL/experiment_registry" ]]; then
+  chmod +x "$INSTALL_REAL/experiment_registry/install_registry_links.sh" "$INSTALL_REAL/experiment_registry/validate_registry_install.sh"
+fi
 mkdir -p "$INSTALL_REAL/logs"
 configure_tmux_mouse_mode
 
@@ -193,6 +209,14 @@ if [[ "$INSTALL_CRON" -eq 1 ]]; then
   (crontab -l 2>/dev/null | grep -v 'sync_agent_context_cron.sh' || true; printf '%s %s\n' "$SCHEDULE" "$CRON_CMD") | crontab -
 fi
 
+if [[ "$INSTALL_REGISTRY" -eq 1 && -x "$INSTALL_REAL/experiment_registry/install_registry_links.sh" ]]; then
+  REGISTRY_ARGS=()
+  if [[ "$REGISTRY_INIT_DB" -eq 1 ]]; then
+    REGISTRY_ARGS+=(--init-db)
+  fi
+  "$INSTALL_REAL/experiment_registry/install_registry_links.sh" "${REGISTRY_ARGS[@]}"
+fi
+
 echo "Installed agent context sync tools in $INSTALL_REAL"
 echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
 echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
@@ -200,4 +224,9 @@ if [[ "$INSTALL_CRON" -eq 1 ]]; then
   echo "Cron: $SCHEDULE $INSTALL_REAL/sync_agent_context_cron.sh"
 else
   echo "Cron not installed (--no-cron)."
+fi
+if [[ "$INSTALL_REGISTRY" -eq 1 ]]; then
+  echo "Experiment registry links checked from: $INSTALL_REAL/experiment_registry"
+else
+  echo "Experiment registry links not installed (--no-registry)."
 fi

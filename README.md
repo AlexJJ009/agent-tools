@@ -16,6 +16,8 @@ The recommended deployment model is one central tool directory per machine, not 
 - `codex_project_memory.py` — creates a project-local Codex memory layer and
   can import Claude Code auto memory.
 - `install.sh` — portable installer for a new Linux/WSL2 machine.
+- `experiment_registry/` — canonical SQLite experiment registry tooling,
+  schema, queries, validation scripts, and the `experiment-registry` skill.
 - `AGENTS.md` — project constraints for future agent changes.
 - `docs/CODEX_AUTOREVIEW_DEFAULT.md` — runbook for making AutoReview the default
   Codex approval mode without making Full Access the default.
@@ -71,7 +73,36 @@ For WSL2, typical roots may be:
 ./install.sh --root ~/projects --root /mnt/d/projects
 ```
 
-The installer writes `agent_context_sync.config.json` using the actual paths on the current machine and installs a cron heartbeat by default.
+The installer writes `agent_context_sync.config.json` using the actual paths on the current machine and installs a cron heartbeat by default. It also installs experiment registry symlinks when `experiment_registry/` is present. The local SQLite database is not created unless `--registry-init-db` is passed.
+
+## Experiment Registry
+
+`agent-tools/experiment_registry` is the canonical source for registry code and
+the `experiment-registry` skill. Project directories should link to it instead
+of maintaining independent copies:
+
+```text
+/path/to/dpo-experiment/experiment_registry -> agent-tools/experiment_registry
+/path/to/dpo-experiment/.codex/skills/experiment-registry -> agent-tools/experiment_registry/skills/experiment-registry
+/path/to/verl/.codex/skills/experiment-registry -> agent-tools/experiment_registry/skills/experiment-registry
+```
+
+The actual SQLite database is machine-local runtime state and should not be
+committed to Git:
+
+```text
+/data-1/experiment_registry/experiment_registry.sqlite
+```
+
+Initialize or verify registry links explicitly:
+
+```bash
+./experiment_registry/install_registry_links.sh --init-db
+./experiment_registry/validate_registry_install.sh
+```
+
+Use `--force` with `install_registry_links.sh` only when replacing an existing
+copy with the canonical symlink is intended.
 
 ## Machine Defaults
 

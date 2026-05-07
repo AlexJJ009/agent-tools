@@ -1,7 +1,12 @@
 # Codex Playwright Tools
 
-This machine keeps browser automation as a shared Codex tool instead of
-reinstalling Playwright per project.
+This is currently a WSL2 machine-local setup for Alex's main workstation. It
+is not yet guaranteed on other servers.
+
+The goal is to keep browser automation as a shared Codex tool on each machine
+instead of reinstalling Playwright per project. Other servers should add their
+own Playwright MCP registration and browser cache/tool path before relying on
+this workflow.
 
 ## Playwright MCP
 
@@ -47,13 +52,13 @@ Useful variants:
 
 ## Local Browser Binary
 
-On this WSL2 machine, Playwright browsers are already cached under:
+On this WSL2 machine only, Playwright browsers are already cached under:
 
 ```bash
 ~/.cache/ms-playwright/
 ```
 
-Known working Chromium screenshot command:
+Known working Chromium screenshot command on this WSL2 machine:
 
 ```bash
 /home/alex_mercer/.cache/ms-playwright/chromium-1217/chrome-linux64/chrome \

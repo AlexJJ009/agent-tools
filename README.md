@@ -22,8 +22,9 @@ The recommended deployment model is one central tool directory per machine, not 
 - `docs/CODEX_WSL2_PROXY.md` — WSL2-only Codex proxy wrapper runbook for the
   local Windows v2rayN HTTP proxy path; do not treat it as a cross-platform
   default.
-- `docs/CODEX_PLAYWRIGHT_TOOLS.md` — shared Playwright MCP and Chromium
-  screenshot entry points for Codex browser/visual-QA work.
+- `docs/CODEX_PLAYWRIGHT_TOOLS.md` — WSL2 machine-local Playwright MCP and
+  Chromium screenshot entry points for Codex browser/visual-QA work. Other
+  servers still need their own installation/registration.
 - `docs/CODEX_PROJECT_MEMORY.md` — runbook for project-scoped Codex memory using
   `.codex/project-memory/`.
 - `docs/AGENT_MEMORY_SYNC.md` — runbook for bidirectional Claude Code / Codex

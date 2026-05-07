@@ -12,6 +12,8 @@ MODE="symlink"
 INSTALL_CRON=1
 INSTALL_REGISTRY=1
 REGISTRY_INIT_DB=0
+INSTALL_CODEX_CONFIG=1
+CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-900000}"
 SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
 
@@ -72,6 +74,49 @@ PY
   fi
 }
 
+configure_codex_stream_idle_timeout() {
+  local codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
+
+  select_python_bin
+  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1]).expanduser()
+timeout = sys.argv[2]
+if not timeout.isdigit() or int(timeout) <= 0:
+    raise SystemExit(f"invalid CODEX_STREAM_IDLE_TIMEOUT_MS: {timeout}")
+
+path.parent.mkdir(parents=True, exist_ok=True)
+text = path.read_text(encoding="utf-8") if path.exists() else ""
+lines = text.splitlines()
+
+first_table = next((i for i, line in enumerate(lines) if line.lstrip().startswith("[")), len(lines))
+preamble = lines[:first_table]
+rest = lines[first_table:]
+
+kept = []
+for line in preamble:
+    stripped = line.strip()
+    key = stripped.split("=", 1)[0].strip() if "=" in stripped else None
+    if key == "stream_idle_timeout_ms":
+        continue
+    kept.append(line)
+
+if kept and kept[-1].strip():
+    kept.append("")
+kept.append(f"stream_idle_timeout_ms = {timeout}")
+
+if rest:
+    kept.append("")
+    kept.extend(rest)
+
+new_text = "\n".join(kept).rstrip() + "\n"
+if new_text != text:
+    path.write_text(new_text, encoding="utf-8")
+PY
+}
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -86,6 +131,7 @@ Options:
   --direction VALUE        claude-to-codex|codex-to-claude|bidirectional. Default: bidirectional.
   --prefer VALUE           none|claude|codex. Default: none.
   --mode VALUE             symlink|copy. Default: symlink.
+  --no-codex-config        Do not patch Codex stream idle timeout.
   --no-registry            Do not install experiment-registry links.
   --registry-init-db       Initialize the local registry DB if missing.
   --no-cron                Write config but do not install crontab entry.
@@ -129,6 +175,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-cron)
       INSTALL_CRON=0
+      shift
+      ;;
+    --no-codex-config)
+      INSTALL_CODEX_CONFIG=0
       shift
       ;;
     --no-registry)
@@ -176,6 +226,9 @@ if [[ -d "$INSTALL_REAL/experiment_registry" ]]; then
 fi
 mkdir -p "$INSTALL_REAL/logs"
 configure_tmux_mouse_mode
+if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
+  configure_codex_stream_idle_timeout
+fi
 
 select_python_bin
 
@@ -220,6 +273,11 @@ fi
 echo "Installed agent context sync tools in $INSTALL_REAL"
 echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
 echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
+if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
+  echo "Codex stream idle timeout: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_IDLE_TIMEOUT_MS} ms"
+else
+  echo "Codex config not changed (--no-codex-config)."
+fi
 if [[ "$INSTALL_CRON" -eq 1 ]]; then
   echo "Cron: $SCHEDULE $INSTALL_REAL/sync_agent_context_cron.sh"
 else

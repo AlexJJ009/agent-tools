@@ -1,8 +1,7 @@
-# Codex Default AutoReview Configuration
+# Codex Default Configuration
 
-This runbook configures Codex so every new conversation starts in AutoReview
-mode by default, while Full Access remains a manual per-session choice through
-`/approvals`.
+This runbook configures Codex so new conversations use the local default
+permission posture and tolerate long compression or streaming pauses.
 
 Tested with `codex-cli 0.125.0`.
 
@@ -14,6 +13,7 @@ Set these top-level keys in the Codex user config:
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 approvals_reviewer = "auto_review"
+stream_idle_timeout_ms = 900000
 ```
 
 Meaning:
@@ -23,6 +23,8 @@ Meaning:
   Access.
 - `approvals_reviewer = "auto_review"` routes eligible approval requests to the
   AutoReview reviewer instead of directly to the user.
+- `stream_idle_timeout_ms = 900000` gives Codex 15 minutes of idle stream time
+  before treating compression or app/CLI streaming as timed out.
 
 Do not set these as the default for AutoReview:
 
@@ -76,6 +78,7 @@ managed = {
     "approval_policy",
     "sandbox_mode",
     "approvals_reviewer",
+    "stream_idle_timeout_ms",
 }
 
 kept = []
@@ -93,6 +96,7 @@ kept.extend([
     'approval_policy = "on-request"',
     'sandbox_mode = "workspace-write"',
     'approvals_reviewer = "auto_review"',
+    'stream_idle_timeout_ms = 900000',
 ])
 
 if rest:
@@ -106,7 +110,7 @@ PY
 
 This preserves existing top-level settings such as `model`, existing project
 trust entries, and other TOML tables. It only replaces the three permission
-defaults above.
+defaults and the stream idle timeout above.
 
 ## Manual Setup
 
@@ -122,6 +126,7 @@ Ensure the top-level section contains:
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 approvals_reviewer = "auto_review"
+stream_idle_timeout_ms = 900000
 ```
 
 If older lines exist with different values for the same keys, replace them
@@ -142,8 +147,9 @@ codex features list >/dev/null && echo "Codex config parses"
 ```
 
 Then open a new Codex conversation. The `/approvals` state should be AutoReview,
-not Full Access. Existing already-open conversations do not automatically adopt
-the changed default.
+not Full Access, and long remote compression/streaming pauses should use the
+larger idle timeout. Existing already-open conversations do not automatically
+adopt the changed default.
 
 ## Daily Use
 
@@ -165,6 +171,10 @@ When asked to apply this on a new server or WSL2 machine:
 4. Validate with `codex features list`.
 5. Tell the user that only new Codex sessions pick up the new default.
 
+When the user only asks for the compression/streaming timeout fix, patch only
+`stream_idle_timeout_ms = 900000` and preserve the current
+`approvals_reviewer` value.
+
 ## Rollback
 
 To return approval requests directly to the user while staying out of Full
@@ -175,4 +185,3 @@ approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 approvals_reviewer = "user"
 ```
-

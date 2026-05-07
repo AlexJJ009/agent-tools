@@ -19,8 +19,8 @@ The recommended deployment model is one central tool directory per machine, not 
 - `experiment_registry/` — canonical SQLite experiment registry tooling,
   schema, queries, validation scripts, and the `experiment-registry` skill.
 - `AGENTS.md` — project constraints for future agent changes.
-- `docs/CODEX_AUTOREVIEW_DEFAULT.md` — runbook for making AutoReview the default
-  Codex approval mode without making Full Access the default.
+- `docs/CODEX_AUTOREVIEW_DEFAULT.md` — runbook for Codex defaults, including
+  AutoReview without Full Access and the 15-minute stream idle timeout.
 - `docs/CODEX_WSL2_PROXY.md` — WSL2-only Codex proxy wrapper runbook for the
   local Windows v2rayN HTTP proxy path; do not treat it as a cross-platform
   default.
@@ -121,6 +121,18 @@ set -g mouse on
 Re-running the installer refreshes the block and leaves other tmux settings
 alone. If a tmux server is already running, the installer also tries to source
 the config and set the live global `mouse` option.
+
+The installer also patches the Codex user config for the Unix user running it:
+
+```toml
+stream_idle_timeout_ms = 900000
+```
+
+This is the default mitigation for Codex CLI/app compression or streaming idle
+timeouts. It preserves existing top-level settings such as `model`,
+`approval_policy`, `approvals_reviewer`, project trust entries, and TOML
+tables. Use `--no-codex-config` to skip this step, or set
+`CODEX_STREAM_IDLE_TIMEOUT_MS` to override the default value.
 
 ## Config
 

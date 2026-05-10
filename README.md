@@ -126,15 +126,32 @@ The installer also patches the Codex user config for the Unix user running it:
 
 ```toml
 stream_idle_timeout_ms = 900000
-stream_max_retries = 10
+stream_max_retries = 20
+model_provider = "openai-no-ws"
+
+[model_providers.openai-no-ws]
+name = "OpenAI HTTPS no WebSocket"
+base_url = "https://chatgpt.com/backend-api/codex"
+requires_openai_auth = true
+supports_websockets = false
+stream_idle_timeout_ms = 900000
+stream_max_retries = 20
 ```
 
 This is the default mitigation for Codex CLI/app compression or streaming
-disconnects: 15 minutes of idle stream time and 10 SSE stream retry attempts.
-It preserves existing top-level settings such as `model`, `approval_policy`,
-`approvals_reviewer`, project trust entries, and TOML tables. Use
-`--no-codex-config` to skip this step, or set `CODEX_STREAM_IDLE_TIMEOUT_MS`
-and `CODEX_STREAM_MAX_RETRIES` to override the default values.
+disconnects: 15 minutes of idle stream time, 20 SSE stream retry attempts, and
+an HTTPS-only Codex provider that avoids the WebSocket transport on proxy paths
+where WebSocket TLS handshakes are unstable. It preserves existing top-level
+settings such as `model`, `approval_policy`, `approvals_reviewer`, project trust
+entries, and TOML tables. Use `--no-codex-config` to skip this step, or set
+`CODEX_STREAM_IDLE_TIMEOUT_MS`, `CODEX_STREAM_MAX_RETRIES`, and
+`CODEX_MODEL_PROVIDER_ID` to override the default values.
+
+When Codex config patching is enabled, the installer also scans existing
+project-level `.codex/config.toml` files under the configured `--root` paths and
+migrates hook-enabled projects from deprecated `[features].codex_hooks` to
+`[features].hooks`. It only updates existing project config files that already
+contain hook config or the deprecated key.
 
 ## Config
 

@@ -14,7 +14,20 @@ approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 approvals_reviewer = "auto_review"
 stream_idle_timeout_ms = 900000
-stream_max_retries = 10
+stream_max_retries = 20
+model_provider = "openai-no-ws"
+```
+
+Define the HTTPS-only Codex provider:
+
+```toml
+[model_providers.openai-no-ws]
+name = "OpenAI HTTPS no WebSocket"
+base_url = "https://chatgpt.com/backend-api/codex"
+requires_openai_auth = true
+supports_websockets = false
+stream_idle_timeout_ms = 900000
+stream_max_retries = 20
 ```
 
 Set the current hooks feature key under `[features]`:
@@ -33,8 +46,11 @@ Meaning:
   AutoReview reviewer instead of directly to the user.
 - `stream_idle_timeout_ms = 900000` gives Codex 15 minutes of idle stream time
   before treating compression or app/CLI streaming as timed out.
-- `stream_max_retries = 10` gives transient SSE streaming disconnects more
+- `stream_max_retries = 20` gives transient SSE streaming disconnects more
   retry attempts before Codex gives up on the active response.
+- `model_provider = "openai-no-ws"` uses OpenAI/ChatGPT auth but disables the
+  Responses WebSocket transport. This avoids `tls handshake eof` failures seen
+  on this WSL2-to-Windows-proxy path while keeping HTTPS `/responses` working.
 - `[features].hooks = true` enables Codex lifecycle hooks with the current
   feature flag name. If an older config contains `[features].codex_hooks`,
   remove that key; Codex now warns that it is deprecated.
@@ -93,6 +109,7 @@ managed = {
     "approvals_reviewer",
     "stream_idle_timeout_ms",
     "stream_max_retries",
+    "model_provider",
 }
 
 kept = []
@@ -111,12 +128,38 @@ kept.extend([
     'sandbox_mode = "workspace-write"',
     'approvals_reviewer = "auto_review"',
     'stream_idle_timeout_ms = 900000',
-    'stream_max_retries = 10',
+    'stream_max_retries = 20',
+    'model_provider = "openai-no-ws"',
 ])
+
+provider_header = "[model_providers.openai-no-ws]"
+filtered_rest = []
+i = 0
+while i < len(rest):
+    if rest[i].strip() == provider_header:
+        i += 1
+        while i < len(rest) and not rest[i].lstrip().startswith("["):
+            i += 1
+        continue
+    filtered_rest.append(rest[i])
+    i += 1
+rest = filtered_rest
 
 if rest:
     kept.append("")
     kept.extend(rest)
+
+if kept and kept[-1].strip():
+    kept.append("")
+kept.extend([
+    provider_header,
+    'name = "OpenAI HTTPS no WebSocket"',
+    'base_url = "https://chatgpt.com/backend-api/codex"',
+    "requires_openai_auth = true",
+    "supports_websockets = false",
+    "stream_idle_timeout_ms = 900000",
+    "stream_max_retries = 20",
+])
 
 lines = kept
 out = []
@@ -165,8 +208,9 @@ PY
 
 This preserves existing top-level settings such as `model`, existing project
 trust entries, and other TOML tables. It only replaces the three permission
-defaults and the stream timeout/retry defaults above. If `[features]` exists,
-also ensure it uses `hooks = true` rather than the deprecated `codex_hooks` key.
+defaults, the stream timeout/retry defaults, and the managed HTTPS-only Codex
+provider above. If `[features]` exists, also ensure it uses `hooks = true`
+rather than the deprecated `codex_hooks` key.
 
 ## Manual Setup
 
@@ -183,7 +227,20 @@ approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 approvals_reviewer = "auto_review"
 stream_idle_timeout_ms = 900000
-stream_max_retries = 10
+stream_max_retries = 20
+model_provider = "openai-no-ws"
+```
+
+Ensure this provider table exists:
+
+```toml
+[model_providers.openai-no-ws]
+name = "OpenAI HTTPS no WebSocket"
+base_url = "https://chatgpt.com/backend-api/codex"
+requires_openai_auth = true
+supports_websockets = false
+stream_idle_timeout_ms = 900000
+stream_max_retries = 20
 ```
 
 Ensure the `[features]` table contains the current hooks flag:
@@ -238,8 +295,9 @@ When asked to apply this on a new server or WSL2 machine:
 6. Tell the user that only new Codex sessions pick up the new default.
 
 When the user only asks for the compression/streaming resilience fix, patch
-only `stream_idle_timeout_ms = 900000` and `stream_max_retries = 10`, and
-preserve the current `approvals_reviewer` value.
+only `stream_idle_timeout_ms = 900000`, `stream_max_retries = 20`, and the
+`openai-no-ws` provider block above; preserve the current `approvals_reviewer`
+value.
 
 ## Rollback
 

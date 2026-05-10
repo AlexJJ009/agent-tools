@@ -14,7 +14,8 @@ INSTALL_REGISTRY=1
 REGISTRY_INIT_DB=0
 INSTALL_CODEX_CONFIG=1
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-900000}"
-CODEX_STREAM_MAX_RETRIES="${CODEX_STREAM_MAX_RETRIES:-10}"
+CODEX_STREAM_MAX_RETRIES="${CODEX_STREAM_MAX_RETRIES:-20}"
+CODEX_MODEL_PROVIDER_ID="${CODEX_MODEL_PROVIDER_ID:-openai-no-ws}"
 SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
 
@@ -79,17 +80,20 @@ configure_codex_stream_resilience() {
   local codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
 
   select_python_bin
-  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" <<'PY'
+  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" "$CODEX_MODEL_PROVIDER_ID" <<'PY'
 from pathlib import Path
 import sys
 
 path = Path(sys.argv[1]).expanduser()
 timeout = sys.argv[2]
 retries = sys.argv[3]
+provider_id = sys.argv[4]
 if not timeout.isdigit() or int(timeout) <= 0:
     raise SystemExit(f"invalid CODEX_STREAM_IDLE_TIMEOUT_MS: {timeout}")
 if not retries.isdigit() or int(retries) <= 0:
     raise SystemExit(f"invalid CODEX_STREAM_MAX_RETRIES: {retries}")
+if not provider_id or not all(c.isalnum() or c in "-_." for c in provider_id):
+    raise SystemExit(f"invalid CODEX_MODEL_PROVIDER_ID: {provider_id}")
 
 path.parent.mkdir(parents=True, exist_ok=True)
 text = path.read_text(encoding="utf-8") if path.exists() else ""
@@ -103,7 +107,7 @@ kept = []
 for line in preamble:
     stripped = line.strip()
     key = stripped.split("=", 1)[0].strip() if "=" in stripped else None
-    if key in {"stream_idle_timeout_ms", "stream_max_retries"}:
+    if key in {"stream_idle_timeout_ms", "stream_max_retries", "model_provider"}:
         continue
     kept.append(line)
 
@@ -111,10 +115,36 @@ if kept and kept[-1].strip():
     kept.append("")
 kept.append(f"stream_idle_timeout_ms = {timeout}")
 kept.append(f"stream_max_retries = {retries}")
+kept.append(f'model_provider = "{provider_id}"')
+
+provider_header = f"[model_providers.{provider_id}]"
+filtered_rest = []
+i = 0
+while i < len(rest):
+    if rest[i].strip() == provider_header:
+        i += 1
+        while i < len(rest) and not rest[i].lstrip().startswith("["):
+            i += 1
+        continue
+    filtered_rest.append(rest[i])
+    i += 1
+rest = filtered_rest
 
 if rest:
     kept.append("")
     kept.extend(rest)
+
+if kept and kept[-1].strip():
+    kept.append("")
+kept.extend([
+    provider_header,
+    'name = "OpenAI HTTPS no WebSocket"',
+    'base_url = "https://chatgpt.com/backend-api/codex"',
+    "requires_openai_auth = true",
+    "supports_websockets = false",
+    f"stream_idle_timeout_ms = {timeout}",
+    f"stream_max_retries = {retries}",
+])
 
 new_text = "\n".join(kept).rstrip() + "\n"
 if new_text != text:
@@ -178,6 +208,100 @@ if not found_features:
 new_text = "\n".join(out).rstrip() + "\n"
 if new_text != text:
     path.write_text(new_text, encoding="utf-8")
+PY
+}
+
+configure_codex_project_hooks_features() {
+  if [[ ${#SCAN_ROOTS[@]} -eq 0 ]]; then
+    return
+  fi
+
+  select_python_bin
+  "$PYTHON_BIN" - "$MAX_DEPTH" "${SCAN_ROOTS[@]}" <<'PY'
+from pathlib import Path
+import sys
+
+max_depth = int(sys.argv[1])
+roots = [Path(root).expanduser().resolve() for root in sys.argv[2:]]
+
+
+def has_hooks_config(lines):
+    return any(
+        line.strip() == "[hooks]"
+        or line.strip().startswith("[[hooks.")
+        or line.strip().startswith("[hooks.")
+        for line in lines
+    )
+
+
+def migrate_project_config(path):
+    text = path.read_text(encoding="utf-8")
+    lines = text.splitlines()
+    if not has_hooks_config(lines) and "codex_hooks" not in text:
+        return False
+
+    out = []
+    in_features = False
+    found_features = False
+    inserted_hooks = False
+
+    for line in lines:
+        stripped = line.strip()
+        starts_table = stripped.startswith("[") and stripped.endswith("]")
+
+        if starts_table and in_features:
+            if out and out[-1].strip():
+                out.append("")
+            out.append("hooks = true")
+            inserted_hooks = True
+            in_features = False
+
+        if stripped == "[features]":
+            found_features = True
+            in_features = True
+            out.append(line)
+            continue
+
+        if in_features and "=" in stripped and not stripped.startswith("#"):
+            key = stripped.split("=", 1)[0].strip()
+            if key in {"codex_hooks", "hooks"}:
+                continue
+
+        out.append(line)
+
+    if in_features and not inserted_hooks:
+        if out and out[-1].strip():
+            out.append("")
+        out.append("hooks = true")
+        inserted_hooks = True
+
+    if not found_features:
+        insert_at = next((i for i, line in enumerate(out) if line.lstrip().startswith("[")), len(out))
+        out = out[:insert_at] + ["[features]", "hooks = true", ""] + out[insert_at:]
+
+    new_text = "\n".join(out).rstrip() + "\n"
+    if new_text != text:
+        path.write_text(new_text, encoding="utf-8")
+        return True
+    return False
+
+
+changed = []
+for root in roots:
+    if not root.exists():
+        continue
+    for config_path in root.rglob(".codex/config.toml"):
+        try:
+            rel = config_path.relative_to(root)
+        except ValueError:
+            continue
+        if len(rel.parts) - 2 > max_depth:
+            continue
+        if migrate_project_config(config_path):
+            changed.append(str(config_path))
+
+for path in changed:
+    print(f"Codex project hooks feature migrated: {path}")
 PY
 }
 
@@ -293,6 +417,7 @@ configure_tmux_mouse_mode
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   configure_codex_stream_resilience
   configure_codex_hooks_feature
+  configure_codex_project_hooks_features
 fi
 
 select_python_bin
@@ -341,6 +466,7 @@ echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex stream idle timeout: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_IDLE_TIMEOUT_MS} ms"
   echo "Codex stream max retries: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_MAX_RETRIES}"
+  echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (HTTPS, no WebSocket)"
 else
   echo "Codex config not changed (--no-codex-config)."
 fi

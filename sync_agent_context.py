@@ -508,6 +508,9 @@ def generate_codex_config_toml(converted_hooks: dict[str, Any] | None) -> str:
         f"# {GENERATED_MARKER}; edit .claude/hooks.json or .codex/hooks.json, then rerun this script.",
         "# Codex-native project hook config generated from mirrored hooks.",
         "",
+        "[features]",
+        "hooks = true",
+        "",
         "[hooks]",
     ]
     hook_events = converted_hooks.get("hooks", {}) if converted_hooks else {}

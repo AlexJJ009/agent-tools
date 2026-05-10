@@ -14,6 +14,7 @@ approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 approvals_reviewer = "auto_review"
 stream_idle_timeout_ms = 900000
+stream_max_retries = 10
 ```
 
 Set the current hooks feature key under `[features]`:
@@ -32,6 +33,8 @@ Meaning:
   AutoReview reviewer instead of directly to the user.
 - `stream_idle_timeout_ms = 900000` gives Codex 15 minutes of idle stream time
   before treating compression or app/CLI streaming as timed out.
+- `stream_max_retries = 10` gives transient SSE streaming disconnects more
+  retry attempts before Codex gives up on the active response.
 - `[features].hooks = true` enables Codex lifecycle hooks with the current
   feature flag name. If an older config contains `[features].codex_hooks`,
   remove that key; Codex now warns that it is deprecated.
@@ -89,6 +92,7 @@ managed = {
     "sandbox_mode",
     "approvals_reviewer",
     "stream_idle_timeout_ms",
+    "stream_max_retries",
 }
 
 kept = []
@@ -107,6 +111,7 @@ kept.extend([
     'sandbox_mode = "workspace-write"',
     'approvals_reviewer = "auto_review"',
     'stream_idle_timeout_ms = 900000',
+    'stream_max_retries = 10',
 ])
 
 if rest:
@@ -160,8 +165,8 @@ PY
 
 This preserves existing top-level settings such as `model`, existing project
 trust entries, and other TOML tables. It only replaces the three permission
-defaults and the stream idle timeout above. If `[features]` exists, also ensure
-it uses `hooks = true` rather than the deprecated `codex_hooks` key.
+defaults and the stream timeout/retry defaults above. If `[features]` exists,
+also ensure it uses `hooks = true` rather than the deprecated `codex_hooks` key.
 
 ## Manual Setup
 
@@ -178,6 +183,7 @@ approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 approvals_reviewer = "auto_review"
 stream_idle_timeout_ms = 900000
+stream_max_retries = 10
 ```
 
 Ensure the `[features]` table contains the current hooks flag:
@@ -231,9 +237,9 @@ When asked to apply this on a new server or WSL2 machine:
 5. Validate with `codex features list`.
 6. Tell the user that only new Codex sessions pick up the new default.
 
-When the user only asks for the compression/streaming timeout fix, patch only
-`stream_idle_timeout_ms = 900000` and preserve the current
-`approvals_reviewer` value.
+When the user only asks for the compression/streaming resilience fix, patch
+only `stream_idle_timeout_ms = 900000` and `stream_max_retries = 10`, and
+preserve the current `approvals_reviewer` value.
 
 ## Rollback
 

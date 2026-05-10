@@ -14,6 +14,7 @@ INSTALL_REGISTRY=1
 REGISTRY_INIT_DB=0
 INSTALL_CODEX_CONFIG=1
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-900000}"
+CODEX_STREAM_MAX_RETRIES="${CODEX_STREAM_MAX_RETRIES:-10}"
 SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
 
@@ -74,18 +75,21 @@ PY
   fi
 }
 
-configure_codex_stream_idle_timeout() {
+configure_codex_stream_resilience() {
   local codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
 
   select_python_bin
-  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" <<'PY'
+  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" <<'PY'
 from pathlib import Path
 import sys
 
 path = Path(sys.argv[1]).expanduser()
 timeout = sys.argv[2]
+retries = sys.argv[3]
 if not timeout.isdigit() or int(timeout) <= 0:
     raise SystemExit(f"invalid CODEX_STREAM_IDLE_TIMEOUT_MS: {timeout}")
+if not retries.isdigit() or int(retries) <= 0:
+    raise SystemExit(f"invalid CODEX_STREAM_MAX_RETRIES: {retries}")
 
 path.parent.mkdir(parents=True, exist_ok=True)
 text = path.read_text(encoding="utf-8") if path.exists() else ""
@@ -99,13 +103,14 @@ kept = []
 for line in preamble:
     stripped = line.strip()
     key = stripped.split("=", 1)[0].strip() if "=" in stripped else None
-    if key == "stream_idle_timeout_ms":
+    if key in {"stream_idle_timeout_ms", "stream_max_retries"}:
         continue
     kept.append(line)
 
 if kept and kept[-1].strip():
     kept.append("")
 kept.append(f"stream_idle_timeout_ms = {timeout}")
+kept.append(f"stream_max_retries = {retries}")
 
 if rest:
     kept.append("")
@@ -190,7 +195,7 @@ Options:
   --direction VALUE        claude-to-codex|codex-to-claude|bidirectional. Default: bidirectional.
   --prefer VALUE           none|claude|codex. Default: none.
   --mode VALUE             symlink|copy. Default: symlink.
-  --no-codex-config        Do not patch Codex stream idle timeout.
+  --no-codex-config        Do not patch Codex stream timeout/retry defaults.
   --no-registry            Do not install experiment-registry links.
   --registry-init-db       Initialize the local registry DB if missing.
   --no-cron                Write config but do not install crontab entry.
@@ -286,7 +291,7 @@ fi
 mkdir -p "$INSTALL_REAL/logs"
 configure_tmux_mouse_mode
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
-  configure_codex_stream_idle_timeout
+  configure_codex_stream_resilience
   configure_codex_hooks_feature
 fi
 
@@ -335,6 +340,7 @@ echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
 echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex stream idle timeout: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_IDLE_TIMEOUT_MS} ms"
+  echo "Codex stream max retries: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_MAX_RETRIES}"
 else
   echo "Codex config not changed (--no-codex-config)."
 fi

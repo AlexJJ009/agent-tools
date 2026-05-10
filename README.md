@@ -20,7 +20,7 @@ The recommended deployment model is one central tool directory per machine, not 
   schema, queries, validation scripts, and the `experiment-registry` skill.
 - `AGENTS.md` — project constraints for future agent changes.
 - `docs/CODEX_AUTOREVIEW_DEFAULT.md` — runbook for Codex defaults, including
-  AutoReview without Full Access and the 15-minute stream idle timeout.
+  AutoReview without Full Access and stream timeout/retry defaults.
 - `docs/CODEX_WSL2_PROXY.md` — WSL2-only Codex proxy wrapper runbook for the
   local Windows v2rayN HTTP proxy path; do not treat it as a cross-platform
   default.
@@ -126,13 +126,15 @@ The installer also patches the Codex user config for the Unix user running it:
 
 ```toml
 stream_idle_timeout_ms = 900000
+stream_max_retries = 10
 ```
 
-This is the default mitigation for Codex CLI/app compression or streaming idle
-timeouts. It preserves existing top-level settings such as `model`,
-`approval_policy`, `approvals_reviewer`, project trust entries, and TOML
-tables. Use `--no-codex-config` to skip this step, or set
-`CODEX_STREAM_IDLE_TIMEOUT_MS` to override the default value.
+This is the default mitigation for Codex CLI/app compression or streaming
+disconnects: 15 minutes of idle stream time and 10 SSE stream retry attempts.
+It preserves existing top-level settings such as `model`, `approval_policy`,
+`approvals_reviewer`, project trust entries, and TOML tables. Use
+`--no-codex-config` to skip this step, or set `CODEX_STREAM_IDLE_TIMEOUT_MS`
+and `CODEX_STREAM_MAX_RETRIES` to override the default values.
 
 ## Config
 

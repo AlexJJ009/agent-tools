@@ -117,6 +117,65 @@ if new_text != text:
 PY
 }
 
+configure_codex_hooks_feature() {
+  local codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
+
+  select_python_bin
+  "$PYTHON_BIN" - "$codex_config" <<'PY'
+from pathlib import Path
+import sys
+
+path = Path(sys.argv[1]).expanduser()
+path.parent.mkdir(parents=True, exist_ok=True)
+text = path.read_text(encoding="utf-8") if path.exists() else ""
+lines = text.splitlines()
+
+out = []
+in_features = False
+found_features = False
+inserted_hooks = False
+
+for line in lines:
+    stripped = line.strip()
+    starts_table = stripped.startswith("[") and stripped.endswith("]")
+
+    if starts_table and in_features:
+        if out and out[-1].strip():
+            out.append("")
+        out.append("hooks = true")
+        inserted_hooks = True
+        in_features = False
+
+    if stripped == "[features]":
+        found_features = True
+        in_features = True
+        out.append(line)
+        continue
+
+    if in_features and "=" in stripped and not stripped.startswith("#"):
+        key = stripped.split("=", 1)[0].strip()
+        if key in {"codex_hooks", "hooks"}:
+            continue
+
+    out.append(line)
+
+if in_features and not inserted_hooks:
+    if out and out[-1].strip():
+        out.append("")
+    out.append("hooks = true")
+    inserted_hooks = True
+
+if not found_features:
+    if out and out[-1].strip():
+        out.append("")
+    out.extend(["[features]", "hooks = true"])
+
+new_text = "\n".join(out).rstrip() + "\n"
+if new_text != text:
+    path.write_text(new_text, encoding="utf-8")
+PY
+}
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -228,6 +287,7 @@ mkdir -p "$INSTALL_REAL/logs"
 configure_tmux_mouse_mode
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   configure_codex_stream_idle_timeout
+  configure_codex_hooks_feature
 fi
 
 select_python_bin

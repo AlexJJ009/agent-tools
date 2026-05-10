@@ -3,7 +3,7 @@
 This runbook configures Codex so new conversations use the local default
 permission posture and tolerate long compression or streaming pauses.
 
-Tested with `codex-cli 0.125.0`.
+Tested with `codex-cli 0.130.0`.
 
 ## Target State
 
@@ -16,6 +16,13 @@ approvals_reviewer = "auto_review"
 stream_idle_timeout_ms = 900000
 ```
 
+Set the current hooks feature key under `[features]`:
+
+```toml
+[features]
+hooks = true
+```
+
 Meaning:
 
 - `approval_policy = "on-request"` keeps approval flow enabled.
@@ -25,6 +32,9 @@ Meaning:
   AutoReview reviewer instead of directly to the user.
 - `stream_idle_timeout_ms = 900000` gives Codex 15 minutes of idle stream time
   before treating compression or app/CLI streaming as timed out.
+- `[features].hooks = true` enables Codex lifecycle hooks with the current
+  feature flag name. If an older config contains `[features].codex_hooks`,
+  remove that key; Codex now warns that it is deprecated.
 
 Do not set these as the default for AutoReview:
 
@@ -103,14 +113,55 @@ if rest:
     kept.append("")
     kept.extend(rest)
 
-config_path.write_text("\n".join(kept).rstrip() + "\n", encoding="utf-8")
+lines = kept
+out = []
+in_features = False
+found_features = False
+inserted_hooks = False
+
+for line in lines:
+    stripped = line.strip()
+    starts_table = stripped.startswith("[") and stripped.endswith("]")
+
+    if starts_table and in_features:
+        if out and out[-1].strip():
+            out.append("")
+        out.append("hooks = true")
+        inserted_hooks = True
+        in_features = False
+
+    if stripped == "[features]":
+        found_features = True
+        in_features = True
+        out.append(line)
+        continue
+
+    if in_features and "=" in stripped and not stripped.startswith("#"):
+        key = stripped.split("=", 1)[0].strip()
+        if key in {"codex_hooks", "hooks"}:
+            continue
+
+    out.append(line)
+
+if in_features and not inserted_hooks:
+    if out and out[-1].strip():
+        out.append("")
+    out.append("hooks = true")
+
+if not found_features:
+    if out and out[-1].strip():
+        out.append("")
+    out.extend(["[features]", "hooks = true"])
+
+config_path.write_text("\n".join(out).rstrip() + "\n", encoding="utf-8")
 print(config_path)
 PY
 ```
 
 This preserves existing top-level settings such as `model`, existing project
 trust entries, and other TOML tables. It only replaces the three permission
-defaults and the stream idle timeout above.
+defaults and the stream idle timeout above. If `[features]` exists, also ensure
+it uses `hooks = true` rather than the deprecated `codex_hooks` key.
 
 ## Manual Setup
 
@@ -129,8 +180,16 @@ approvals_reviewer = "auto_review"
 stream_idle_timeout_ms = 900000
 ```
 
+Ensure the `[features]` table contains the current hooks flag:
+
+```toml
+[features]
+hooks = true
+```
+
 If older lines exist with different values for the same keys, replace them
-instead of adding duplicates.
+instead of adding duplicates. If `[features].codex_hooks` exists, replace it
+with `[features].hooks`.
 
 ## Validate
 
@@ -168,8 +227,9 @@ When asked to apply this on a new server or WSL2 machine:
 1. Confirm which Unix user launches Codex.
 2. Patch `${CODEX_HOME:-$HOME/.codex}/config.toml`.
 3. Preserve existing `model`, `[projects.*]`, `[features]`, and other tables.
-4. Validate with `codex features list`.
-5. Tell the user that only new Codex sessions pick up the new default.
+4. Remove `[features].codex_hooks` if present and set `[features].hooks = true`.
+5. Validate with `codex features list`.
+6. Tell the user that only new Codex sessions pick up the new default.
 
 When the user only asks for the compression/streaming timeout fix, patch only
 `stream_idle_timeout_ms = 900000` and preserve the current

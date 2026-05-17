@@ -194,6 +194,21 @@ kept.extend([
     f"stream_max_retries = {retries}",
 ])
 
+# Collapse runs of 2+ blank lines into 1 and strip leading blanks. Idempotent
+# across repeated runs so cosmetic gaps stop accumulating.
+def _compact(lines):
+    out = []
+    prev_blank = False
+    for line in lines:
+        is_blank = not line.strip()
+        if is_blank and (prev_blank or not out):
+            continue
+        out.append(line)
+        prev_blank = is_blank
+    return out
+
+kept = _compact(kept)
+
 new_text = "\n".join(kept).rstrip() + "\n"
 if new_text != text:
     path.write_text(new_text, encoding="utf-8")
@@ -277,6 +292,30 @@ if not found_features:
         out.append("")
     out.append("[features]")
     out.extend(feature_block())
+
+# Collapse runs of 2+ blank lines into 1 and strip leading blanks, then re-
+# tighten table headers so each `[table]` line abuts its keys (no blank line
+# right after the header).
+def _compact(lines):
+    cleaned = []
+    prev_blank = False
+    for line in lines:
+        is_blank = not line.strip()
+        if is_blank and (prev_blank or not cleaned):
+            continue
+        cleaned.append(line)
+        prev_blank = is_blank
+    # Drop a single blank line that appears immediately after a table header.
+    out = []
+    for i, line in enumerate(cleaned):
+        if i > 0 and not line.strip():
+            prev = cleaned[i - 1].strip()
+            if prev.startswith("[") and prev.endswith("]"):
+                continue
+        out.append(line)
+    return out
+
+out = _compact(out)
 
 new_text = "\n".join(out).rstrip() + "\n"
 if new_text != text:

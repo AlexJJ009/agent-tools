@@ -127,38 +127,57 @@ The installer also patches the Codex user config for the Unix user running it:
 ```toml
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
-approvals_reviewer = "auto_review"
-stream_idle_timeout_ms = 900000
+approvals_reviewer = "guardian_subagent"
+model = "gpt-5.5"
+model_reasoning_effort = "high"
+stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 model_provider = "openai-no-ws"
+
+[features]
+hooks = true
+memories = true
+goals = true
+terminal_resize_reflow = true
+remote_control = true
 
 [model_providers.openai-no-ws]
 name = "OpenAI HTTPS no WebSocket"
 base_url = "https://chatgpt.com/backend-api/codex"
 requires_openai_auth = true
 supports_websockets = false
-stream_idle_timeout_ms = 900000
+stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 ```
 
-This combines two defaults:
+This combines three default sets:
 
 - **AutoReview as the default permission posture** (`approval_policy`,
-  `sandbox_mode`, `approvals_reviewer`). New Codex conversations open in
-  AutoReview rather than Full Access. See
-  `docs/CODEX_AUTOREVIEW_DEFAULT.md` for the rationale and rollback.
+  `sandbox_mode`, `approvals_reviewer`). New Codex conversations open with the
+  Guardian subagent reviewing approvals rather than the user, and stay out of
+  Full Access. See `docs/CODEX_AUTOREVIEW_DEFAULT.md` for rationale and
+  rollback.
+- **Model + reasoning posture** (`model`, `model_reasoning_effort`). Pins the
+  default model and reasoning effort for new conversations.
 - **Compression / streaming resilience** (`stream_idle_timeout_ms`,
   `stream_max_retries`, `model_provider` + the managed `openai-no-ws`
-  provider). 15 minutes of idle stream time, 20 SSE retries, and an HTTPS-only
+  provider). 30 minutes of idle stream time, 20 SSE retries, and an HTTPS-only
   provider that avoids WebSocket transport on proxy paths where WebSocket TLS
   handshakes are unstable.
+- **Feature flags** (`[features]` block). Enables `hooks`, `memories`,
+  `goals`, `terminal_resize_reflow`, and `remote_control`. The installer also
+  removes the deprecated `codex_hooks` key if present.
 
-It preserves existing top-level settings such as `model`, project trust
-entries, and other TOML tables. Use `--no-codex-config` to skip this step, or
-override individual defaults via the env vars `CODEX_APPROVAL_POLICY`,
-`CODEX_SANDBOX_MODE`, `CODEX_APPROVALS_REVIEWER`,
-`CODEX_STREAM_IDLE_TIMEOUT_MS`, `CODEX_STREAM_MAX_RETRIES`, and
-`CODEX_MODEL_PROVIDER_ID`.
+It preserves existing top-level settings such as `service_tier`, project trust
+entries, and other TOML tables (e.g. `[mcp_servers.*]`, `[tui]`, `[notice]`).
+Use `--no-codex-config` to skip this step, or override individual defaults via
+env vars: `CODEX_APPROVAL_POLICY`, `CODEX_SANDBOX_MODE`,
+`CODEX_APPROVALS_REVIEWER`, `CODEX_MODEL`, `CODEX_MODEL_REASONING_EFFORT`,
+`CODEX_STREAM_IDLE_TIMEOUT_MS`, `CODEX_STREAM_MAX_RETRIES`,
+`CODEX_MODEL_PROVIDER_ID`, and `CODEX_FEATURE_HOOKS` /
+`CODEX_FEATURE_MEMORIES` / `CODEX_FEATURE_GOALS` /
+`CODEX_FEATURE_TERMINAL_RESIZE_REFLOW` / `CODEX_FEATURE_REMOTE_CONTROL`
+(each accepts `true` or `false`).
 
 When Codex config patching is enabled, the installer also scans existing
 project-level `.codex/config.toml` files under the configured `--root` paths and

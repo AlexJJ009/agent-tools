@@ -13,12 +13,19 @@ INSTALL_CRON=1
 INSTALL_REGISTRY=1
 REGISTRY_INIT_DB=0
 INSTALL_CODEX_CONFIG=1
-CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-900000}"
+CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-1800000}"
 CODEX_STREAM_MAX_RETRIES="${CODEX_STREAM_MAX_RETRIES:-20}"
 CODEX_MODEL_PROVIDER_ID="${CODEX_MODEL_PROVIDER_ID:-openai-no-ws}"
 CODEX_APPROVAL_POLICY="${CODEX_APPROVAL_POLICY:-on-request}"
 CODEX_SANDBOX_MODE="${CODEX_SANDBOX_MODE:-workspace-write}"
-CODEX_APPROVALS_REVIEWER="${CODEX_APPROVALS_REVIEWER:-auto_review}"
+CODEX_APPROVALS_REVIEWER="${CODEX_APPROVALS_REVIEWER:-guardian_subagent}"
+CODEX_MODEL="${CODEX_MODEL:-gpt-5.5}"
+CODEX_MODEL_REASONING_EFFORT="${CODEX_MODEL_REASONING_EFFORT:-high}"
+CODEX_FEATURE_HOOKS="${CODEX_FEATURE_HOOKS:-true}"
+CODEX_FEATURE_MEMORIES="${CODEX_FEATURE_MEMORIES:-true}"
+CODEX_FEATURE_GOALS="${CODEX_FEATURE_GOALS:-true}"
+CODEX_FEATURE_TERMINAL_RESIZE_REFLOW="${CODEX_FEATURE_TERMINAL_RESIZE_REFLOW:-true}"
+CODEX_FEATURE_REMOTE_CONTROL="${CODEX_FEATURE_REMOTE_CONTROL:-true}"
 AGENT_CORE_DIR="${AGENT_CORE_HOME:-$HOME/agent-core}"
 INSTALL_AGENT_CORE_ENTRIES=1
 AGENT_CORE_ENTRIES_STATUS=""
@@ -86,7 +93,7 @@ configure_codex_defaults() {
   local codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
 
   select_python_bin
-  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" "$CODEX_MODEL_PROVIDER_ID" "$CODEX_APPROVAL_POLICY" "$CODEX_SANDBOX_MODE" "$CODEX_APPROVALS_REVIEWER" <<'PY'
+  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" "$CODEX_MODEL_PROVIDER_ID" "$CODEX_APPROVAL_POLICY" "$CODEX_SANDBOX_MODE" "$CODEX_APPROVALS_REVIEWER" "$CODEX_MODEL" "$CODEX_MODEL_REASONING_EFFORT" <<'PY'
 from pathlib import Path
 import sys
 
@@ -97,6 +104,8 @@ provider_id = sys.argv[4]
 approval_policy = sys.argv[5]
 sandbox_mode = sys.argv[6]
 approvals_reviewer = sys.argv[7]
+model = sys.argv[8]
+model_reasoning_effort = sys.argv[9]
 if not timeout.isdigit() or int(timeout) <= 0:
     raise SystemExit(f"invalid CODEX_STREAM_IDLE_TIMEOUT_MS: {timeout}")
 if not retries.isdigit() or int(retries) <= 0:
@@ -105,13 +114,18 @@ if not provider_id or not all(c.isalnum() or c in "-_." for c in provider_id):
     raise SystemExit(f"invalid CODEX_MODEL_PROVIDER_ID: {provider_id}")
 ALLOWED_APPROVAL_POLICIES = {"on-request", "on-failure", "untrusted", "never"}
 ALLOWED_SANDBOX_MODES = {"read-only", "workspace-write", "danger-full-access"}
-ALLOWED_APPROVALS_REVIEWERS = {"user", "auto_review"}
+ALLOWED_APPROVALS_REVIEWERS = {"user", "auto_review", "guardian_subagent"}
+ALLOWED_REASONING_EFFORTS = {"minimal", "low", "medium", "high"}
 if approval_policy not in ALLOWED_APPROVAL_POLICIES:
     raise SystemExit(f"invalid CODEX_APPROVAL_POLICY: {approval_policy}")
 if sandbox_mode not in ALLOWED_SANDBOX_MODES:
     raise SystemExit(f"invalid CODEX_SANDBOX_MODE: {sandbox_mode}")
 if approvals_reviewer not in ALLOWED_APPROVALS_REVIEWERS:
     raise SystemExit(f"invalid CODEX_APPROVALS_REVIEWER: {approvals_reviewer}")
+if not model or not all(c.isalnum() or c in "-_." for c in model):
+    raise SystemExit(f"invalid CODEX_MODEL: {model}")
+if model_reasoning_effort not in ALLOWED_REASONING_EFFORTS:
+    raise SystemExit(f"invalid CODEX_MODEL_REASONING_EFFORT: {model_reasoning_effort}")
 
 path.parent.mkdir(parents=True, exist_ok=True)
 text = path.read_text(encoding="utf-8") if path.exists() else ""
@@ -121,11 +135,22 @@ first_table = next((i for i, line in enumerate(lines) if line.lstrip().startswit
 preamble = lines[:first_table]
 rest = lines[first_table:]
 
+managed_top_level = {
+    "stream_idle_timeout_ms",
+    "stream_max_retries",
+    "model_provider",
+    "approval_policy",
+    "sandbox_mode",
+    "approvals_reviewer",
+    "model",
+    "model_reasoning_effort",
+}
+
 kept = []
 for line in preamble:
     stripped = line.strip()
     key = stripped.split("=", 1)[0].strip() if "=" in stripped else None
-    if key in {"stream_idle_timeout_ms", "stream_max_retries", "model_provider", "approval_policy", "sandbox_mode", "approvals_reviewer"}:
+    if key in managed_top_level:
         continue
     kept.append(line)
 
@@ -134,6 +159,8 @@ if kept and kept[-1].strip():
 kept.append(f'approval_policy = "{approval_policy}"')
 kept.append(f'sandbox_mode = "{sandbox_mode}"')
 kept.append(f'approvals_reviewer = "{approvals_reviewer}"')
+kept.append(f'model = "{model}"')
+kept.append(f'model_reasoning_effort = "{model_reasoning_effort}"')
 kept.append(f"stream_idle_timeout_ms = {timeout}")
 kept.append(f"stream_max_retries = {retries}")
 kept.append(f'model_provider = "{provider_id}"')
@@ -173,15 +200,36 @@ if new_text != text:
 PY
 }
 
-configure_codex_hooks_feature() {
+configure_codex_features() {
   local codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
 
   select_python_bin
-  "$PYTHON_BIN" - "$codex_config" <<'PY'
+  "$PYTHON_BIN" - "$codex_config" \
+      "$CODEX_FEATURE_HOOKS" \
+      "$CODEX_FEATURE_MEMORIES" \
+      "$CODEX_FEATURE_GOALS" \
+      "$CODEX_FEATURE_TERMINAL_RESIZE_REFLOW" \
+      "$CODEX_FEATURE_REMOTE_CONTROL" <<'PY'
 from pathlib import Path
 import sys
 
 path = Path(sys.argv[1]).expanduser()
+
+FEATURE_KEYS = [
+    ("hooks", sys.argv[2]),
+    ("memories", sys.argv[3]),
+    ("goals", sys.argv[4]),
+    ("terminal_resize_reflow", sys.argv[5]),
+    ("remote_control", sys.argv[6]),
+]
+
+ALLOWED_VALUES = {"true", "false"}
+for name, value in FEATURE_KEYS:
+    if value not in ALLOWED_VALUES:
+        raise SystemExit(f"invalid CODEX_FEATURE_{name.upper()}: {value} (expected true|false)")
+
+managed = {name for name, _ in FEATURE_KEYS} | {"codex_hooks"}
+
 path.parent.mkdir(parents=True, exist_ok=True)
 text = path.read_text(encoding="utf-8") if path.exists() else ""
 lines = text.splitlines()
@@ -189,7 +237,10 @@ lines = text.splitlines()
 out = []
 in_features = False
 found_features = False
-inserted_hooks = False
+inserted = False
+
+def feature_block():
+    return [f"{name} = {value}" for name, value in FEATURE_KEYS]
 
 for line in lines:
     stripped = line.strip()
@@ -198,8 +249,8 @@ for line in lines:
     if starts_table and in_features:
         if out and out[-1].strip():
             out.append("")
-        out.append("hooks = true")
-        inserted_hooks = True
+        out.extend(feature_block())
+        inserted = True
         in_features = False
 
     if stripped == "[features]":
@@ -210,21 +261,22 @@ for line in lines:
 
     if in_features and "=" in stripped and not stripped.startswith("#"):
         key = stripped.split("=", 1)[0].strip()
-        if key in {"codex_hooks", "hooks"}:
+        if key in managed:
             continue
 
     out.append(line)
 
-if in_features and not inserted_hooks:
+if in_features and not inserted:
     if out and out[-1].strip():
         out.append("")
-    out.append("hooks = true")
-    inserted_hooks = True
+    out.extend(feature_block())
+    inserted = True
 
 if not found_features:
     if out and out[-1].strip():
         out.append("")
-    out.extend(["[features]", "hooks = true"])
+    out.append("[features]")
+    out.extend(feature_block())
 
 new_text = "\n".join(out).rstrip() + "\n"
 if new_text != text:
@@ -394,8 +446,9 @@ Options:
   --prefer VALUE           none|claude|codex. Default: none.
   --mode VALUE             symlink|copy. Default: symlink.
   --no-codex-config        Do not patch Codex default config (approval policy,
-                           sandbox mode, approvals reviewer, stream timeout/retry,
-                           model provider).
+                           sandbox mode, approvals reviewer, model + reasoning
+                           effort, stream timeout/retry, model provider,
+                           [features] block).
   --no-registry            Do not install experiment-registry links.
   --registry-init-db       Initialize the local registry DB if missing.
   --no-cron                Write config but do not install crontab entry.
@@ -497,7 +550,7 @@ mkdir -p "$INSTALL_REAL/logs"
 configure_tmux_mouse_mode
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   configure_codex_defaults
-  configure_codex_hooks_feature
+  configure_codex_features
   configure_codex_project_hooks_features
 fi
 if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
@@ -551,9 +604,11 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex approval policy: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_APPROVAL_POLICY}"
   echo "Codex sandbox mode: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_SANDBOX_MODE}"
   echo "Codex approvals reviewer: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_APPROVALS_REVIEWER}"
+  echo "Codex model: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL} (reasoning: ${CODEX_MODEL_REASONING_EFFORT})"
   echo "Codex stream idle timeout: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_IDLE_TIMEOUT_MS} ms"
   echo "Codex stream max retries: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_MAX_RETRIES}"
   echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (HTTPS, no WebSocket)"
+  echo "Codex [features]: hooks=${CODEX_FEATURE_HOOKS} memories=${CODEX_FEATURE_MEMORIES} goals=${CODEX_FEATURE_GOALS} terminal_resize_reflow=${CODEX_FEATURE_TERMINAL_RESIZE_REFLOW} remote_control=${CODEX_FEATURE_REMOTE_CONTROL}"
 else
   echo "Codex config not changed (--no-codex-config)."
 fi

@@ -125,6 +125,9 @@ the config and set the live global `mouse` option.
 The installer also patches the Codex user config for the Unix user running it:
 
 ```toml
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+approvals_reviewer = "auto_review"
 stream_idle_timeout_ms = 900000
 stream_max_retries = 20
 model_provider = "openai-no-ws"
@@ -138,14 +141,24 @@ stream_idle_timeout_ms = 900000
 stream_max_retries = 20
 ```
 
-This is the default mitigation for Codex CLI/app compression or streaming
-disconnects: 15 minutes of idle stream time, 20 SSE stream retry attempts, and
-an HTTPS-only Codex provider that avoids the WebSocket transport on proxy paths
-where WebSocket TLS handshakes are unstable. It preserves existing top-level
-settings such as `model`, `approval_policy`, `approvals_reviewer`, project trust
-entries, and TOML tables. Use `--no-codex-config` to skip this step, or set
+This combines two defaults:
+
+- **AutoReview as the default permission posture** (`approval_policy`,
+  `sandbox_mode`, `approvals_reviewer`). New Codex conversations open in
+  AutoReview rather than Full Access. See
+  `docs/CODEX_AUTOREVIEW_DEFAULT.md` for the rationale and rollback.
+- **Compression / streaming resilience** (`stream_idle_timeout_ms`,
+  `stream_max_retries`, `model_provider` + the managed `openai-no-ws`
+  provider). 15 minutes of idle stream time, 20 SSE retries, and an HTTPS-only
+  provider that avoids WebSocket transport on proxy paths where WebSocket TLS
+  handshakes are unstable.
+
+It preserves existing top-level settings such as `model`, project trust
+entries, and other TOML tables. Use `--no-codex-config` to skip this step, or
+override individual defaults via the env vars `CODEX_APPROVAL_POLICY`,
+`CODEX_SANDBOX_MODE`, `CODEX_APPROVALS_REVIEWER`,
 `CODEX_STREAM_IDLE_TIMEOUT_MS`, `CODEX_STREAM_MAX_RETRIES`, and
-`CODEX_MODEL_PROVIDER_ID` to override the default values.
+`CODEX_MODEL_PROVIDER_ID`.
 
 When Codex config patching is enabled, the installer also scans existing
 project-level `.codex/config.toml` files under the configured `--root` paths and

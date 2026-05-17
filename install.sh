@@ -16,6 +16,9 @@ INSTALL_CODEX_CONFIG=1
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-900000}"
 CODEX_STREAM_MAX_RETRIES="${CODEX_STREAM_MAX_RETRIES:-20}"
 CODEX_MODEL_PROVIDER_ID="${CODEX_MODEL_PROVIDER_ID:-openai-no-ws}"
+CODEX_APPROVAL_POLICY="${CODEX_APPROVAL_POLICY:-on-request}"
+CODEX_SANDBOX_MODE="${CODEX_SANDBOX_MODE:-workspace-write}"
+CODEX_APPROVALS_REVIEWER="${CODEX_APPROVALS_REVIEWER:-auto_review}"
 SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
 
@@ -76,11 +79,11 @@ PY
   fi
 }
 
-configure_codex_stream_resilience() {
+configure_codex_defaults() {
   local codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
 
   select_python_bin
-  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" "$CODEX_MODEL_PROVIDER_ID" <<'PY'
+  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" "$CODEX_MODEL_PROVIDER_ID" "$CODEX_APPROVAL_POLICY" "$CODEX_SANDBOX_MODE" "$CODEX_APPROVALS_REVIEWER" <<'PY'
 from pathlib import Path
 import sys
 
@@ -88,12 +91,24 @@ path = Path(sys.argv[1]).expanduser()
 timeout = sys.argv[2]
 retries = sys.argv[3]
 provider_id = sys.argv[4]
+approval_policy = sys.argv[5]
+sandbox_mode = sys.argv[6]
+approvals_reviewer = sys.argv[7]
 if not timeout.isdigit() or int(timeout) <= 0:
     raise SystemExit(f"invalid CODEX_STREAM_IDLE_TIMEOUT_MS: {timeout}")
 if not retries.isdigit() or int(retries) <= 0:
     raise SystemExit(f"invalid CODEX_STREAM_MAX_RETRIES: {retries}")
 if not provider_id or not all(c.isalnum() or c in "-_." for c in provider_id):
     raise SystemExit(f"invalid CODEX_MODEL_PROVIDER_ID: {provider_id}")
+ALLOWED_APPROVAL_POLICIES = {"on-request", "on-failure", "untrusted", "never"}
+ALLOWED_SANDBOX_MODES = {"read-only", "workspace-write", "danger-full-access"}
+ALLOWED_APPROVALS_REVIEWERS = {"user", "auto_review"}
+if approval_policy not in ALLOWED_APPROVAL_POLICIES:
+    raise SystemExit(f"invalid CODEX_APPROVAL_POLICY: {approval_policy}")
+if sandbox_mode not in ALLOWED_SANDBOX_MODES:
+    raise SystemExit(f"invalid CODEX_SANDBOX_MODE: {sandbox_mode}")
+if approvals_reviewer not in ALLOWED_APPROVALS_REVIEWERS:
+    raise SystemExit(f"invalid CODEX_APPROVALS_REVIEWER: {approvals_reviewer}")
 
 path.parent.mkdir(parents=True, exist_ok=True)
 text = path.read_text(encoding="utf-8") if path.exists() else ""
@@ -107,12 +122,15 @@ kept = []
 for line in preamble:
     stripped = line.strip()
     key = stripped.split("=", 1)[0].strip() if "=" in stripped else None
-    if key in {"stream_idle_timeout_ms", "stream_max_retries", "model_provider"}:
+    if key in {"stream_idle_timeout_ms", "stream_max_retries", "model_provider", "approval_policy", "sandbox_mode", "approvals_reviewer"}:
         continue
     kept.append(line)
 
 if kept and kept[-1].strip():
     kept.append("")
+kept.append(f'approval_policy = "{approval_policy}"')
+kept.append(f'sandbox_mode = "{sandbox_mode}"')
+kept.append(f'approvals_reviewer = "{approvals_reviewer}"')
 kept.append(f"stream_idle_timeout_ms = {timeout}")
 kept.append(f"stream_max_retries = {retries}")
 kept.append(f'model_provider = "{provider_id}"')
@@ -319,7 +337,9 @@ Options:
   --direction VALUE        claude-to-codex|codex-to-claude|bidirectional. Default: bidirectional.
   --prefer VALUE           none|claude|codex. Default: none.
   --mode VALUE             symlink|copy. Default: symlink.
-  --no-codex-config        Do not patch Codex stream timeout/retry defaults.
+  --no-codex-config        Do not patch Codex default config (approval policy,
+                           sandbox mode, approvals reviewer, stream timeout/retry,
+                           model provider).
   --no-registry            Do not install experiment-registry links.
   --registry-init-db       Initialize the local registry DB if missing.
   --no-cron                Write config but do not install crontab entry.
@@ -415,7 +435,7 @@ fi
 mkdir -p "$INSTALL_REAL/logs"
 configure_tmux_mouse_mode
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
-  configure_codex_stream_resilience
+  configure_codex_defaults
   configure_codex_hooks_feature
   configure_codex_project_hooks_features
 fi
@@ -464,6 +484,9 @@ echo "Installed agent context sync tools in $INSTALL_REAL"
 echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
 echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
+  echo "Codex approval policy: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_APPROVAL_POLICY}"
+  echo "Codex sandbox mode: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_SANDBOX_MODE}"
+  echo "Codex approvals reviewer: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_APPROVALS_REVIEWER}"
   echo "Codex stream idle timeout: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_IDLE_TIMEOUT_MS} ms"
   echo "Codex stream max retries: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_MAX_RETRIES}"
   echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (HTTPS, no WebSocket)"

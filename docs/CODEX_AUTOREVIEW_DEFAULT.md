@@ -3,6 +3,12 @@
 This runbook configures Codex so new conversations use the local default
 permission posture and tolerate long compression or streaming pauses.
 
+**As of the current `install.sh`, every section below is applied
+automatically.** Re-run `./install.sh` (with or without `--root` flags) and the
+target state lands in `~/.codex/config.toml` exactly as written here. The rest
+of this document is the rationale, override knobs, and manual fallback when
+running `install.sh` is not an option.
+
 Tested with `codex-cli 0.130.0`.
 
 ## Target State
@@ -288,16 +294,21 @@ Default flow:
 When asked to apply this on a new server or WSL2 machine:
 
 1. Confirm which Unix user launches Codex.
-2. Patch `${CODEX_HOME:-$HOME/.codex}/config.toml`.
-3. Preserve existing `model`, `[projects.*]`, `[features]`, and other tables.
-4. Remove `[features].codex_hooks` if present and set `[features].hooks = true`.
+2. Run `./install.sh` (with appropriate `--root` flags). It writes all six
+   managed keys plus the `openai-no-ws` provider and `[features].hooks = true`.
+3. If `install.sh` cannot run, use the One-Shot Setup or Manual Setup block
+   above to patch `${CODEX_HOME:-$HOME/.codex}/config.toml` directly.
+4. Preserve existing `model`, `[projects.*]`, and other TOML tables. The
+   installer already does this.
 5. Validate with `codex features list`.
 6. Tell the user that only new Codex sessions pick up the new default.
 
-When the user only asks for the compression/streaming resilience fix, patch
-only `stream_idle_timeout_ms = 900000`, `stream_max_retries = 20`, and the
-`openai-no-ws` provider block above; preserve the current `approvals_reviewer`
-value.
+To deviate from the defaults (e.g. keep an existing `approvals_reviewer = "user"`
+or use a non-default stream timeout), set the matching env var before running
+`install.sh`: `CODEX_APPROVAL_POLICY`, `CODEX_SANDBOX_MODE`,
+`CODEX_APPROVALS_REVIEWER`, `CODEX_STREAM_IDLE_TIMEOUT_MS`,
+`CODEX_STREAM_MAX_RETRIES`, `CODEX_MODEL_PROVIDER_ID`. Use `--no-codex-config`
+to skip the codex patch entirely.
 
 ## Rollback
 

@@ -166,6 +166,15 @@ migrates hook-enabled projects from deprecated `[features].codex_hooks` to
 `[features].hooks`. It only updates existing project config files that already
 contain hook config or the deprecated key.
 
+The installer also verifies the agent-core user-level entry symlinks if
+`~/agent-core/scripts/install.sh` is present (override via `AGENT_CORE_HOME`).
+Concretely it checks that `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` are
+symlinks resolving inside `$AGENT_CORE_HOME/adapters/`. If either is missing,
+it invokes agent-core's `install.sh` to restore the symlinks. If a destination
+is a regular file or points elsewhere, the installer leaves it alone and prints
+a conflict line so a human can decide. Use `--no-agent-core` to disable this
+check entirely.
+
 ## Config
 
 `agent_context_sync.config.json` is intentionally machine-local:

@@ -19,6 +19,9 @@ CODEX_MODEL_PROVIDER_ID="${CODEX_MODEL_PROVIDER_ID:-openai-no-ws}"
 CODEX_APPROVAL_POLICY="${CODEX_APPROVAL_POLICY:-on-request}"
 CODEX_SANDBOX_MODE="${CODEX_SANDBOX_MODE:-workspace-write}"
 CODEX_APPROVALS_REVIEWER="${CODEX_APPROVALS_REVIEWER:-auto_review}"
+AGENT_CORE_DIR="${AGENT_CORE_HOME:-$HOME/agent-core}"
+INSTALL_AGENT_CORE_ENTRIES=1
+AGENT_CORE_ENTRIES_STATUS=""
 SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
 
@@ -323,6 +326,59 @@ for path in changed:
 PY
 }
 
+verify_agent_core_entries() {
+  AGENT_CORE_ENTRIES_STATUS="skipped"
+
+  local install_script="$AGENT_CORE_DIR/scripts/install.sh"
+  if [[ ! -x "$install_script" ]]; then
+    AGENT_CORE_ENTRIES_STATUS="absent: no $install_script"
+    return 0
+  fi
+
+  local claude_src="$AGENT_CORE_DIR/adapters/claude/CLAUDE.md"
+  local codex_src="$AGENT_CORE_DIR/adapters/codex/AGENTS.md"
+  local claude_dst="$HOME/.claude/CLAUDE.md"
+  local codex_dst="$HOME/.codex/AGENTS.md"
+
+  local missing=()
+  local conflicts=()
+  local pair dst src current expected
+
+  for pair in "$claude_dst|$claude_src" "$codex_dst|$codex_src"; do
+    dst="${pair%|*}"
+    src="${pair#*|}"
+    if [[ -L "$dst" ]]; then
+      current="$(readlink -f -- "$dst" 2>/dev/null || true)"
+      expected="$(readlink -f -- "$src" 2>/dev/null || true)"
+      if [[ -z "$current" || "$current" != "$expected" ]]; then
+        conflicts+=("$dst -> $(readlink -- "$dst") (expected target inside $AGENT_CORE_DIR)")
+      fi
+    elif [[ -e "$dst" ]]; then
+      conflicts+=("$dst exists as a regular file, not a symlink")
+    else
+      missing+=("$dst")
+    fi
+  done
+
+  if [[ ${#conflicts[@]} -gt 0 ]]; then
+    AGENT_CORE_ENTRIES_STATUS="conflict; not auto-running agent-core install.sh"
+    printf '%s\n' "agent-core entries have conflicts; not auto-running $install_script:" >&2
+    local c
+    for c in "${conflicts[@]}"; do
+      printf '  %s\n' "$c" >&2
+    done
+    return 0
+  fi
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    printf 'agent-core entries missing; running %s\n' "$install_script"
+    bash "$install_script"
+    AGENT_CORE_ENTRIES_STATUS="installed via $install_script"
+  else
+    AGENT_CORE_ENTRIES_STATUS="already linked to $AGENT_CORE_DIR"
+  fi
+}
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -343,6 +399,7 @@ Options:
   --no-registry            Do not install experiment-registry links.
   --registry-init-db       Initialize the local registry DB if missing.
   --no-cron                Write config but do not install crontab entry.
+  --no-agent-core          Do not auto-verify or run ~/agent-core/scripts/install.sh.
   -h, --help               Show this help.
 EOF
 }
@@ -397,6 +454,10 @@ while [[ $# -gt 0 ]]; do
       REGISTRY_INIT_DB=1
       shift
       ;;
+    --no-agent-core)
+      INSTALL_AGENT_CORE_ENTRIES=0
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -438,6 +499,9 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   configure_codex_defaults
   configure_codex_hooks_feature
   configure_codex_project_hooks_features
+fi
+if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
+  verify_agent_core_entries
 fi
 
 select_python_bin
@@ -502,4 +566,9 @@ if [[ "$INSTALL_REGISTRY" -eq 1 ]]; then
   echo "Experiment registry links checked from: $INSTALL_REAL/experiment_registry"
 else
   echo "Experiment registry links not installed (--no-registry)."
+fi
+if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
+  echo "agent-core entries ($AGENT_CORE_DIR): ${AGENT_CORE_ENTRIES_STATUS}"
+else
+  echo "agent-core entries not checked (--no-agent-core)."
 fi

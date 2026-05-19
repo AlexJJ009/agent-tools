@@ -24,6 +24,9 @@ The recommended deployment model is one central tool directory per machine, not 
 - `docs/CODEX_WSL2_PROXY.md` — WSL2-only Codex proxy wrapper runbook for the
   local Windows v2rayN HTTP proxy path; do not treat it as a cross-platform
   default.
+- `docs/CODEX_REMOTE_CONTROL.md` — Codex CLI remote-control runbook for
+  standalone installs, proxy-wrapped WSL2 app-server daemons, and host-specific
+  proxy port probing.
 - `docs/CODEX_PLAYWRIGHT_TOOLS.md` — WSL2 machine-local Playwright MCP and
   Chromium screenshot entry points for Codex browser/visual-QA work. Other
   servers still need their own installation/registration.
@@ -71,6 +74,27 @@ For WSL2, typical roots may be:
 
 ```bash
 ./install.sh --root ~/projects --root /mnt/d/projects
+```
+
+For WSL2 Codex remote control through a local Windows proxy, let the installer
+probe common proxy ports before installing the Codex wrapper:
+
+```bash
+CODEX_PROXY_PORTS="7897 7890 7891 10809 10808 8080" \
+  ./install.sh --root ~/projects --codex-proxy-wrapper auto
+```
+
+If the host's proxy port is known, pass it explicitly:
+
+```bash
+CODEX_PROXY_URL=http://127.0.0.1:7897 \
+  ./install.sh --root ~/projects --codex-proxy-wrapper always
+```
+
+For ordinary Linux servers without a local proxy wrapper:
+
+```bash
+./install.sh --root /data-1 --codex-proxy-wrapper never
 ```
 
 The installer writes `agent_context_sync.config.json` using the actual paths on the current machine and installs a cron heartbeat by default. It also installs experiment registry symlinks when `experiment_registry/` is present. The local SQLite database is not created unless `--registry-init-db` is passed.
@@ -184,6 +208,15 @@ project-level `.codex/config.toml` files under the configured `--root` paths and
 migrates hook-enabled projects from deprecated `[features].codex_hooks` to
 `[features].hooks`. It only updates existing project config files that already
 contain hook config or the deprecated key.
+
+The installer can also install a WSL2 Codex proxy wrapper before starting remote
+control. The wrapper mode is controlled by `--codex-proxy-wrapper auto|always|never`.
+In `auto` mode, it probes `CODEX_PROXY_PORTS` on `CODEX_PROXY_HOST` and installs
+the wrapper only when a candidate reaches the Codex backend. Use
+`CODEX_PROXY_URL` for a known host-specific proxy URL. By default the installer
+runs `codex remote-control start`; pass `--no-codex-remote-control` to only
+write configuration. See `docs/CODEX_REMOTE_CONTROL.md` for standalone binary
+and daemon validation details.
 
 The installer also verifies the agent-core user-level entry symlinks if
 `~/agent-core/scripts/install.sh` is present (override via `AGENT_CORE_HOME`).

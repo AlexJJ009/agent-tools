@@ -70,7 +70,10 @@ Meaning:
   on this WSL2-to-Windows-proxy path while keeping HTTPS `/responses` working.
 - `[features]` enables Codex lifecycle hooks, the memory layer, goal tracking,
   terminal resize reflow, and remote control. The installer removes the
-  deprecated `[features].codex_hooks` key if present.
+  deprecated `[features].codex_hooks` key if present. Do not use top-level
+  `remote_control = true`, and do not write `remote_connections = true`;
+  current Codex CLI remote control is started through the `codex remote-control`
+  / `codex app-server daemon` command path.
 
 Do not set these as the default for AutoReview:
 
@@ -136,7 +139,9 @@ The installer preserves existing top-level settings such as `service_tier`,
 existing project trust entries, and other TOML tables (`[mcp_servers.*]`,
 `[tui]`, `[notice]`, etc.). It only replaces the managed keys above and the
 managed HTTPS-only Codex provider, and removes the deprecated
-`[features].codex_hooks` key if present.
+`[features].codex_hooks` key if present. It also removes stale top-level
+`remote_control` and any `remote_connections` key when normalizing managed
+features.
 
 ## Manual Setup
 
@@ -184,7 +189,9 @@ remote_control = true
 
 If older lines exist with different values for the same keys, replace them
 instead of adding duplicates. If `[features].codex_hooks` exists, replace it
-with `[features].hooks`.
+with `[features].hooks`. If top-level `remote_control` or any
+`remote_connections` key exists, remove it and keep only
+`[features].remote_control = true`.
 
 ## Validate
 
@@ -230,8 +237,9 @@ When asked to apply this on a new server or WSL2 machine:
    above to patch `${CODEX_HOME:-$HOME/.codex}/config.toml` directly.
 4. Preserve existing `service_tier`, `[projects.*]`, `[mcp_servers.*]`,
    `[tui]`, `[notice]`, and other TOML tables. The installer already does this.
-5. Validate with `codex features list`.
-6. Tell the user that only new Codex sessions pick up the new default.
+5. Remove top-level `remote_control` and any `remote_connections` key if present.
+6. Validate with `codex features list`.
+7. Tell the user that only new Codex sessions pick up the new default.
 
 To deviate from the defaults, set the matching env var before running
 `install.sh`:

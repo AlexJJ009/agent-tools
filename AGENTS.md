@@ -5,11 +5,12 @@
   `${HOME}/.tmux.conf` containing `set -g mouse on`. Do not replace this with
   terminal-only scrollbar guidance; tmux scrolling must work through tmux mouse
   mode.
-- The Codex proxy wrapper that routes Codex through
-  `http://127.0.0.1:7897` is a WSL2-only workaround for this machine topology:
+- The Codex proxy wrapper is a WSL2-only workaround for this machine topology:
   WSL2 Codex reaches the Windows v2rayN HTTP proxy while the default TUN/fake-IP
-  path is unstable. Do not apply it as a normal Linux, macOS, or native Windows
-  default. See `docs/CODEX_WSL2_PROXY.md`.
+  path is unstable. Do not hard-code `127.0.0.1:7897` as a universal default;
+  probe the current host's proxy port first, or set `CODEX_PROXY_URL` /
+  `CODEX_PROXY_PORTS` explicitly. Do not apply this as a normal Linux, macOS,
+  or native Windows default. See `docs/CODEX_WSL2_PROXY.md`.
 - Codex default config should include `stream_idle_timeout_ms = 900000` and
   `stream_max_retries = 20` to tolerate long compression pauses and transient
   SSE streaming disconnects. It should also use the `openai-no-ws` custom

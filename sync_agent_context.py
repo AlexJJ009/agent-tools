@@ -510,6 +510,7 @@ def generate_codex_config_toml(converted_hooks: dict[str, Any] | None) -> str:
         "",
         "[features]",
         "hooks = true",
+        "remote_control = true",
         "",
         "[hooks]",
     ]

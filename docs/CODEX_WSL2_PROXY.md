@@ -18,6 +18,12 @@ Do not install this wrapper on ordinary Linux servers, macOS, or native Windows
 Codex installs unless that machine has the same WSL2-to-Windows proxy topology
 or an explicitly verified local proxy.
 
+On public Linux servers such as Linode, prefer direct Codex networking unless a
+local proxy is deliberately installed on that server. Copying a WSL wrapper that
+forces `HTTP_PROXY=http://127.0.0.1:7897` can break remote-control registration:
+the local daemon may start, but outbound registration/discovery traffic cannot
+reach the Codex backend if nothing is listening on that loopback port.
+
 ## Probe The Proxy Port
 
 Do not hard-code `7897` on a new host. First test the actual proxy ingress:
@@ -46,6 +52,40 @@ When the port is known, make it explicit:
 
 ```bash
 CODEX_PROXY_URL=http://127.0.0.1:7897 ./install.sh --codex-proxy-wrapper always
+```
+
+For ordinary Linux servers, check direct connectivity first:
+
+```bash
+curl -I --max-time 10 https://chatgpt.com/backend-api/codex/responses
+curl -I --max-time 10 -x http://127.0.0.1:7897 https://chatgpt.com/backend-api/codex/responses
+```
+
+Interpretation:
+
+- Direct `405 Allow: POST`: the server does not need the WSL proxy wrapper.
+- Proxy failure on `127.0.0.1:7897`: do not launch Codex through that proxy on
+  this server.
+- `~/.local/bin/codex` contains `HTTP_PROXY=...7897`: disable the wrapper before
+  starting remote control.
+
+Disable an accidental server-side proxy wrapper by restoring the standalone
+binary symlink:
+
+```bash
+mv ~/.local/bin/codex ~/.local/bin/codex.proxy-wrapper.disabled.$(date +%Y%m%d-%H%M%S)
+ln -s ~/.codex/packages/standalone/current/codex ~/.local/bin/codex
+hash -r
+
+codex app-server daemon restart
+codex remote-control start
+codex app-server daemon version
+```
+
+Future server installs should make the intent explicit:
+
+```bash
+./install.sh --root /data-1 --codex-proxy-wrapper never
 ```
 
 ## Target State

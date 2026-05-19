@@ -137,6 +137,52 @@ codex remote-control start
 Use `--no-codex-remote-control` if the machine should be configured but not
 start the daemon yet.
 
+## Stop And Restart Caution
+
+`codex remote-control stop` stops the managed app-server daemon. In practice,
+that can also terminate or disconnect active Codex processes that depend on the
+same local app-server, including the current session on that host. Do not run it
+casually from inside an important active Codex conversation.
+
+Observed `codex-cli 0.131.0` behavior:
+
+- `codex remote-control stop` may appear to hang while the daemon is shutting
+  down.
+- A successful stop can surface as a transport error such as:
+
+  ```text
+  WebSocket protocol error: Connection reset without closing handshake
+  ```
+
+  This can simply mean the app-server closed the control socket during shutdown.
+- After that error, verify the real state before retrying:
+
+  ```bash
+  pgrep -a -u "$USER" -f 'codex (app-server|remote-control)'
+  codex app-server daemon version
+  ls -la ~/.codex/app-server-control ~/.codex/app-server-daemon
+  ```
+
+If `app-server --remote-control` is gone and
+`~/.codex/app-server-control/app-server-control.sock` is missing, the stop
+already worked. Start it again with:
+
+```bash
+codex remote-control start
+codex app-server daemon version
+```
+
+For routine config changes, prefer the managed restart command when possible:
+
+```bash
+codex app-server daemon restart
+codex app-server daemon version
+```
+
+If a standalone `codex remote-control stop` process is stuck but the daemon
+state is already understood, terminate only that CLI process, then start remote
+control again. Do not kill all `codex` processes blindly from an active session.
+
 ## Validate
 
 Check daemon state:

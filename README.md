@@ -27,6 +27,9 @@ The recommended deployment model is one central tool directory per machine, not 
 - `docs/CODEX_REMOTE_CONTROL.md` — Codex CLI remote-control runbook for
   standalone installs, proxy-wrapped WSL2 app-server daemons, and host-specific
   proxy port probing.
+- `docs/CLI_SERVER_BOOTSTRAP.md` — repeatable Linux server bootstrap for latest
+  Codex CLI, Claude Code, GitHub CLI, `cc-switch-cli`, `ripgrep`, and Codex
+  API-provider configuration with per-server keys/Base URLs.
 - `docs/CODEX_PLAYWRIGHT_TOOLS.md` — WSL2 machine-local Playwright MCP and
   Chromium screenshot entry points for Codex browser/visual-QA work. Other
   servers still need their own installation/registration.
@@ -96,6 +99,10 @@ For ordinary Linux servers without a local proxy wrapper:
 ```bash
 ./install.sh --root /data-1 --codex-proxy-wrapper never
 ```
+
+For a full repeatable server setup that also installs the latest Codex CLI,
+Claude Code, GitHub CLI, `cc-switch-cli`, `ripgrep`, and Codex API providers
+from fresh keys/Base URLs, follow `docs/CLI_SERVER_BOOTSTRAP.md`.
 
 The installer writes `agent_context_sync.config.json` using the actual paths on the current machine and installs a cron heartbeat by default. It also installs experiment registry symlinks when `experiment_registry/` is present. The local SQLite database is not created unless `--registry-init-db` is passed.
 

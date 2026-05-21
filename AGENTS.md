@@ -21,3 +21,11 @@
   approval reviewer; do not overwrite an existing `approvals_reviewer` value
   unless the user explicitly asks for approval-mode changes. See
   `docs/CODEX_AUTOREVIEW_DEFAULT.md`.
+- For repeat Linux server deployment of Codex CLI, Claude Code, GitHub CLI,
+  `cc-switch-cli`, `ripgrep`, and Codex API providers, use
+  `docs/CLI_SERVER_BOOTSTRAP.md`. Never store real GitHub PATs or provider API
+  keys in repo files; the runbook should keep keys on the target machine with
+  `0600` permissions and accept fresh keys/Base URLs per server. For that
+  custom-provider path, keep stream timeout/retry keys inside each
+  `[model_providers.<id>]` table; do not add them as top-level keys if the
+  current standalone Codex CLI rejects them under `--strict-config`.

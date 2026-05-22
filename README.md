@@ -15,6 +15,8 @@ The recommended deployment model is one central tool directory per machine, not 
 - `sync_agent_context_cron.sh` — heartbeat wrapper for cron.
 - `codex_project_memory.py` — creates a project-local Codex memory layer and
   can import Claude Code auto memory.
+- `bin/codex-here` — portable launcher that starts Codex with the current shell
+  directory pinned via `codex -C "$PWD"`.
 - `install.sh` — portable installer for a new Linux/WSL2 machine.
 - `experiment_registry/` — canonical SQLite experiment registry tooling,
   schema, queries, validation scripts, and the `experiment-registry` skill.
@@ -198,6 +200,29 @@ This combines three default sets:
 - **Feature flags** (`[features]` block). Enables `hooks`, `memories`,
   `goals`, `terminal_resize_reflow`, and `remote_control`. The installer also
   removes the deprecated `codex_hooks` key if present.
+
+The installer also installs:
+
+```bash
+~/.local/bin/codex-here
+```
+
+It also adds a managed PATH block for `~/.local/bin` to `~/.profile` and to
+existing shell rc files such as `~/.bashrc` or `~/.zshrc`. This matters on fresh
+Linux and WSL installs where `~/.local/bin` is not always active in new shells.
+
+Use it from any project directory when Remote Control or an already-bound
+app-server keeps reopening Codex in the wrong workspace:
+
+```bash
+cd /path/to/project
+codex-here
+```
+
+`codex-here` is deliberately separate from the base `codex` command. It runs
+`codex -C "$PWD" "$@"`, so management commands such as
+`codex remote-control start` and `codex app-server daemon restart` keep their
+normal behavior. Pass `--no-codex-here` to skip installing this launcher.
 
 It preserves existing top-level settings such as `service_tier`, project trust
 entries, and other TOML tables (e.g. `[mcp_servers.*]`, `[tui]`, `[notice]`).

@@ -13,6 +13,7 @@ INSTALL_CRON=1
 INSTALL_REGISTRY=1
 REGISTRY_INIT_DB=0
 INSTALL_CODEX_CONFIG=1
+INSTALL_CODEX_HERE=1
 INSTALL_CODEX_PROXY_WRAPPER="${INSTALL_CODEX_PROXY_WRAPPER:-auto}"
 INSTALL_CODEX_REMOTE_CONTROL="${INSTALL_CODEX_REMOTE_CONTROL:-1}"
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-1800000}"
@@ -36,6 +37,7 @@ CODEX_PROXY_MAX_TIME="${CODEX_PROXY_MAX_TIME:-6}"
 AGENT_CORE_DIR="${AGENT_CORE_HOME:-$HOME/agent-core}"
 INSTALL_AGENT_CORE_ENTRIES=1
 AGENT_CORE_ENTRIES_STATUS=""
+LOCAL_BIN_PATH_STATUS=""
 SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
 
@@ -94,6 +96,77 @@ PY
     tmux source-file "$tmux_conf" >/dev/null 2>&1 || true
     tmux set-option -g mouse on >/dev/null 2>&1 || true
   fi
+}
+
+configure_local_bin_path() {
+  local local_bin="${LOCAL_BIN_DIR:-$HOME/.local/bin}"
+  local profile="$HOME/.profile"
+  local bashrc="$HOME/.bashrc"
+  local zshrc="$HOME/.zshrc"
+  local targets=("$profile")
+
+  mkdir -p "$local_bin"
+
+  [[ -f "$bashrc" ]] && targets+=("$bashrc")
+  [[ -f "$zshrc" ]] && targets+=("$zshrc")
+
+  select_python_bin
+  "$PYTHON_BIN" - "$local_bin" "${targets[@]}" <<'PY'
+from pathlib import Path
+import sys
+
+local_bin = Path(sys.argv[1]).expanduser()
+targets = [Path(path).expanduser() for path in sys.argv[2:]]
+begin = "# BEGIN agent-tools local bin"
+end = "# END agent-tools local bin"
+block = "\n".join([
+    begin,
+    "# Ensure agent-tools launchers such as codex-here are discoverable.",
+    'if [ -d "$HOME/.local/bin" ]; then',
+    '  case ":$PATH:" in',
+    '    *":$HOME/.local/bin:"*) ;;',
+    '    *) PATH="$HOME/.local/bin:$PATH" ;;',
+    "  esac",
+    "fi",
+    "export PATH",
+    end,
+])
+
+changed = []
+for path in targets:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = path.read_text(encoding="utf-8") if path.exists() else ""
+
+    while True:
+        start = text.find(begin)
+        if start == -1:
+            break
+        stop = text.find(end, start)
+        if stop == -1:
+            break
+        stop += len(end)
+        text = text[:start].rstrip() + "\n\n" + text[stop:].lstrip()
+
+    new_text = text.rstrip()
+    if new_text:
+        new_text += "\n\n"
+    new_text += block + "\n"
+
+    old_text = path.read_text(encoding="utf-8") if path.exists() else ""
+    if new_text != old_text:
+        path.write_text(new_text, encoding="utf-8")
+        changed.append(str(path))
+
+if changed:
+    print("agent-tools PATH block updated:")
+    for path in changed:
+        print(f"  {path}")
+else:
+    print("agent-tools PATH block already current.")
+print(f"agent-tools local bin: {local_bin}")
+PY
+
+  LOCAL_BIN_PATH_STATUS="$local_bin configured in ${targets[*]}"
 }
 
 configure_codex_defaults() {
@@ -586,6 +659,37 @@ EOF
   echo "Codex proxy wrapper: $target -> $real_bin via $proxy_url"
 }
 
+install_codex_here() {
+  local source target timestamp backup
+
+  source="$INSTALL_REAL/bin/codex-here"
+  if [[ ! -f "$source" ]]; then
+    echo "codex-here not installed: missing source script at $source" >&2
+    return 1
+  fi
+
+  target="${CODEX_HERE_PATH:-$HOME/.local/bin/codex-here}"
+  mkdir -p "$(dirname "$target")"
+
+  timestamp="$(date +%Y%m%d-%H%M%S)"
+  if [[ -e "$target" || -L "$target" ]]; then
+    if grep -q "BEGIN agent-tools codex-here" "$target" 2>/dev/null; then
+      rm -f "$target"
+    else
+      if [[ -L "$target" ]]; then
+        backup="${target}.symlink-${timestamp}"
+      else
+        backup="${target}.backup-${timestamp}"
+      fi
+      mv "$target" "$backup"
+      echo "Backed up existing codex-here launcher: $backup"
+    fi
+  fi
+
+  install -m 0755 "$source" "$target"
+  echo "codex-here launcher: $target -> codex -C \"\$PWD\""
+}
+
 start_codex_remote_control() {
   if [[ "$INSTALL_CODEX_REMOTE_CONTROL" -eq 0 ]]; then
     echo "Codex remote control not started (--no-codex-remote-control)."
@@ -677,6 +781,7 @@ Options:
                            sandbox mode, approvals reviewer, model + reasoning
                            effort, stream timeout/retry, model provider,
                            [features] block).
+  --no-codex-here          Do not install ~/.local/bin/codex-here.
   --codex-proxy-wrapper MODE
                            Install Codex proxy wrapper: auto|always|never. Default: auto.
   --codex-proxy-url URL    Use a specific proxy URL, e.g. http://127.0.0.1:7897.
@@ -733,6 +838,10 @@ while [[ $# -gt 0 ]]; do
       INSTALL_CODEX_CONFIG=0
       shift
       ;;
+    --no-codex-here)
+      INSTALL_CODEX_HERE=0
+      shift
+      ;;
     --codex-proxy-wrapper)
       INSTALL_CODEX_PROXY_WRAPPER="$2"
       shift 2
@@ -786,6 +895,7 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   cp "$SOURCE_DIR/sync_agent_context_cron.sh" "$INSTALL_REAL/"
   cp "$SOURCE_DIR/codex_project_memory.py" "$INSTALL_REAL/"
   cp "$SOURCE_DIR/install.sh" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/bin" ]] && cp -R "$SOURCE_DIR/bin" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/README.md" ]] && cp "$SOURCE_DIR/README.md" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/docs" ]] && cp -R "$SOURCE_DIR/docs" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/experiment_registry" ]] && cp -R "$SOURCE_DIR/experiment_registry" "$INSTALL_REAL/"
@@ -793,11 +903,18 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
 fi
 
 chmod +x "$INSTALL_REAL/sync_agent_context.py" "$INSTALL_REAL/sync_agent_context_cron.sh" "$INSTALL_REAL/codex_project_memory.py" "$INSTALL_REAL/install.sh"
+if [[ -d "$INSTALL_REAL/bin" ]]; then
+  chmod +x "$INSTALL_REAL"/bin/*
+fi
 if [[ -d "$INSTALL_REAL/experiment_registry" ]]; then
   chmod +x "$INSTALL_REAL/experiment_registry/install_registry_links.sh" "$INSTALL_REAL/experiment_registry/validate_registry_install.sh"
 fi
 mkdir -p "$INSTALL_REAL/logs"
 configure_tmux_mouse_mode
+configure_local_bin_path
+if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then
+  install_codex_here
+fi
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   configure_codex_defaults
   configure_codex_features
@@ -852,6 +969,7 @@ fi
 echo "Installed agent context sync tools in $INSTALL_REAL"
 echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
 echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
+echo "agent-tools PATH: $LOCAL_BIN_PATH_STATUS"
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex approval policy: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_APPROVAL_POLICY}"
   echo "Codex sandbox mode: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_SANDBOX_MODE}"
@@ -865,6 +983,11 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex proxy port candidates: $CODEX_PROXY_PORTS"
 else
   echo "Codex config not changed (--no-codex-config)."
+fi
+if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then
+  echo "codex-here: ${CODEX_HERE_PATH:-$HOME/.local/bin/codex-here}"
+else
+  echo "codex-here not installed (--no-codex-here)."
 fi
 if [[ "$INSTALL_CRON" -eq 1 ]]; then
   echo "Cron: $SCHEDULE $INSTALL_REAL/sync_agent_context_cron.sh"

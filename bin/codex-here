@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# BEGIN agent-tools codex-here
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  cat <<'EOF'
+Usage:
+  codex-here [codex options or prompt]
+
+Start Codex with the current shell directory pinned as the workspace:
+  codex -C "$PWD" ...
+
+Set CODEX_HERE_CODEX_BIN to choose the underlying Codex executable.
+EOF
+  exit 0
+fi
+
+CODEX_BIN="${CODEX_HERE_CODEX_BIN:-codex}"
+exec "$CODEX_BIN" -C "$PWD" "$@"
+# END agent-tools codex-here

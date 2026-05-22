@@ -137,6 +137,37 @@ codex remote-control start
 Use `--no-codex-remote-control` if the machine should be configured but not
 start the daemon yet.
 
+## Start In The Current Directory
+
+If Remote Control reopens Codex in an older workspace, start a fresh session
+with an explicit cwd:
+
+```bash
+cd /path/to/project
+codex-here
+```
+
+The launcher installed by `agent-tools/install.sh` lives at:
+
+```bash
+~/.local/bin/codex-here
+```
+
+The installer keeps `~/.local/bin` on PATH by writing a managed block to
+`~/.profile` and existing shell rc files such as `~/.bashrc` or `~/.zshrc`.
+Open a new shell after installation if the current shell had already started
+before the block was written.
+
+It forwards to:
+
+```bash
+codex -C "$PWD" "$@"
+```
+
+Keep this as a separate command instead of aliasing `codex`, because management
+subcommands such as `codex remote-control start` and
+`codex app-server daemon restart` should stay unmodified.
+
 ## Stop And Restart Caution
 
 `codex remote-control stop` stops the managed app-server daemon. In practice,

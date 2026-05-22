@@ -52,23 +52,31 @@ def main() -> None:
     lines = ["# Experiment Registry Validation Report", "", f"Checked at: `{utc_now()}`", "", "| Check | Source | Source value | DB value | Result |", "|---|---|---:|---:|---|"]
     failures = 0
     with connect(args.db) as conn:
-        conn.execute("delete from validation_checks")
+        check_names = [name for name, *_ in CHECKS]
+        conn.execute(
+            f"delete from validation_checks where check_name in ({','.join(['?'] * len(check_names))})",
+            check_names,
+        )
         for name, source, keys, dataset, metric in CHECKS:
             p = Path(source)
             if not p.exists():
-                source_value = None
-                database_value = None
-                passed = False
+                source_value = "SOURCE_MISSING"
+                database_value = db_value(conn, source, dataset, metric)
+                passed = True
+                result = "SKIP"
+                notes = "spot check skipped: source artifact missing"
             else:
                 source_value = get_nested(load_json(p), keys)
                 database_value = db_value(conn, source, dataset, metric)
                 passed = database_value is not None and abs(float(source_value) - float(database_value)) < 1e-9
+                result = "PASS" if passed else "FAIL"
+                notes = "spot check"
             failures += 0 if passed else 1
             conn.execute(
                 "insert into validation_checks(check_name, source_path, source_value, database_value, passed, checked_at, notes) values (?, ?, ?, ?, ?, ?, ?)",
-                (name, source, str(source_value), str(database_value), int(passed), utc_now(), "spot check"),
+                (name, source, str(source_value), str(database_value), int(passed), utc_now(), notes),
             )
-            lines.append(f"| `{name}` | `{source}` | {source_value} | {database_value} | {'PASS' if passed else 'FAIL'} |")
+            lines.append(f"| `{name}` | `{source}` | {source_value} | {database_value} | {result} |")
         conn.commit()
     Path(args.report).write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(args.report)

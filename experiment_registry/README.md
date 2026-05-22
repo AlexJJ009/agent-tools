@@ -8,6 +8,53 @@ metadata, final/latest/best checkpoint references, evaluation parameters,
 row-wise metrics, trust status, known issues, and source paths so coding agents
 can answer experiment-history questions without rereading long markdown files.
 
+## Management Model
+
+Use this as one shared registry for DPO, RL, verl/WDL-SFT, ablations, negative
+results, standalone model checks, and future algorithm branches when those
+records should be compared or traced together. Do not create a new database for
+each branch or method by default.
+
+The management boundary is `projects`, not separate physical tables:
+
+- Historical DPO records use `projects.name = dpo`.
+- Historical aggregate verl imports may use `projects.name = verl`.
+- New branch-scoped work should use `projects.name = verl:<git-branch>`, for
+  example `verl:feature/on-policy-wdl-sft`.
+
+Each branch-scoped row in `experiments`, `training_runs`, `eval_runs`, and
+`models` should also include `git_branch` and `git_commit`. This keeps future
+algorithm branches comparable without mixing their records.
+
+See `BRANCH_MANAGEMENT.md` for the full policy, required fields, archival
+rules, and source-of-truth requirements.
+
+## When To Load Registry Context
+
+Load the registry skill and this documentation when the user asks to:
+
+- query or compare previous DPO, RL, verl, WDL-SFT, ablation, or branch results;
+- find model/checkpoint paths, training params, eval params, metrics, or source
+  artifacts for prior experiments;
+- import new training/evaluation artifacts into SQLite;
+- validate database rows against logs, JSONL, JSON, parquet paths, checkpoint
+  metadata, or launch scripts;
+- archive old results, mark trust status, or repair queryability gaps;
+- update registry schema usage, branch forms, canned queries, or agent rules.
+
+Do not load registry context for:
+
+- ordinary code edits unrelated to experiment bookkeeping;
+- live training/GPU/Docker health checks before historical comparison is needed;
+- launching a new run before there is a result to record;
+- offline eval execution before the user asks to query or record its result;
+- broad project status checks where active plans and live runtime evidence are
+  the primary source.
+
+When both live state and registry state matter, inspect live artifacts first and
+then use the registry as historical/searchable context. Do not present registry
+rows as current runtime truth.
+
 ## Paths
 
 Preferred database:
@@ -79,6 +126,29 @@ python3 registry_cli.py query --sql "select count(*) from eval_metrics"
 
 The CLI rejects non-`SELECT` / non-`WITH` SQL in `query`.
 
+Branch-scoped ad hoc examples:
+
+```bash
+python3 registry_cli.py --db /data-1/experiment_registry/experiment_registry.sqlite query --sql "
+select e.id, p.name as form, e.display_name, e.method_variant, e.trust_level
+from experiments e
+join projects p on p.id = e.project_id
+where p.name = 'verl:feature/on-policy-wdl-sft'
+order by e.id"
+```
+
+```bash
+python3 registry_cli.py --db /data-1/experiment_registry/experiment_registry.sqlite query --sql "
+select er.eval_name, d.name as dataset, em.metric_name, em.metric_value, er.raw_metrics_path
+from eval_metrics em
+join eval_runs er on er.id = em.eval_run_id
+join experiments e on e.id = er.experiment_id
+join projects p on p.id = e.project_id
+join datasets d on d.id = em.dataset_id
+where p.name = 'verl:feature/on-policy-wdl-sft'
+order by er.eval_name, d.name, em.metric_name"
+```
+
 ## Updates
 
 Add or update a simple experiment row:
@@ -132,6 +202,18 @@ the `validation_checks` table. The required checks cover:
 - DPO math `eval_metrics.json`.
 - High extraction-failure math result.
 - verl V1 and V2 offline eval metrics.
+
+For new branch-scoped imports, add targeted `validation_checks` that compare
+source artifact values against database values. Examples:
+
+- final training `global_step` from metrics JSONL.
+- best checkpoint metric from `best_checkpoint.json`.
+- key online validation metrics from training JSONL.
+- key offline eval metrics from `eval_metrics.json`.
+
+Do not import metrics from memory or conversation summaries. Use only source
+artifacts such as logs, JSONL, JSON, parquet paths, checkpoint metadata, and
+launch scripts.
 
 ## Schema Notes
 

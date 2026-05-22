@@ -6,17 +6,62 @@ description: Use this when querying, importing, validating, or maintaining the l
 # Experiment Registry
 
 Use the registry before scanning long experiment markdown files when the user
-asks for historical DPO or selected verl experiment facts, comparisons, model
-weight paths, training params, eval params, final metrics, or stale/buggy result
-status.
+asks for historical DPO, RL, or selected verl experiment facts, comparisons,
+model weight paths, training params, eval params, final metrics, or stale/buggy
+result status.
+
+## Context Loading Rules
+
+Load this skill when the task is about the experiment registry itself or about
+records that should be in it:
+
+- querying previous DPO, RL, verl, WDL-SFT, ablation, or branch experiment
+  results;
+- comparing experiments, branches, methods, model paths, checkpoints, datasets,
+  or metrics;
+- importing new training/eval results into SQLite;
+- validating source artifacts against database values;
+- marking rows as `trusted`, `usable_with_caution`, `needs_review`, `buggy`, or
+  `superseded`;
+- repairing registry docs, schema usage, canned queries, branch forms, or
+  agent-facing registry rules;
+- answering "where is this result recorded?" or "which source file supports
+  this metric?".
+
+Do not load this skill for unrelated local coding work, live training health
+checks, GPU/Docker readiness checks, fresh training launches, checkpoint
+cleanup, general documentation edits outside experiment bookkeeping, or model
+evaluation execution before the user asks to record/query the result. For those
+tasks, use the relevant project workflow first; load this skill only when the
+result needs registry lookup, import, validation, or archival.
+
+If the user asks for current/live status, verify live logs/processes first. Use
+the registry only as historical context, and clearly separate database state
+from live state.
 
 ## Locate
+
+Registry data-directory index:
+
+```bash
+/data-1/experiment_registry/README.md
+```
 
 Preferred database:
 
 ```bash
 /data-1/experiment_registry/experiment_registry.sqlite
 ```
+
+Branch/project management policy:
+
+```bash
+/data-1/agent-tools/experiment_registry/BRANCH_MANAGEMENT.md
+```
+
+Use one shared database by default. Separate new algorithm branches with
+`projects.name = verl:<git-branch>` plus `git_branch` / `git_commit` columns,
+not with ad hoc new SQLite files or duplicate physical metric tables.
 
 Tooling:
 
@@ -70,6 +115,18 @@ python3 validate_imports.py --db /data-1/experiment_registry/experiment_registry
 
 Imports are idempotent. They copy metadata into SQLite and preserve source
 paths. They must not delete, rewrite, move, or clean original experiment files.
+
+For new branch-specific imports, preserve:
+
+- branch-scoped `project_id`, for example `verl:feature/on-policy-wdl-sft`
+- stable branch-scoped `experiment_key`
+- `git_branch` and `git_commit`
+- source files in `artifacts` and `source_records`
+- source-vs-database checks in `validation_checks`
+
+Do not import values from memory or conversation summaries. Parse the original
+training logs, training metrics JSONL, eval metrics JSON, validation JSONL,
+checkpoint metadata JSON, and launch scripts.
 
 ## Update
 

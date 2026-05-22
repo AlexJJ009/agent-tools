@@ -25,3 +25,12 @@ Prefer canned read-only queries from `registry_cli.py`. Import with
 `import_dpo.py` and `import_verl.py`. Validate with `validate_imports.py`.
 Never delete or rewrite original experiment markdown, JSON, logs, checkpoints,
 or model weights.
+
+For new work, use branch-scoped project forms rather than new databases:
+
+```text
+verl:<git-branch>
+```
+
+Every new branch experiment must keep `git_branch`, `git_commit`, source
+artifacts, and validation checks. See `BRANCH_MANAGEMENT.md`.

@@ -723,10 +723,11 @@ verify_agent_core_entries() {
   local codex_src="$AGENT_CORE_DIR/adapters/codex/AGENTS.md"
   local claude_dst="$HOME/.claude/CLAUDE.md"
   local codex_dst="$HOME/.codex/AGENTS.md"
+  local skills_src_dir="$AGENT_CORE_DIR/skills"
 
   local missing=()
   local conflicts=()
-  local pair dst src current expected
+  local pair dst src current expected skill_src skill_name
 
   for pair in "$claude_dst|$claude_src" "$codex_dst|$codex_src"; do
     dst="${pair%|*}"
@@ -744,9 +745,29 @@ verify_agent_core_entries() {
     fi
   done
 
+  if [[ -d "$skills_src_dir" ]]; then
+    for skill_src in "$skills_src_dir"/*; do
+      [[ -d "$skill_src" ]] || continue
+      skill_name="$(basename -- "$skill_src")"
+      for dst in "$HOME/.codex/skills/$skill_name" "$HOME/.claude/skills/$skill_name"; do
+        if [[ -L "$dst" ]]; then
+          current="$(readlink -f -- "$dst" 2>/dev/null || true)"
+          expected="$(readlink -f -- "$skill_src" 2>/dev/null || true)"
+          if [[ -z "$current" || "$current" != "$expected" ]]; then
+            conflicts+=("$dst -> $(readlink -- "$dst") (expected target inside $skills_src_dir)")
+          fi
+        elif [[ -e "$dst" ]]; then
+          conflicts+=("$dst exists as a regular file/directory, not a symlink")
+        else
+          missing+=("$dst")
+        fi
+      done
+    done
+  fi
+
   if [[ ${#conflicts[@]} -gt 0 ]]; then
     AGENT_CORE_ENTRIES_STATUS="conflict; not auto-running agent-core install.sh"
-    printf '%s\n' "agent-core entries have conflicts; not auto-running $install_script:" >&2
+    printf '%s\n' "agent-core entries/skills have conflicts; not auto-running $install_script:" >&2
     local c
     for c in "${conflicts[@]}"; do
       printf '  %s\n' "$c" >&2
@@ -755,11 +776,11 @@ verify_agent_core_entries() {
   fi
 
   if [[ ${#missing[@]} -gt 0 ]]; then
-    printf 'agent-core entries missing; running %s\n' "$install_script"
+    printf 'agent-core entries/skills missing; running %s\n' "$install_script"
     bash "$install_script"
     AGENT_CORE_ENTRIES_STATUS="installed via $install_script"
   else
-    AGENT_CORE_ENTRIES_STATUS="already linked to $AGENT_CORE_DIR"
+    AGENT_CORE_ENTRIES_STATUS="entries and skills already linked to $AGENT_CORE_DIR"
   fi
 }
 

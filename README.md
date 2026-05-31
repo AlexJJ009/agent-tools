@@ -250,14 +250,16 @@ runs `codex remote-control start`; pass `--no-codex-remote-control` to only
 write configuration. See `docs/CODEX_REMOTE_CONTROL.md` for standalone binary
 and daemon validation details.
 
-The installer also verifies the agent-core user-level entry symlinks if
-`~/agent-core/scripts/install.sh` is present (override via `AGENT_CORE_HOME`).
-Concretely it checks that `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` are
-symlinks resolving inside `$AGENT_CORE_HOME/adapters/`. If either is missing,
-it invokes agent-core's `install.sh` to restore the symlinks. If a destination
-is a regular file or points elsewhere, the installer leaves it alone and prints
-a conflict line so a human can decide. Use `--no-agent-core` to disable this
-check entirely.
+The installer also verifies the agent-core user-level entry and skill symlinks
+if `~/agent-core/scripts/install.sh` is present (override via
+`AGENT_CORE_HOME`). Concretely it checks that `~/.claude/CLAUDE.md` and
+`~/.codex/AGENTS.md` are symlinks resolving inside `$AGENT_CORE_HOME/adapters/`,
+and that every `$AGENT_CORE_HOME/skills/*` directory is linked into both
+`~/.claude/skills/` and `~/.codex/skills/`. If any expected symlink is missing,
+it invokes agent-core's `install.sh` to restore entries and skills. If a
+destination is a regular file/directory or points elsewhere, the installer
+leaves it alone and prints a conflict line so a human can decide. Use
+`--no-agent-core` to disable this check entirely.
 
 ## Config
 

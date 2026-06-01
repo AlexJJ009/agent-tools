@@ -43,6 +43,7 @@ AGENT_CORE_DIR="${AGENT_CORE_HOME:-$HOME/agent-core}"
 INSTALL_AGENT_CORE_ENTRIES=1
 AGENT_CORE_ENTRIES_STATUS=""
 LOCAL_BIN_PATH_STATUS=""
+CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS=""
 SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
 
@@ -217,6 +218,37 @@ update_cc_switch_cli() {
   fi
 }
 
+sync_codex_config_from_cc_switch_current() {
+  local output provider_id
+
+  if ! command -v cc-switch >/dev/null 2>&1; then
+    CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS="skipped: cc-switch is not on PATH"
+    return
+  fi
+
+  if ! output="$(cc-switch provider current -a codex 2>/dev/null)"; then
+    CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS="skipped: no current cc-switch Codex provider"
+    return
+  fi
+
+  provider_id="$(
+    printf '%s\n' "$output" |
+      awk -F: '/^[[:space:]]*ID[[:space:]]*:/ {gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2); print $2; exit}'
+  )"
+  if [[ -z "$provider_id" ]]; then
+    CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS="skipped: could not parse current provider id"
+    return
+  fi
+  if [[ ! "$provider_id" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    echo "invalid cc-switch Codex provider id: $provider_id" >&2
+    return 1
+  fi
+
+  echo "Syncing Codex config from cc-switch provider: $provider_id"
+  cc-switch provider switch -a codex "$provider_id"
+  CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS="synced: $provider_id"
+}
+
 configure_codex_defaults() {
   local codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
 
@@ -295,7 +327,6 @@ kept.append(f'model_provider = "{provider_id}"')
 
 provider_header = f"[model_providers.{provider_id}]"
 provider_sections_to_remove = {
-    f"model_providers.{provider_id}",
     "model_providers.openai-no-ws",
     "model_providers.ccswitch",
 }
@@ -336,7 +367,18 @@ def _has_third_party_model_provider(lines):
                 return True
     return False
 
+def _has_model_provider(lines, candidate):
+    for line in lines:
+        path = _toml_section_path(line)
+        if not path:
+            continue
+        parts = path.split(".")
+        if len(parts) >= 2 and parts[0] == "model_providers" and parts[1] == candidate:
+            return True
+    return False
+
 has_third_party_model_provider = _has_third_party_model_provider(rest)
+has_target_model_provider = _has_model_provider(rest, provider_id)
 filtered_rest = []
 i = 0
 while i < len(rest):
@@ -355,7 +397,7 @@ if rest:
 
 if kept and kept[-1].strip():
     kept.append("")
-if not has_third_party_model_provider:
+if not has_target_model_provider and not has_third_party_model_provider:
     kept.extend([
         provider_header,
         'name = "OpenAI HTTPS no WebSocket"',
@@ -1109,6 +1151,7 @@ if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then
 fi
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   configure_codex_defaults
+  sync_codex_config_from_cc_switch_current
   configure_codex_features
   configure_codex_project_hooks_features
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
@@ -1173,6 +1216,9 @@ if [[ "$INSTALL_CC_SWITCH_CLI_UPDATE" -eq 1 ]]; then
   fi
 else
   echo "cc-switch-cli not updated (--no-cc-switch-update)."
+fi
+if [[ -n "$CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS" ]]; then
+  echo "cc-switch Codex provider sync: $CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS"
 fi
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex approval policy: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_APPROVAL_POLICY}"

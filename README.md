@@ -185,6 +185,11 @@ stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 ```
 
+Before running the Codex provider-bucket migration, the installer updates
+`cc-switch-cli` from the latest GitHub release installer. Use
+`--no-cc-switch-update` only when the target machine cannot or should not reach
+GitHub during install.
+
 This combines three default sets:
 
 - **AutoReview as the default permission posture** (`approval_policy`,

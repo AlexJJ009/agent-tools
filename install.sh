@@ -14,6 +14,7 @@ INSTALL_REGISTRY=1
 REGISTRY_INIT_DB=0
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
+INSTALL_CC_SWITCH_CLI_UPDATE="${INSTALL_CC_SWITCH_CLI_UPDATE:-1}"
 INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=1
 APPLY_CODEX_PROVIDER_BUCKET_MIGRATION="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_APPLY:-1}"
 CODEX_PROVIDER_BUCKET_ALLOW_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALLOW_RUNNING:-0}"
@@ -171,6 +172,49 @@ print(f"agent-tools local bin: {local_bin}")
 PY
 
   LOCAL_BIN_PATH_STATUS="$local_bin configured in ${targets[*]}"
+  case ":$PATH:" in
+    *":$local_bin:"*) ;;
+    *) PATH="$local_bin:$PATH" ;;
+  esac
+  export PATH
+  hash -r 2>/dev/null || true
+}
+
+cc_switch_version() {
+  local output
+
+  if ! command -v cc-switch >/dev/null 2>&1; then
+    return 1
+  fi
+
+  if output="$(cc-switch --version 2>&1)"; then
+    printf '%s\n' "$output" | head -n 1
+    return 0
+  fi
+
+  return 2
+}
+
+update_cc_switch_cli() {
+  if [[ "$INSTALL_CC_SWITCH_CLI_UPDATE" -eq 0 ]]; then
+    echo "cc-switch update skipped (--no-cc-switch-update)."
+    return
+  fi
+
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "cc-switch update skipped: curl is not on PATH." >&2
+    return 1
+  fi
+
+  echo "Updating cc-switch-cli from latest GitHub release..."
+  curl -fsSL https://github.com/saladday/cc-switch-cli/releases/latest/download/install.sh | CC_SWITCH_FORCE="${CC_SWITCH_FORCE:-1}" bash
+  hash -r 2>/dev/null || true
+
+  if version="$(cc_switch_version)"; then
+    echo "cc-switch version: $version"
+  else
+    echo "cc-switch update completed, but cc-switch is not usable on PATH yet." >&2
+  fi
 }
 
 configure_codex_defaults() {
@@ -889,6 +933,8 @@ Options:
                            effort, stream timeout/retry, model provider,
                            [features] block).
   --no-codex-here          Do not install ~/.local/bin/codex-here.
+  --no-cc-switch-update    Do not update cc-switch-cli from the latest GitHub
+                           release before Codex provider migration.
   --no-codex-provider-bucket-migration
                            Do not scan/migrate Codex history and cc-switch
                            provider templates to the custom model_provider bucket.
@@ -959,6 +1005,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-codex-here)
       INSTALL_CODEX_HERE=0
+      shift
+      ;;
+    --no-cc-switch-update)
+      INSTALL_CC_SWITCH_CLI_UPDATE=0
       shift
       ;;
     --no-codex-provider-bucket-migration)
@@ -1053,6 +1103,7 @@ fi
 mkdir -p "$INSTALL_REAL/logs"
 configure_tmux_mouse_mode
 configure_local_bin_path
+update_cc_switch_cli
 if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then
   install_codex_here
 fi
@@ -1114,6 +1165,15 @@ echo "Installed agent context sync tools in $INSTALL_REAL"
 echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
 echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
 echo "agent-tools PATH: $LOCAL_BIN_PATH_STATUS"
+if [[ "$INSTALL_CC_SWITCH_CLI_UPDATE" -eq 1 ]]; then
+  if version="$(cc_switch_version)"; then
+    echo "cc-switch-cli updated: $version"
+  else
+    echo "cc-switch-cli update attempted, but cc-switch is not usable on PATH."
+  fi
+else
+  echo "cc-switch-cli not updated (--no-cc-switch-update)."
+fi
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex approval policy: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_APPROVAL_POLICY}"
   echo "Codex sandbox mode: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_SANDBOX_MODE}"

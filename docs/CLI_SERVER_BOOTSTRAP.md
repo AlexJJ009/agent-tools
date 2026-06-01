@@ -100,7 +100,9 @@ cd "$HOME/agent-tools"
 Run the machine defaults, but let the provider script below own Codex API
 provider config. Use `--codex-proxy-wrapper never` on ordinary Linux servers.
 Only use the WSL2 proxy wrapper modes from `CODEX_REMOTE_CONTROL.md` when the
-host actually needs that topology.
+host actually needs that topology. `install.sh` updates `cc-switch-cli` from
+the latest GitHub release by default; pass `--no-cc-switch-update` only when
+the machine cannot reach GitHub during this step.
 
 ```bash
 ./install.sh \

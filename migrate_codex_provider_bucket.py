@@ -742,6 +742,46 @@ def rewrite_profile_model_provider_refs(
     return "\n".join(out).rstrip() + "\n"
 
 
+def normalize_target_provider_auth(text: str, target: str) -> str:
+    lines = text.splitlines()
+    out: list[str] = []
+    in_target_provider = False
+    inserted_auth = False
+
+    def insert_auth() -> None:
+        nonlocal inserted_auth
+        while out and not out[-1].strip():
+            out.pop()
+        out.append("requires_openai_auth = true")
+        inserted_auth = True
+
+    for line in lines:
+        path = parse_toml_header_path(line)
+        if path is not None:
+            if in_target_provider and not inserted_auth:
+                insert_auth()
+            in_target_provider = path == ["model_providers", target]
+            inserted_auth = False
+            out.append(line)
+            continue
+
+        if in_target_provider and "=" in line and not line.strip().startswith("#"):
+            key = line.split("=", 1)[0].strip()
+            if key == "env_key":
+                continue
+            if key == "requires_openai_auth":
+                if not inserted_auth:
+                    insert_auth()
+                continue
+
+        out.append(line)
+
+    if in_target_provider and not inserted_auth:
+        insert_auth()
+
+    return compact_blank_lines(out)
+
+
 def compact_blank_lines(lines: list[str]) -> str:
     out: list[str] = []
     previous_blank = False
@@ -865,6 +905,7 @@ def normalize_codex_config_text(
         excluded_providers,
         all_non_target_providers,
     )
+    text = normalize_target_provider_auth(text, target)
     text = compact_blank_lines(text.splitlines())
     return text, ConfigInfo(active, provider_ids, profile_providers, text != original, source)
 

@@ -218,6 +218,205 @@ update_cc_switch_cli() {
   fi
 }
 
+normalize_codex_provider_auth() {
+  local codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
+
+  select_python_bin
+  "$PYTHON_BIN" - "$codex_config" "$CODEX_MODEL_PROVIDER_ID" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1]).expanduser()
+target = sys.argv[2]
+if not path.exists():
+    raise SystemExit(0)
+if not target or not re.fullmatch(r"[A-Za-z0-9_.-]+", target):
+    raise SystemExit(f"invalid CODEX_MODEL_PROVIDER_ID: {target}")
+
+text = path.read_text(encoding="utf-8")
+lines = text.splitlines()
+out = []
+in_target_provider = False
+inserted_auth = False
+
+def section_path(line):
+    stripped = line.strip()
+    if stripped.startswith("[[") or not stripped.startswith("[") or not stripped.endswith("]"):
+        return None
+    return stripped[1:-1].strip().split(".")
+
+def insert_auth():
+    global inserted_auth
+    while out and not out[-1].strip():
+        out.pop()
+    out.append("requires_openai_auth = true")
+    inserted_auth = True
+
+for line in lines:
+    path_parts = section_path(line)
+    if path_parts is not None:
+        if in_target_provider and not inserted_auth:
+            insert_auth()
+        in_target_provider = len(path_parts) >= 2 and path_parts[0] == "model_providers" and path_parts[1] == target
+        inserted_auth = False
+        out.append(line)
+        continue
+
+    if in_target_provider and "=" in line and not line.strip().startswith("#"):
+        key = line.split("=", 1)[0].strip()
+        if key == "env_key":
+            continue
+        if key == "requires_openai_auth":
+            if not inserted_auth:
+                insert_auth()
+            continue
+
+    out.append(line)
+
+if in_target_provider and not inserted_auth:
+    insert_auth()
+
+cleaned = []
+previous_blank = False
+for line in out:
+    blank = not line.strip()
+    if blank and (previous_blank or not cleaned):
+        previous_blank = True
+        continue
+    cleaned.append(line)
+    previous_blank = blank
+while cleaned and not cleaned[-1].strip():
+    cleaned.pop()
+
+new_text = "\n".join(cleaned).rstrip() + "\n"
+if new_text != text:
+    path.write_text(new_text, encoding="utf-8")
+PY
+}
+
+normalize_cc_switch_codex_provider_templates() {
+  local db_path="${CC_SWITCH_DB_PATH:-$HOME/.cc-switch/cc-switch.db}"
+
+  if [[ ! -f "$db_path" ]]; then
+    return
+  fi
+
+  select_python_bin
+  "$PYTHON_BIN" - "$db_path" "$CODEX_MODEL_PROVIDER_ID" <<'PY'
+import json
+import re
+import sqlite3
+import sys
+import time
+from pathlib import Path
+
+db_path = Path(sys.argv[1]).expanduser()
+target = sys.argv[2]
+if not target or not re.fullmatch(r"[A-Za-z0-9_.-]+", target):
+    raise SystemExit(f"invalid CODEX_MODEL_PROVIDER_ID: {target}")
+
+def section_path(line):
+    stripped = line.strip()
+    if stripped.startswith("[[") or not stripped.startswith("[") or not stripped.endswith("]"):
+        return None
+    return stripped[1:-1].strip().split(".")
+
+def normalize_config(text):
+    lines = text.splitlines()
+    out = []
+    in_target_provider = False
+    inserted_auth = False
+
+    def insert_auth():
+        nonlocal inserted_auth
+        while out and not out[-1].strip():
+            out.pop()
+        out.append("requires_openai_auth = true")
+        inserted_auth = True
+
+    for line in lines:
+        path_parts = section_path(line)
+        if path_parts is not None:
+            if in_target_provider and not inserted_auth:
+                insert_auth()
+            in_target_provider = (
+                len(path_parts) >= 2 and path_parts[0] == "model_providers" and path_parts[1] == target
+            )
+            inserted_auth = False
+            out.append(line)
+            continue
+
+        if in_target_provider and "=" in line and not line.strip().startswith("#"):
+            key = line.split("=", 1)[0].strip()
+            if key == "env_key":
+                continue
+            if key == "requires_openai_auth":
+                if not inserted_auth:
+                    insert_auth()
+                continue
+
+        out.append(line)
+
+    if in_target_provider and not inserted_auth:
+        insert_auth()
+
+    cleaned = []
+    previous_blank = False
+    for line in out:
+        blank = not line.strip()
+        if blank and (previous_blank or not cleaned):
+            previous_blank = True
+            continue
+        cleaned.append(line)
+        previous_blank = blank
+    while cleaned and not cleaned[-1].strip():
+        cleaned.pop()
+    return "\n".join(cleaned).rstrip() + "\n"
+
+conn = sqlite3.connect(db_path)
+conn.row_factory = sqlite3.Row
+try:
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(providers)")}
+    has_updated_at = "updated_at" in columns
+    changed = 0
+    rows = conn.execute(
+        "SELECT id, settings_config FROM providers WHERE app_type='codex' ORDER BY id"
+    ).fetchall()
+    for row in rows:
+        try:
+            settings = json.loads(row["settings_config"])
+        except Exception:
+            continue
+        if not isinstance(settings, dict):
+            continue
+        config_text = settings.get("config")
+        if not isinstance(config_text, str) or not config_text.strip():
+            continue
+        new_config = normalize_config(config_text)
+        if new_config == config_text:
+            continue
+        settings["config"] = new_config
+        payload = json.dumps(settings, ensure_ascii=False, separators=(",", ":"))
+        if has_updated_at:
+            conn.execute(
+                "UPDATE providers SET settings_config=?, updated_at=? WHERE app_type='codex' AND id=?",
+                (payload, int(time.time() * 1000), row["id"]),
+            )
+        else:
+            conn.execute(
+                "UPDATE providers SET settings_config=? WHERE app_type='codex' AND id=?",
+                (payload, row["id"]),
+            )
+        changed += 1
+    conn.commit()
+    if changed:
+        print(f"Normalized cc-switch Codex provider auth in {changed} templates.")
+finally:
+    conn.close()
+PY
+}
+
 sync_codex_config_from_cc_switch_current() {
   local output provider_id
 
@@ -246,6 +445,7 @@ sync_codex_config_from_cc_switch_current() {
 
   echo "Syncing Codex config from cc-switch provider: $provider_id"
   cc-switch provider switch -a codex "$provider_id"
+  normalize_codex_provider_auth
   CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS="synced: $provider_id"
 }
 
@@ -1151,7 +1351,9 @@ if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then
 fi
 if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   configure_codex_defaults
+  normalize_cc_switch_codex_provider_templates
   sync_codex_config_from_cc_switch_current
+  normalize_codex_provider_auth
   configure_codex_features
   configure_codex_project_hooks_features
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then

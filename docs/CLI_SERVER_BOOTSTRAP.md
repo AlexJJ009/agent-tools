@@ -164,16 +164,18 @@ unset PROVIDER_1_KEY PROVIDER_2_KEY
 
 This script writes:
 
-- API keys to `${CODEX_HOME:-$HOME/.codex}/keys/<provider>.key`
+- the default provider key to `${CODEX_HOME:-$HOME/.codex}/auth.json` as
+  `OPENAI_API_KEY`
 - Codex user config to `${CODEX_HOME:-$HOME/.codex}/config.toml`
 - `cc-switch` Codex providers into `$HOME/.cc-switch/cc-switch.db`
 
-It intentionally stores API keys through Codex provider `auth.command` instead
-of embedding bearer tokens directly in `config.toml`. It also intentionally
-uses one stable Codex bucket, `model_provider = "custom"`, for every provider.
-`cc-switch` provider switches should replace `[model_providers.custom]` rather
-than changing the bucket name; otherwise Codex resume history gets split by
-provider id.
+It intentionally keeps API keys out of `config.toml`: cc-switch stores each
+provider key in `settings_config.auth.OPENAI_API_KEY`, while the Codex TOML
+provider only declares `requires_openai_auth = true`. It also intentionally uses
+one stable Codex bucket, `model_provider = "custom"`, for every provider.
+`cc-switch` provider switches should replace `[model_providers.custom]` and
+`auth.OPENAI_API_KEY` rather than changing the bucket name; otherwise Codex
+resume history gets split by provider id.
 
 ```bash
 python3 - <<'PY'
@@ -199,40 +201,29 @@ if default_provider not in {p["id"] for p in providers}:
 if not safe_id.match(codex_provider_bucket):
     raise SystemExit(f"invalid CODEX_MODEL_PROVIDER_ID: {codex_provider_bucket}")
 
-keys_dir = codex_home / "keys"
-keys_dir.mkdir(parents=True, exist_ok=True)
-keys_dir.chmod(0o700)
 codex_home.mkdir(parents=True, exist_ok=True)
 
 for provider in providers:
     pid = provider["id"]
     if not safe_id.match(pid):
         raise SystemExit(f"invalid provider id: {pid}")
-    api_key = provider["api_key"]
-
-    key_path = keys_dir / f"{pid}.key"
-    key_path.write_text(api_key.rstrip() + "\n", encoding="utf-8")
-    key_path.chmod(0o600)
 
 default_provider_config = next(p for p in providers if p["id"] == default_provider)
 default_provider_name = default_provider_config.get("name", default_provider)
 default_base_url = default_provider_config["base_url"].rstrip("/")
-default_key_path = keys_dir / f"{default_provider}.key"
+default_api_key = default_provider_config["api_key"].strip()
+if not default_api_key:
+    raise SystemExit(f"default provider {default_provider} has an empty api_key")
 
 provider_block = f"""
 [model_providers.{codex_provider_bucket}]
 name = "{default_provider_name}"
 base_url = "{default_base_url}"
 wire_api = "responses"
+requires_openai_auth = true
 supports_websockets = false
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
-
-[model_providers.{codex_provider_bucket}.auth]
-command = "cat"
-args = ["{default_key_path}"]
-timeout_ms = 5000
-refresh_interval_ms = 0
 """.strip()
 
 config_text = f"""
@@ -254,6 +245,11 @@ remote_control = true
 """.strip() + "\n"
 
 (codex_home / "config.toml").write_text(config_text, encoding="utf-8")
+(codex_home / "auth.json").write_text(
+    json.dumps({"OPENAI_API_KEY": default_api_key}, ensure_ascii=False, indent=2) + "\n",
+    encoding="utf-8",
+)
+(codex_home / "auth.json").chmod(0o600)
 
 # Initialize cc-switch DB if this is the first run.
 os.system("cc-switch provider list -a codex >/dev/null 2>&1 || true")
@@ -268,7 +264,9 @@ for index, provider in enumerate(providers, start=1):
     name = provider.get("name", pid)
     base_url = provider["base_url"].rstrip("/")
     model = provider.get("model", default_model)
-    key_path = str(keys_dir / f"{pid}.key")
+    api_key = provider["api_key"].strip()
+    if not api_key:
+        raise SystemExit(f"provider {pid} has an empty api_key")
     is_current = 1 if pid == default_provider else 0
     sort_index = index * 10
 
@@ -281,26 +279,21 @@ model_reasoning_effort = "high"
 name = "{name}"
 base_url = "{base_url}"
 wire_api = "responses"
+requires_openai_auth = true
 supports_websockets = false
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
-
-[model_providers.{codex_provider_bucket}.auth]
-command = "cat"
-args = ["{key_path}"]
-timeout_ms = 5000
-refresh_interval_ms = 0
 """.strip() + "\n"
 
-    settings = {"auth": {"type": "command", "keyFile": key_path}, "config": snippet}
+    settings = {"auth": {"OPENAI_API_KEY": api_key}, "config": snippet}
     meta = {"model": model, "wire_api": "responses", "managed_by": "agent-tools-bootstrap"}
 
     conn.execute(
         """
         INSERT INTO providers (
-          id, app_type, name, settings_config, website_url, category,
-          created_at, sort_index, notes, icon, icon_color, meta, is_current,
-          in_failover_queue, provider_type
+            id, app_type, name, settings_config, website_url, category,
+            created_at, sort_index, notes, icon, icon_color, meta, is_current,
+            in_failover_queue, provider_type
         )
         VALUES (?, 'codex', ?, ?, ?, 'custom', ?, ?, ?, 'openai', '#00A67E', ?, ?, 0, 'openai-compatible')
         ON CONFLICT(id, app_type) DO UPDATE SET
@@ -376,8 +369,20 @@ rewrites the same `custom` bucket with that provider's endpoint and auth.
 For HTTP-level diagnostics, test `/models` first:
 
 ```bash
-curl -sS -H "Authorization: Bearer $(cat ~/.codex/keys/dragtokens.key)" \
-  https://dragtokens.com/v1/models | jq '.data | length'
+python3 - <<'PY'
+import json
+import urllib.request
+from pathlib import Path
+
+auth = json.loads(Path("~/.codex/auth.json").expanduser().read_text())
+req = urllib.request.Request(
+    "https://dragtokens.com/v1/models",
+    headers={"Authorization": f"Bearer {auth['OPENAI_API_KEY']}"},
+)
+with urllib.request.urlopen(req, timeout=20) as resp:
+    payload = json.load(resp)
+print(len(payload.get("data", [])))
+PY
 ```
 
 Some gateways return `403` for a raw `curl /v1/responses` request with a message

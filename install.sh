@@ -14,6 +14,10 @@ INSTALL_REGISTRY=1
 REGISTRY_INIT_DB=0
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
+INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=1
+APPLY_CODEX_PROVIDER_BUCKET_MIGRATION="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_APPLY:-1}"
+CODEX_PROVIDER_BUCKET_ALLOW_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALLOW_RUNNING:-0}"
+CODEX_PROVIDER_BUCKET_KILL_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_KILL_RUNNING:-0}"
 INSTALL_CODEX_PROXY_WRAPPER="${INSTALL_CODEX_PROXY_WRAPPER:-auto}"
 INSTALL_CODEX_REMOTE_CONTROL="${INSTALL_CODEX_REMOTE_CONTROL:-1}"
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-1800000}"
@@ -246,12 +250,34 @@ kept.append(f"stream_max_retries = {retries}")
 kept.append(f'model_provider = "{provider_id}"')
 
 provider_header = f"[model_providers.{provider_id}]"
+provider_sections_to_remove = {
+    f"model_providers.{provider_id}",
+    "model_providers.openai-no-ws",
+    "model_providers.ccswitch",
+}
+
+def _toml_section_path(line):
+    stripped = line.strip()
+    if stripped.startswith("[[") or not stripped.startswith("[") or not stripped.endswith("]"):
+        return None
+    return stripped[1:-1].strip()
+
+def _is_toml_section(line):
+    stripped = line.strip()
+    return stripped.startswith("[") and stripped.endswith("]")
+
+def _remove_model_provider_section(line):
+    path = _toml_section_path(line)
+    if not path:
+        return False
+    return any(path == section or path.startswith(section + ".") for section in provider_sections_to_remove)
+
 filtered_rest = []
 i = 0
 while i < len(rest):
-    if rest[i].strip() == provider_header:
+    if _remove_model_provider_section(rest[i]):
         i += 1
-        while i < len(rest) and not rest[i].lstrip().startswith("["):
+        while i < len(rest) and not _is_toml_section(rest[i]):
             i += 1
         continue
     filtered_rest.append(rest[i])
@@ -520,6 +546,44 @@ for root in roots:
 for path in changed:
     print(f"Codex project hooks feature migrated: {path}")
 PY
+}
+
+run_codex_provider_bucket_migration() {
+  local script="$INSTALL_REAL/migrate_codex_provider_bucket.py"
+  local args=()
+  local status
+
+  if [[ ! -x "$script" ]]; then
+    echo "Codex provider bucket migration skipped: missing $script" >&2
+    return
+  fi
+
+  if [[ "$CODEX_PROVIDER_BUCKET_ALLOW_RUNNING" == "1" && "$CODEX_PROVIDER_BUCKET_KILL_RUNNING" == "1" ]]; then
+    echo "Codex provider bucket migration skipped: allow-running and kill-running conflict." >&2
+    return 2
+  fi
+  if [[ "$CODEX_PROVIDER_BUCKET_ALLOW_RUNNING" == "1" ]]; then
+    args+=(--allow-running-codex)
+  fi
+  if [[ "$CODEX_PROVIDER_BUCKET_KILL_RUNNING" == "1" ]]; then
+    args+=(--kill-running-codex)
+  fi
+
+  if [[ "$APPLY_CODEX_PROVIDER_BUCKET_MIGRATION" == "1" ]]; then
+    set +e
+    "$PYTHON_BIN" "$script" --target "$CODEX_MODEL_PROVIDER_ID" --apply --yes "${args[@]}"
+    status=$?
+    set -e
+    if [[ "$status" -eq 0 ]]; then
+      return
+    fi
+    if [[ "$status" -ne 2 ]]; then
+      return "$status"
+    fi
+    echo "Codex provider bucket migration apply was blocked, usually because Codex is running; falling back to dry-run." >&2
+  fi
+
+  "$PYTHON_BIN" "$script" --target "$CODEX_MODEL_PROVIDER_ID"
 }
 
 probe_codex_proxy_url() {
@@ -803,6 +867,18 @@ Options:
                            effort, stream timeout/retry, model provider,
                            [features] block).
   --no-codex-here          Do not install ~/.local/bin/codex-here.
+  --no-codex-provider-bucket-migration
+                           Do not scan/migrate Codex history and cc-switch
+                           provider templates to the custom model_provider bucket.
+  --apply-codex-provider-bucket-migration
+                           Apply Codex provider bucket migration. This is the
+                           default; close Codex first for a real write.
+  --dry-run-codex-provider-bucket-migration
+                           Scan only and do not write migration changes.
+  --allow-running-codex-provider-bucket-migration
+                           Allow applying the migration while Codex is running.
+  --kill-running-codex-provider-bucket-migration
+                           Terminate running Codex processes before applying.
   --codex-proxy-wrapper MODE
                            Install Codex proxy wrapper: auto|always|never. Default: auto.
   --codex-proxy-url URL    Use a specific proxy URL, e.g. http://127.0.0.1:7897.
@@ -863,6 +939,27 @@ while [[ $# -gt 0 ]]; do
       INSTALL_CODEX_HERE=0
       shift
       ;;
+    --no-codex-provider-bucket-migration)
+      INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=0
+      shift
+      ;;
+    --apply-codex-provider-bucket-migration)
+      APPLY_CODEX_PROVIDER_BUCKET_MIGRATION=1
+      shift
+      ;;
+    --dry-run-codex-provider-bucket-migration)
+      APPLY_CODEX_PROVIDER_BUCKET_MIGRATION=0
+      shift
+      ;;
+    --allow-running-codex-provider-bucket-migration)
+      CODEX_PROVIDER_BUCKET_ALLOW_RUNNING=1
+      shift
+      ;;
+    --kill-running-codex-provider-bucket-migration)
+      CODEX_PROVIDER_BUCKET_KILL_RUNNING=1
+      APPLY_CODEX_PROVIDER_BUCKET_MIGRATION=1
+      shift
+      ;;
     --codex-proxy-wrapper)
       INSTALL_CODEX_PROXY_WRAPPER="$2"
       shift 2
@@ -915,6 +1012,7 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   cp "$SOURCE_DIR/sync_agent_context.py" "$INSTALL_REAL/"
   cp "$SOURCE_DIR/sync_agent_context_cron.sh" "$INSTALL_REAL/"
   cp "$SOURCE_DIR/codex_project_memory.py" "$INSTALL_REAL/"
+  cp "$SOURCE_DIR/migrate_codex_provider_bucket.py" "$INSTALL_REAL/"
   cp "$SOURCE_DIR/install.sh" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/bin" ]] && cp -R "$SOURCE_DIR/bin" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/README.md" ]] && cp "$SOURCE_DIR/README.md" "$INSTALL_REAL/"
@@ -923,7 +1021,7 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   [[ -f "$SOURCE_DIR/agent_context_sync.config.example.json" ]] && cp "$SOURCE_DIR/agent_context_sync.config.example.json" "$INSTALL_REAL/"
 fi
 
-chmod +x "$INSTALL_REAL/sync_agent_context.py" "$INSTALL_REAL/sync_agent_context_cron.sh" "$INSTALL_REAL/codex_project_memory.py" "$INSTALL_REAL/install.sh"
+chmod +x "$INSTALL_REAL/sync_agent_context.py" "$INSTALL_REAL/sync_agent_context_cron.sh" "$INSTALL_REAL/codex_project_memory.py" "$INSTALL_REAL/migrate_codex_provider_bucket.py" "$INSTALL_REAL/install.sh"
 if [[ -d "$INSTALL_REAL/bin" ]]; then
   chmod +x "$INSTALL_REAL"/bin/*
 fi
@@ -940,6 +1038,9 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   configure_codex_defaults
   configure_codex_features
   configure_codex_project_hooks_features
+  if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
+    run_codex_provider_bucket_migration
+  fi
   configure_codex_proxy_wrapper
   start_codex_remote_control
 fi
@@ -1000,6 +1101,11 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex stream max retries: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_MAX_RETRIES}"
   echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (HTTPS, no WebSocket)"
   echo "Codex [features]: hooks=${CODEX_FEATURE_HOOKS} memories=${CODEX_FEATURE_MEMORIES} goals=${CODEX_FEATURE_GOALS} terminal_resize_reflow=${CODEX_FEATURE_TERMINAL_RESIZE_REFLOW} remote_control=${CODEX_FEATURE_REMOTE_CONTROL}"
+  if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
+    echo "Codex provider bucket migration: target=${CODEX_MODEL_PROVIDER_ID}, apply=${APPLY_CODEX_PROVIDER_BUCKET_MIGRATION}"
+  else
+    echo "Codex provider bucket migration not run (--no-codex-provider-bucket-migration)."
+  fi
   echo "Codex proxy wrapper mode: $INSTALL_CODEX_PROXY_WRAPPER"
   echo "Codex proxy port candidates: $CODEX_PROXY_PORTS"
 else

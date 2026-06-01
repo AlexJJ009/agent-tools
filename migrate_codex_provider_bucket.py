@@ -22,6 +22,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import sqlite3
@@ -39,6 +40,65 @@ from typing import Iterable
 DEFAULT_TARGET = "custom"
 DEFAULT_CODEX_DIR = Path(os.environ.get("CODEX_HOME", "~/.codex")).expanduser()
 DEFAULT_CC_SWITCH_DB = Path("~/.cc-switch/cc-switch.db").expanduser()
+
+RESERVED_CODEX_MODEL_PROVIDERS = {
+    "amazon-bedrock",
+    "lmstudio",
+    "ollama",
+    "ollama-chat",
+    "openai",
+    "oss",
+}
+
+KNOWN_CC_SWITCH_LEGACY_CODEX_MODEL_PROVIDERS = {
+    "ccswitch",
+    "aicodemirror",
+    "aicoding",
+    "aigocode",
+    "aihubmix",
+    "ark_agentplan",
+    "bailian",
+    "bailing",
+    "byteplus",
+    "claudecn",
+    "compshare",
+    "compshare_coding",
+    "crazyrouter",
+    "ctok",
+    "cubence",
+    "deepseek",
+    "dmxapi",
+    "doubaoseed",
+    "eflowcode",
+    "kimi",
+    "lemondata",
+    "longcat",
+    "micu",
+    "minimax",
+    "minimax_en",
+    "modelscope",
+    "novita",
+    "nvidia",
+    "openrouter",
+    "packycode",
+    "patewayai",
+    "pipellm",
+    "qianfan_coding",
+    "relaxycode",
+    "rightcode",
+    "runapi",
+    "shengsuanyun",
+    "siliconflow",
+    "siliconflow_en",
+    "sssaicode",
+    "stepfun",
+    "stepfun_en",
+    "therouter",
+    "xiaomi_mimo",
+    "xiaomi_mimo_token_plan",
+    "zhipu_glm",
+    "zhipu_glm_en",
+}
 
 
 @dataclass
@@ -104,7 +164,12 @@ def parse_args() -> argparse.Namespace:
         "--source-provider",
         action="append",
         default=[],
-        help="source provider id to migrate; repeatable. Default: all non-target providers.",
+        help="source provider id to migrate; repeatable. Default: trusted cc-switch third-party buckets only.",
+    )
+    parser.add_argument(
+        "--all-non-target-providers",
+        action="store_true",
+        help="migrate every non-empty non-target model_provider bucket except --exclude-provider. This can rewrite official OpenAI history.",
     )
     parser.add_argument(
         "--exclude-provider",
@@ -141,15 +206,164 @@ def should_migrate_provider(
     target: str,
     source_providers: set[str],
     excluded_providers: set[str],
+    all_non_target_providers: bool,
 ) -> bool:
     if not provider:
         return False
     provider = provider.strip()
     if not provider or provider == target:
         return False
+    if provider in excluded_providers:
+        return False
     if source_providers:
         return provider in source_providers
-    return provider not in excluded_providers
+    if all_non_target_providers:
+        return True
+    return False
+
+
+def provider_is_reserved(provider_id: str) -> bool:
+    return provider_id.strip().lower() in RESERVED_CODEX_MODEL_PROVIDERS
+
+
+def provider_is_known_legacy(provider_id: str) -> bool:
+    return provider_id.strip().lower() in KNOWN_CC_SWITCH_LEGACY_CODEX_MODEL_PROVIDERS
+
+
+def add_provider_aliases(targets: set[str], provider_id: str, target: str) -> None:
+    provider_id = provider_id.strip()
+    if not provider_id or provider_id == target or provider_is_reserved(provider_id):
+        return
+    targets.add(provider_id)
+    swapped_to_underscore = provider_id.replace("-", "_")
+    swapped_to_hyphen = provider_id.replace("_", "-")
+    for alias in (swapped_to_underscore, swapped_to_hyphen):
+        if alias and alias != target and not provider_is_reserved(alias):
+            targets.add(alias)
+
+
+def infer_source_providers_from_cc_switch(db_path: Path, target: str, include_official: bool) -> set[str]:
+    inferred: set[str] = set()
+    if not db_path.exists():
+        return inferred
+
+    conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    conn.row_factory = sqlite3.Row
+    try:
+        if not table_exists(conn, "providers"):
+            return inferred
+        for row in conn.execute(
+            "SELECT id, category, settings_config FROM providers WHERE app_type='codex' ORDER BY id"
+        ):
+            provider_id = str(row["id"] or "").strip()
+            category = row["category"]
+            if category == "official" and not include_official:
+                continue
+            add_provider_aliases(inferred, provider_id, target)
+            try:
+                settings = json.loads(row["settings_config"])
+            except Exception:
+                continue
+            config_text = settings.get("config") if isinstance(settings, dict) else None
+            if not isinstance(config_text, str) or not config_text.strip():
+                continue
+            active = top_level_model_provider(config_text)
+            for candidate in [active, *provider_ids_from_config_text(config_text), *profile_model_providers(config_text)]:
+                if (
+                    candidate
+                    and candidate != target
+                    and not provider_is_reserved(candidate)
+                    and (provider_is_known_legacy(candidate) or not provider_is_reserved(provider_id))
+                ):
+                    add_provider_aliases(inferred, candidate, target)
+            normalized_source = normalized_legacy_provider_name_from_config(config_text, target)
+            if normalized_source:
+                add_provider_aliases(inferred, normalized_source, target)
+    finally:
+        conn.close()
+    return inferred
+
+
+def infer_source_providers_from_codex(codex_dir: Path, target: str) -> set[str]:
+    inferred: set[str] = set()
+
+    config_path = codex_dir / "config.toml"
+    if config_path.exists():
+        try:
+            config_text = config_path.read_text(encoding="utf-8")
+        except OSError:
+            config_text = ""
+        for candidate in [
+            top_level_model_provider(config_text),
+            *provider_ids_from_config_text(config_text),
+            *profile_model_providers(config_text),
+        ]:
+            if candidate and candidate != target and not provider_is_reserved(candidate):
+                add_provider_aliases(inferred, candidate, target)
+        normalized_source = normalized_legacy_provider_name_from_config(config_text, target)
+        if normalized_source:
+            add_provider_aliases(inferred, normalized_source, target)
+
+    for dirname in ("sessions", "archived_sessions"):
+        root = codex_dir / dirname
+        if not root.exists():
+            continue
+        for path in root.rglob("*.jsonl"):
+            try:
+                with path.open("r", encoding="utf-8") as fh:
+                    for line in fh:
+                        if '"session_meta"' not in line or '"model_provider"' not in line:
+                            continue
+                        try:
+                            obj = json.loads(line)
+                        except Exception:
+                            continue
+                        if obj.get("type") != "session_meta":
+                            continue
+                        provider = (obj.get("payload") or {}).get("model_provider")
+                        if isinstance(provider, str) and provider != target and not provider_is_reserved(provider):
+                            add_provider_aliases(inferred, provider, target)
+            except OSError:
+                continue
+
+    state_db = codex_dir / "state_5.sqlite"
+    if state_db.exists():
+        try:
+            conn = sqlite3.connect(f"file:{state_db}?mode=ro", uri=True)
+            try:
+                if table_exists(conn, "threads") and column_exists(conn, "threads", "model_provider"):
+                    for (provider,) in conn.execute(
+                        "SELECT DISTINCT model_provider FROM threads WHERE model_provider IS NOT NULL"
+                    ):
+                        if (
+                            isinstance(provider, str)
+                            and provider.strip()
+                            and provider != target
+                            and not provider_is_reserved(provider)
+                        ):
+                            add_provider_aliases(inferred, provider, target)
+            finally:
+                conn.close()
+        except sqlite3.Error:
+            pass
+
+    return inferred
+
+
+def infer_template_source_providers(provider_id: str, config_text: str, target: str) -> set[str]:
+    inferred: set[str] = set()
+    provider_id = provider_id.strip()
+    add_provider_aliases(inferred, provider_id, target)
+
+    active = top_level_model_provider(config_text)
+    for candidate in [active, *provider_ids_from_config_text(config_text), *profile_model_providers(config_text)]:
+        if candidate and candidate != target and not provider_is_reserved(candidate):
+            add_provider_aliases(inferred, candidate, target)
+
+    normalized_source = normalized_legacy_provider_name_from_config(config_text, target)
+    if normalized_source:
+        add_provider_aliases(inferred, normalized_source, target)
+    return inferred
 
 
 def command_output(args: list[str]) -> str:
@@ -187,7 +401,13 @@ def running_codex_processes() -> list[ProcessInfo]:
             continue
         comm = parts[2]
         args = parts[3] if len(parts) > 3 else ""
-        if comm == "codex" or re.search(r"(^|/|\s)codex(\s|$)", args):
+        exe_name = ""
+        try:
+            argv = shlex.split(args)
+            exe_name = Path(argv[0]).name if argv else ""
+        except Exception:
+            exe_name = args.split(None, 1)[0].rsplit("/", 1)[-1] if args else ""
+        if comm == "codex" or exe_name == "codex":
             matches.append(ProcessInfo(pid=pid, ppid=ppid, comm=comm, args=args))
     return matches
 
@@ -231,7 +451,7 @@ def ensure_backup_root(args: argparse.Namespace) -> Path:
         root = args.backup_root.expanduser()
     else:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        root = Path("~/.cc-switch/backups").expanduser() / f"manual-codex-provider-bucket-{stamp}"
+        root = args.cc_switch_db.expanduser().parent / "backups" / f"manual-codex-provider-bucket-{stamp}"
     root.mkdir(parents=True, exist_ok=False)
     return root
 
@@ -300,6 +520,11 @@ def parse_toml_header_path(line: str) -> list[str] | None:
         buf.append(ch)
     parts.append(unquote_toml_key("".join(buf).strip()))
     return parts
+
+
+def is_toml_header(line: str) -> bool:
+    stripped = line.strip()
+    return stripped.startswith("[") and stripped.endswith("]")
 
 
 def unquote_toml_key(key: str) -> str:
@@ -378,6 +603,41 @@ def profile_model_providers(text: str) -> list[str]:
     return values
 
 
+def normalized_legacy_provider_name_from_config(text: str, target: str) -> str | None:
+    if top_level_model_provider(text) != target:
+        return None
+    lines = text.splitlines()
+    in_target_provider = False
+    for line in lines:
+        path = parse_toml_header_path(line)
+        if path is not None:
+            in_target_provider = path == ["model_providers", target]
+            continue
+        if not in_target_provider:
+            continue
+        stripped = line.strip()
+        if stripped.startswith("#") or "=" not in stripped:
+            continue
+        key, value = stripped.split("=", 1)
+        if key.strip() != "name":
+            continue
+        match = re.match(r"\s*(['\"])(.*?)\1", value.strip())
+        if not match:
+            return None
+        raw_name = match.group(2).strip()
+        lowered = raw_name.lower()
+        if lowered in KNOWN_CC_SWITCH_LEGACY_CODEX_MODEL_PROVIDERS:
+            return lowered
+        if is_safe_provider_id(raw_name) and not provider_is_reserved(raw_name) and raw_name != target:
+            return raw_name
+        aliases = {
+            "e-flowcode": "eflowcode",
+            "pipellm": "pipellm",
+        }
+        return aliases.get(lowered)
+    return None
+
+
 def set_top_level_model_provider(text: str, target: str) -> str:
     lines = text.splitlines()
     first_table = next((i for i, line in enumerate(lines) if line.lstrip().startswith("[")), len(lines))
@@ -414,23 +674,7 @@ def remove_model_provider_sections(text: str, provider_id: str) -> str:
         path = parse_toml_header_path(lines[i])
         if path_has_prefix(path, prefix):
             i += 1
-            while i < len(lines) and parse_toml_header_path(lines[i]) is None:
-                i += 1
-            continue
-        out.append(lines[i])
-        i += 1
-    return compact_blank_lines(out)
-
-
-def remove_non_target_model_provider_sections(text: str, target: str) -> str:
-    lines = text.splitlines()
-    out: list[str] = []
-    i = 0
-    while i < len(lines):
-        path = parse_toml_header_path(lines[i])
-        if path_has_prefix(path, ["model_providers"]) and len(path or []) >= 2 and path[1] != target:
-            i += 1
-            while i < len(lines) and parse_toml_header_path(lines[i]) is None:
+            while i < len(lines) and not is_toml_header(lines[i]):
                 i += 1
             continue
         out.append(lines[i])
@@ -449,7 +693,7 @@ def copy_model_provider_sections(text: str, source: str, target: str) -> list[st
             new_path = ["model_providers", target] + path[2:]
             copied.append(f"[{format_toml_path(new_path)}]")
             i += 1
-            while i < len(lines) and parse_toml_header_path(lines[i]) is None:
+            while i < len(lines) and not is_toml_header(lines[i]):
                 copied.append(lines[i])
                 i += 1
             while copied and not copied[-1].strip():
@@ -467,6 +711,7 @@ def rewrite_profile_model_provider_refs(
     target: str,
     source_providers: set[str],
     excluded_providers: set[str],
+    all_non_target_providers: bool,
 ) -> str:
     lines = text.splitlines()
     out: list[str] = []
@@ -484,7 +729,13 @@ def rewrite_profile_model_provider_refs(
             if key == "model_provider":
                 match = re.match(r"\s*(['\"])(.*?)\1", value.strip())
                 provider = match.group(2).strip() if match else None
-                if should_migrate_provider(provider, target, source_providers, excluded_providers):
+                if should_migrate_provider(
+                    provider,
+                    target,
+                    source_providers,
+                    excluded_providers,
+                    all_non_target_providers,
+                ):
                     out.append(f'model_provider = "{target}"')
                     continue
         out.append(line)
@@ -518,29 +769,103 @@ def choose_source_provider(active: str | None, provider_ids: list[str], target: 
     return None
 
 
+def migratable_provider_ids(
+    provider_ids: list[str],
+    target: str,
+    source_providers: set[str],
+    excluded_providers: set[str],
+    all_non_target_providers: bool,
+) -> list[str]:
+    return [
+        provider_id
+        for provider_id in provider_ids
+        if should_migrate_provider(
+            provider_id,
+            target,
+            source_providers,
+            excluded_providers,
+            all_non_target_providers,
+        )
+    ]
+
+
+def choose_source_provider_for_migration(
+    active: str | None,
+    provider_ids: list[str],
+    target: str,
+    source_providers: set[str],
+    excluded_providers: set[str],
+    all_non_target_providers: bool,
+) -> str | None:
+    provider_set = set(provider_ids)
+    if active and active in provider_set and should_migrate_provider(
+        active,
+        target,
+        source_providers,
+        excluded_providers,
+        all_non_target_providers,
+    ):
+        return active
+
+    if target in provider_set:
+        return None
+
+    candidates = migratable_provider_ids(
+        provider_ids,
+        target,
+        source_providers,
+        excluded_providers,
+        all_non_target_providers,
+    )
+    if len(candidates) == 1:
+        return candidates[0]
+    return None
+
+
 def normalize_codex_config_text(
     text: str,
     target: str,
     source_providers: set[str],
     excluded_providers: set[str],
+    all_non_target_providers: bool,
 ) -> tuple[str, ConfigInfo]:
     original = text
     active = top_level_model_provider(text)
     provider_ids = provider_ids_from_config_text(text)
     profile_providers = profile_model_providers(text)
-    source = choose_source_provider(active, provider_ids, target)
+    source = choose_source_provider_for_migration(
+        active,
+        provider_ids,
+        target,
+        source_providers,
+        excluded_providers,
+        all_non_target_providers,
+    )
 
     if not text.strip():
         return text, ConfigInfo(active, provider_ids, profile_providers, False, None)
 
-    if should_migrate_provider(active, target, source_providers, excluded_providers):
+    if should_migrate_provider(active, target, source_providers, excluded_providers, all_non_target_providers):
         text = set_top_level_model_provider(text, target)
     if source:
         copied = copy_model_provider_sections(original, source, target)
         if copied:
             text = remove_model_provider_sections(text, target).rstrip() + "\n\n" + "\n".join(copied).rstrip() + "\n"
-    text = remove_non_target_model_provider_sections(text, target)
-    text = rewrite_profile_model_provider_refs(text, target, source_providers, excluded_providers)
+    for provider_id in migratable_provider_ids(
+        provider_ids,
+        target,
+        source_providers,
+        excluded_providers,
+        all_non_target_providers,
+    ):
+        text = remove_model_provider_sections(text, provider_id)
+    text = rewrite_profile_model_provider_refs(
+        text,
+        target,
+        source_providers,
+        excluded_providers,
+        all_non_target_providers,
+    )
     text = compact_blank_lines(text.splitlines())
     return text, ConfigInfo(active, provider_ids, profile_providers, text != original, source)
 
@@ -566,6 +891,7 @@ def scan_jsonl_history(
     target: str,
     source_providers: set[str],
     excluded_providers: set[str],
+    all_non_target_providers: bool,
 ) -> JsonlPlan:
     plan = JsonlPlan()
     for dirname in ("sessions", "archived_sessions"):
@@ -588,7 +914,13 @@ def scan_jsonl_history(
                         if isinstance(provider, str) and provider:
                             plan.session_meta_lines += 1
                             plan.provider_counts[provider] += 1
-                            if should_migrate_provider(provider, target, source_providers, excluded_providers):
+                            if should_migrate_provider(
+                                provider,
+                                target,
+                                source_providers,
+                                excluded_providers,
+                                all_non_target_providers,
+                            ):
                                 plan.lines_to_change += 1
                                 plan.migrate_counts[provider] += 1
                                 file_changes += 1
@@ -604,6 +936,7 @@ def rewrite_jsonl_history(
     target: str,
     source_providers: set[str],
     excluded_providers: set[str],
+    all_non_target_providers: bool,
     backup_root: Path,
 ) -> tuple[int, int]:
     changed_files = 0
@@ -630,7 +963,11 @@ def rewrite_jsonl_history(
                     payload = obj.get("payload")
                     provider = payload.get("model_provider") if isinstance(payload, dict) else None
                     if isinstance(provider, str) and should_migrate_provider(
-                        provider, target, source_providers, excluded_providers
+                        provider,
+                        target,
+                        source_providers,
+                        excluded_providers,
+                        all_non_target_providers,
                     ):
                         payload["model_provider"] = target
                         out.append(json.dumps(obj, ensure_ascii=False, separators=(",", ":")) + newline)
@@ -671,6 +1008,7 @@ def state_where_clause(
     target: str,
     source_providers: set[str],
     excluded_providers: set[str],
+    all_non_target_providers: bool,
 ) -> tuple[str, list[str]]:
     parts = ["model_provider IS NOT NULL", "TRIM(model_provider) != ''", "model_provider != ?"]
     params: list[str] = [target]
@@ -678,10 +1016,12 @@ def state_where_clause(
         placeholders = ",".join("?" for _ in source_providers)
         parts.append(f"model_provider IN ({placeholders})")
         params.extend(sorted(source_providers))
-    elif excluded_providers:
+    elif all_non_target_providers and excluded_providers:
         placeholders = ",".join("?" for _ in excluded_providers)
         parts.append(f"model_provider NOT IN ({placeholders})")
         params.extend(sorted(excluded_providers))
+    elif not all_non_target_providers:
+        parts.append("1 = 0")
     return " AND ".join(parts), params
 
 
@@ -690,6 +1030,7 @@ def scan_state_db(
     target: str,
     source_providers: set[str],
     excluded_providers: set[str],
+    all_non_target_providers: bool,
 ) -> SqlitePlan:
     plan = SqlitePlan(exists=db_path.exists())
     if not db_path.exists():
@@ -704,7 +1045,13 @@ def scan_state_db(
             provider = provider or ""
             plan.provider_counts[provider] = count
             plan.total_rows += count
-            if should_migrate_provider(provider, target, source_providers, excluded_providers):
+            if should_migrate_provider(
+                provider,
+                target,
+                source_providers,
+                excluded_providers,
+                all_non_target_providers,
+            ):
                 plan.migrate_counts[provider] += count
                 plan.rows_to_change += count
     finally:
@@ -717,6 +1064,7 @@ def migrate_state_db(
     target: str,
     source_providers: set[str],
     excluded_providers: set[str],
+    all_non_target_providers: bool,
     backup_root: Path,
 ) -> int:
     if not db_path.exists():
@@ -726,7 +1074,12 @@ def migrate_state_db(
         conn.execute("PRAGMA busy_timeout=5000")
         if not table_exists(conn, "threads") or not column_exists(conn, "threads", "model_provider"):
             return 0
-        where_sql, params = state_where_clause(target, source_providers, excluded_providers)
+        where_sql, params = state_where_clause(
+            target,
+            source_providers,
+            excluded_providers,
+            all_non_target_providers,
+        )
         rows = conn.execute(f"SELECT COUNT(*) FROM threads WHERE {where_sql}", params).fetchone()[0]
         if rows == 0:
             return 0
@@ -746,6 +1099,7 @@ def normalize_live_config(
     target: str,
     source_providers: set[str],
     excluded_providers: set[str],
+    all_non_target_providers: bool,
     apply: bool,
     backup_root: Path | None,
 ) -> ConfigInfo:
@@ -753,7 +1107,13 @@ def normalize_live_config(
     if not path.exists():
         return ConfigInfo()
     text = path.read_text(encoding="utf-8")
-    new_text, info = normalize_codex_config_text(text, target, source_providers, excluded_providers)
+    new_text, info = normalize_codex_config_text(
+        text,
+        target,
+        source_providers,
+        excluded_providers,
+        all_non_target_providers,
+    )
     if apply and info.changed:
         assert backup_root is not None
         copy_backup(path, backup_root, "codex-config", codex_dir)
@@ -765,6 +1125,7 @@ def scan_cc_switch_templates(
     db_path: Path,
     target: str,
     include_official: bool,
+    all_non_target_providers: bool,
 ) -> list[ProviderTemplatePlan]:
     if not db_path.exists():
         return []
@@ -791,7 +1152,14 @@ def scan_cc_switch_templates(
             if not isinstance(config_text, str) or not config_text.strip():
                 plans.append(ProviderTemplatePlan(provider_id, category, None, [], False, None, "empty config"))
                 continue
-            new_text, info = normalize_codex_config_text(config_text, target, set(), set())
+            template_sources = infer_template_source_providers(provider_id, config_text, target)
+            new_text, info = normalize_codex_config_text(
+                config_text,
+                target,
+                template_sources,
+                set(),
+                all_non_target_providers,
+            )
             plans.append(
                 ProviderTemplatePlan(
                     provider_id,
@@ -811,6 +1179,7 @@ def migrate_cc_switch_templates(
     db_path: Path,
     target: str,
     include_official: bool,
+    all_non_target_providers: bool,
     backup_root: Path,
 ) -> int:
     if not db_path.exists():
@@ -820,6 +1189,8 @@ def migrate_cc_switch_templates(
     conn.row_factory = sqlite3.Row
     changed = 0
     try:
+        if not table_exists(conn, "providers"):
+            return 0
         columns = table_columns(conn, "providers")
         has_updated_at = "updated_at" in columns
         rows = conn.execute(
@@ -839,7 +1210,14 @@ def migrate_cc_switch_templates(
             config_text = settings.get("config")
             if not isinstance(config_text, str) or not config_text.strip():
                 continue
-            new_text, _info = normalize_codex_config_text(config_text, target, set(), set())
+            template_sources = infer_template_source_providers(provider_id, config_text, target)
+            new_text, _info = normalize_codex_config_text(
+                config_text,
+                target,
+                template_sources,
+                set(),
+                all_non_target_providers,
+            )
             if new_text == config_text:
                 continue
             settings["config"] = new_text
@@ -879,6 +1257,15 @@ def main() -> None:
         die(f"invalid --target provider id: {target}")
     source_providers = {p.strip() for p in args.source_provider if p.strip()}
     excluded_providers = {p.strip() for p in args.exclude_provider if p.strip()}
+    if not source_providers and not args.all_non_target_providers:
+        source_providers = infer_source_providers_from_cc_switch(
+            args.cc_switch_db,
+            target,
+            args.include_official_provider_templates,
+        )
+        source_providers |= infer_source_providers_from_codex(args.codex_dir, target)
+        excluded_providers |= RESERVED_CODEX_MODEL_PROVIDERS
+        excluded_providers.add(target)
 
     if args.apply and not args.yes:
         die("--apply requires --yes")
@@ -917,10 +1304,16 @@ def main() -> None:
     log(f"Mode: {'apply' if args.apply else 'dry-run'}")
     log(f"Target bucket: {target}")
     if source_providers:
-        log(f"Source providers: {', '.join(sorted(source_providers))}")
+        source_label = "explicit/inferred"
+        if args.source_provider:
+            source_label = "explicit"
+        log(f"Source providers ({source_label}): {', '.join(sorted(source_providers))}")
     else:
         suffix = f"; excluded: {', '.join(sorted(excluded_providers))}" if excluded_providers else ""
-        log(f"Source providers: all non-empty non-target providers{suffix}")
+        if args.all_non_target_providers:
+            log(f"Source providers: all non-empty non-target providers{suffix}")
+        else:
+            log(f"Source providers: none inferred{suffix}")
 
     if not args.skip_live_config:
         info = normalize_live_config(
@@ -928,6 +1321,7 @@ def main() -> None:
             target,
             source_providers,
             excluded_providers,
+            args.all_non_target_providers,
             args.apply,
             backup_root,
         )
@@ -942,7 +1336,13 @@ def main() -> None:
 
     if not args.skip_history:
         log("")
-        jsonl_plan = scan_jsonl_history(args.codex_dir, target, source_providers, excluded_providers)
+        jsonl_plan = scan_jsonl_history(
+            args.codex_dir,
+            target,
+            source_providers,
+            excluded_providers,
+            args.all_non_target_providers,
+        )
         log("Codex JSONL history:")
         log(f"  files scanned: {jsonl_plan.files_scanned}")
         log(f"  session_meta lines: {jsonl_plan.session_meta_lines}")
@@ -957,12 +1357,19 @@ def main() -> None:
                 target,
                 source_providers,
                 excluded_providers,
+                args.all_non_target_providers,
                 backup_root,
             )
             log(f"  applied: rewrote {lines} lines in {files} files")
 
         state_db = args.codex_dir / "state_5.sqlite"
-        sqlite_plan = scan_state_db(state_db, target, source_providers, excluded_providers)
+        sqlite_plan = scan_state_db(
+            state_db,
+            target,
+            source_providers,
+            excluded_providers,
+            args.all_non_target_providers,
+        )
         log("")
         log("Codex state DB:")
         log(f"  path: {state_db}")
@@ -973,12 +1380,24 @@ def main() -> None:
         print_counter("  providers to migrate", sqlite_plan.migrate_counts)
         if args.apply and sqlite_plan.rows_to_change:
             assert backup_root is not None
-            rows = migrate_state_db(state_db, target, source_providers, excluded_providers, backup_root)
+            rows = migrate_state_db(
+                state_db,
+                target,
+                source_providers,
+                excluded_providers,
+                args.all_non_target_providers,
+                backup_root,
+            )
             log(f"  applied: updated {rows} rows")
 
     if not args.skip_cc_switch:
         log("")
-        plans = scan_cc_switch_templates(args.cc_switch_db, target, args.include_official_provider_templates)
+        plans = scan_cc_switch_templates(
+            args.cc_switch_db,
+            target,
+            args.include_official_provider_templates,
+            args.all_non_target_providers,
+        )
         log("cc-switch Codex provider templates:")
         log(f"  db: {args.cc_switch_db}")
         log(f"  providers scanned: {len(plans)}")
@@ -992,6 +1411,7 @@ def main() -> None:
                 args.cc_switch_db,
                 target,
                 args.include_official_provider_templates,
+                args.all_non_target_providers,
                 backup_root,
             )
             log(f"  applied: updated {changed} provider templates")

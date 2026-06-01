@@ -14,7 +14,7 @@
 - Codex default config should include `stream_idle_timeout_ms = 1800000` and
   `stream_max_retries = 20` to tolerate long compression pauses and transient
   SSE streaming disconnects. It should also use the `custom` model provider
-  provider with `supports_websockets = false`, `requires_openai_auth = true`,
+  with `supports_websockets = false`, `requires_openai_auth = true`,
   and `base_url = "https://chatgpt.com/backend-api/codex"` because this WSL2
   proxy path can fail during Responses WebSocket TLS handshakes while HTTPS
   requests still work. These stream/provider defaults are independent of the

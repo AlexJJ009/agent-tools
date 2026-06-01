@@ -807,9 +807,6 @@ def choose_source_provider_for_migration(
     ):
         return active
 
-    if target in provider_set:
-        return None
-
     candidates = migratable_provider_ids(
         provider_ids,
         target,
@@ -819,6 +816,8 @@ def choose_source_provider_for_migration(
     )
     if len(candidates) == 1:
         return candidates[0]
+    if target in provider_set:
+        return None
     return None
 
 

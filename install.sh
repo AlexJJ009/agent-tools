@@ -255,6 +255,14 @@ provider_sections_to_remove = {
     "model_providers.openai-no-ws",
     "model_providers.ccswitch",
 }
+reserved_provider_ids = {
+    "amazon-bedrock",
+    "lmstudio",
+    "ollama",
+    "ollama-chat",
+    "openai",
+    "oss",
+}
 
 def _toml_section_path(line):
     stripped = line.strip()
@@ -272,6 +280,19 @@ def _remove_model_provider_section(line):
         return False
     return any(path == section or path.startswith(section + ".") for section in provider_sections_to_remove)
 
+def _has_third_party_model_provider(lines):
+    for line in lines:
+        path = _toml_section_path(line)
+        if not path:
+            continue
+        parts = path.split(".")
+        if len(parts) >= 2 and parts[0] == "model_providers":
+            model_provider = parts[1]
+            if model_provider != provider_id and model_provider not in reserved_provider_ids:
+                return True
+    return False
+
+has_third_party_model_provider = _has_third_party_model_provider(rest)
 filtered_rest = []
 i = 0
 while i < len(rest):
@@ -290,15 +311,16 @@ if rest:
 
 if kept and kept[-1].strip():
     kept.append("")
-kept.extend([
-    provider_header,
-    'name = "OpenAI HTTPS no WebSocket"',
-    'base_url = "https://chatgpt.com/backend-api/codex"',
-    "requires_openai_auth = true",
-    "supports_websockets = false",
-    f"stream_idle_timeout_ms = {timeout}",
-    f"stream_max_retries = {retries}",
-])
+if not has_third_party_model_provider:
+    kept.extend([
+        provider_header,
+        'name = "OpenAI HTTPS no WebSocket"',
+        'base_url = "https://chatgpt.com/backend-api/codex"',
+        "requires_openai_auth = true",
+        "supports_websockets = false",
+        f"stream_idle_timeout_ms = {timeout}",
+        f"stream_max_retries = {retries}",
+    ])
 
 # Collapse runs of 2+ blank lines into 1 and strip leading blanks. Idempotent
 # across repeated runs so cosmetic gaps stop accumulating.

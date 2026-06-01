@@ -23,13 +23,13 @@ model = "gpt-5.5"
 model_reasoning_effort = "high"
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
-model_provider = "openai-no-ws"
+model_provider = "custom"
 ```
 
 Define the HTTPS-only Codex provider:
 
 ```toml
-[model_providers.openai-no-ws]
+[model_providers.custom]
 name = "OpenAI HTTPS no WebSocket"
 base_url = "https://chatgpt.com/backend-api/codex"
 requires_openai_auth = true
@@ -65,9 +65,11 @@ Meaning:
   before treating compression or app/CLI streaming as timed out.
 - `stream_max_retries = 20` gives transient SSE streaming disconnects more
   retry attempts before Codex gives up on the active response.
-- `model_provider = "openai-no-ws"` uses OpenAI/ChatGPT auth but disables the
+- `model_provider = "custom"` uses OpenAI/ChatGPT auth but disables the
   Responses WebSocket transport. This avoids `tls handshake eof` failures seen
   on this WSL2-to-Windows-proxy path while keeping HTTPS `/responses` working.
+  The stable `custom` bucket also matches cc-switch's Codex provider-switching
+  convention, so resume history is not split across third-party provider IDs.
 - `[features]` enables Codex lifecycle hooks, the memory layer, goal tracking,
   terminal resize reflow, and remote control. The installer removes the
   deprecated `[features].codex_hooks` key if present. Do not use top-level
@@ -126,7 +128,7 @@ env var before running:
 | model reasoning effort | `CODEX_MODEL_REASONING_EFFORT` | `high` |
 | stream idle timeout (ms) | `CODEX_STREAM_IDLE_TIMEOUT_MS` | `1800000` |
 | stream max retries | `CODEX_STREAM_MAX_RETRIES` | `20` |
-| model provider id | `CODEX_MODEL_PROVIDER_ID` | `openai-no-ws` |
+| model provider id | `CODEX_MODEL_PROVIDER_ID` | `custom` |
 | `[features].hooks` | `CODEX_FEATURE_HOOKS` | `true` |
 | `[features].memories` | `CODEX_FEATURE_MEMORIES` | `true` |
 | `[features].goals` | `CODEX_FEATURE_GOALS` | `true` |
@@ -161,13 +163,13 @@ model = "gpt-5.5"
 model_reasoning_effort = "high"
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
-model_provider = "openai-no-ws"
+model_provider = "custom"
 ```
 
 Ensure this provider table exists:
 
 ```toml
-[model_providers.openai-no-ws]
+[model_providers.custom]
 name = "OpenAI HTTPS no WebSocket"
 base_url = "https://chatgpt.com/backend-api/codex"
 requires_openai_auth = true
@@ -231,7 +233,7 @@ When asked to apply this on a new server or WSL2 machine:
    managed top-level keys (`approval_policy`, `sandbox_mode`,
    `approvals_reviewer`, `model`, `model_reasoning_effort`,
    `stream_idle_timeout_ms`, `stream_max_retries`, `model_provider`), the
-   `openai-no-ws` provider, and the full `[features]` block (`hooks`,
+   `custom` provider, and the full `[features]` block (`hooks`,
    `memories`, `goals`, `terminal_resize_reflow`, `remote_control`).
 3. If `install.sh` cannot run, use the One-Shot Setup or Manual Setup block
    above to patch `${CODEX_HOME:-$HOME/.codex}/config.toml` directly.

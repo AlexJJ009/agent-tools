@@ -169,7 +169,11 @@ This script writes:
 - `cc-switch` Codex providers into `$HOME/.cc-switch/cc-switch.db`
 
 It intentionally stores API keys through Codex provider `auth.command` instead
-of embedding bearer tokens directly in `config.toml`.
+of embedding bearer tokens directly in `config.toml`. It also intentionally
+uses one stable Codex bucket, `model_provider = "custom"`, for every provider.
+`cc-switch` provider switches should replace `[model_providers.custom]` rather
+than changing the bucket name; otherwise Codex resume history gets split by
+provider id.
 
 ```bash
 python3 - <<'PY'
@@ -185,56 +189,51 @@ codex_home = Path(os.environ.get("CODEX_HOME", home / ".codex")).expanduser()
 providers = json.loads(os.environ["CODEX_PROVIDERS_JSON"])
 default_provider = os.environ["CODEX_DEFAULT_PROVIDER"]
 default_model = os.environ.get("CODEX_MODEL", "gpt-5.5")
+codex_provider_bucket = os.environ.get("CODEX_MODEL_PROVIDER_ID", "custom")
+safe_id = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 if not providers:
     raise SystemExit("CODEX_PROVIDERS_JSON must contain at least one provider")
 if default_provider not in {p["id"] for p in providers}:
     raise SystemExit(f"default provider not found: {default_provider}")
+if not safe_id.match(codex_provider_bucket):
+    raise SystemExit(f"invalid CODEX_MODEL_PROVIDER_ID: {codex_provider_bucket}")
 
-safe_id = re.compile(r"^[A-Za-z0-9_.-]+$")
 keys_dir = codex_home / "keys"
 keys_dir.mkdir(parents=True, exist_ok=True)
 keys_dir.chmod(0o700)
 codex_home.mkdir(parents=True, exist_ok=True)
 
-provider_blocks = []
-profile_blocks = []
-
 for provider in providers:
     pid = provider["id"]
     if not safe_id.match(pid):
         raise SystemExit(f"invalid provider id: {pid}")
-    name = provider.get("name", pid)
-    base_url = provider["base_url"].rstrip("/")
-    model = provider.get("model", default_model)
     api_key = provider["api_key"]
 
     key_path = keys_dir / f"{pid}.key"
     key_path.write_text(api_key.rstrip() + "\n", encoding="utf-8")
     key_path.chmod(0o600)
 
-    provider_blocks.append(f"""
-[model_providers.{pid}]
-name = "{name}"
-base_url = "{base_url}"
+default_provider_config = next(p for p in providers if p["id"] == default_provider)
+default_provider_name = default_provider_config.get("name", default_provider)
+default_base_url = default_provider_config["base_url"].rstrip("/")
+default_key_path = keys_dir / f"{default_provider}.key"
+
+provider_block = f"""
+[model_providers.{codex_provider_bucket}]
+name = "{default_provider_name}"
+base_url = "{default_base_url}"
 wire_api = "responses"
 supports_websockets = false
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 
-[model_providers.{pid}.auth]
+[model_providers.{codex_provider_bucket}.auth]
 command = "cat"
-args = ["{key_path}"]
+args = ["{default_key_path}"]
 timeout_ms = 5000
 refresh_interval_ms = 0
-""".strip())
-
-    profile_blocks.append(f"""
-[profiles.{pid}]
-model = "{model}"
-model_provider = "{pid}"
-model_reasoning_effort = "high"
-""".strip())
+""".strip()
 
 config_text = f"""
 approval_policy = "on-request"
@@ -242,7 +241,7 @@ sandbox_mode = "workspace-write"
 approvals_reviewer = "auto_review"
 model = "{default_model}"
 model_reasoning_effort = "high"
-model_provider = "{default_provider}"
+model_provider = "{codex_provider_bucket}"
 
 [features]
 hooks = true
@@ -251,9 +250,7 @@ goals = true
 terminal_resize_reflow = true
 remote_control = true
 
-{chr(10).join(provider_blocks)}
-
-{chr(10).join(profile_blocks)}
+{provider_block}
 """.strip() + "\n"
 
 (codex_home / "config.toml").write_text(config_text, encoding="utf-8")
@@ -277,10 +274,10 @@ for index, provider in enumerate(providers, start=1):
 
     snippet = f"""
 model = "{model}"
-model_provider = "{pid}"
+model_provider = "{codex_provider_bucket}"
 model_reasoning_effort = "high"
 
-[model_providers.{pid}]
+[model_providers.{codex_provider_bucket}]
 name = "{name}"
 base_url = "{base_url}"
 wire_api = "responses"
@@ -288,7 +285,7 @@ supports_websockets = false
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 
-[model_providers.{pid}.auth]
+[model_providers.{codex_provider_bucket}.auth]
 command = "cat"
 args = ["{key_path}"]
 timeout_ms = 5000
@@ -361,24 +358,20 @@ cc-switch provider list -a codex
 cc-switch provider current -a codex
 ```
 
-Check each provider with the real Codex client:
+Check the default provider with the real Codex client:
 
 ```bash
-codex exec --strict-config --profile dragtokens \
-  -s read-only --skip-git-repo-check --ephemeral \
-  'Reply exactly OK'
-
-codex exec --strict-config --profile sub2api \
+codex exec --strict-config \
   -s read-only --skip-git-repo-check --ephemeral \
   'Reply exactly OK'
 ```
 
 Expected success is a final `OK`.
 
-These `--profile` checks are for the full multi-provider `config.toml` written
-by the bootstrap script. After using `cc-switch provider switch`, test the
-new default provider without `--profile`; `cc-switch` rewrites Codex config to
-the selected provider's stored snippet.
+The bootstrap script intentionally keeps Codex on a single history bucket:
+`model_provider = "custom"` and `[model_providers.custom]`. Test other
+providers through `cc-switch provider switch`; each stored provider snippet
+rewrites the same `custom` bucket with that provider's endpoint and auth.
 
 For HTTP-level diagnostics, test `/models` first:
 
@@ -409,6 +402,25 @@ codex exec --strict-config \
   'Reply exactly OK'
 ```
 
+## Existing History Migration
+
+If the machine already used Codex before the stable `custom` bucket convention,
+run the local migration script once after closing Codex:
+
+```bash
+python3 ~/agent-tools/migrate_codex_provider_bucket.py --target custom
+python3 ~/agent-tools/migrate_codex_provider_bucket.py --target custom --apply --yes --kill-running-codex
+```
+
+The dry-run shows every source bucket and every cc-switch template that would
+change. The apply run backs up `config.toml`, `state_5.sqlite`, changed JSONL
+session files, and the cc-switch DB under `~/.cc-switch/backups/`. It rewrites
+Codex history to `custom`, updates live `~/.codex/config.toml`, and changes
+cc-switch Codex provider templates so future switches keep
+`model_provider = "custom"` / `[model_providers.custom]`. It should terminate
+running Codex processes before writing; otherwise a process that already loaded
+the old config/key can keep using the old in-memory provider until restarted.
+
 ## Troubleshooting
 
 - `Could not resolve host: sub2api`: the shell is running on the host, not
@@ -418,7 +430,7 @@ codex exec --strict-config \
   Add the API prefix, usually `/v1`.
 - `unknown configuration field stream_idle_timeout_ms`: remove top-level
   `stream_idle_timeout_ms` and `stream_max_retries`; keep those keys inside
-  each `[model_providers.<id>]` table.
+  `[model_providers.custom]`.
 - Bubblewrap warning: install `bubblewrap` through the OS package manager.
 - Existing Codex sessions do not hot-load config changes. Start a new Codex
   process after changing `config.toml` or switching providers.
@@ -431,8 +443,8 @@ codex exec --strict-config \
   to such a channel. Do not enable image generation on public or untrusted test
   groups just to make Codex work; issue separate public text-only keys instead.
 - `cc-switch provider list/current` shows the wrong API URL: check the actual
-  `~/.codex/config.toml` top-level `model_provider` and the matching
-  `[model_providers.<id>]` `base_url`. This can happen if a provider entry was
+  `~/.codex/config.toml` top-level `model_provider = "custom"` and
+  `[model_providers.custom].base_url`. This can happen if a provider entry was
   manually populated with a full multi-provider TOML blob. The bootstrap script
   stores one-provider snippets in `cc-switch` to avoid that ambiguity.
 

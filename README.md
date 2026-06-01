@@ -17,6 +17,8 @@ The recommended deployment model is one central tool directory per machine, not 
   can import Claude Code auto memory.
 - `bin/codex-here` — portable launcher that starts Codex with the current shell
   directory pinned via `codex -C "$PWD"`.
+- `migrate_codex_provider_bucket.py` — one-shot Codex history and cc-switch
+  template migration that forces all Codex provider buckets into `custom`.
 - `install.sh` — portable installer for a new Linux/WSL2 machine.
 - `experiment_registry/` — canonical SQLite experiment registry tooling,
   schema, queries, validation scripts, and the `experiment-registry` skill.
@@ -165,7 +167,7 @@ model = "gpt-5.5"
 model_reasoning_effort = "high"
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
-model_provider = "openai-no-ws"
+model_provider = "custom"
 
 [features]
 hooks = true
@@ -174,7 +176,7 @@ goals = true
 terminal_resize_reflow = true
 remote_control = true
 
-[model_providers.openai-no-ws]
+[model_providers.custom]
 name = "OpenAI HTTPS no WebSocket"
 base_url = "https://chatgpt.com/backend-api/codex"
 requires_openai_auth = true
@@ -193,10 +195,12 @@ This combines three default sets:
 - **Model + reasoning posture** (`model`, `model_reasoning_effort`). Pins the
   default model and reasoning effort for new conversations.
 - **Compression / streaming resilience** (`stream_idle_timeout_ms`,
-  `stream_max_retries`, `model_provider` + the managed `openai-no-ws`
+  `stream_max_retries`, `model_provider` + the managed `custom`
   provider). 30 minutes of idle stream time, 20 SSE retries, and an HTTPS-only
   provider that avoids WebSocket transport on proxy paths where WebSocket TLS
-  handshakes are unstable.
+  handshakes are unstable. The stable `custom` bucket also matches cc-switch's
+  Codex provider-switching convention, so history stays visible across
+  third-party providers.
 - **Feature flags** (`[features]` block). Enables `hooks`, `memories`,
   `goals`, `terminal_resize_reflow`, and `remote_control`. The installer also
   removes the deprecated `codex_hooks` key if present.

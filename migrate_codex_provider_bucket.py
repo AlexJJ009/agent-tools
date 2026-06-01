@@ -171,7 +171,7 @@ class ProcessInfo:
 
 
 def running_codex_processes() -> list[ProcessInfo]:
-    output = command_output(["ps", "-eo", "pid=,comm=,args="])
+    output = command_output(["ps", "-eo", "pid=,ppid=,comm=,args="])
     current_pid = os.getpid()
     matches: list[ProcessInfo] = []
     for line in output.splitlines():

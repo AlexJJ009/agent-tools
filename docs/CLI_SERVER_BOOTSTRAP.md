@@ -234,9 +234,11 @@ sandbox_mode = "workspace-write"
 approvals_reviewer = "auto_review"
 model = "{default_model}"
 model_reasoning_effort = "high"
+service_tier = "fast"
 model_provider = "{codex_provider_bucket}"
 
 [features]
+fast_mode = true
 hooks = true
 memories = true
 goals = true

@@ -29,6 +29,8 @@ CODEX_SANDBOX_MODE="${CODEX_SANDBOX_MODE:-workspace-write}"
 CODEX_APPROVALS_REVIEWER="${CODEX_APPROVALS_REVIEWER:-guardian_subagent}"
 CODEX_MODEL="${CODEX_MODEL:-gpt-5.5}"
 CODEX_MODEL_REASONING_EFFORT="${CODEX_MODEL_REASONING_EFFORT:-high}"
+CODEX_SERVICE_TIER="${CODEX_SERVICE_TIER:-fast}"
+CODEX_FEATURE_FAST_MODE="${CODEX_FEATURE_FAST_MODE:-true}"
 CODEX_FEATURE_HOOKS="${CODEX_FEATURE_HOOKS:-true}"
 CODEX_FEATURE_MEMORIES="${CODEX_FEATURE_MEMORIES:-true}"
 CODEX_FEATURE_GOALS="${CODEX_FEATURE_GOALS:-true}"
@@ -417,6 +419,63 @@ finally:
 PY
 }
 
+check_codex_fast_mode() {
+  local codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
+
+  select_python_bin
+  "$PYTHON_BIN" - "$codex_config" "$CODEX_SERVICE_TIER" "$CODEX_FEATURE_FAST_MODE" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+path = Path(sys.argv[1]).expanduser()
+expected_tier = sys.argv[2]
+expected_fast_mode = sys.argv[3]
+
+if not path.exists():
+    print(f"WARNING: Codex Fast mode check skipped: missing {path}")
+    raise SystemExit(0)
+
+text = path.read_text(encoding="utf-8")
+service_tier = None
+fast_mode = None
+in_features = False
+
+for line in text.splitlines():
+    stripped = line.strip()
+    if stripped.startswith("[") and stripped.endswith("]"):
+        in_features = stripped == "[features]"
+        continue
+    if stripped.startswith("#") or "=" not in stripped:
+        continue
+    key, value = stripped.split("=", 1)
+    key = key.strip()
+    value = value.strip()
+    if not in_features and key == "service_tier":
+        match = re.match(r"(['\"])(.*?)\1", value)
+        service_tier = match.group(2) if match else value
+    if in_features and key == "fast_mode":
+        fast_mode = value.split("#", 1)[0].strip().lower()
+
+warnings = []
+if service_tier != expected_tier:
+    warnings.append(f'top-level service_tier is {service_tier!r}; expected "{expected_tier}"')
+if fast_mode != expected_fast_mode:
+    warnings.append(f'[features].fast_mode is {fast_mode!r}; expected {expected_fast_mode}')
+
+if warnings:
+    print("WARNING: Codex Fast mode is not fully enabled:")
+    for warning in warnings:
+        print(f"  - {warning}")
+else:
+    print(f"Codex Fast mode: service_tier={expected_tier}, fast_mode={expected_fast_mode}")
+PY
+
+  if ! command -v cc-switch >/dev/null 2>&1; then
+    echo "WARNING: cc-switch not found on PATH; provider switching and custom bucket sync are not available."
+  fi
+}
+
 sync_codex_config_from_cc_switch_current() {
   local output provider_id
 
@@ -453,7 +512,7 @@ configure_codex_defaults() {
   local codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
 
   select_python_bin
-  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" "$CODEX_MODEL_PROVIDER_ID" "$CODEX_APPROVAL_POLICY" "$CODEX_SANDBOX_MODE" "$CODEX_APPROVALS_REVIEWER" "$CODEX_MODEL" "$CODEX_MODEL_REASONING_EFFORT" <<'PY'
+  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" "$CODEX_MODEL_PROVIDER_ID" "$CODEX_APPROVAL_POLICY" "$CODEX_SANDBOX_MODE" "$CODEX_APPROVALS_REVIEWER" "$CODEX_MODEL" "$CODEX_MODEL_REASONING_EFFORT" "$CODEX_SERVICE_TIER" <<'PY'
 from pathlib import Path
 import sys
 
@@ -466,6 +525,7 @@ sandbox_mode = sys.argv[6]
 approvals_reviewer = sys.argv[7]
 model = sys.argv[8]
 model_reasoning_effort = sys.argv[9]
+service_tier = sys.argv[10]
 if not timeout.isdigit() or int(timeout) <= 0:
     raise SystemExit(f"invalid CODEX_STREAM_IDLE_TIMEOUT_MS: {timeout}")
 if not retries.isdigit() or int(retries) <= 0:
@@ -476,6 +536,7 @@ ALLOWED_APPROVAL_POLICIES = {"on-request", "on-failure", "untrusted", "never"}
 ALLOWED_SANDBOX_MODES = {"read-only", "workspace-write", "danger-full-access"}
 ALLOWED_APPROVALS_REVIEWERS = {"user", "auto_review", "guardian_subagent"}
 ALLOWED_REASONING_EFFORTS = {"minimal", "low", "medium", "high"}
+ALLOWED_SERVICE_TIERS = {"auto", "default", "fast"}
 if approval_policy not in ALLOWED_APPROVAL_POLICIES:
     raise SystemExit(f"invalid CODEX_APPROVAL_POLICY: {approval_policy}")
 if sandbox_mode not in ALLOWED_SANDBOX_MODES:
@@ -486,6 +547,8 @@ if not model or not all(c.isalnum() or c in "-_." for c in model):
     raise SystemExit(f"invalid CODEX_MODEL: {model}")
 if model_reasoning_effort not in ALLOWED_REASONING_EFFORTS:
     raise SystemExit(f"invalid CODEX_MODEL_REASONING_EFFORT: {model_reasoning_effort}")
+if service_tier not in ALLOWED_SERVICE_TIERS:
+    raise SystemExit(f"invalid CODEX_SERVICE_TIER: {service_tier}")
 
 path.parent.mkdir(parents=True, exist_ok=True)
 text = path.read_text(encoding="utf-8") if path.exists() else ""
@@ -504,6 +567,7 @@ managed_top_level = {
     "approvals_reviewer",
     "model",
     "model_reasoning_effort",
+    "service_tier",
 }
 
 kept = []
@@ -521,6 +585,7 @@ kept.append(f'sandbox_mode = "{sandbox_mode}"')
 kept.append(f'approvals_reviewer = "{approvals_reviewer}"')
 kept.append(f'model = "{model}"')
 kept.append(f'model_reasoning_effort = "{model_reasoning_effort}"')
+kept.append(f'service_tier = "{service_tier}"')
 kept.append(f"stream_idle_timeout_ms = {timeout}")
 kept.append(f"stream_max_retries = {retries}")
 kept.append(f'model_provider = "{provider_id}"')
@@ -634,6 +699,7 @@ configure_codex_features() {
 
   select_python_bin
   "$PYTHON_BIN" - "$codex_config" \
+      "$CODEX_FEATURE_FAST_MODE" \
       "$CODEX_FEATURE_HOOKS" \
       "$CODEX_FEATURE_MEMORIES" \
       "$CODEX_FEATURE_GOALS" \
@@ -645,11 +711,12 @@ import sys
 path = Path(sys.argv[1]).expanduser()
 
 FEATURE_KEYS = [
-    ("hooks", sys.argv[2]),
-    ("memories", sys.argv[3]),
-    ("goals", sys.argv[4]),
-    ("terminal_resize_reflow", sys.argv[5]),
-    ("remote_control", sys.argv[6]),
+    ("fast_mode", sys.argv[2]),
+    ("hooks", sys.argv[3]),
+    ("memories", sys.argv[4]),
+    ("goals", sys.argv[5]),
+    ("terminal_resize_reflow", sys.argv[6]),
+    ("remote_control", sys.argv[7]),
 ]
 
 ALLOWED_VALUES = {"true", "false"}
@@ -657,7 +724,7 @@ for name, value in FEATURE_KEYS:
     if value not in ALLOWED_VALUES:
         raise SystemExit(f"invalid CODEX_FEATURE_{name.upper()}: {value} (expected true|false)")
 
-managed = {name for name, _ in FEATURE_KEYS} | {"codex_hooks", "remote_connections"}
+managed = {name for name, _ in FEATURE_KEYS} | {"codex_hooks", "remote_connections", "service_tier"}
 
 path.parent.mkdir(parents=True, exist_ok=True)
 text = path.read_text(encoding="utf-8") if path.exists() else ""
@@ -1355,6 +1422,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   sync_codex_config_from_cc_switch_current
   normalize_codex_provider_auth
   configure_codex_features
+  check_codex_fast_mode
   configure_codex_project_hooks_features
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
     run_codex_provider_bucket_migration
@@ -1427,10 +1495,11 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex sandbox mode: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_SANDBOX_MODE}"
   echo "Codex approvals reviewer: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_APPROVALS_REVIEWER}"
   echo "Codex model: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL} (reasoning: ${CODEX_MODEL_REASONING_EFFORT})"
+  echo "Codex service tier: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_SERVICE_TIER}"
   echo "Codex stream idle timeout: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_IDLE_TIMEOUT_MS} ms"
   echo "Codex stream max retries: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_MAX_RETRIES}"
   echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (HTTPS, no WebSocket)"
-  echo "Codex [features]: hooks=${CODEX_FEATURE_HOOKS} memories=${CODEX_FEATURE_MEMORIES} goals=${CODEX_FEATURE_GOALS} terminal_resize_reflow=${CODEX_FEATURE_TERMINAL_RESIZE_REFLOW} remote_control=${CODEX_FEATURE_REMOTE_CONTROL}"
+  echo "Codex [features]: fast_mode=${CODEX_FEATURE_FAST_MODE} hooks=${CODEX_FEATURE_HOOKS} memories=${CODEX_FEATURE_MEMORIES} goals=${CODEX_FEATURE_GOALS} terminal_resize_reflow=${CODEX_FEATURE_TERMINAL_RESIZE_REFLOW} remote_control=${CODEX_FEATURE_REMOTE_CONTROL}"
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
     echo "Codex provider bucket migration: target=${CODEX_MODEL_PROVIDER_ID}, apply=${APPLY_CODEX_PROVIDER_BUCKET_MIGRATION}"
   else
@@ -1439,6 +1508,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex proxy wrapper mode: $INSTALL_CODEX_PROXY_WRAPPER"
   echo "Codex proxy port candidates: $CODEX_PROXY_PORTS"
 else
+  check_codex_fast_mode
   echo "Codex config not changed (--no-codex-config)."
 fi
 if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then

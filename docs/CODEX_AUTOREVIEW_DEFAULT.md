@@ -126,9 +126,11 @@ env var before running:
 | approvals reviewer | `CODEX_APPROVALS_REVIEWER` | `guardian_subagent` |
 | model | `CODEX_MODEL` | `gpt-5.5` |
 | model reasoning effort | `CODEX_MODEL_REASONING_EFFORT` | `high` |
+| service tier | `CODEX_SERVICE_TIER` | `fast` |
 | stream idle timeout (ms) | `CODEX_STREAM_IDLE_TIMEOUT_MS` | `1800000` |
 | stream max retries | `CODEX_STREAM_MAX_RETRIES` | `20` |
 | model provider id | `CODEX_MODEL_PROVIDER_ID` | `custom` |
+| `[features].fast_mode` | `CODEX_FEATURE_FAST_MODE` | `true` |
 | `[features].hooks` | `CODEX_FEATURE_HOOKS` | `true` |
 | `[features].memories` | `CODEX_FEATURE_MEMORIES` | `true` |
 | `[features].goals` | `CODEX_FEATURE_GOALS` | `true` |
@@ -137,13 +139,14 @@ env var before running:
 
 Pass `--no-codex-config` to skip the Codex patch entirely.
 
-The installer preserves existing top-level settings such as `service_tier`,
-existing project trust entries, and other TOML tables (`[mcp_servers.*]`,
-`[tui]`, `[notice]`, etc.). It only replaces the managed keys above and the
+The installer replaces the managed keys above, including top-level
+`service_tier = "fast"` and `[features].fast_mode = true`. Do not put
+`service_tier` under `[features]`. It preserves existing project trust entries
+and other TOML tables (`[mcp_servers.*]`, `[tui]`, `[notice]`, etc.) and the
 managed HTTPS-only Codex provider, and removes the deprecated
 `[features].codex_hooks` key if present. It also removes stale top-level
-`remote_control` and any `remote_connections` key when normalizing managed
-features.
+`remote_control`, any `remote_connections` key, and the incorrect
+`[features].service_tier` key when normalizing managed features.
 
 ## Manual Setup
 
@@ -161,6 +164,7 @@ sandbox_mode = "workspace-write"
 approvals_reviewer = "guardian_subagent"
 model = "gpt-5.5"
 model_reasoning_effort = "high"
+service_tier = "fast"
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 model_provider = "custom"
@@ -182,6 +186,7 @@ Ensure the `[features]` table contains the full default feature set:
 
 ```toml
 [features]
+fast_mode = true
 hooks = true
 memories = true
 goals = true
@@ -232,13 +237,14 @@ When asked to apply this on a new server or WSL2 machine:
 2. Run `./install.sh` (with appropriate `--root` flags). It writes all eight
    managed top-level keys (`approval_policy`, `sandbox_mode`,
    `approvals_reviewer`, `model`, `model_reasoning_effort`,
-   `stream_idle_timeout_ms`, `stream_max_retries`, `model_provider`), the
-   `custom` provider, and the full `[features]` block (`hooks`,
+   `service_tier`, `stream_idle_timeout_ms`, `stream_max_retries`,
+   `model_provider`), the `custom` provider, and the full `[features]` block
+   (`fast_mode`, `hooks`,
    `memories`, `goals`, `terminal_resize_reflow`, `remote_control`).
 3. If `install.sh` cannot run, use the One-Shot Setup or Manual Setup block
    above to patch `${CODEX_HOME:-$HOME/.codex}/config.toml` directly.
-4. Preserve existing `service_tier`, `[projects.*]`, `[mcp_servers.*]`,
-   `[tui]`, `[notice]`, and other TOML tables. The installer already does this.
+4. Preserve `[projects.*]`, `[mcp_servers.*]`, `[tui]`, `[notice]`, and other
+   TOML tables. The installer already does this.
 5. Remove top-level `remote_control` and any `remote_connections` key if present.
 6. Validate with `codex features list`.
 7. Tell the user that only new Codex sessions pick up the new default.
@@ -246,8 +252,9 @@ When asked to apply this on a new server or WSL2 machine:
 To deviate from the defaults, set the matching env var before running
 `install.sh`:
 `CODEX_APPROVAL_POLICY`, `CODEX_SANDBOX_MODE`, `CODEX_APPROVALS_REVIEWER`,
-`CODEX_MODEL`, `CODEX_MODEL_REASONING_EFFORT`, `CODEX_STREAM_IDLE_TIMEOUT_MS`,
-`CODEX_STREAM_MAX_RETRIES`, `CODEX_MODEL_PROVIDER_ID`, `CODEX_FEATURE_HOOKS`,
+`CODEX_MODEL`, `CODEX_MODEL_REASONING_EFFORT`, `CODEX_SERVICE_TIER`,
+`CODEX_STREAM_IDLE_TIMEOUT_MS`, `CODEX_STREAM_MAX_RETRIES`,
+`CODEX_MODEL_PROVIDER_ID`, `CODEX_FEATURE_FAST_MODE`, `CODEX_FEATURE_HOOKS`,
 `CODEX_FEATURE_MEMORIES`, `CODEX_FEATURE_GOALS`,
 `CODEX_FEATURE_TERMINAL_RESIZE_REFLOW`, `CODEX_FEATURE_REMOTE_CONTROL`. Use
 `--no-codex-config` to skip the codex patch entirely.

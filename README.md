@@ -165,11 +165,13 @@ sandbox_mode = "workspace-write"
 approvals_reviewer = "guardian_subagent"
 model = "gpt-5.5"
 model_reasoning_effort = "high"
+service_tier = "fast"
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 model_provider = "custom"
 
 [features]
+fast_mode = true
 hooks = true
 memories = true
 goals = true
@@ -197,8 +199,9 @@ This combines three default sets:
   Guardian subagent reviewing approvals rather than the user, and stay out of
   Full Access. See `docs/CODEX_AUTOREVIEW_DEFAULT.md` for rationale and
   rollback.
-- **Model + reasoning posture** (`model`, `model_reasoning_effort`). Pins the
-  default model and reasoning effort for new conversations.
+- **Model + reasoning posture** (`model`, `model_reasoning_effort`,
+  `service_tier`). Pins the default model, reasoning effort, and Fast service
+  tier for new conversations.
 - **Compression / streaming resilience** (`stream_idle_timeout_ms`,
   `stream_max_retries`, `model_provider` + the managed `custom`
   provider). 30 minutes of idle stream time, 20 SSE retries, and an HTTPS-only
@@ -206,7 +209,7 @@ This combines three default sets:
   handshakes are unstable. The stable `custom` bucket also matches cc-switch's
   Codex provider-switching convention, so history stays visible across
   third-party providers.
-- **Feature flags** (`[features]` block). Enables `hooks`, `memories`,
+- **Feature flags** (`[features]` block). Enables `fast_mode`, `hooks`, `memories`,
   `goals`, `terminal_resize_reflow`, and `remote_control`. The installer also
   removes the deprecated `codex_hooks` key if present.
 
@@ -233,13 +236,15 @@ codex-here
 `codex remote-control start` and `codex app-server daemon restart` keep their
 normal behavior. Pass `--no-codex-here` to skip installing this launcher.
 
-It preserves existing top-level settings such as `service_tier`, project trust
-entries, and other TOML tables (e.g. `[mcp_servers.*]`, `[tui]`, `[notice]`).
+It preserves project trust entries and other TOML tables (e.g.
+`[mcp_servers.*]`, `[tui]`, `[notice]`) while managing the top-level
+`service_tier` setting.
 Use `--no-codex-config` to skip this step, or override individual defaults via
 env vars: `CODEX_APPROVAL_POLICY`, `CODEX_SANDBOX_MODE`,
 `CODEX_APPROVALS_REVIEWER`, `CODEX_MODEL`, `CODEX_MODEL_REASONING_EFFORT`,
+`CODEX_SERVICE_TIER`,
 `CODEX_STREAM_IDLE_TIMEOUT_MS`, `CODEX_STREAM_MAX_RETRIES`,
-`CODEX_MODEL_PROVIDER_ID`, and `CODEX_FEATURE_HOOKS` /
+`CODEX_MODEL_PROVIDER_ID`, `CODEX_FEATURE_FAST_MODE`, and `CODEX_FEATURE_HOOKS` /
 `CODEX_FEATURE_MEMORIES` / `CODEX_FEATURE_GOALS` /
 `CODEX_FEATURE_TERMINAL_RESIZE_REFLOW` / `CODEX_FEATURE_REMOTE_CONTROL`
 (each accepts `true` or `false`).

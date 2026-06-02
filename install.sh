@@ -17,8 +17,9 @@ INSTALL_CODEX_HERE=1
 INSTALL_CC_SWITCH_CLI_UPDATE="${INSTALL_CC_SWITCH_CLI_UPDATE:-1}"
 INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=1
 APPLY_CODEX_PROVIDER_BUCKET_MIGRATION="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_APPLY:-1}"
+CODEX_PROVIDER_BUCKET_ALL_NON_TARGET="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALL_NON_TARGET:-1}"
 CODEX_PROVIDER_BUCKET_ALLOW_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALLOW_RUNNING:-0}"
-CODEX_PROVIDER_BUCKET_KILL_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_KILL_RUNNING:-0}"
+CODEX_PROVIDER_BUCKET_KILL_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_KILL_RUNNING:-1}"
 INSTALL_CODEX_PROXY_WRAPPER="${INSTALL_CODEX_PROXY_WRAPPER:-auto}"
 INSTALL_CODEX_REMOTE_CONTROL="${INSTALL_CODEX_REMOTE_CONTROL:-1}"
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-1800000}"
@@ -943,6 +944,9 @@ run_codex_provider_bucket_migration() {
   if [[ "$CODEX_PROVIDER_BUCKET_KILL_RUNNING" == "1" ]]; then
     args+=(--kill-running-codex)
   fi
+  if [[ "$CODEX_PROVIDER_BUCKET_ALL_NON_TARGET" == "1" ]]; then
+    args+=(--all-non-target-providers)
+  fi
 
   if [[ "$APPLY_CODEX_PROVIDER_BUCKET_MIGRATION" == "1" ]]; then
     set +e
@@ -958,7 +962,7 @@ run_codex_provider_bucket_migration() {
     echo "Codex provider bucket migration apply was blocked, usually because Codex is running; falling back to dry-run." >&2
   fi
 
-  "$PYTHON_BIN" "$script" --target "$CODEX_MODEL_PROVIDER_ID"
+  "$PYTHON_BIN" "$script" --target "$CODEX_MODEL_PROVIDER_ID" "${args[@]}"
 }
 
 probe_codex_proxy_url() {
@@ -1247,15 +1251,22 @@ Options:
   --no-codex-provider-bucket-migration
                            Do not scan/migrate Codex history and cc-switch
                            provider templates to the custom model_provider bucket.
+  --codex-provider-bucket-trusted-sources-only
+                           Only migrate inferred cc-switch third-party buckets;
+                           default is every non-target bucket, including openai.
   --apply-codex-provider-bucket-migration
                            Apply Codex provider bucket migration. This is the
-                           default; close Codex first for a real write.
+                           default.
   --dry-run-codex-provider-bucket-migration
                            Scan only and do not write migration changes.
   --allow-running-codex-provider-bucket-migration
                            Allow applying the migration while Codex is running.
   --kill-running-codex-provider-bucket-migration
                            Terminate running Codex processes before applying.
+                           This is the default.
+  --no-kill-running-codex-provider-bucket-migration
+                           Do not terminate Codex before migration; if Codex is
+                           running, apply falls back to dry-run.
   --codex-proxy-wrapper MODE
                            Install Codex proxy wrapper: auto|always|never. Default: auto.
   --codex-proxy-url URL    Use a specific proxy URL, e.g. http://127.0.0.1:7897.
@@ -1324,6 +1335,10 @@ while [[ $# -gt 0 ]]; do
       INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=0
       shift
       ;;
+    --codex-provider-bucket-trusted-sources-only)
+      CODEX_PROVIDER_BUCKET_ALL_NON_TARGET=0
+      shift
+      ;;
     --apply-codex-provider-bucket-migration)
       APPLY_CODEX_PROVIDER_BUCKET_MIGRATION=1
       shift
@@ -1339,6 +1354,10 @@ while [[ $# -gt 0 ]]; do
     --kill-running-codex-provider-bucket-migration)
       CODEX_PROVIDER_BUCKET_KILL_RUNNING=1
       APPLY_CODEX_PROVIDER_BUCKET_MIGRATION=1
+      shift
+      ;;
+    --no-kill-running-codex-provider-bucket-migration)
+      CODEX_PROVIDER_BUCKET_KILL_RUNNING=0
       shift
       ;;
     --codex-proxy-wrapper)
@@ -1501,7 +1520,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (HTTPS, no WebSocket)"
   echo "Codex [features]: fast_mode=${CODEX_FEATURE_FAST_MODE} hooks=${CODEX_FEATURE_HOOKS} memories=${CODEX_FEATURE_MEMORIES} goals=${CODEX_FEATURE_GOALS} terminal_resize_reflow=${CODEX_FEATURE_TERMINAL_RESIZE_REFLOW} remote_control=${CODEX_FEATURE_REMOTE_CONTROL}"
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
-    echo "Codex provider bucket migration: target=${CODEX_MODEL_PROVIDER_ID}, apply=${APPLY_CODEX_PROVIDER_BUCKET_MIGRATION}"
+    echo "Codex provider bucket migration: target=${CODEX_MODEL_PROVIDER_ID}, apply=${APPLY_CODEX_PROVIDER_BUCKET_MIGRATION}, all_non_target=${CODEX_PROVIDER_BUCKET_ALL_NON_TARGET}"
   else
     echo "Codex provider bucket migration not run (--no-codex-provider-bucket-migration)."
   fi

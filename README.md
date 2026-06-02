@@ -17,8 +17,8 @@ The recommended deployment model is one central tool directory per machine, not 
   can import Claude Code auto memory.
 - `bin/codex-here` — portable launcher that starts Codex with the current shell
   directory pinned via `codex -C "$PWD"`.
-- `migrate_codex_provider_bucket.py` — one-shot Codex history and cc-switch
-  template migration that forces all Codex provider buckets into `custom`.
+- `migrate_codex_provider_bucket.py` — Codex history and cc-switch template
+  migration that forces every non-target Codex provider bucket into `custom`.
 - `install.sh` — portable installer for a new Linux/WSL2 machine.
 - `experiment_registry/` — canonical SQLite experiment registry tooling,
   schema, queries, validation scripts, and the `experiment-registry` skill.
@@ -191,6 +191,15 @@ Before running the Codex provider-bucket migration, the installer updates
 `cc-switch-cli` from the latest GitHub release installer. Use
 `--no-cc-switch-update` only when the target machine cannot or should not reach
 GitHub during install.
+
+By default, the installer also applies the Codex provider-bucket migration for
+all non-`custom` history buckets, including older `openai`, `openai-no-ws`,
+`subrouter`, and provider-specific names. It terminates running Codex processes
+before rewriting the history index so the install can complete in one pass. Use
+`--no-kill-running-codex-provider-bucket-migration` only when you intentionally
+want to keep Codex running and accept a dry-run fallback. Use
+`--codex-provider-bucket-trusted-sources-only` to keep the older behavior that
+only migrates inferred cc-switch third-party buckets.
 
 This combines three default sets:
 

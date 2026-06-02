@@ -418,7 +418,8 @@ run the local migration script once after closing Codex:
 
 ```bash
 python3 ~/agent-tools/migrate_codex_provider_bucket.py --target custom
-python3 ~/agent-tools/migrate_codex_provider_bucket.py --target custom --apply --yes --kill-running-codex
+python3 ~/agent-tools/migrate_codex_provider_bucket.py --target custom --all-non-target-providers
+python3 ~/agent-tools/migrate_codex_provider_bucket.py --target custom --all-non-target-providers --apply --yes --kill-running-codex
 ```
 
 The dry-run shows every source bucket and every cc-switch template that would
@@ -429,6 +430,10 @@ cc-switch Codex provider templates so future switches keep
 `model_provider = "custom"` / `[model_providers.custom]`. It should terminate
 running Codex processes before writing; otherwise a process that already loaded
 the old config/key can keep using the old in-memory provider until restarted.
+
+`install.sh` runs the same all-non-target migration by default and terminates
+running Codex processes before writing, so a normal install should complete the
+history index migration instead of falling back to a dry-run.
 
 ## Troubleshooting
 

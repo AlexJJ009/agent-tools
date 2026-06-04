@@ -24,6 +24,8 @@ set -euo pipefail
 #   CLAUDE_CHAIN_PROXY_NAME     Default: ISP-HTTPS.
 #   CLAUDE_INSTALL_TIMEOUT_SECONDS
 #                              Default: 2400.
+#   CODEX_RESUME_TRANSFER_TGZ  Optional tarball containing Codex resume data
+#                              exported from another machine.
 
 log() {
   printf '[autodl-bootstrap] %s\n' "$*" >&2
@@ -67,7 +69,7 @@ install_base_packages() {
   apt-get install -y \
     ca-certificates curl git unzip tar gzip jq python3 python3-venv \
     python3-yaml gnupg lsb-release sqlite3 bubblewrap ripgrep tmux \
-    net-tools lsof
+    net-tools lsof rsync
 }
 
 install_sing_box() {
@@ -601,6 +603,226 @@ conn.close()
 PY
 }
 
+import_codex_resume_history() {
+  local tgz="${CODEX_RESUME_TRANSFER_TGZ:-}"
+  [[ -n "$tgz" ]] || return 0
+  require_file "$tgz" "CODEX_RESUME_TRANSFER_TGZ"
+  log "Importing Codex resume history from transfer tarball"
+
+  local ts import_root backup_dir backup_root
+  ts="$(date +%Y%m%d%H%M%S)"
+  import_root="$(mktemp -d)"
+  backup_dir="$HOME/.codex-migration-backups"
+  backup_root="$backup_dir/codex-before-resume-import-$ts"
+  mkdir -p "$backup_root/.codex"
+
+  for db in state_5.sqlite memories_1.sqlite goals_1.sqlite logs_2.sqlite; do
+    if [[ -f "$HOME/.codex/$db" ]]; then
+      sqlite3 "$HOME/.codex/$db" ".backup '$backup_root/.codex/$db'" || true
+    fi
+  done
+
+  for path in \
+    auth.json config.toml installation_id session_index.jsonl history.jsonl .personality_migration \
+    sessions archived_sessions attachments shell_snapshots memories skills; do
+    if [[ -e "$HOME/.codex/$path" ]]; then
+      rsync -a --ignore-missing-args "$HOME/.codex/$path" "$backup_root/.codex/"
+    fi
+  done
+
+  if [[ -d "$HOME/.cc-switch" ]]; then
+    mkdir -p "$backup_root/.cc-switch"
+    rsync -a --exclude tmp --exclude cache --ignore-missing-args "$HOME/.cc-switch/" "$backup_root/.cc-switch/"
+  fi
+
+  tar -C "$backup_root" -czf "$backup_root.tgz" .
+  chmod 600 "$backup_root.tgz"
+  rm -rf "$backup_root"
+
+  tar -C "$import_root" -xzf "$tgz"
+
+  for d in sessions archived_sessions attachments shell_snapshots memories; do
+    if [[ -d "$import_root/.codex/$d" ]]; then
+      mkdir -p "$HOME/.codex/$d"
+      rsync -a --ignore-existing "$import_root/.codex/$d/" "$HOME/.codex/$d/"
+    fi
+  done
+
+  python3 - "$import_root" <<'PY'
+from __future__ import annotations
+
+import json
+import sqlite3
+import sys
+from pathlib import Path
+
+home = Path.home()
+import_root = Path(sys.argv[1])
+codex = home / ".codex"
+src_codex = import_root / ".codex"
+
+
+def merge_jsonl_by_id(src: Path, dst: Path, key: str) -> tuple[int, int]:
+    if not src.exists():
+        return (0, 0)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    existing_ids = set()
+    existing_lines = set()
+    if dst.exists():
+        for line in dst.read_text(encoding="utf-8", errors="replace").splitlines():
+            if not line:
+                continue
+            existing_lines.add(line)
+            try:
+                value = json.loads(line).get(key)
+                if value:
+                    existing_ids.add(str(value))
+            except Exception:
+                pass
+
+    total = appended = 0
+    with src.open("r", encoding="utf-8", errors="replace") as f, dst.open("a", encoding="utf-8") as out:
+        for raw in f:
+            line = raw.rstrip("\n")
+            if not line:
+                continue
+            total += 1
+            use_line = line not in existing_lines
+            value = None
+            try:
+                value = json.loads(line).get(key)
+                if value:
+                    use_line = str(value) not in existing_ids
+            except Exception:
+                pass
+            if use_line:
+                out.write(line + "\n")
+                appended += 1
+                existing_lines.add(line)
+                if value:
+                    existing_ids.add(str(value))
+    return total, appended
+
+
+def merge_jsonl_exact(src: Path, dst: Path) -> tuple[int, int]:
+    if not src.exists():
+        return (0, 0)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    existing = set()
+    if dst.exists():
+        existing = set(x for x in dst.read_text(encoding="utf-8", errors="replace").splitlines() if x)
+
+    total = appended = 0
+    with src.open("r", encoding="utf-8", errors="replace") as f, dst.open("a", encoding="utf-8") as out:
+        for raw in f:
+            line = raw.rstrip("\n")
+            if not line:
+                continue
+            total += 1
+            if line not in existing:
+                out.write(line + "\n")
+                existing.add(line)
+                appended += 1
+    return total, appended
+
+
+def qident(name: str) -> str:
+    return '"' + name.replace('"', '""') + '"'
+
+
+def table_set(conn: sqlite3.Connection, schema: str) -> set[str]:
+    return {
+        r[0]
+        for r in conn.execute(
+            f"SELECT name FROM {schema}.sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"
+        )
+    }
+
+
+def columns(conn: sqlite3.Connection, schema: str, table: str) -> list[str]:
+    escaped = table.replace('"', '""')
+    return [r[1] for r in conn.execute(f'PRAGMA {schema}.table_info("{escaped}")')]
+
+
+def merge_sqlite(src: Path, dst: Path, wanted: list[str] | None = None, skip: set[str] | None = None) -> dict[str, int]:
+    if not src.exists() or not dst.exists():
+        return {}
+    skip = skip or set()
+    conn = sqlite3.connect(dst)
+    conn.execute("PRAGMA foreign_keys=OFF")
+    src_sql = str(src).replace("'", "''")
+    conn.execute(f"ATTACH DATABASE '{src_sql}' AS src")
+    changed: dict[str, int] = {}
+    try:
+        main_tables = table_set(conn, "main")
+        src_tables = table_set(conn, "src")
+        candidates = wanted if wanted is not None else sorted(src_tables)
+        for table in candidates:
+            if table in skip or table not in main_tables or table not in src_tables:
+                continue
+            dst_cols = columns(conn, "main", table)
+            src_cols = columns(conn, "src", table)
+            cols = [c for c in dst_cols if c in src_cols]
+            if not cols:
+                continue
+            before = conn.total_changes
+            col_sql = ", ".join(qident(c) for c in cols)
+            conn.execute(
+                f"INSERT OR IGNORE INTO main.{qident(table)} ({col_sql}) "
+                f"SELECT {col_sql} FROM src.{qident(table)}"
+            )
+            changed[table] = conn.total_changes - before
+        conn.commit()
+    finally:
+        conn.execute("DETACH DATABASE src")
+        conn.close()
+    return changed
+
+
+idx_total, idx_appended = merge_jsonl_by_id(src_codex / "session_index.jsonl", codex / "session_index.jsonl", "id")
+hist_total, hist_appended = merge_jsonl_exact(src_codex / "history.jsonl", codex / "history.jsonl")
+state_changed = merge_sqlite(
+    src_codex / "state_5.sqlite",
+    codex / "state_5.sqlite",
+    wanted=["agent_jobs", "agent_job_items", "threads", "thread_dynamic_tools", "thread_spawn_edges"],
+)
+mem_changed = merge_sqlite(src_codex / "memories_1.sqlite", codex / "memories_1.sqlite", skip={"_sqlx_migrations"})
+goal_changed = merge_sqlite(src_codex / "goals_1.sqlite", codex / "goals_1.sqlite", skip={"_sqlx_migrations"})
+
+print(json.dumps({
+    "session_index": {"source_lines": idx_total, "appended": idx_appended},
+    "history": {"source_lines": hist_total, "appended": hist_appended},
+    "state_5": state_changed,
+    "memories_1": mem_changed,
+    "goals_1": goal_changed,
+}, ensure_ascii=False, sort_keys=True))
+PY
+
+  python3 "$AGENT_TOOLS_DIR/migrate_codex_provider_bucket.py" \
+    --target "$CODEX_MODEL_PROVIDER_ID" \
+    --all-non-target-providers \
+    --skip-live-config \
+    --skip-cc-switch \
+    --allow-running-codex \
+    --apply \
+    --yes
+
+  python3 - <<'PY'
+import sqlite3
+from pathlib import Path
+
+conn = sqlite3.connect(Path.home() / ".codex/state_5.sqlite")
+missing = [(tid, path) for tid, path in conn.execute("select id, rollout_path from threads") if not Path(path).exists()]
+if missing:
+    for tid, path in missing[:20]:
+        print(f"missing rollout path: {tid} {path}")
+    raise SystemExit(f"{len(missing)} rollout paths are missing")
+PY
+
+  rm -rf "$import_root"
+  log "Codex resume import complete; backup saved at $backup_root.tgz"
+}
+
 validate_install() {
   log "Validating install"
   gh --version | head -n 1
@@ -630,6 +852,7 @@ main() {
   install_claude
   run_agent_tools_install
   configure_codex_from_transfer || configure_codex_from_json
+  import_codex_resume_history
   validate_install
   log "Bootstrap complete"
 }

@@ -59,6 +59,7 @@ Optional:
 | Input | Meaning |
 | --- | --- |
 | sing-box release tarball | Pre-stage this if the target cannot download GitHub releases before proxy setup. |
+| Codex resume transfer tarball | Optional history/session data exported from another machine, used to make `codex resume` work on the new AutoDL host. |
 | `GENERAL_OUTBOUND_TAG` | Override the ordinary proxy outbound tag. Defaults to the general config route `final`, usually `proxy`. |
 | `CLAUDE_BASE_PROXY_NAME` | Defaults to `海外打底`. |
 | `CLAUDE_CHAIN_PROXY_NAME` | Defaults to `ISP-HTTPS`. |
@@ -93,16 +94,60 @@ and the AutoDL target:
    ssh yuyun-jp-newapi 'rm -f /tmp/codex-provider-transfer.tgz'
    ```
 
-4. Copy inputs and the bootstrap script to AutoDL:
+4. Optionally create a Codex resume transfer tarball from the Japanese server.
+   This copies only resumable state and avoids runtime caches, worktrees,
+   packages, app-server sockets, provider config, and auth files:
+
+   ```bash
+   ssh yuyun-jp-newapi 'set -euo pipefail
+   ts=$(date +%Y%m%d%H%M%S)
+   export_dir="/tmp/codex-resume-export-$ts"
+   tarball="/tmp/codex-resume-export-$ts.tgz"
+   mkdir -p "$export_dir/.codex"
+
+   for db in state_5.sqlite memories_1.sqlite goals_1.sqlite; do
+     if [ -f "$HOME/.codex/$db" ]; then
+       sqlite3 "$HOME/.codex/$db" ".backup '\''$export_dir/.codex/$db'\''"
+     fi
+   done
+
+   cd "$HOME"
+   for path in \
+     .codex/sessions \
+     .codex/archived_sessions \
+     .codex/attachments \
+     .codex/shell_snapshots \
+     .codex/memories \
+     .codex/session_index.jsonl \
+     .codex/history.jsonl; do
+     if [ -e "$path" ]; then
+       rsync -a --relative "$path" "$export_dir/"
+     fi
+   done
+
+   tar -C "$export_dir" -czf "$tarball" .codex
+   sha256sum "$tarball"
+   du -sh "$tarball"
+   printf "TARBALL=%s\n" "$tarball"'
+   ```
+
+   Then transfer it through the controller machine:
+
+   ```bash
+   scp yuyun-jp-newapi:/tmp/codex-resume-export-YYYYMMDDHHMMSS.tgz /tmp/codex-resume-transfer.tgz
+   ```
+
+5. Copy inputs and the bootstrap script to AutoDL:
 
    ```bash
    scp scripts/bootstrap_autodl_ai_tools.sh autodl:/tmp/bootstrap_autodl_ai_tools.sh
    scp /tmp/yuyun-sing-box.json autodl:/tmp/yuyun-sing-box.json
    scp /path/to/claude-chain.yaml autodl:/tmp/claude-chain.yaml
    scp /tmp/codex-provider-transfer.tgz autodl:/tmp/codex-provider-transfer.tgz
+   scp /tmp/codex-resume-transfer.tgz autodl:/tmp/codex-resume-transfer.tgz
    ```
 
-5. Run the script on AutoDL. Put the PAT in an environment variable, not shell
+6. Run the script on AutoDL. Put the PAT in an environment variable, not shell
    history:
 
    ```bash
@@ -115,10 +160,11 @@ and the AutoDL target:
    GENERAL_SING_BOX_CONFIG=/tmp/yuyun-sing-box.json \
    CLAUDE_MIHOMO_YAML=/tmp/claude-chain.yaml \
    CODEX_PROVIDER_TRANSFER_TGZ=/tmp/codex-provider-transfer.tgz \
+   CODEX_RESUME_TRANSFER_TGZ=/tmp/codex-resume-transfer.tgz \
    /tmp/bootstrap_autodl_ai_tools.sh
 
    unset GITHUB_PAT
-   rm -f /tmp/codex-provider-transfer.tgz
+   rm -f /tmp/codex-provider-transfer.tgz /tmp/codex-resume-transfer.tgz
    ```
 
 ## Provider JSON Alternative
@@ -167,7 +213,8 @@ unset GITHUB_PAT CODEX_KEY CODEX_PROVIDERS_JSON
 7. Authenticates `gh` and clones or updates `~/agent-tools`.
 8. Runs `~/agent-tools/install.sh` with server-safe flags.
 9. Configures Codex provider config from either transfer tarball or JSON.
-10. Validates tools, proxy ports, Codex config, and cc-switch provider state.
+10. Optionally imports Codex resume history from `CODEX_RESUME_TRANSFER_TGZ`.
+11. Validates tools, proxy ports, Codex config, and cc-switch provider state.
 
 The script avoids the current Codex installer checksum issue by downloading the
 latest GitHub release asset directly, verifying `codex-package_SHA256SUMS`, and
@@ -201,6 +248,18 @@ cc-switch provider current -a codex
 codex exec --strict-config \
   -s read-only --skip-git-repo-check --ephemeral \
   'Reply exactly OK'
+
+sqlite3 ~/.codex/state_5.sqlite \
+  'select count(*) from threads; select model_provider, count(*) from threads group by 1;'
+
+python3 - <<'PY'
+import sqlite3
+from pathlib import Path
+
+conn = sqlite3.connect(Path.home() / ".codex/state_5.sqlite")
+missing = [(tid, path) for tid, path in conn.execute("select id, rollout_path from threads") if not Path(path).exists()]
+print(f"missing_rollout_paths={len(missing)}")
+PY
 ```
 
 Expected:
@@ -211,6 +270,8 @@ Expected:
 - Claude chain returns a redirect to `downloads.claude.ai`, not the regional
   unavailable page.
 - Codex strict-config request returns `OK`.
+- If resume history was imported, all rows should remain under
+  `model_provider = custom`, and `missing_rollout_paths` should be `0`.
 
 ## Current Known Good Layout
 

@@ -423,13 +423,36 @@ python3 ~/agent-tools/migrate_codex_provider_bucket.py --target custom --all-non
 ```
 
 The dry-run shows every source bucket and every cc-switch template that would
-change. The apply run backs up `config.toml`, `state_5.sqlite`, changed JSONL
-session files, and the cc-switch DB under `~/.cc-switch/backups/`. It rewrites
-Codex history to `custom`, updates live `~/.codex/config.toml`, and changes
+change. It also reports resume index health: whether every `threads.rollout_path`
+exists and whether every rollout `session_meta` has a `state_5.sqlite` row.
+It prints `session_index.jsonl` coverage too, but that file can be sparse in
+newer Codex builds; missing `state_5.sqlite` rows or missing rollout files are
+the usual reasons `codex resume` cannot see older sessions.
+
+The apply run backs up `config.toml`, `state_5.sqlite`, changed JSONL session
+files, and the cc-switch DB under `~/.cc-switch/backups/`. It rewrites Codex
+history to `custom`, updates live `~/.codex/config.toml`, and changes
 cc-switch Codex provider templates so future switches keep
 `model_provider = "custom"` / `[model_providers.custom]`. It should terminate
 running Codex processes before writing; otherwise a process that already loaded
 the old config/key can keep using the old in-memory provider until restarted.
+
+If the dry-run reports missing resume index data, repair it explicitly:
+
+```bash
+python3 ~/agent-tools/migrate_codex_provider_bucket.py \
+  --target custom \
+  --all-non-target-providers \
+  --repair-resume-index \
+  --apply --yes --kill-running-codex
+```
+
+This repair is for a local Codex home where the rollout JSONL files already
+exist. It can fix moved `rollout_path` values, backfill missing
+`state_5.sqlite.threads` rows from `session_meta`, and append missing
+`session_index.jsonl` entries. It does not copy history from another machine;
+for cross-machine migration, first transfer the resume data as described in
+`docs/AUTODL_AI_TOOLS_BOOTSTRAP.md`.
 
 `install.sh` runs the same all-non-target migration by default and terminates
 running Codex processes before writing, so a normal install should complete the

@@ -32,7 +32,7 @@ import tempfile
 import time
 from collections import Counter
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
@@ -140,6 +140,19 @@ class ProviderTemplatePlan:
     reason: str = ""
 
 
+@dataclass
+class ResumeIndexPlan:
+    session_files: int = 0
+    session_meta_records: int = 0
+    state_threads: int = 0
+    missing_rollout_paths: int = 0
+    missing_state_threads: int = 0
+    missing_session_index_entries: int = 0
+    repaired_rollout_paths: int = 0
+    inserted_state_threads: int = 0
+    appended_session_index_entries: int = 0
+
+
 def log(message: str) -> None:
     print(message, flush=True)
 
@@ -178,6 +191,15 @@ def parse_args() -> argparse.Namespace:
         help="provider id to leave untouched when --source-provider is not set; repeatable.",
     )
     parser.add_argument("--skip-history", action="store_true", help="skip JSONL and state DB history")
+    parser.add_argument(
+        "--repair-resume-index",
+        action="store_true",
+        help=(
+            "repair Codex resume indexes after provider migration: fix moved rollout paths, "
+            "backfill missing state_5.sqlite threads from session_meta, and append missing "
+            "session_index.jsonl entries"
+        ),
+    )
     parser.add_argument("--skip-live-config", action="store_true", help="skip ~/.codex/config.toml")
     parser.add_argument("--skip-cc-switch", action="store_true", help="skip cc-switch provider templates")
     parser.add_argument(
@@ -1134,6 +1156,285 @@ def migrate_state_db(
         conn.close()
 
 
+def parse_iso_timestamp_ms(value: str | None) -> tuple[int, int]:
+    if not value:
+        now_ms = int(time.time() * 1000)
+        return now_ms // 1000, now_ms
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(text)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        ms = int(dt.timestamp() * 1000)
+        return ms // 1000, ms
+    except ValueError:
+        now_ms = int(time.time() * 1000)
+        return now_ms // 1000, now_ms
+
+
+def first_user_text_from_session(path: Path) -> str:
+    try:
+        with path.open("r", encoding="utf-8") as fh:
+            for line in fh:
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                payload = obj.get("payload")
+                if not isinstance(payload, dict):
+                    continue
+                if obj.get("type") == "event_msg":
+                    text = payload.get("message") or payload.get("text")
+                    if isinstance(text, str) and text.strip():
+                        return text.strip()
+                if obj.get("type") != "response_item":
+                    continue
+                if payload.get("role") != "user":
+                    continue
+                content = payload.get("content")
+                if isinstance(content, str) and content.strip():
+                    return content.strip()
+                if isinstance(content, list):
+                    parts: list[str] = []
+                    for item in content:
+                        if not isinstance(item, dict):
+                            continue
+                        text = item.get("text")
+                        if isinstance(text, str) and text.strip():
+                            parts.append(text.strip())
+                    if parts:
+                        return "\n".join(parts).strip()
+    except OSError:
+        return ""
+    return ""
+
+
+def session_index_timestamp(path: Path) -> str:
+    try:
+        mtime = datetime.fromtimestamp(path.stat().st_mtime, tz=timezone.utc)
+    except OSError:
+        mtime = datetime.now(tz=timezone.utc)
+    return mtime.isoformat().replace("+00:00", "Z")
+
+
+def load_session_meta_records(codex_dir: Path) -> dict[str, dict[str, object]]:
+    records: dict[str, dict[str, object]] = {}
+    for dirname, archived in (("sessions", 0), ("archived_sessions", 1)):
+        root = codex_dir / dirname
+        if not root.exists():
+            continue
+        for path in root.rglob("*.jsonl"):
+            try:
+                with path.open("r", encoding="utf-8") as fh:
+                    first_line = fh.readline()
+            except OSError:
+                continue
+            try:
+                obj = json.loads(first_line)
+            except Exception:
+                continue
+            if obj.get("type") != "session_meta":
+                continue
+            payload = obj.get("payload")
+            if not isinstance(payload, dict):
+                continue
+            thread_id = payload.get("id")
+            if not isinstance(thread_id, str) or not thread_id.strip():
+                continue
+            provider = payload.get("model_provider")
+            if not isinstance(provider, str) or not provider.strip():
+                provider = "custom"
+            created_s, created_ms = parse_iso_timestamp_ms(payload.get("timestamp") if isinstance(payload.get("timestamp"), str) else None)
+            try:
+                mtime_ms = int(path.stat().st_mtime * 1000)
+            except OSError:
+                mtime_ms = created_ms
+            first_user = first_user_text_from_session(path)
+            title = first_user.splitlines()[0].strip() if first_user else thread_id
+            if len(title) > 240:
+                title = title[:240]
+            source = payload.get("source")
+            source_text = source if isinstance(source, str) else json.dumps(source, ensure_ascii=False, separators=(",", ":"))
+            records[thread_id] = {
+                "id": thread_id,
+                "rollout_path": str(path),
+                "created_at": created_s,
+                "updated_at": max(created_s, mtime_ms // 1000),
+                "source": source_text or "unknown",
+                "model_provider": provider,
+                "cwd": payload.get("cwd") if isinstance(payload.get("cwd"), str) else str(Path.home()),
+                "title": title,
+                "sandbox_policy": "",
+                "approval_mode": "",
+                "tokens_used": 0,
+                "has_user_event": 1 if first_user else 0,
+                "archived": archived,
+                "archived_at": mtime_ms if archived else None,
+                "cli_version": payload.get("cli_version") if isinstance(payload.get("cli_version"), str) else "",
+                "first_user_message": first_user,
+                "memory_mode": "enabled",
+                "model": None,
+                "reasoning_effort": None,
+                "created_at_ms": created_ms,
+                "updated_at_ms": max(created_ms, mtime_ms),
+                "thread_source": payload.get("thread_source") if isinstance(payload.get("thread_source"), str) else None,
+                "preview": first_user,
+                "session_index_updated_at": session_index_timestamp(path),
+            }
+    return records
+
+
+def scan_resume_index(codex_dir: Path) -> ResumeIndexPlan:
+    plan = ResumeIndexPlan()
+    records = load_session_meta_records(codex_dir)
+    plan.session_meta_records = len(records)
+    for dirname in ("sessions", "archived_sessions"):
+        root = codex_dir / dirname
+        if root.exists():
+            plan.session_files += sum(1 for _ in root.rglob("*.jsonl"))
+
+    state_db = codex_dir / "state_5.sqlite"
+    state_ids: set[str] = set()
+    if state_db.exists():
+        conn = sqlite3.connect(f"file:{state_db}?mode=ro", uri=True)
+        try:
+            if table_exists(conn, "threads"):
+                for thread_id, rollout_path in conn.execute("SELECT id, rollout_path FROM threads"):
+                    state_ids.add(str(thread_id))
+                    plan.state_threads += 1
+                    if rollout_path and not Path(str(rollout_path)).exists():
+                        plan.missing_rollout_paths += 1
+        finally:
+            conn.close()
+
+    plan.missing_state_threads = len(set(records) - state_ids)
+
+    index_path = codex_dir / "session_index.jsonl"
+    index_ids: set[str] = set()
+    if index_path.exists():
+        try:
+            with index_path.open("r", encoding="utf-8") as fh:
+                for line in fh:
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        continue
+                    value = obj.get("id")
+                    if isinstance(value, str) and value:
+                        index_ids.add(value)
+        except OSError:
+            pass
+    plan.missing_session_index_entries = len(set(records) - index_ids)
+    return plan
+
+
+def repair_resume_index(codex_dir: Path, target: str, backup_root: Path) -> ResumeIndexPlan:
+    plan = scan_resume_index(codex_dir)
+    records = load_session_meta_records(codex_dir)
+    state_db = codex_dir / "state_5.sqlite"
+    index_path = codex_dir / "session_index.jsonl"
+
+    if state_db.exists() and records:
+        backup_sqlite_online(state_db, backup_root, "codex-state-resume-index")
+        conn = sqlite3.connect(state_db)
+        try:
+            if table_exists(conn, "threads"):
+                columns = table_columns(conn, "threads")
+                existing: dict[str, str] = {}
+                for thread_id, rollout_path in conn.execute("SELECT id, rollout_path FROM threads"):
+                    existing[str(thread_id)] = str(rollout_path)
+
+                for thread_id, record in records.items():
+                    rollout_path = str(record["rollout_path"])
+                    if thread_id in existing:
+                        if not Path(existing[thread_id]).exists() and Path(rollout_path).exists():
+                            conn.execute("UPDATE threads SET rollout_path=? WHERE id=?", (rollout_path, thread_id))
+                            plan.repaired_rollout_paths += 1
+                        continue
+
+                    insert_cols = [
+                        "id",
+                        "rollout_path",
+                        "created_at",
+                        "updated_at",
+                        "source",
+                        "model_provider",
+                        "cwd",
+                        "title",
+                        "sandbox_policy",
+                        "approval_mode",
+                        "tokens_used",
+                        "has_user_event",
+                        "archived",
+                        "archived_at",
+                        "cli_version",
+                        "first_user_message",
+                        "memory_mode",
+                        "model",
+                        "reasoning_effort",
+                        "created_at_ms",
+                        "updated_at_ms",
+                        "thread_source",
+                        "preview",
+                    ]
+                    insert_cols = [col for col in insert_cols if col in columns]
+                    values = []
+                    for col in insert_cols:
+                        value = record.get(col)
+                        if col == "model_provider" and isinstance(value, str) and should_migrate_provider(
+                            value,
+                            target,
+                            set(),
+                            set(),
+                            True,
+                        ):
+                            value = target
+                        values.append(value)
+                    col_sql = ", ".join(f'"{col}"' for col in insert_cols)
+                    placeholders = ", ".join("?" for _ in insert_cols)
+                    before = conn.total_changes
+                    conn.execute(f"INSERT OR IGNORE INTO threads ({col_sql}) VALUES ({placeholders})", values)
+                    if conn.total_changes > before:
+                        plan.inserted_state_threads += 1
+                conn.commit()
+        finally:
+            conn.close()
+
+    if records:
+        existing_index_ids: set[str] = set()
+        if index_path.exists():
+            try:
+                with index_path.open("r", encoding="utf-8") as fh:
+                    for line in fh:
+                        try:
+                            obj = json.loads(line)
+                        except Exception:
+                            continue
+                        value = obj.get("id")
+                        if isinstance(value, str) and value:
+                            existing_index_ids.add(value)
+                copy_backup(index_path, backup_root, "codex-session-index", codex_dir)
+            except OSError:
+                pass
+        index_path.parent.mkdir(parents=True, exist_ok=True)
+        with index_path.open("a", encoding="utf-8") as fh:
+            for thread_id, record in sorted(records.items(), key=lambda item: str(item[1].get("session_index_updated_at", ""))):
+                if thread_id in existing_index_ids:
+                    continue
+                line = {
+                    "id": thread_id,
+                    "thread_name": record.get("title") or thread_id,
+                    "updated_at": record.get("session_index_updated_at") or datetime.now(tz=timezone.utc).isoformat().replace("+00:00", "Z"),
+                }
+                fh.write(json.dumps(line, ensure_ascii=False, separators=(",", ":")) + "\n")
+                existing_index_ids.add(thread_id)
+                plan.appended_session_index_entries += 1
+
+    return plan
+
+
 def normalize_live_config(
     codex_dir: Path,
     target: str,
@@ -1314,6 +1615,8 @@ def main() -> None:
         die("--kill-running-codex only makes sense with --apply")
     if args.kill_running_codex and args.allow_running_codex:
         die("--kill-running-codex conflicts with --allow-running-codex")
+    if args.repair_resume_index and args.skip_history:
+        die("--repair-resume-index conflicts with --skip-history")
 
     running = running_codex_processes()
     if running and args.apply and args.kill_running_codex:
@@ -1429,6 +1732,33 @@ def main() -> None:
                 backup_root,
             )
             log(f"  applied: updated {rows} rows")
+
+        resume_plan = scan_resume_index(args.codex_dir)
+        log("")
+        log("Codex resume index:")
+        log(f"  session files: {resume_plan.session_files}")
+        log(f"  session_meta records: {resume_plan.session_meta_records}")
+        log(f"  state threads: {resume_plan.state_threads}")
+        log(f"  missing rollout paths: {resume_plan.missing_rollout_paths}")
+        log(f"  session_meta records missing from state DB: {resume_plan.missing_state_threads}")
+        log(
+            "  session_meta records missing from session_index.jsonl: "
+            f"{resume_plan.missing_session_index_entries} (advisory; resume uses state DB and rollout paths)"
+        )
+        if args.apply and args.repair_resume_index:
+            assert backup_root is not None
+            repaired = repair_resume_index(args.codex_dir, target, backup_root)
+            log(
+                "  applied: "
+                f"repaired {repaired.repaired_rollout_paths} rollout paths, "
+                f"inserted {repaired.inserted_state_threads} state threads, "
+                f"appended {repaired.appended_session_index_entries} session_index entries"
+            )
+        elif (
+            resume_plan.missing_rollout_paths
+            or resume_plan.missing_state_threads
+        ):
+            log("  repair available: rerun with --repair-resume-index --apply --yes")
 
     if not args.skip_cc_switch:
         log("")

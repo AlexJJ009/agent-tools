@@ -19,7 +19,7 @@ set -euo pipefail
 #   AGENT_TOOLS_REPO            Default: AlexJJ009/agent-tools.
 #   AGENT_TOOLS_DIR             Default: $HOME/agent-tools.
 #   GENERAL_PROXY_PORT          Default: 7890.
-#   CLAUDE_PROXY_PORT           Default: 7891.
+#   CLAUDE_PROXY_PORT           Default: 7891. Reserved for container Claude chain.
 #   CLAUDE_BASE_PROXY_NAME      Default: 海外打底.
 #   CLAUDE_CHAIN_PROXY_NAME     Default: ISP-HTTPS.
 #   CLAUDE_INSTALL_TIMEOUT_SECONDS
@@ -385,7 +385,7 @@ install_claude() {
 }
 
 wrap_claude() {
-  log "Installing Claude proxy wrapper"
+  log "Installing host Claude proxy wrapper"
   local current real
   current="$(command -v claude)"
   real="$(readlink -f "$current")"
@@ -398,11 +398,13 @@ wrap_claude() {
 
   cat > "$HOME/.local/bin/claude" <<SH
 #!/usr/bin/env bash
-export HTTP_PROXY="\${HTTP_PROXY:-http://127.0.0.1:${CLAUDE_PROXY_PORT}}"
-export HTTPS_PROXY="\${HTTPS_PROXY:-http://127.0.0.1:${CLAUDE_PROXY_PORT}}"
-export http_proxy="\${http_proxy:-http://127.0.0.1:${CLAUDE_PROXY_PORT}}"
-export https_proxy="\${https_proxy:-http://127.0.0.1:${CLAUDE_PROXY_PORT}}"
-export ALL_PROXY="\${ALL_PROXY:-socks5://127.0.0.1:${CLAUDE_PROXY_PORT}}"
+# Host Claude Code uses the normal host proxy. Container Claude Code should
+# use per-container chain proxy configuration instead.
+export HTTP_PROXY="\${HTTP_PROXY:-http://127.0.0.1:${GENERAL_PROXY_PORT}}"
+export HTTPS_PROXY="\${HTTPS_PROXY:-http://127.0.0.1:${GENERAL_PROXY_PORT}}"
+export http_proxy="\${http_proxy:-http://127.0.0.1:${GENERAL_PROXY_PORT}}"
+export https_proxy="\${https_proxy:-http://127.0.0.1:${GENERAL_PROXY_PORT}}"
+export ALL_PROXY="\${ALL_PROXY:-socks5://127.0.0.1:${GENERAL_PROXY_PORT}}"
 exec "\$HOME/.local/bin/claude.real" "\$@"
 SH
   chmod 0755 "$HOME/.local/bin/claude"
@@ -834,7 +836,7 @@ validate_install() {
 
   netstat -lntp 2>/dev/null | grep -E ":(${GENERAL_PROXY_PORT}|${CLAUDE_PROXY_PORT})\\b" || die "proxy ports are not listening"
   with-proxy curl -I --connect-timeout 20 --max-time 60 https://github.com >/dev/null
-  curl --proxy "http://127.0.0.1:${CLAUDE_PROXY_PORT}" -I -L --connect-timeout 20 --max-time 60 https://claude.ai/install.sh >/dev/null
+  curl --proxy "http://127.0.0.1:${GENERAL_PROXY_PORT}" -I -L --connect-timeout 20 --max-time 60 https://claude.ai/install.sh >/dev/null
   codex features list >/dev/null
   cc-switch config validate -a codex >/dev/null
   cc-switch provider current -a codex

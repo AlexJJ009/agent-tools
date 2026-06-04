@@ -13,7 +13,7 @@ The bootstrap creates two local proxy ports:
 
 ```text
 127.0.0.1:7890  general proxy for GitHub, downloads, gh, git, and installers
-127.0.0.1:7891  Claude-only chained proxy for Claude Code runtime
+127.0.0.1:7891  chained proxy reserved for containerized Claude Code runtimes
 ```
 
 The shell does not globally export proxy variables. Use:
@@ -24,8 +24,10 @@ with-proxy gh repo clone AlexJJ009/agent-tools ~/agent-tools
 with-proxy curl -I https://github.com
 ```
 
-The `claude` command is wrapped so Claude Code automatically uses
-`127.0.0.1:7891`. The real binary is available as:
+On the AutoDL host itself, the `claude` command should use the normal host
+proxy, `127.0.0.1:7890`, not the chained proxy. Containerized Claude Code
+runtimes can use `127.0.0.1:7891` or their own per-container landing-node
+configuration. The real binary is available as:
 
 ```bash
 claude.real
@@ -221,8 +223,9 @@ latest GitHub release asset directly, verifying `codex-package_SHA256SUMS`, and
 installing the standalone binary manually.
 
 If the Claude native installer downloads the official binary but hangs during
-its install phase, the script installs the downloaded binary manually and then
-wraps `claude` to use the Claude chained proxy.
+its install phase, the script installs the downloaded binary manually. For host
+Claude Code, wrap `claude` to use the normal proxy port `7890`. Keep chained
+proxy routing for container runtimes or explicit per-container wrappers.
 
 ## Validation Commands
 
@@ -240,7 +243,7 @@ netstat -lntp | grep -E '7890|7891'
 env | grep -i '_proxy' || true
 
 with-proxy curl -I --max-time 60 https://github.com
-curl --proxy http://127.0.0.1:7891 -I -L --max-time 60 https://claude.ai/install.sh
+curl --proxy http://127.0.0.1:7890 -I -L --max-time 60 https://claude.ai/install.sh
 
 cc-switch config validate -a codex
 cc-switch provider current -a codex
@@ -267,7 +270,7 @@ Expected:
 - `7890` and `7891` listen only on `127.0.0.1`.
 - Default shell has no global proxy variables.
 - `with-proxy` can access GitHub.
-- Claude chain returns a redirect to `downloads.claude.ai`, not the regional
+- The normal host proxy returns a redirect to `downloads.claude.ai`, not the regional
   unavailable page.
 - Codex strict-config request returns `OK`.
 - If resume history was imported, all rows should remain under
@@ -278,26 +281,162 @@ Expected:
 Observed working setup on AutoDL:
 
 ```text
-general proxy:
+host general proxy:
   AutoDL 127.0.0.1:7890
   -> Japanese server sing-box main selector `proxy`
   -> default `vless-reality`
 
-Claude proxy:
+container Claude chained proxy:
   AutoDL 127.0.0.1:7891
   -> YAML `海外打底`
   -> YAML `ISP-HTTPS`
 ```
 
-Tested alternatives:
+Host Claude Code should use `7890`. Do not add `dragtokens.com` to
+`NO_PROXY`, and do not add a top-level `dragtokens.com -> direct` sing-box
+route, unless deliberately testing the AutoDL direct egress path. The provider
+domain should normally follow the host proxy path:
+
+```text
+host Claude Code
+  -> HTTP_PROXY=http://127.0.0.1:7890
+  -> sing-box general-mixed-in
+  -> vless-reality
+  -> dragtokens.com
+```
+
+Tested alternatives and failure modes:
 
 - `Japanese main proxy -> data center SOCKS5` connected but Claude returned a
   Cloudflare challenge `403`.
 - `Japanese main proxy -> ISP-HTTPS` returned `400 Bad Request` from the second
   hop.
+- Forcing host Claude Code through `7891` mixed host and container policy and
+  made diagnosis harder.
+- Adding `NO_PROXY=dragtokens.com,.dragtokens.com` made Claude bypass the host
+  proxy and use the AutoDL direct egress IP.
 
 Therefore, keep the Claude chain on the original YAML chain unless a new live
-test proves another path works.
+test proves another path works, but reserve that chain for containers.
+
+## Claude Code 524 Runbook
+
+Incident record from 2026-06-04:
+
+- Symptom: Claude Code on the AutoDL host returned Cloudflare `524` for
+  `dragtokens.com` after about 120 seconds.
+- A colleague could use Claude Code successfully from another machine, so the
+  provider was not globally down.
+- AutoDL host direct egress was `58.144.141.112`.
+- AutoDL `7890` general-proxy egress was `89.208.241.86`.
+- AutoDL `7891` chained-proxy egress was `69.3.215.118`.
+- `https://dragtokens.com/cdn-cgi/trace` and authenticated `/v1/models`
+  returned quickly.
+- Minimal authenticated `/v1/messages` reproduced `524` after about 125 seconds
+  on the wrong configuration path.
+- Final root cause: the selected cc-switch/provider group token was wrong. The
+  network path was a red herring.
+
+Use this checklist before changing proxy routing:
+
+1. Confirm the live Claude process environment:
+
+   ```bash
+   ps -eo pid,ppid,stat,etime,cmd | grep -Ei 'claude(\.real|$)|/root/.local/bin/claude' | grep -v grep || true
+   for pid in $(pgrep -x claude.real || true); do
+     echo "-- pid $pid"
+     tr '\0' '\n' < /proc/$pid/environ \
+       | grep -iE '^(HTTP_PROXY|HTTPS_PROXY|ALL_PROXY|http_proxy|https_proxy|all_proxy|NO_PROXY|no_proxy|ANTHROPIC_BASE_URL)=' \
+       | sed -E 's/sk-[A-Za-z0-9_-]+/sk-REDACTED/g'
+   done
+   ```
+
+   Expected for host Claude Code:
+
+   ```text
+   HTTP_PROXY=http://127.0.0.1:7890
+   HTTPS_PROXY=http://127.0.0.1:7890
+   ALL_PROXY=socks5://127.0.0.1:7890
+   ```
+
+   `NO_PROXY` should not include `dragtokens.com` unless the direct-egress path
+   is being tested intentionally.
+
+2. Confirm egress and sing-box route:
+
+   ```bash
+   curl -fsS --noproxy '*' https://icanhazip.com
+   curl -fsS -x http://127.0.0.1:7890 https://icanhazip.com
+   curl -fsS -x http://127.0.0.1:7891 https://icanhazip.com
+   tail -n 120 /var/log/sing-box/dual-proxy.log \
+     | grep -Ei 'dragtokens|general-mixed-in|claude-mixed-in|outbound/vless|claude-chain|outbound/direct'
+   ```
+
+   Host Claude Code should appear as `general-mixed-in`, not
+   `claude-mixed-in`.
+
+3. Confirm the provider endpoint and token group before blaming the network:
+
+   ```bash
+   jq '.env | with_entries(if .key|test("TOKEN|KEY") then .value="REDACTED" else . end)' \
+     ~/.claude/settings.json
+   cc-switch provider current -a claude 2>/dev/null || true
+   ```
+
+   The most important check is that `ANTHROPIC_AUTH_TOKEN` belongs to the
+   intended provider group. A wrong group token can make `/v1/models` work while
+   `/v1/messages` hangs until Cloudflare returns `524`.
+
+4. Compare fast and slow endpoints with the same token:
+
+   ```bash
+   key=$(jq -r '.env.ANTHROPIC_AUTH_TOKEN // empty' ~/.claude/settings.json)
+
+   curl -sS -x http://127.0.0.1:7890 \
+     -H "Authorization: Bearer $key" \
+     -w 'models code=%{http_code} total=%{time_total}\n' \
+     -o /tmp/dragtokens-models.out \
+     https://dragtokens.com/v1/models
+
+   cat > /tmp/dragtokens-messages-min.json <<'JSON'
+   {
+     "model": "claude-haiku-4-5",
+     "max_tokens": 16,
+     "messages": [
+       {"role": "user", "content": "hi"}
+     ]
+   }
+   JSON
+
+   timeout 150 curl -sS -x http://127.0.0.1:7890 \
+     -H "Authorization: Bearer $key" \
+     -H "Content-Type: application/json" \
+     -H "anthropic-version: 2023-06-01" \
+     --data @/tmp/dragtokens-messages-min.json \
+     -w 'messages code=%{http_code} total=%{time_total}\n' \
+     -o /tmp/dragtokens-messages.out \
+     https://dragtokens.com/v1/messages
+   ```
+
+   Interpret results:
+
+   - `/cdn-cgi/trace` or `/v1/models` failing fast suggests DNS, Cloudflare,
+     auth, or routing.
+   - `/v1/models` fast but `/v1/messages` timing out suggests provider group,
+     upstream model route, account quota, or service-side inference routing.
+   - `524` means Cloudflare reached the origin but the origin did not complete
+     in time. It is not the same as a Cloudflare IP block.
+
+5. If proxy routing was changed, restart the live process:
+
+   ```bash
+   pgrep -x claude.real | xargs -r kill
+   sleep 2
+   pgrep -x claude.real | xargs -r kill -9
+   ```
+
+   Environment variables are fixed at process start; a running Claude TUI will
+   not pick up wrapper changes.
 
 ## Security Rules
 

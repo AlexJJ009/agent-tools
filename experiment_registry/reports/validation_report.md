@@ -1,6 +1,6 @@
 # Experiment Registry Validation Report
 
-Checked at: `2026-06-02T03:28:19+00:00`
+Checked at: `2026-06-08T13:59:45+00:00`
 
 | Check | Source | Source value | DB value | Result |
 |---|---|---:|---:|---|

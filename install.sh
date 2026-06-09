@@ -31,6 +31,8 @@ CODEX_PROVIDER_BUCKET_ALLOW_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALLOW_R
 CODEX_PROVIDER_BUCKET_KILL_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_KILL_RUNNING:-1}"
 INSTALL_CODEX_PROXY_WRAPPER="${INSTALL_CODEX_PROXY_WRAPPER:-auto}"
 INSTALL_CODEX_REMOTE_CONTROL="${INSTALL_CODEX_REMOTE_CONTROL:-1}"
+INSTALL_CODEX_APP_FAST_MODE="${INSTALL_CODEX_APP_FAST_MODE:-1}"
+CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS:-auto}"
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-1800000}"
 CODEX_STREAM_MAX_RETRIES="${CODEX_STREAM_MAX_RETRIES:-20}"
 CODEX_MODEL_PROVIDER_ID="${CODEX_MODEL_PROVIDER_ID:-custom}"
@@ -61,14 +63,32 @@ SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
 
 select_python_bin() {
+  local candidate
+
   if [[ -n "$PYTHON_BIN" ]]; then
     return
   fi
-  if command -v python3 >/dev/null 2>&1; then
-    PYTHON_BIN="python3"
-  else
-    PYTHON_BIN="python"
-  fi
+
+  for candidate in python3.13 python3.12 python3.11 python3.10 python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" - <<'PY' >/dev/null 2>&1; then
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
+PY
+      PYTHON_BIN="$candidate"
+      return
+    fi
+  done
+
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      PYTHON_BIN="$candidate"
+      echo "WARNING: no Python 3.10+ found; falling back to $PYTHON_BIN." >&2
+      return
+    fi
+  done
+
+  PYTHON_BIN="python"
+  echo "WARNING: no Python executable found on PATH before selecting fallback: $PYTHON_BIN." >&2
 }
 
 configure_tmux_mouse_mode() {
@@ -601,6 +621,45 @@ PY
   fi
 }
 
+configure_codex_app_fast_mode() {
+  local script="$INSTALL_REAL/scripts/configure_codex_app_fast_mode.py"
+  local args=()
+
+  if [[ "$INSTALL_CODEX_APP_FAST_MODE" -eq 0 ]]; then
+    echo "Codex App Fast mode config not changed (--no-codex-app-fast-mode)."
+    return
+  fi
+
+  if [[ ! -f "$script" ]]; then
+    echo "Codex App Fast mode config skipped: missing $script" >&2
+    return 1
+  fi
+
+  select_python_bin
+
+  case "$CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS" in
+    auto)
+      if grep -qi microsoft /proc/version 2>/dev/null && [[ -d /mnt/c/Users ]]; then
+        args+=(--include-wsl-windows)
+      fi
+      ;;
+    always)
+      args+=(--include-wsl-windows)
+      ;;
+    never)
+      ;;
+    *)
+      echo "invalid Codex App Fast mode WSL-Windows mode: $CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS" >&2
+      exit 2
+      ;;
+  esac
+
+  "$PYTHON_BIN" "$script" \
+    --service-tier "$CODEX_SERVICE_TIER" \
+    --fast-mode "$CODEX_FEATURE_FAST_MODE" \
+    "${args[@]}"
+}
+
 sync_codex_config_from_cc_switch_current() {
   local output provider_id
 
@@ -684,6 +743,7 @@ preamble = lines[:first_table]
 rest = lines[first_table:]
 
 managed_top_level = {
+    "disable_response_storage",
     "stream_idle_timeout_ms",
     "stream_max_retries",
     "model_provider",
@@ -1507,6 +1567,12 @@ Options:
   --codex-proxy-ports LIST Space-separated proxy port candidates. Default: "7897 7890 7891 10809 10808 8080".
   --no-codex-remote-control
                            Do not run "codex remote-control start" after config.
+  --no-codex-app-fast-mode
+                           Do not patch Codex App/CLI Fast defaults in
+                           config.toml.
+  --codex-app-fast-wsl-windows MODE
+                           Also patch the Windows Codex App home when running
+                           from WSL: auto|always|never. Default: auto.
   --no-registry            Do not install experiment-registry links.
   --registry-init-db       Initialize the local registry DB if missing.
   --no-cron                Write config but do not install crontab entry.
@@ -1618,6 +1684,14 @@ while [[ $# -gt 0 ]]; do
       INSTALL_CODEX_REMOTE_CONTROL=0
       shift
       ;;
+    --no-codex-app-fast-mode)
+      INSTALL_CODEX_APP_FAST_MODE=0
+      shift
+      ;;
+    --codex-app-fast-wsl-windows)
+      CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="$2"
+      shift 2
+      ;;
     --no-registry)
       INSTALL_REGISTRY=0
       shift
@@ -1657,6 +1731,7 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   cp "$SOURCE_DIR/migrate_codex_provider_bucket.py" "$INSTALL_REAL/"
   cp "$SOURCE_DIR/install.sh" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/bin" ]] && cp -R "$SOURCE_DIR/bin" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/scripts" ]] && cp -R "$SOURCE_DIR/scripts" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/README.md" ]] && cp "$SOURCE_DIR/README.md" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/docs" ]] && cp -R "$SOURCE_DIR/docs" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/experiment_registry" ]] && cp -R "$SOURCE_DIR/experiment_registry" "$INSTALL_REAL/"
@@ -1667,6 +1742,9 @@ fi
 chmod +x "$INSTALL_REAL/sync_agent_context.py" "$INSTALL_REAL/sync_agent_context_cron.sh" "$INSTALL_REAL/codex_project_memory.py" "$INSTALL_REAL/migrate_codex_provider_bucket.py" "$INSTALL_REAL/install.sh"
 if [[ -d "$INSTALL_REAL/bin" ]]; then
   chmod +x "$INSTALL_REAL"/bin/*
+fi
+if [[ -d "$INSTALL_REAL/scripts" ]]; then
+  chmod +x "$INSTALL_REAL"/scripts/*
 fi
 if [[ -d "$INSTALL_REAL/experiment_registry" ]]; then
   chmod +x "$INSTALL_REAL/experiment_registry/install_registry_links.sh" "$INSTALL_REAL/experiment_registry/validate_registry_install.sh"
@@ -1684,6 +1762,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   sync_codex_config_from_cc_switch_current
   normalize_codex_provider_auth
   configure_codex_features
+  configure_codex_app_fast_mode
   check_codex_fast_mode
   configure_codex_project_hooks_features
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
@@ -1765,6 +1844,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex stream max retries: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_MAX_RETRIES}"
   echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (HTTPS, no WebSocket)"
   echo "Codex [features]: fast_mode=${CODEX_FEATURE_FAST_MODE} hooks=${CODEX_FEATURE_HOOKS} memories=${CODEX_FEATURE_MEMORIES} goals=${CODEX_FEATURE_GOALS} terminal_resize_reflow=${CODEX_FEATURE_TERMINAL_RESIZE_REFLOW} remote_control=${CODEX_FEATURE_REMOTE_CONTROL}"
+  echo "Codex App Fast mode config: enabled=${INSTALL_CODEX_APP_FAST_MODE}, wsl_windows=${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS}"
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
     echo "Codex provider bucket migration: target=${CODEX_MODEL_PROVIDER_ID}, apply=${APPLY_CODEX_PROVIDER_BUCKET_MIGRATION}, all_non_target=${CODEX_PROVIDER_BUCKET_ALL_NON_TARGET}"
   else
@@ -1773,6 +1853,8 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex proxy wrapper mode: $INSTALL_CODEX_PROXY_WRAPPER"
   echo "Codex proxy port candidates: $CODEX_PROXY_PORTS"
 else
+  echo "Codex App Fast mode config: enabled=${INSTALL_CODEX_APP_FAST_MODE}, wsl_windows=${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS}"
+  configure_codex_app_fast_mode
   check_codex_fast_mode
   echo "Codex config not changed (--no-codex-config)."
 fi

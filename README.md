@@ -20,6 +20,9 @@ The recommended deployment model is one central tool directory per machine, not 
 - `migrate_codex_provider_bucket.py` — Codex history and cc-switch template
   migration that forces every non-target Codex provider bucket into `custom`.
 - `install.sh` — portable installer for a new Linux/WSL2 machine.
+- `scripts/configure_codex_app_fast_mode.py` — cross-platform Codex App/CLI
+  config patch that keeps `service_tier = "fast"` and
+  `[features].fast_mode = true` in the target Codex home.
 - `experiment_registry/` — canonical SQLite experiment registry tooling,
   schema, queries, validation scripts, and the `experiment-registry` skill.
 - `goal_plan/` — canonical Claude Code and Codex App/CLI goal-planning skill,
@@ -33,6 +36,8 @@ The recommended deployment model is one central tool directory per machine, not 
 - `docs/CODEX_REMOTE_CONTROL.md` — Codex CLI remote-control runbook for
   standalone installs, proxy-wrapped WSL2 app-server daemons, and host-specific
   proxy port probing.
+- `docs/CODEX_APP_FAST_MODE_MACOS_GUIDE.md` — teammate-facing prompt and
+  runbook for enabling Codex App Fast Mode on macOS and SSH Connections.
 - `docs/CLI_SERVER_BOOTSTRAP.md` — repeatable Linux server bootstrap for latest
   Codex CLI, Claude Code, GitHub CLI, `cc-switch-cli`, `ripgrep`, and Codex
   API-provider configuration with per-server keys/Base URLs.
@@ -105,6 +110,18 @@ For ordinary Linux servers without a local proxy wrapper:
 ```bash
 ./install.sh --root /data-1 --codex-proxy-wrapper never
 ```
+
+The installer always enables Codex Fast defaults for the current Codex home.
+On macOS this is the same `~/.codex/config.toml` used by the Codex App and CLI.
+On WSL2 it also patches the detected Windows Codex App home under
+`/mnt/c/Users/*/.codex` by default, so the Win11 App gets the same Fast default
+as the WSL/SSH app-server path. Use `--no-codex-app-fast-mode` to skip this
+small config-only patch, or `--codex-app-fast-wsl-windows never` if a WSL
+install should not touch the Windows Codex App config.
+When running installer helpers, `install.sh` probes for a working Python 3.10+
+binary first (`python3.13` through `python3.10`, then version-checked
+`python3`/`python`) before falling back, which avoids hosts where the default
+`python3` is too old but a newer Python is already installed.
 
 The installer updates `cc-switch-cli` from GitHub releases by default. That
 step uses bounded curl timeouts/retries and, in `auto` mode, probes the same
@@ -208,6 +225,12 @@ stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 ```
 
+For Codex App, this config-level Fast default is the supported baseline. The
+installer does not modify Windows Store or macOS application bundles such as
+`app.asar`; those package patches are version-sensitive UI workarounds and are
+not safe as a default install step. A correctly configured app-server should
+report ChatGPT auth plus Fast model tiers when the App connects to the host.
+
 Before running the Codex provider-bucket migration, the installer updates
 `cc-switch-cli` from the latest GitHub release installer. Use
 `--no-cc-switch-update` only when the target machine cannot or should not reach
@@ -278,6 +301,10 @@ env vars: `CODEX_APPROVAL_POLICY`, `CODEX_SANDBOX_MODE`,
 `CODEX_FEATURE_MEMORIES` / `CODEX_FEATURE_GOALS` /
 `CODEX_FEATURE_TERMINAL_RESIZE_REFLOW` / `CODEX_FEATURE_REMOTE_CONTROL`
 (each accepts `true` or `false`).
+
+`--no-codex-config` skips the broader default rewrite, provider migration, proxy
+wrapper, and remote-control start. It does not skip the small Codex App Fast
+config patch; add `--no-codex-app-fast-mode` when that should also be disabled.
 
 When Codex config patching is enabled, the installer also scans existing
 project-level `.codex/config.toml` files under the configured `--root` paths and

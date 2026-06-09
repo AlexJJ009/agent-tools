@@ -145,8 +145,39 @@ The installer replaces the managed keys above, including top-level
 and other TOML tables (`[mcp_servers.*]`, `[tui]`, `[notice]`, etc.) and the
 managed HTTPS-only Codex provider, and removes the deprecated
 `[features].codex_hooks` key if present. It also removes stale top-level
-`remote_control`, any `remote_connections` key, and the incorrect
-`[features].service_tier` key when normalizing managed features.
+`remote_control`, any `remote_connections` key, the obsolete
+`disable_response_storage` key, and the incorrect `[features].service_tier` key
+when normalizing managed features.
+
+## Codex App Fast Defaults
+
+`scripts/configure_codex_app_fast_mode.py` is the small cross-platform patch
+used by the installer to keep Codex App and CLI config aligned on Fast mode. It
+only edits `config.toml`:
+
+```toml
+service_tier = "fast"
+
+[features]
+fast_mode = true
+```
+
+On macOS, the Codex App and CLI use `~/.codex/config.toml`, so the normal
+installer path covers the App. On WSL2, the installer also patches the detected
+Windows Codex App home under `/mnt/c/Users/*/.codex` by default. Control this
+with:
+
+```bash
+./install.sh --codex-app-fast-wsl-windows auto
+./install.sh --codex-app-fast-wsl-windows never
+./install.sh --no-codex-app-fast-mode
+```
+
+This is intentionally config-only. It does not patch signed Windows Store or
+macOS app bundles, and it does not edit `app.asar`. Bundle patches are
+version-sensitive UI workarounds; the durable requirement is that the app-server
+for the selected local, WSL, or SSH host reports ChatGPT auth, Fast model tiers,
+and `service_tier = "fast"`.
 
 ## Manual Setup
 

@@ -101,8 +101,13 @@ Run the machine defaults, but let the provider script below own Codex API
 provider config. Use `--codex-proxy-wrapper never` on ordinary Linux servers.
 Only use the WSL2 proxy wrapper modes from `CODEX_REMOTE_CONTROL.md` when the
 host actually needs that topology. `install.sh` updates `cc-switch-cli` from
-the latest GitHub release by default; pass `--no-cc-switch-update` only when
-the machine cannot reach GitHub during this step.
+the latest GitHub release by default. That update uses bounded curl
+timeouts/retries and probes local proxy candidates in `auto` mode, which helps
+hosts where direct `release-assets.githubusercontent.com` downloads are slow.
+Pass `--cc-switch-update-proxy never` to force direct GitHub access,
+`--cc-switch-update-proxy always` to require a working local proxy, or
+`--no-cc-switch-update` only when the machine cannot reach GitHub during this
+step.
 
 ```bash
 ./install.sh \

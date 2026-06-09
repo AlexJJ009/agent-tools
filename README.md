@@ -22,6 +22,8 @@ The recommended deployment model is one central tool directory per machine, not 
 - `install.sh` — portable installer for a new Linux/WSL2 machine.
 - `experiment_registry/` — canonical SQLite experiment registry tooling,
   schema, queries, validation scripts, and the `experiment-registry` skill.
+- `goal_plan/` — canonical Claude Code and Codex App/CLI goal-planning skill,
+  slash command, reviewer agent, and Codex personal plugin assets.
 - `AGENTS.md` — project constraints for future agent changes.
 - `docs/CODEX_AUTOREVIEW_DEFAULT.md` — runbook for Codex defaults, including
   AutoReview without Full Access and stream timeout/retry defaults.
@@ -104,11 +106,30 @@ For ordinary Linux servers without a local proxy wrapper:
 ./install.sh --root /data-1 --codex-proxy-wrapper never
 ```
 
+The installer updates `cc-switch-cli` from GitHub releases by default. That
+step uses bounded curl timeouts/retries and, in `auto` mode, probes the same
+local proxy candidates used by the Codex wrapper. Use
+`--cc-switch-update-proxy never` to force direct GitHub access,
+`--cc-switch-update-proxy always` to require a working local proxy, or
+`--no-cc-switch-update` to skip the update.
+
 For a full repeatable server setup that also installs the latest Codex CLI,
 Claude Code, GitHub CLI, `cc-switch-cli`, `ripgrep`, and Codex API providers
 from fresh keys/Base URLs, follow `docs/CLI_SERVER_BOOTSTRAP.md`.
 
 The installer writes `agent_context_sync.config.json` using the actual paths on the current machine and installs a cron heartbeat by default. It also installs experiment registry symlinks when `experiment_registry/` is present. The local SQLite database is not created unless `--registry-init-db` is passed.
+
+By default it also installs the user-level goal-plan tools from `goal_plan/`:
+
+- Claude Code: `~/.claude/skills/goal-plan`, `~/.claude/commands/goal-plan.md`,
+  and `~/.claude/agents/goal-plan-reviewer.md`.
+- Codex App/CLI: `~/.codex/skills/goal-plan`, `~/plugins/goal-plan`, a personal
+  marketplace entry, and `codex plugin add goal-plan@personal` when `codex` is
+  available on `PATH`.
+
+This creates the explicit `/goal-plan` planning command and Codex plugin command.
+It intentionally does not redirect, wrap, or replace `/goal`; `/goal` remains the
+execution loop. Use `--no-goal-plan` to skip this installation.
 
 ## Experiment Registry
 

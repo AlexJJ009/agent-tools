@@ -14,7 +14,16 @@ INSTALL_REGISTRY=1
 REGISTRY_INIT_DB=0
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
+INSTALL_GOAL_PLAN=1
 INSTALL_CC_SWITCH_CLI_UPDATE="${INSTALL_CC_SWITCH_CLI_UPDATE:-1}"
+CC_SWITCH_UPDATE_PROXY_MODE="${CC_SWITCH_UPDATE_PROXY_MODE:-auto}"
+CC_SWITCH_UPDATE_CONNECT_TIMEOUT="${CC_SWITCH_UPDATE_CONNECT_TIMEOUT:-10}"
+CC_SWITCH_UPDATE_MAX_TIME="${CC_SWITCH_UPDATE_MAX_TIME:-180}"
+CC_SWITCH_UPDATE_RETRY="${CC_SWITCH_UPDATE_RETRY:-3}"
+CC_SWITCH_UPDATE_RETRY_DELAY="${CC_SWITCH_UPDATE_RETRY_DELAY:-2}"
+CC_SWITCH_UPDATE_SPEED_LIMIT="${CC_SWITCH_UPDATE_SPEED_LIMIT:-10240}"
+CC_SWITCH_UPDATE_SPEED_TIME="${CC_SWITCH_UPDATE_SPEED_TIME:-30}"
+CC_SWITCH_UPDATE_PROXY_TEST_URL="${CC_SWITCH_UPDATE_PROXY_TEST_URL:-https://github.com/saladday/cc-switch-cli/releases/latest/download/install.sh}"
 INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=1
 APPLY_CODEX_PROVIDER_BUCKET_MIGRATION="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_APPLY:-1}"
 CODEX_PROVIDER_BUCKET_ALL_NON_TARGET="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALL_NON_TARGET:-1}"
@@ -45,6 +54,7 @@ CODEX_PROXY_MAX_TIME="${CODEX_PROXY_MAX_TIME:-6}"
 AGENT_CORE_DIR="${AGENT_CORE_HOME:-$HOME/agent-core}"
 INSTALL_AGENT_CORE_ENTRIES=1
 AGENT_CORE_ENTRIES_STATUS=""
+GOAL_PLAN_STATUS=""
 LOCAL_BIN_PATH_STATUS=""
 CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS=""
 SCAN_ROOTS=()
@@ -199,7 +209,60 @@ cc_switch_version() {
   return 2
 }
 
+cleanup_cc_switch_update_tmp() {
+  if [[ -n "${CC_SWITCH_UPDATE_TMP_DIR:-}" && -d "$CC_SWITCH_UPDATE_TMP_DIR" ]]; then
+    rm -rf "$CC_SWITCH_UPDATE_TMP_DIR"
+  fi
+}
+
+probe_cc_switch_update_proxy_url() {
+  local proxy_url="$1"
+  local status
+
+  status="$(
+    curl -sS -o /dev/null -w '%{http_code}' \
+      --connect-timeout "$CODEX_PROXY_CONNECT_TIMEOUT" \
+      --max-time "$CODEX_PROXY_MAX_TIME" \
+      -x "$proxy_url" \
+      "$CC_SWITCH_UPDATE_PROXY_TEST_URL" 2>/dev/null || true
+  )"
+
+  case "$status" in
+    200|301|302)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+select_cc_switch_update_proxy_url() {
+  local port proxy_url
+
+  if [[ -n "${CODEX_PROXY_URL:-}" ]]; then
+    if [[ "${CODEX_PROXY_SKIP_CHECK:-0}" == "1" ]] || probe_cc_switch_update_proxy_url "$CODEX_PROXY_URL"; then
+      printf '%s\n' "$CODEX_PROXY_URL"
+      return 0
+    fi
+    echo "cc-switch update proxy check failed for CODEX_PROXY_URL=$CODEX_PROXY_URL" >&2
+    return 1
+  fi
+
+  for port in $CODEX_PROXY_PORTS; do
+    proxy_url="http://${CODEX_PROXY_HOST}:${port}"
+    if probe_cc_switch_update_proxy_url "$proxy_url"; then
+      printf '%s\n' "$proxy_url"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 update_cc_switch_cli() {
+  local tmp_dir installer proxy_url curl_args=()
+
   if [[ "$INSTALL_CC_SWITCH_CLI_UPDATE" -eq 0 ]]; then
     echo "cc-switch update skipped (--no-cc-switch-update)."
     return
@@ -211,7 +274,68 @@ update_cc_switch_cli() {
   fi
 
   echo "Updating cc-switch-cli from latest GitHub release..."
-  curl -fsSL https://github.com/saladday/cc-switch-cli/releases/latest/download/install.sh | CC_SWITCH_FORCE="${CC_SWITCH_FORCE:-1}" bash
+  tmp_dir="$(mktemp -d)"
+  CC_SWITCH_UPDATE_TMP_DIR="$tmp_dir"
+  installer="$tmp_dir/install.sh"
+  trap cleanup_cc_switch_update_tmp RETURN
+
+  cat >"$tmp_dir/.curlrc" <<EOF
+connect-timeout = $CC_SWITCH_UPDATE_CONNECT_TIMEOUT
+max-time = $CC_SWITCH_UPDATE_MAX_TIME
+retry = $CC_SWITCH_UPDATE_RETRY
+retry-delay = $CC_SWITCH_UPDATE_RETRY_DELAY
+retry-all-errors
+speed-limit = $CC_SWITCH_UPDATE_SPEED_LIMIT
+speed-time = $CC_SWITCH_UPDATE_SPEED_TIME
+EOF
+
+  curl_args=(
+    -fsSL
+    --connect-timeout "$CC_SWITCH_UPDATE_CONNECT_TIMEOUT"
+    --max-time "$CC_SWITCH_UPDATE_MAX_TIME"
+    --retry "$CC_SWITCH_UPDATE_RETRY"
+    --retry-delay "$CC_SWITCH_UPDATE_RETRY_DELAY"
+    --retry-all-errors
+  )
+
+  case "$CC_SWITCH_UPDATE_PROXY_MODE" in
+    auto|always|never)
+      ;;
+    *)
+      echo "invalid cc-switch update proxy mode: $CC_SWITCH_UPDATE_PROXY_MODE" >&2
+      exit 2
+      ;;
+  esac
+
+  if [[ "$CC_SWITCH_UPDATE_PROXY_MODE" != "never" ]]; then
+    if proxy_url="$(select_cc_switch_update_proxy_url 2>/dev/null)"; then
+      echo "cc-switch update using proxy: $proxy_url"
+    elif [[ "$CC_SWITCH_UPDATE_PROXY_MODE" == "always" ]]; then
+      echo "cc-switch update proxy requested, but no reachable proxy was found." >&2
+      echo "Set CODEX_PROXY_URL or CODEX_PROXY_HOST/CODEX_PROXY_PORTS for this host." >&2
+      exit 1
+    else
+      proxy_url=""
+      echo "cc-switch update using direct GitHub connection."
+    fi
+  fi
+
+  if [[ -n "${proxy_url:-}" ]]; then
+    HTTP_PROXY="$proxy_url" HTTPS_PROXY="$proxy_url" ALL_PROXY="$proxy_url" \
+      http_proxy="$proxy_url" https_proxy="$proxy_url" all_proxy="$proxy_url" \
+      curl "${curl_args[@]}" -o "$installer" \
+      https://github.com/saladday/cc-switch-cli/releases/latest/download/install.sh
+    HTTP_PROXY="$proxy_url" HTTPS_PROXY="$proxy_url" ALL_PROXY="$proxy_url" \
+      http_proxy="$proxy_url" https_proxy="$proxy_url" all_proxy="$proxy_url" \
+      CURL_HOME="$tmp_dir" CC_SWITCH_FORCE="${CC_SWITCH_FORCE:-1}" bash "$installer"
+  else
+    curl "${curl_args[@]}" -o "$installer" \
+      https://github.com/saladday/cc-switch-cli/releases/latest/download/install.sh
+    CURL_HOME="$tmp_dir" CC_SWITCH_FORCE="${CC_SWITCH_FORCE:-1}" bash "$installer"
+  fi
+  cleanup_cc_switch_update_tmp
+  CC_SWITCH_UPDATE_TMP_DIR=""
+  trap - RETURN
   hash -r 2>/dev/null || true
 
   if version="$(cc_switch_version)"; then
@@ -1133,6 +1257,111 @@ install_codex_here() {
   echo "codex-here launcher: $target -> codex -C \"\$PWD\""
 }
 
+backup_and_link() {
+  local source="$1"
+  local target="$2"
+  local timestamp backup
+
+  if [[ ! -e "$source" && ! -L "$source" ]]; then
+    echo "missing source for link: $source" >&2
+    return 1
+  fi
+
+  mkdir -p "$(dirname "$target")"
+
+  if [[ -L "$target" ]]; then
+    rm -f "$target"
+  elif [[ -e "$target" ]]; then
+    timestamp="$(date +%Y%m%d-%H%M%S)"
+    if [[ -d "$target" ]]; then
+      backup="${target}.backup-${timestamp}"
+    else
+      backup="${target}.backup-${timestamp}"
+    fi
+    mv "$target" "$backup"
+    echo "Backed up existing goal-plan target: $backup"
+  fi
+
+  ln -s "$source" "$target"
+}
+
+install_codex_personal_marketplace_goal_plan() {
+  local marketplace="$HOME/.agents/plugins/marketplace.json"
+  local plugin_path="./plugins/goal-plan"
+
+  mkdir -p "$(dirname "$marketplace")"
+  select_python_bin
+  "$PYTHON_BIN" - "$marketplace" "$plugin_path" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1]).expanduser()
+plugin_path = sys.argv[2]
+
+data = {}
+if path.exists():
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        backup = path.with_name(path.name + ".invalid-backup")
+        backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+        data = {}
+
+data.setdefault("name", "personal")
+data.setdefault("interface", {}).setdefault("displayName", "Personal")
+plugins = data.setdefault("plugins", [])
+plugins = [plugin for plugin in plugins if plugin.get("name") != "goal-plan"]
+plugins.append({
+    "name": "goal-plan",
+    "source": {
+        "source": "local",
+        "path": plugin_path,
+    },
+    "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL",
+    },
+    "category": "Developer Tools",
+})
+data["plugins"] = plugins
+
+path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+path.chmod(0o600)
+PY
+}
+
+install_goal_plan_tools() {
+  GOAL_PLAN_STATUS="skipped"
+
+  local source_root="$INSTALL_REAL/goal_plan"
+  if [[ ! -d "$source_root" ]]; then
+    GOAL_PLAN_STATUS="absent: no $source_root"
+    echo "goal-plan tools not installed: missing $source_root" >&2
+    return 0
+  fi
+
+  backup_and_link "$source_root/claude/skills/goal-plan" "$HOME/.claude/skills/goal-plan"
+  backup_and_link "$source_root/claude/commands/goal-plan.md" "$HOME/.claude/commands/goal-plan.md"
+  backup_and_link "$source_root/claude/agents/goal-plan-reviewer.md" "$HOME/.claude/agents/goal-plan-reviewer.md"
+
+  backup_and_link "$source_root/codex/skills/goal-plan" "${CODEX_HOME:-$HOME/.codex}/skills/goal-plan"
+  backup_and_link "$source_root/codex/plugins/goal-plan" "$HOME/plugins/goal-plan"
+  install_codex_personal_marketplace_goal_plan
+
+  if command -v codex >/dev/null 2>&1; then
+    if codex plugin add goal-plan@personal >/dev/null 2>&1; then
+      GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin"
+    else
+      GOAL_PLAN_STATUS="linked; codex plugin add goal-plan@personal failed"
+      echo "goal-plan Codex plugin linked, but 'codex plugin add goal-plan@personal' failed." >&2
+    fi
+  else
+    GOAL_PLAN_STATUS="linked; codex not on PATH, plugin add skipped"
+    echo "goal-plan Codex plugin linked; codex is not on PATH, so plugin add was skipped." >&2
+  fi
+}
+
 start_codex_remote_control() {
   if [[ "$INSTALL_CODEX_REMOTE_CONTROL" -eq 0 ]]; then
     echo "Codex remote control not started (--no-codex-remote-control)."
@@ -1246,8 +1475,13 @@ Options:
                            effort, stream timeout/retry, model provider,
                            [features] block).
   --no-codex-here          Do not install ~/.local/bin/codex-here.
+  --no-goal-plan           Do not install user-level goal-plan tools
+                           (Claude /goal-plan + reviewer, Codex skill/plugin).
   --no-cc-switch-update    Do not update cc-switch-cli from the latest GitHub
                            release before Codex provider migration.
+  --cc-switch-update-proxy MODE
+                           Proxy mode for the cc-switch GitHub release update:
+                           auto|always|never. Default: auto.
   --no-codex-provider-bucket-migration
                            Do not scan/migrate Codex history and cc-switch
                            provider templates to the custom model_provider bucket.
@@ -1327,9 +1561,17 @@ while [[ $# -gt 0 ]]; do
       INSTALL_CODEX_HERE=0
       shift
       ;;
+    --no-goal-plan)
+      INSTALL_GOAL_PLAN=0
+      shift
+      ;;
     --no-cc-switch-update)
       INSTALL_CC_SWITCH_CLI_UPDATE=0
       shift
+      ;;
+    --cc-switch-update-proxy)
+      CC_SWITCH_UPDATE_PROXY_MODE="$2"
+      shift 2
       ;;
     --no-codex-provider-bucket-migration)
       INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=0
@@ -1418,6 +1660,7 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   [[ -f "$SOURCE_DIR/README.md" ]] && cp "$SOURCE_DIR/README.md" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/docs" ]] && cp -R "$SOURCE_DIR/docs" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/experiment_registry" ]] && cp -R "$SOURCE_DIR/experiment_registry" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/goal_plan" ]] && cp -R "$SOURCE_DIR/goal_plan" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/agent_context_sync.config.example.json" ]] && cp "$SOURCE_DIR/agent_context_sync.config.example.json" "$INSTALL_REAL/"
 fi
 
@@ -1451,6 +1694,9 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
 fi
 if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
   verify_agent_core_entries
+fi
+if [[ "$INSTALL_GOAL_PLAN" -eq 1 ]]; then
+  install_goal_plan_tools
 fi
 
 select_python_bin
@@ -1549,4 +1795,9 @@ if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
   echo "agent-core entries ($AGENT_CORE_DIR): ${AGENT_CORE_ENTRIES_STATUS}"
 else
   echo "agent-core entries not checked (--no-agent-core)."
+fi
+if [[ "$INSTALL_GOAL_PLAN" -eq 1 ]]; then
+  echo "goal-plan tools: ${GOAL_PLAN_STATUS}"
+else
+  echo "goal-plan tools not installed (--no-goal-plan)."
 fi

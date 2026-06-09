@@ -1,0 +1,24 @@
+{
+  "name": "goal-plan",
+  "version": "0.1.0",
+  "description": "Prepare reviewed long-horizon goal plans with adversarial acceptance gates.",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Goal Plan",
+    "shortDescription": "Plan and gate long-running Codex goals.",
+    "longDescription": "Goal Plan prepares verifiable long-horizon implementation plans, separates generation from verification, creates launch prompts for Codex Go or CLI work, and requires independent acceptance evidence before a goal is considered complete.",
+    "developerName": "Local developer",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Use /goal-plan to prepare a reviewed long-running implementation plan."
+    ]
+  }
+}

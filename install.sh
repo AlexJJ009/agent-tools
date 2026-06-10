@@ -32,6 +32,8 @@ CODEX_PROVIDER_BUCKET_KILL_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_KILL_RUN
 INSTALL_CODEX_PROXY_WRAPPER="${INSTALL_CODEX_PROXY_WRAPPER:-auto}"
 INSTALL_CODEX_REMOTE_CONTROL="${INSTALL_CODEX_REMOTE_CONTROL:-1}"
 INSTALL_CODEX_APP_FAST_MODE="${INSTALL_CODEX_APP_FAST_MODE:-1}"
+INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE="${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE:-auto}"
+CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH="${CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH:-0}"
 INSTALL_CLAUDE_DESKTOP_SSH="${INSTALL_CLAUDE_DESKTOP_SSH:-1}"
 CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS:-auto}"
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-1800000}"
@@ -61,6 +63,7 @@ GOAL_PLAN_STATUS=""
 LOCAL_BIN_PATH_STATUS=""
 CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS=""
 CLAUDE_DESKTOP_SSH_STATUS=""
+CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS=""
 SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
 
@@ -856,6 +859,85 @@ configure_codex_app_fast_mode() {
     --service-tier "$CODEX_SERVICE_TIER" \
     --fast-mode "$CODEX_FEATURE_FAST_MODE" \
     "${args[@]}"
+}
+
+should_setup_codex_desktop_connection_fast_mode() {
+  local mode="$INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE"
+
+  case "$mode" in
+    always)
+      return 0
+      ;;
+    never)
+      return 1
+      ;;
+    auto)
+      if [[ -x /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe ]]; then
+        return 0
+      fi
+      if [[ "$(uname -s 2>/dev/null || true)" == "Darwin" ]]; then
+        return 0
+      fi
+      return 1
+      ;;
+    *)
+      echo "invalid Codex Desktop Connection Fast mode: $mode (expected auto|always|never)" >&2
+      return 2
+      ;;
+  esac
+}
+
+setup_codex_desktop_connection_fast_mode() {
+  local script="$INSTALL_REAL/scripts/setup_codex_desktop_connection_fast_mode.py"
+  local platform_arg="auto"
+  local launch_arg=()
+  local rc
+
+  CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="skipped: mode=${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE}"
+
+  if [[ "$INSTALL_CODEX_APP_FAST_MODE" -eq 0 ]]; then
+    CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="skipped: Codex App Fast mode config disabled"
+    return
+  fi
+
+  if [[ ! -f "$script" ]]; then
+    CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="skipped: missing $script"
+    echo "Codex Desktop Connection Fast mode setup skipped: missing $script." >&2
+    return
+  fi
+
+  set +e
+  should_setup_codex_desktop_connection_fast_mode
+  rc=$?
+  set -e
+  if [[ "$rc" -ne 0 ]]; then
+    if [[ "$rc" -eq 2 ]]; then
+      exit 2
+    fi
+    return
+  fi
+
+  if [[ -x /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe ]]; then
+    platform_arg="win11"
+  elif [[ "$(uname -s 2>/dev/null || true)" == "Darwin" ]]; then
+    platform_arg="macos"
+  fi
+
+  if [[ "$CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH" -eq 1 ]]; then
+    launch_arg=(--launch)
+  fi
+
+  select_python_bin
+  if "$PYTHON_BIN" "$script" --platform "$platform_arg" "${launch_arg[@]}"; then
+    CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="configured: platform=${platform_arg}, launch=${CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH}"
+  else
+    CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="failed: platform=${platform_arg}"
+    echo "Codex Desktop Connection Fast mode setup failed." >&2
+    if [[ "$INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE" == "always" ]]; then
+      return 1
+    fi
+    return 0
+  fi
 }
 
 sync_codex_config_from_cc_switch_current() {
@@ -1771,6 +1853,17 @@ Options:
   --codex-app-fast-wsl-windows MODE
                            Also patch the Windows Codex App home when running
                            from WSL: auto|always|never. Default: auto.
+  --codex-desktop-connection-fast-mode MODE
+                           Patch or prepare Codex Desktop so WSL/SSH
+                           Connections preserve Fast serviceTier:
+                           auto|always|never. Default: auto.
+                           auto prepares a writable Win11 Store-app copy from
+                           WSL and patches macOS Codex.app when writable.
+  --no-codex-desktop-connection-fast-mode
+                           Do not patch or prepare Codex Desktop bundles for
+                           Connection Fast Mode.
+  --launch-codex-desktop-fast-mode
+                           Launch the prepared Codex Desktop after patching.
   --no-claude-desktop-ssh  Do not configure existing Claude Code for Claude
                            Desktop SSH root/bypass compatibility.
   --no-registry            Do not install experiment-registry links.
@@ -1892,6 +1985,18 @@ while [[ $# -gt 0 ]]; do
       CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="$2"
       shift 2
       ;;
+    --codex-desktop-connection-fast-mode)
+      INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE="$2"
+      shift 2
+      ;;
+    --no-codex-desktop-connection-fast-mode)
+      INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE=never
+      shift
+      ;;
+    --launch-codex-desktop-fast-mode)
+      CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH=1
+      shift
+      ;;
     --no-claude-desktop-ssh)
       INSTALL_CLAUDE_DESKTOP_SSH=0
       shift
@@ -1969,6 +2074,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   configure_codex_features
   configure_codex_app_fast_mode
   check_codex_fast_mode
+  setup_codex_desktop_connection_fast_mode
   configure_codex_project_hooks_features
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
     run_codex_provider_bucket_migration
@@ -2051,6 +2157,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (HTTPS, no WebSocket)"
   echo "Codex [features]: fast_mode=${CODEX_FEATURE_FAST_MODE} hooks=${CODEX_FEATURE_HOOKS} memories=${CODEX_FEATURE_MEMORIES} goals=${CODEX_FEATURE_GOALS} terminal_resize_reflow=${CODEX_FEATURE_TERMINAL_RESIZE_REFLOW} remote_control=${CODEX_FEATURE_REMOTE_CONTROL}"
   echo "Codex App Fast mode config: enabled=${INSTALL_CODEX_APP_FAST_MODE}, wsl_windows=${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS}"
+  echo "Codex Desktop Connection Fast mode: mode=${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE}, status=${CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS}"
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
     echo "Codex provider bucket migration: target=${CODEX_MODEL_PROVIDER_ID}, apply=${APPLY_CODEX_PROVIDER_BUCKET_MIGRATION}, all_non_target=${CODEX_PROVIDER_BUCKET_ALL_NON_TARGET}"
   else
@@ -2062,6 +2169,8 @@ else
   echo "Codex App Fast mode config: enabled=${INSTALL_CODEX_APP_FAST_MODE}, wsl_windows=${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS}"
   configure_codex_app_fast_mode
   check_codex_fast_mode
+  setup_codex_desktop_connection_fast_mode
+  echo "Codex Desktop Connection Fast mode: mode=${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE}, status=${CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS}"
   echo "Codex config not changed (--no-codex-config)."
 fi
 if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then

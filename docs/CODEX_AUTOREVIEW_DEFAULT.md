@@ -174,12 +174,28 @@ with:
 ```
 
 This normal install step is intentionally config-only. It does not patch signed
-Windows Store or macOS app bundles, and it does not edit `app.asar`. If Codex
-Desktop Connections still drop `serviceTier` for WSL/SSH hosts after config and
-app-server setup are correct, use
-`scripts/patch_codex_desktop_connection_fast_mode.py` as a separate diagnostic
-or patch-artifact generator. Runtime truth comes from new-api/sub2api logs and
-billing rows, not from static config alone.
+macOS app bundles, and it does not edit `app.asar`. For Codex Desktop
+Connections, the installer has a separate route:
+
+```bash
+./install.sh --codex-desktop-connection-fast-mode auto
+./install.sh --codex-desktop-connection-fast-mode always
+./install.sh --no-codex-desktop-connection-fast-mode
+```
+
+In `auto` mode from WSL/Win11, it prepares a writable patched copy of the
+Microsoft Store Codex app and writes launchers under
+`%LOCALAPPDATA%\OpenAI\CodexDesktopPatched`. On macOS, `auto` attempts to patch
+the installed `Codex.app` bundle and reports a warning if it is not writable.
+Use `always` when patch failure should fail the install, or
+`--no-codex-desktop-connection-fast-mode` when the app bundle must not be
+touched.
+
+The underlying helper is
+`scripts/setup_codex_desktop_connection_fast_mode.py`; the lower-level asar
+patcher remains `scripts/patch_codex_desktop_connection_fast_mode.py`. Runtime
+truth comes from new-api/sub2api logs and billing rows, not from static config
+alone.
 
 ## Manual Setup
 

@@ -11,11 +11,10 @@ The target state is:
   `~/.codex/config.toml`.
 - Codex App Connections are restarted after the remote config/CLI changes.
 
-Do not patch the macOS app bundle, `app.asar`, or Electron resources during
-normal setup. Fast mode starts as Codex config and app-server capability. If a
-specific Codex Desktop version still drops `serviceTier` for remote
-Connections, handle that as a separate Desktop bundle investigation and verify
-with provider logs.
+Fast mode starts as Codex config and app-server capability. The installer can
+also patch the macOS Codex Desktop bundle so remote Connections preserve
+`serviceTier`; use `--no-codex-desktop-connection-fast-mode` on machines where
+the app bundle must not be touched. In every case, verify with provider logs.
 
 ## Prompt For A Coding Agent
 
@@ -50,7 +49,8 @@ Goals:
 
 Use these rules:
 - Do not patch `/Applications/Codex.app`, `app.asar`, signed app bundles, or
-  Electron resources.
+  Electron resources by hand. Use the repo's Desktop Connection Fast Mode
+  script or installer route so a backup is kept and patch points are checked.
 - Do not overwrite API keys, ChatGPT auth, provider base URLs, or
   `requires_openai_auth = true`.
 - Do not expose app-server ports on public networks.
@@ -261,3 +261,38 @@ Codex App Connections use the remote host's `codex` binary and remote
 If those are correct but the provider log still shows `service_tier = NULL`, the
 Desktop Connection layer may be filtering the tier before it reaches the remote
 app-server.
+
+## macOS Desktop Connection Patch
+
+Use this when Codex App Connections need to preserve Fast Mode across SSH
+hosts. The normal installer route can do it automatically; these commands are
+the direct script route.
+
+Dry-run:
+
+```bash
+python3 scripts/setup_codex_desktop_connection_fast_mode.py \
+  --platform macos \
+  --dry-run
+```
+
+Patch:
+
+```bash
+python3 scripts/setup_codex_desktop_connection_fast_mode.py \
+  --platform macos
+```
+
+Equivalent installer route:
+
+```bash
+./install.sh --codex-desktop-connection-fast-mode auto
+```
+
+After patching, restart Codex App, open a fresh SSH Connection thread, send a
+small request, and verify the provider billing log has
+`service_tier = priority`. Standard mode should still log as `NULL`.
+
+Use `--codex-desktop-connection-fast-mode always` when patch failure should
+fail the install, or `--no-codex-desktop-connection-fast-mode` when the macOS
+app bundle must not be modified.

@@ -26,6 +26,10 @@ The recommended deployment model is one central tool directory per machine, not 
 - `scripts/patch_codex_desktop_connection_fast_mode.py` — diagnostic bundle
   patch generator for Codex Desktop builds that drop explicit Fast
   `serviceTier` when using WSL/SSH Connections.
+- `scripts/setup_codex_desktop_connection_fast_mode.py` — higher-level Win11
+  and macOS setup wrapper for the Desktop Connection Fast Mode patch. On Win11
+  from WSL it prepares a writable patched Store-app copy and launcher; on macOS
+  it can patch `Codex.app` when explicitly requested.
 - `experiment_registry/` — canonical SQLite experiment registry tooling,
   schema, queries, validation scripts, and the `experiment-registry` skill.
 - `goal_plan/` — canonical Claude Code and Codex App/CLI goal-planning skill,
@@ -240,15 +244,22 @@ stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 ```
 
-For Codex App, this config-level Fast default is the supported baseline. The
-installer does not modify Windows Store or macOS application bundles such as
-`app.asar`; those package patches are version-sensitive UI workarounds and are
-not safe as a default install step. If local Fast works but WSL/SSH Connections
-still arrive at new-api/sub2api with `service_tier = NULL`, inspect the Desktop
-bundle with `scripts/patch_codex_desktop_connection_fast_mode.py` and follow
-`docs/CODEX_DESKTOP_CONNECTION_FAST_MODE_PATCH.md`. A correctly configured
-app-server should report Fast-capable settings, but the authoritative check is
-the real provider log and billing row for the request.
+For Codex App, this config-level Fast default is the baseline. The installer can
+also prepare Codex Desktop so WSL/SSH Connections preserve the selected
+`serviceTier`:
+
+- On Win11/WSL, `--codex-desktop-connection-fast-mode auto` prepares a writable
+  patched copy of the Microsoft Store app and writes a launcher under
+  `%LOCALAPPDATA%\OpenAI\CodexDesktopPatched`.
+- On macOS, `auto` attempts to patch the installed `Codex.app` bundle when it
+  is writable. Use `--codex-desktop-connection-fast-mode always` when patch
+  failure should fail the install, or `--no-codex-desktop-connection-fast-mode`
+  to leave the app bundle untouched.
+
+Follow `docs/CODEX_DESKTOP_CONNECTION_FAST_MODE_PATCH.md` for launch and
+verification. A correctly configured app-server should report Fast-capable
+settings, but the authoritative check is the real provider log and billing row
+for the request.
 
 Before running the Codex provider-bucket migration, the installer updates
 `cc-switch-cli` from the latest GitHub release installer. Use

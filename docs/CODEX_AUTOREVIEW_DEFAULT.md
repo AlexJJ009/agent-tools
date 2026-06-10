@@ -126,7 +126,7 @@ env var before running:
 | approvals reviewer | `CODEX_APPROVALS_REVIEWER` | `guardian_subagent` |
 | model | `CODEX_MODEL` | `gpt-5.5` |
 | model reasoning effort | `CODEX_MODEL_REASONING_EFFORT` | `high` |
-| service tier | `CODEX_SERVICE_TIER` | `fast` |
+| service tier | `CODEX_SERVICE_TIER` | `priority` |
 | stream idle timeout (ms) | `CODEX_STREAM_IDLE_TIMEOUT_MS` | `1800000` |
 | stream max retries | `CODEX_STREAM_MAX_RETRIES` | `20` |
 | model provider id | `CODEX_MODEL_PROVIDER_ID` | `custom` |
@@ -140,7 +140,7 @@ env var before running:
 Pass `--no-codex-config` to skip the Codex patch entirely.
 
 The installer replaces the managed keys above, including top-level
-`service_tier = "fast"` and `[features].fast_mode = true`. Do not put
+`service_tier = "priority"` and `[features].fast_mode = true`. Do not put
 `service_tier` under `[features]`. It preserves existing project trust entries
 and other TOML tables (`[mcp_servers.*]`, `[tui]`, `[notice]`, etc.) and the
 managed HTTPS-only Codex provider, and removes the deprecated
@@ -156,7 +156,7 @@ used by the installer to keep Codex App and CLI config aligned on Fast mode. It
 only edits `config.toml`:
 
 ```toml
-service_tier = "fast"
+service_tier = "priority"
 
 [features]
 fast_mode = true
@@ -173,11 +173,13 @@ with:
 ./install.sh --no-codex-app-fast-mode
 ```
 
-This is intentionally config-only. It does not patch signed Windows Store or
-macOS app bundles, and it does not edit `app.asar`. Bundle patches are
-version-sensitive UI workarounds; the durable requirement is that the app-server
-for the selected local, WSL, or SSH host reports ChatGPT auth, Fast model tiers,
-and `service_tier = "fast"`.
+This normal install step is intentionally config-only. It does not patch signed
+Windows Store or macOS app bundles, and it does not edit `app.asar`. If Codex
+Desktop Connections still drop `serviceTier` for WSL/SSH hosts after config and
+app-server setup are correct, use
+`scripts/patch_codex_desktop_connection_fast_mode.py` as a separate diagnostic
+or patch-artifact generator. Runtime truth comes from new-api/sub2api logs and
+billing rows, not from static config alone.
 
 ## Manual Setup
 
@@ -195,7 +197,7 @@ sandbox_mode = "workspace-write"
 approvals_reviewer = "guardian_subagent"
 model = "gpt-5.5"
 model_reasoning_effort = "high"
-service_tier = "fast"
+service_tier = "priority"
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 model_provider = "custom"

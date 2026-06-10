@@ -21,8 +21,11 @@ The recommended deployment model is one central tool directory per machine, not 
   migration that forces every non-target Codex provider bucket into `custom`.
 - `install.sh` — portable installer for a new Linux/WSL2 machine.
 - `scripts/configure_codex_app_fast_mode.py` — cross-platform Codex App/CLI
-  config patch that keeps `service_tier = "fast"` and
+  config patch that keeps `service_tier = "priority"` and
   `[features].fast_mode = true` in the target Codex home.
+- `scripts/patch_codex_desktop_connection_fast_mode.py` — diagnostic bundle
+  patch generator for Codex Desktop builds that drop explicit Fast
+  `serviceTier` when using WSL/SSH Connections.
 - `experiment_registry/` — canonical SQLite experiment registry tooling,
   schema, queries, validation scripts, and the `experiment-registry` skill.
 - `goal_plan/` — canonical Claude Code and Codex App/CLI goal-planning skill,
@@ -38,6 +41,9 @@ The recommended deployment model is one central tool directory per machine, not 
   proxy port probing.
 - `docs/CODEX_APP_FAST_MODE_MACOS_GUIDE.md` — teammate-facing prompt and
   runbook for enabling Codex App Fast Mode on macOS and SSH Connections.
+- `docs/CODEX_DESKTOP_CONNECTION_FAST_MODE_PATCH.md` — notes on diagnosing and
+  patching Desktop Connection `serviceTier` propagation without forcing Fast for
+  every provider request.
 - `docs/CLI_SERVER_BOOTSTRAP.md` — repeatable Linux server bootstrap for latest
   Codex CLI, Claude Code, GitHub CLI, `cc-switch-cli`, `ripgrep`, and Codex
   API-provider configuration with per-server keys/Base URLs.
@@ -123,6 +129,15 @@ binary first (`python3.13` through `python3.10`, then version-checked
 `python3`/`python`) before falling back, which avoids hosts where the default
 `python3` is too old but a newer Python is already installed.
 
+If Claude Code is already installed on the machine, the installer also prepares
+it for Claude Desktop SSH sessions. It writes `IS_SANDBOX=1` into
+`/etc/environment` so non-interactive SSH sessions inherit the root guard
+escape hatch, and it exposes the existing `claude` binary through
+`/usr/local/bin/claude` so root sessions do not depend on shell startup files or
+temporary fnm paths. This step does not install Claude Code; when `claude` is not
+already on `PATH`, it skips cleanly. Use `--no-claude-desktop-ssh` to skip this
+system-level compatibility patch.
+
 The installer updates `cc-switch-cli` from GitHub releases by default. That
 step uses bounded curl timeouts/retries and, in `auto` mode, probes the same
 local proxy candidates used by the Codex wrapper. Use
@@ -203,7 +218,7 @@ sandbox_mode = "workspace-write"
 approvals_reviewer = "guardian_subagent"
 model = "gpt-5.5"
 model_reasoning_effort = "high"
-service_tier = "fast"
+service_tier = "priority"
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 model_provider = "custom"
@@ -228,8 +243,12 @@ stream_max_retries = 20
 For Codex App, this config-level Fast default is the supported baseline. The
 installer does not modify Windows Store or macOS application bundles such as
 `app.asar`; those package patches are version-sensitive UI workarounds and are
-not safe as a default install step. A correctly configured app-server should
-report ChatGPT auth plus Fast model tiers when the App connects to the host.
+not safe as a default install step. If local Fast works but WSL/SSH Connections
+still arrive at new-api/sub2api with `service_tier = NULL`, inspect the Desktop
+bundle with `scripts/patch_codex_desktop_connection_fast_mode.py` and follow
+`docs/CODEX_DESKTOP_CONNECTION_FAST_MODE_PATCH.md`. A correctly configured
+app-server should report Fast-capable settings, but the authoritative check is
+the real provider log and billing row for the request.
 
 Before running the Codex provider-bucket migration, the installer updates
 `cc-switch-cli` from the latest GitHub release installer. Use

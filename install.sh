@@ -32,6 +32,7 @@ CODEX_PROVIDER_BUCKET_KILL_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_KILL_RUN
 INSTALL_CODEX_PROXY_WRAPPER="${INSTALL_CODEX_PROXY_WRAPPER:-auto}"
 INSTALL_CODEX_REMOTE_CONTROL="${INSTALL_CODEX_REMOTE_CONTROL:-1}"
 INSTALL_CODEX_APP_FAST_MODE="${INSTALL_CODEX_APP_FAST_MODE:-1}"
+INSTALL_CLAUDE_DESKTOP_SSH="${INSTALL_CLAUDE_DESKTOP_SSH:-1}"
 CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS:-auto}"
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-1800000}"
 CODEX_STREAM_MAX_RETRIES="${CODEX_STREAM_MAX_RETRIES:-20}"
@@ -41,7 +42,7 @@ CODEX_SANDBOX_MODE="${CODEX_SANDBOX_MODE:-workspace-write}"
 CODEX_APPROVALS_REVIEWER="${CODEX_APPROVALS_REVIEWER:-guardian_subagent}"
 CODEX_MODEL="${CODEX_MODEL:-gpt-5.5}"
 CODEX_MODEL_REASONING_EFFORT="${CODEX_MODEL_REASONING_EFFORT:-high}"
-CODEX_SERVICE_TIER="${CODEX_SERVICE_TIER:-fast}"
+CODEX_SERVICE_TIER="${CODEX_SERVICE_TIER:-priority}"
 CODEX_FEATURE_FAST_MODE="${CODEX_FEATURE_FAST_MODE:-true}"
 CODEX_FEATURE_HOOKS="${CODEX_FEATURE_HOOKS:-true}"
 CODEX_FEATURE_MEMORIES="${CODEX_FEATURE_MEMORIES:-true}"
@@ -59,6 +60,7 @@ AGENT_CORE_ENTRIES_STATUS=""
 GOAL_PLAN_STATUS=""
 LOCAL_BIN_PATH_STATUS=""
 CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS=""
+CLAUDE_DESKTOP_SSH_STATUS=""
 SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
 
@@ -212,6 +214,202 @@ PY
   esac
   export PATH
   hash -r 2>/dev/null || true
+}
+
+run_script_as_root_if_available() {
+  local -a args=()
+  local arg
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --)
+        shift
+        break
+        ;;
+      *)
+        args+=("$1")
+        shift
+        ;;
+    esac
+  done
+
+  if [[ "$(id -u)" -eq 0 ]]; then
+    bash -s -- "${args[@]}" "$@"
+    return
+  fi
+
+  if command -v sudo >/dev/null 2>&1 && sudo -n true >/dev/null 2>&1; then
+    sudo bash -s -- "${args[@]}" "$@"
+    return
+  fi
+
+  if grep -qi microsoft /proc/version 2>/dev/null && [[ -x /mnt/c/Windows/System32/wsl.exe ]]; then
+    /mnt/c/Windows/System32/wsl.exe -u root -- bash -s -- "${args[@]}" "$@"
+    return
+  fi
+
+  return 1
+}
+
+resolve_existing_path() {
+  local path="$1"
+
+  if command -v realpath >/dev/null 2>&1; then
+    realpath -e -- "$path" 2>/dev/null && return
+  fi
+  if command -v readlink >/dev/null 2>&1; then
+    readlink -f -- "$path" 2>/dev/null && return
+  fi
+  printf '%s\n' "$path"
+}
+
+configure_claude_desktop_ssh() {
+  local claude_cmd claude_target node_cmd node_target root_prefix part
+  local env_file usr_local_bin claude_link node_link
+  local status_parts=()
+
+  if [[ "$INSTALL_CLAUDE_DESKTOP_SSH" -eq 0 ]]; then
+    CLAUDE_DESKTOP_SSH_STATUS="skipped (--no-claude-desktop-ssh)"
+    return
+  fi
+
+  claude_cmd="$(type -P claude 2>/dev/null || true)"
+  if [[ -z "$claude_cmd" ]]; then
+    CLAUDE_DESKTOP_SSH_STATUS="skipped: claude not installed on PATH"
+    echo "Claude Desktop SSH compatibility skipped: claude is not on PATH."
+    return
+  fi
+
+  if [[ ! -x "$claude_cmd" ]]; then
+    CLAUDE_DESKTOP_SSH_STATUS="skipped: claude is not executable ($claude_cmd)"
+    echo "Claude Desktop SSH compatibility skipped: claude is not executable at $claude_cmd." >&2
+    return
+  fi
+
+  claude_target="$claude_cmd"
+  case "$claude_cmd" in
+    /run/user/*|/tmp/*|/var/tmp/*)
+      claude_target="$(resolve_existing_path "$claude_cmd")"
+      ;;
+  esac
+
+  if [[ -z "$claude_target" || ! -x "$claude_target" ]]; then
+    CLAUDE_DESKTOP_SSH_STATUS="skipped: could not resolve stable claude target from $claude_cmd"
+    echo "Claude Desktop SSH compatibility skipped: could not resolve a stable claude target from $claude_cmd." >&2
+    return
+  fi
+
+  if [[ "$claude_target" == /run/user/* || "$claude_target" == /tmp/* || "$claude_target" == /var/tmp/* ]]; then
+    CLAUDE_DESKTOP_SSH_STATUS="skipped: resolved claude target is temporary ($claude_target)"
+    echo "Claude Desktop SSH compatibility skipped: resolved claude target is temporary: $claude_target." >&2
+    return
+  fi
+
+  root_prefix="${AGENT_TOOLS_TEST_ROOT:-}"
+  env_file="$root_prefix/etc/environment"
+  usr_local_bin="$root_prefix/usr/local/bin"
+  claude_link="$usr_local_bin/claude"
+  node_link="$usr_local_bin/node"
+
+  if ! run_script_as_root_if_available "$env_file" -- <<'SH'
+set -eu
+env_file="$1"
+if [ -f "$env_file" ] && grep -q "^IS_SANDBOX=1$" "$env_file"; then
+  exit 0
+fi
+timestamp=$(date +%Y%m%d-%H%M%S)
+if [ -f "$env_file" ]; then
+  cp -a "$env_file" "${env_file}.agent-tools-backup-${timestamp}"
+fi
+if [ -f "$env_file" ] && grep -q "^IS_SANDBOX=" "$env_file"; then
+  sed -i "s/^IS_SANDBOX=.*/IS_SANDBOX=1/" "$env_file"
+else
+  mkdir -p "$(dirname "$env_file")"
+  if [ -s "$env_file" ] && [ "$(tail -c 1 "$env_file" 2>/dev/null || true)" != "" ]; then
+    printf "\n" >>"$env_file"
+  fi
+  printf "IS_SANDBOX=1\n" >>"$env_file"
+fi
+chmod 0644 "$env_file"
+SH
+  then
+    CLAUDE_DESKTOP_SSH_STATUS="skipped: root/sudo required to write $env_file"
+    echo "Claude Desktop SSH compatibility skipped: root or passwordless sudo is required to write $env_file." >&2
+    return
+  fi
+  status_parts+=("IS_SANDBOX=1 in $env_file")
+
+  if ! run_script_as_root_if_available "$claude_target" "$claude_link" -- <<'SH'
+set -eu
+target="$1"
+link_path="$2"
+mkdir -p "$(dirname "$link_path")"
+if [ -e "$link_path" ] || [ -L "$link_path" ]; then
+  current=$(readlink -f "$link_path" 2>/dev/null || true)
+  wanted=$(readlink -f "$target" 2>/dev/null || true)
+  if [ -n "$current" ] && [ -n "$wanted" ] && [ "$current" != "$wanted" ]; then
+    timestamp=$(date +%Y%m%d-%H%M%S)
+    mv "$link_path" "${link_path}.agent-tools-backup-${timestamp}"
+  fi
+fi
+ln -sfn "$target" "$link_path"
+chmod 0755 "$(dirname "$link_path")"
+SH
+  then
+    CLAUDE_DESKTOP_SSH_STATUS="partial: IS_SANDBOX configured, but root/sudo required for $claude_link"
+    echo "Claude Desktop SSH compatibility partially configured: root or passwordless sudo is required to write $claude_link." >&2
+    return
+  fi
+  status_parts+=("$claude_link -> $claude_target")
+
+  if ! env -i PATH="$usr_local_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" IS_SANDBOX=1 "$claude_link" --version >/dev/null 2>&1 && [[ ! -x "$node_link" ]]; then
+    node_cmd="$(type -P node 2>/dev/null || true)"
+    if [[ -n "$node_cmd" ]]; then
+      node_target="$node_cmd"
+      case "$node_cmd" in
+        /run/user/*|/tmp/*|/var/tmp/*)
+          node_target="$(resolve_existing_path "$node_cmd")"
+          ;;
+      esac
+      if [[ -n "$node_target" && -x "$node_target" && "$node_target" != /run/user/* && "$node_target" != /tmp/* && "$node_target" != /var/tmp/* ]]; then
+        if run_script_as_root_if_available "$node_target" "$node_link" -- <<'SH'
+set -eu
+target="$1"
+link_path="$2"
+mkdir -p "$(dirname "$link_path")"
+if [ ! -e "$link_path" ] && [ ! -L "$link_path" ]; then
+  ln -s "$target" "$link_path"
+fi
+SH
+        then
+          status_parts+=("$node_link -> $node_target")
+        else
+          status_parts+=("node symlink skipped: root/sudo required")
+        fi
+      else
+        status_parts+=("node symlink skipped: stable node target not found")
+      fi
+    else
+      status_parts+=("node symlink skipped: node not on PATH")
+    fi
+  fi
+
+  if ! env -i PATH="$usr_local_bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" IS_SANDBOX=1 "$claude_link" --version >/dev/null 2>&1; then
+    status_parts+=("warning: $claude_link still failed with a minimal SSH-like PATH")
+  fi
+
+  if [[ -z "$root_prefix" && -f /etc/pam.d/sshd ]] && ! grep -q 'pam_env\.so' /etc/pam.d/sshd 2>/dev/null; then
+    status_parts+=("warning: /etc/pam.d/sshd does not mention pam_env.so")
+  fi
+
+  CLAUDE_DESKTOP_SSH_STATUS=""
+  for part in "${status_parts[@]}"; do
+    if [[ -n "$CLAUDE_DESKTOP_SSH_STATUS" ]]; then
+      CLAUDE_DESKTOP_SSH_STATUS+="; "
+    fi
+    CLAUDE_DESKTOP_SSH_STATUS+="$part"
+  done
+  echo "Claude Desktop SSH compatibility: $CLAUDE_DESKTOP_SSH_STATUS"
 }
 
 cc_switch_version() {
@@ -720,7 +918,7 @@ ALLOWED_APPROVAL_POLICIES = {"on-request", "on-failure", "untrusted", "never"}
 ALLOWED_SANDBOX_MODES = {"read-only", "workspace-write", "danger-full-access"}
 ALLOWED_APPROVALS_REVIEWERS = {"user", "auto_review", "guardian_subagent"}
 ALLOWED_REASONING_EFFORTS = {"minimal", "low", "medium", "high"}
-ALLOWED_SERVICE_TIERS = {"auto", "default", "fast"}
+ALLOWED_SERVICE_TIERS = {"auto", "default", "fast", "priority"}
 if approval_policy not in ALLOWED_APPROVAL_POLICIES:
     raise SystemExit(f"invalid CODEX_APPROVAL_POLICY: {approval_policy}")
 if sandbox_mode not in ALLOWED_SANDBOX_MODES:
@@ -1573,6 +1771,8 @@ Options:
   --codex-app-fast-wsl-windows MODE
                            Also patch the Windows Codex App home when running
                            from WSL: auto|always|never. Default: auto.
+  --no-claude-desktop-ssh  Do not configure existing Claude Code for Claude
+                           Desktop SSH root/bypass compatibility.
   --no-registry            Do not install experiment-registry links.
   --registry-init-db       Initialize the local registry DB if missing.
   --no-cron                Write config but do not install crontab entry.
@@ -1692,6 +1892,10 @@ while [[ $# -gt 0 ]]; do
       CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="$2"
       shift 2
       ;;
+    --no-claude-desktop-ssh)
+      INSTALL_CLAUDE_DESKTOP_SSH=0
+      shift
+      ;;
     --no-registry)
       INSTALL_REGISTRY=0
       shift
@@ -1752,6 +1956,7 @@ fi
 mkdir -p "$INSTALL_REAL/logs"
 configure_tmux_mouse_mode
 configure_local_bin_path
+configure_claude_desktop_ssh
 update_cc_switch_cli
 if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then
   install_codex_here
@@ -1822,6 +2027,7 @@ echo "Installed agent context sync tools in $INSTALL_REAL"
 echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
 echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
 echo "agent-tools PATH: $LOCAL_BIN_PATH_STATUS"
+echo "Claude Desktop SSH compatibility: $CLAUDE_DESKTOP_SSH_STATUS"
 if [[ "$INSTALL_CC_SWITCH_CLI_UPDATE" -eq 1 ]]; then
   if version="$(cc_switch_version)"; then
     echo "cc-switch-cli updated: $version"

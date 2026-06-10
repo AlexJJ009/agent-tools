@@ -155,8 +155,8 @@ def parse_args():
     )
     parser.add_argument(
         "--service-tier",
-        default=os.environ.get("CODEX_SERVICE_TIER", "fast"),
-        choices=["auto", "default", "fast"],
+        default=os.environ.get("CODEX_SERVICE_TIER", "priority"),
+        choices=["auto", "default", "fast", "priority"],
     )
     parser.add_argument(
         "--fast-mode",

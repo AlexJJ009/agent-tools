@@ -11,8 +11,11 @@ The target state is:
   `~/.codex/config.toml`.
 - Codex App Connections are restarted after the remote config/CLI changes.
 
-Do not patch the macOS app bundle, `app.asar`, or Electron resources. Fast mode
-is a Codex config and app-server capability issue, not a signed-app edit.
+Do not patch the macOS app bundle, `app.asar`, or Electron resources during
+normal setup. Fast mode starts as Codex config and app-server capability. If a
+specific Codex Desktop version still drops `serviceTier` for remote
+Connections, handle that as a separate Desktop bundle investigation and verify
+with provider logs.
 
 ## Prompt For A Coding Agent
 
@@ -37,7 +40,7 @@ Goals:
      Codex CLI. Do not use npm for Codex CLI installs.
    - Preserve existing `~/.codex/auth.json` and provider/auth settings.
    - Enable Fast Mode in that host's `~/.codex/config.toml`.
-   - Verify the config contains top-level `service_tier = "fast"` and
+   - Verify the config contains top-level `service_tier = "priority"` and
      `[features].fast_mode = true` exactly once.
    - If app-server stdio probing is supported, verify the initialized app-server
      reports ChatGPT auth and Fast-capable model tiers. If stdio probing is not
@@ -102,7 +105,7 @@ Codex reads personal defaults from:
 For Fast Mode, the required config is:
 
 ```toml
-service_tier = "fast"
+service_tier = "priority"
 
 [features]
 fast_mode = true
@@ -155,7 +158,7 @@ grep -nE '^(service_tier|\\[features\\]|fast_mode)' ~/.codex/config.toml
 Expected:
 
 ```toml
-service_tier = "fast"
+service_tier = "priority"
 
 [features]
 fast_mode = true
@@ -246,12 +249,15 @@ For each environment, record:
 | Target | Command | Expected |
 | --- | --- | --- |
 | Mac | `codex --version` | Recent Codex CLI |
-| Mac | `grep -nE '^(service_tier|\\[features\\]|fast_mode)' ~/.codex/config.toml` | `service_tier = "fast"` and `fast_mode = true` |
+| Mac | `grep -nE '^(service_tier|\\[features\\]|fast_mode)' ~/.codex/config.toml` | `service_tier = "priority"` and `fast_mode = true` |
 | SSH host | `ssh HOST 'codex --version'` | Recent standalone Codex CLI |
 | SSH host | `ssh HOST 'grep -nE "^(service_tier|\\[features\\]|fast_mode)" ~/.codex/config.toml'` | Fast config present |
 | Codex App | New local thread | Model selector/session shows Fast-capable behavior |
-| Codex App Connections | New SSH project thread | Remote app-server uses host config and Fast-capable models |
+| Codex App Connections | New SSH project thread | Provider log shows `service_tier = priority` only when Fast is enabled |
 
 The most common failure pattern is configuring the Mac but not the SSH host.
 Codex App Connections use the remote host's `codex` binary and remote
 `~/.codex/config.toml`, so each host must be configured independently.
+If those are correct but the provider log still shows `service_tier = NULL`, the
+Desktop Connection layer may be filtering the tier before it reaches the remote
+app-server.

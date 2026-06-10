@@ -507,7 +507,7 @@ approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 model = "{default.get('model', default_model)}"
 model_reasoning_effort = "high"
-service_tier = "fast"
+service_tier = "priority"
 model_provider = "{bucket}"
 
 [features]

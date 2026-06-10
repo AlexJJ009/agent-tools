@@ -109,6 +109,19 @@ Pass `--cc-switch-update-proxy never` to force direct GitHub access,
 `--no-cc-switch-update` only when the machine cannot reach GitHub during this
 step.
 
+When Claude Code is already installed, the same installer also prepares the host
+for Claude Desktop SSH sessions:
+
+- `/etc/environment` gets `IS_SANDBOX=1`, which is inherited by new
+  non-interactive SSH sessions before Claude Code's root guard runs.
+- `/usr/local/bin/claude` points at the existing stable Claude Code binary, so a
+  root SSH session does not depend on `.bashrc`, `.profile`, or temporary fnm
+  multishell paths.
+
+This does not install Claude Code. If `claude` is not already on `PATH`, the
+step skips cleanly. Use `--no-claude-desktop-ssh` only for hosts that should not
+receive this system-level compatibility patch.
+
 ```bash
 ./install.sh \
   --root "$HOME" \
@@ -239,7 +252,7 @@ sandbox_mode = "workspace-write"
 approvals_reviewer = "auto_review"
 model = "{default_model}"
 model_reasoning_effort = "high"
-service_tier = "fast"
+service_tier = "priority"
 model_provider = "{codex_provider_bucket}"
 
 [features]

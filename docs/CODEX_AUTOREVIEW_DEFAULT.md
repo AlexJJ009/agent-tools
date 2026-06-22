@@ -2,6 +2,8 @@
 
 This runbook configures Codex so new conversations use the local default
 permission posture and tolerate long compression or streaming pauses.
+It also installs a short-term SQLite log guard for Codex builds that write
+high-volume diagnostic rows to `logs_2.sqlite`.
 
 **As of the current `install.sh`, every section below is applied
 automatically.** Re-run `./install.sh` (with or without `--root` flags) and the
@@ -49,6 +51,12 @@ terminal_resize_reflow = true
 remote_control = true
 ```
 
+Install the temporary SQLite log guard:
+
+```bash
+python3 scripts/configure_codex_sqlite_log_guard.py --mode enable
+```
+
 Meaning:
 
 - `approval_policy = "on-request"` keeps approval flow enabled.
@@ -76,6 +84,10 @@ Meaning:
   `remote_control = true`, and do not write `remote_connections = true`;
   current Codex CLI remote control is started through the `codex remote-control`
   / `codex app-server daemon` command path.
+- The SQLite log guard is a short-term SSD protection patch. It creates a
+  trigger on `logs_2.sqlite.logs` so new diagnostic rows are ignored while
+  leaving conversations, config, auth, memories, goals, plugins, Fast Mode, and
+  Connections untouched. See `docs/CODEX_SQLITE_LOG_GUARD.md`.
 
 Do not set these as the default for AutoReview:
 
@@ -138,6 +150,16 @@ env var before running:
 | `[features].remote_control` | `CODEX_FEATURE_REMOTE_CONTROL` | `true` |
 
 Pass `--no-codex-config` to skip the Codex patch entirely.
+
+The temporary SQLite log guard is enabled by default and is controlled
+separately from `--no-codex-config`:
+
+| Knob | Env var / flag | Default |
+|---|---|---|
+| install guard | `INSTALL_CODEX_SQLITE_LOG_GUARD` / `--no-codex-sqlite-log-guard` | `1` |
+| mode | `CODEX_SQLITE_LOG_GUARD_MODE` / `--disable-codex-sqlite-log-guard` | `enable` |
+| WSL Windows homes | `CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS` / `--codex-sqlite-log-guard-wsl-windows` | `auto` |
+| compact DB | `CODEX_SQLITE_LOG_GUARD_VACUUM` / `--codex-sqlite-log-guard-vacuum` | `0` |
 
 The installer replaces the managed keys above, including top-level
 `service_tier = "priority"` and `[features].fast_mode = true`. Do not put
@@ -263,6 +285,12 @@ Check that Codex can parse the config:
 codex features list >/dev/null && echo "Codex config parses"
 ```
 
+Check the temporary SQLite log guard:
+
+```bash
+python3 scripts/configure_codex_sqlite_log_guard.py --mode status
+```
+
 Then open a new Codex conversation. The `/approvals` state should be AutoReview,
 not Full Access, and long remote compression/streaming pauses should use the
 larger idle timeout. Existing already-open conversations do not automatically
@@ -296,7 +324,10 @@ When asked to apply this on a new server or WSL2 machine:
    TOML tables. The installer already does this.
 5. Remove top-level `remote_control` and any `remote_connections` key if present.
 6. Validate with `codex features list`.
-7. Tell the user that only new Codex sessions pick up the new default.
+7. Confirm `configure_codex_sqlite_log_guard.py --mode status` reports enabled
+   for the target Codex home. On WSL2, include the Windows Codex App home unless
+   explicitly disabled.
+8. Tell the user that only new Codex sessions pick up the new default.
 
 To deviate from the defaults, set the matching env var before running
 `install.sh`:
@@ -307,6 +338,12 @@ To deviate from the defaults, set the matching env var before running
 `CODEX_FEATURE_MEMORIES`, `CODEX_FEATURE_GOALS`,
 `CODEX_FEATURE_TERMINAL_RESIZE_REFLOW`, `CODEX_FEATURE_REMOTE_CONTROL`. Use
 `--no-codex-config` to skip the codex patch entirely.
+
+To remove the temporary SQLite log guard after OpenAI fixes the logging issue:
+
+```bash
+./install.sh --disable-codex-sqlite-log-guard
+```
 
 ## Rollback
 

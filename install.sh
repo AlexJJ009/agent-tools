@@ -34,6 +34,12 @@ INSTALL_CODEX_REMOTE_CONTROL="${INSTALL_CODEX_REMOTE_CONTROL:-1}"
 INSTALL_CODEX_APP_FAST_MODE="${INSTALL_CODEX_APP_FAST_MODE:-1}"
 INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE="${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE:-auto}"
 CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH="${CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH:-0}"
+CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE="${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE:-both}"
+CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME="${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME:-Codex Fast Connections}"
+INSTALL_CODEX_SQLITE_LOG_GUARD="${INSTALL_CODEX_SQLITE_LOG_GUARD:-1}"
+CODEX_SQLITE_LOG_GUARD_MODE="${CODEX_SQLITE_LOG_GUARD_MODE:-enable}"
+CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS="${CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS:-auto}"
+CODEX_SQLITE_LOG_GUARD_VACUUM="${CODEX_SQLITE_LOG_GUARD_VACUUM:-0}"
 INSTALL_CLAUDE_DESKTOP_SSH="${INSTALL_CLAUDE_DESKTOP_SSH:-1}"
 CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS:-auto}"
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-1800000}"
@@ -64,6 +70,7 @@ LOCAL_BIN_PATH_STATUS=""
 CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS=""
 CLAUDE_DESKTOP_SSH_STATUS=""
 CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS=""
+CODEX_SQLITE_LOG_GUARD_STATUS=""
 SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
 
@@ -861,6 +868,59 @@ configure_codex_app_fast_mode() {
     "${args[@]}"
 }
 
+configure_codex_sqlite_log_guard() {
+  local script="$INSTALL_REAL/scripts/configure_codex_sqlite_log_guard.py"
+  local args=()
+
+  CODEX_SQLITE_LOG_GUARD_STATUS="skipped"
+
+  if [[ "$INSTALL_CODEX_SQLITE_LOG_GUARD" -eq 0 ]]; then
+    CODEX_SQLITE_LOG_GUARD_STATUS="skipped: disabled"
+    echo "Codex SQLite log guard not changed (--no-codex-sqlite-log-guard)."
+    return
+  fi
+
+  if [[ ! -f "$script" ]]; then
+    CODEX_SQLITE_LOG_GUARD_STATUS="skipped: missing $script"
+    echo "Codex SQLite log guard skipped: missing $script" >&2
+    return 1
+  fi
+
+  case "$CODEX_SQLITE_LOG_GUARD_MODE" in
+    enable|disable|status)
+      ;;
+    *)
+      echo "invalid Codex SQLite log guard mode: $CODEX_SQLITE_LOG_GUARD_MODE (expected enable|disable|status)" >&2
+      exit 2
+      ;;
+  esac
+
+  case "$CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS" in
+    auto)
+      if grep -qi microsoft /proc/version 2>/dev/null && [[ -d /mnt/c/Users ]]; then
+        args+=(--include-wsl-windows)
+      fi
+      ;;
+    always)
+      args+=(--include-wsl-windows)
+      ;;
+    never)
+      ;;
+    *)
+      echo "invalid Codex SQLite log guard WSL-Windows mode: $CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS" >&2
+      exit 2
+      ;;
+  esac
+
+  if [[ "$CODEX_SQLITE_LOG_GUARD_VACUUM" -eq 1 ]]; then
+    args+=(--vacuum)
+  fi
+
+  select_python_bin
+  "$PYTHON_BIN" "$script" --mode "$CODEX_SQLITE_LOG_GUARD_MODE" "${args[@]}"
+  CODEX_SQLITE_LOG_GUARD_STATUS="mode=${CODEX_SQLITE_LOG_GUARD_MODE}, wsl_windows=${CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS}, vacuum=${CODEX_SQLITE_LOG_GUARD_VACUUM}"
+}
+
 should_setup_codex_desktop_connection_fast_mode() {
   local mode="$INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE"
 
@@ -891,6 +951,7 @@ setup_codex_desktop_connection_fast_mode() {
   local script="$INSTALL_REAL/scripts/setup_codex_desktop_connection_fast_mode.py"
   local platform_arg="auto"
   local launch_arg=()
+  local shortcut_args=()
   local rc
 
   CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="skipped: mode=${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE}"
@@ -926,9 +987,13 @@ setup_codex_desktop_connection_fast_mode() {
   if [[ "$CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH" -eq 1 ]]; then
     launch_arg=(--launch)
   fi
+  shortcut_args=(
+    --shortcut-scope "$CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE"
+    --shortcut-name "$CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME"
+  )
 
   select_python_bin
-  if "$PYTHON_BIN" "$script" --platform "$platform_arg" "${launch_arg[@]}"; then
+  if "$PYTHON_BIN" "$script" --platform "$platform_arg" "${launch_arg[@]}" "${shortcut_args[@]}"; then
     CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="configured: platform=${platform_arg}, launch=${CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH}"
   else
     CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="failed: platform=${platform_arg}"
@@ -1864,6 +1929,23 @@ Options:
                            Connection Fast Mode.
   --launch-codex-desktop-fast-mode
                            Launch the prepared Codex Desktop after patching.
+  --codex-desktop-fast-shortcut-scope MODE
+                           Win11 shortcut locations: none|desktop|start-menu|both.
+                           Default: both.
+  --codex-desktop-fast-shortcut-name NAME
+                           Win11 shortcut name. Default: Codex Fast Connections.
+  --no-codex-sqlite-log-guard
+                           Do not install the temporary logs_2.sqlite insert
+                           guard for Codex SSD write amplification.
+  --disable-codex-sqlite-log-guard
+                           Remove the temporary logs_2.sqlite insert guard.
+                           Use after OpenAI fixes the logging issue.
+  --codex-sqlite-log-guard-wsl-windows MODE
+                           Also patch Windows Codex homes when running from
+                           WSL: auto|always|never. Default: auto.
+  --codex-sqlite-log-guard-vacuum
+                           Checkpoint WAL and VACUUM after guard changes.
+                           Use only after stopping Codex processes.
   --no-claude-desktop-ssh  Do not configure existing Claude Code for Claude
                            Desktop SSH root/bypass compatibility.
   --no-registry            Do not install experiment-registry links.
@@ -1997,6 +2079,31 @@ while [[ $# -gt 0 ]]; do
       CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH=1
       shift
       ;;
+    --codex-desktop-fast-shortcut-scope)
+      CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE="$2"
+      shift 2
+      ;;
+    --codex-desktop-fast-shortcut-name)
+      CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME="$2"
+      shift 2
+      ;;
+    --no-codex-sqlite-log-guard)
+      INSTALL_CODEX_SQLITE_LOG_GUARD=0
+      shift
+      ;;
+    --disable-codex-sqlite-log-guard)
+      INSTALL_CODEX_SQLITE_LOG_GUARD=1
+      CODEX_SQLITE_LOG_GUARD_MODE=disable
+      shift
+      ;;
+    --codex-sqlite-log-guard-wsl-windows)
+      CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS="$2"
+      shift 2
+      ;;
+    --codex-sqlite-log-guard-vacuum)
+      CODEX_SQLITE_LOG_GUARD_VACUUM=1
+      shift
+      ;;
     --no-claude-desktop-ssh)
       INSTALL_CLAUDE_DESKTOP_SSH=0
       shift
@@ -2075,6 +2182,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   configure_codex_app_fast_mode
   check_codex_fast_mode
   setup_codex_desktop_connection_fast_mode
+  configure_codex_sqlite_log_guard
   configure_codex_project_hooks_features
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
     run_codex_provider_bucket_migration
@@ -2158,6 +2266,8 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex [features]: fast_mode=${CODEX_FEATURE_FAST_MODE} hooks=${CODEX_FEATURE_HOOKS} memories=${CODEX_FEATURE_MEMORIES} goals=${CODEX_FEATURE_GOALS} terminal_resize_reflow=${CODEX_FEATURE_TERMINAL_RESIZE_REFLOW} remote_control=${CODEX_FEATURE_REMOTE_CONTROL}"
   echo "Codex App Fast mode config: enabled=${INSTALL_CODEX_APP_FAST_MODE}, wsl_windows=${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS}"
   echo "Codex Desktop Connection Fast mode: mode=${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE}, status=${CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS}"
+  echo "Codex Desktop Fast shortcut: scope=${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE}, name=${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME}"
+  echo "Codex SQLite log guard: ${CODEX_SQLITE_LOG_GUARD_STATUS}"
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
     echo "Codex provider bucket migration: target=${CODEX_MODEL_PROVIDER_ID}, apply=${APPLY_CODEX_PROVIDER_BUCKET_MIGRATION}, all_non_target=${CODEX_PROVIDER_BUCKET_ALL_NON_TARGET}"
   else
@@ -2170,7 +2280,10 @@ else
   configure_codex_app_fast_mode
   check_codex_fast_mode
   setup_codex_desktop_connection_fast_mode
+  configure_codex_sqlite_log_guard
   echo "Codex Desktop Connection Fast mode: mode=${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE}, status=${CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS}"
+  echo "Codex Desktop Fast shortcut: scope=${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE}, name=${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME}"
+  echo "Codex SQLite log guard: ${CODEX_SQLITE_LOG_GUARD_STATUS}"
   echo "Codex config not changed (--no-codex-config)."
 fi
 if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then

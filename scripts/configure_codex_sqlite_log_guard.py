@@ -137,7 +137,7 @@ def apply_mode(path, mode, vacuum):  # type: (Path, str, bool) -> Result
         return Result(path, "skipped", "logs_2.sqlite does not exist yet", size_before, size_before)
 
     try:
-        conn = sqlite3.connect(path, timeout=10)
+        conn = sqlite3.connect(str(path), timeout=10)
     except sqlite3.Error as exc:
         return Result(path, "error", f"could not open sqlite database: {exc}", size_before, size_before)
 

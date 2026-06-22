@@ -6,15 +6,12 @@ logs_2.sqlite. It is intentionally narrow: it does not touch conversation
 state, sessions, auth, memories, goals, or config.
 """
 
-from __future__ import annotations
-
 import argparse
 import os
 import platform
 import sqlite3
-import sys
-from dataclasses import dataclass
 from pathlib import Path
+from typing import List, Optional, Set
 
 
 TRIGGER_NAME = "agent_tools_block_codex_log_inserts"
@@ -28,13 +25,22 @@ END;
 """.strip()
 
 
-@dataclass
 class Result:
-    path: Path
-    status: str
-    detail: str
-    size_before: int | None = None
-    size_after: int | None = None
+    def __init__(
+        self,
+        path,  # type: Path
+        status,  # type: str
+        detail,  # type: str
+        size_before=None,  # type: Optional[int]
+        size_after=None,  # type: Optional[int]
+    ):
+        # Keep this script compatible with Python 3.6, which is still common on
+        # older servers used for Codex CLI bootstrap.
+        self.path = path
+        self.status = status
+        self.detail = detail
+        self.size_before = size_before
+        self.size_after = size_after
 
 
 def is_wsl() -> bool:
@@ -46,7 +52,7 @@ def is_wsl() -> bool:
         return False
 
 
-def wsl_path_from_windows_path(raw: str) -> Path | None:
+def wsl_path_from_windows_path(raw):  # type: (str) -> Optional[Path]
     value = raw.strip().strip('"')
     if not value:
         return None
@@ -57,7 +63,7 @@ def wsl_path_from_windows_path(raw: str) -> Path | None:
     return None
 
 
-def default_codex_home() -> Path:
+def default_codex_home():  # type: () -> Path
     env_home = os.environ.get("CODEX_HOME")
     if env_home:
         converted = wsl_path_from_windows_path(env_home)
@@ -69,9 +75,9 @@ def default_codex_home() -> Path:
     return Path.home() / ".codex"
 
 
-def windows_codex_homes_from_wsl() -> list[Path]:
+def windows_codex_homes_from_wsl():  # type: () -> List[Path]
     users = Path("/mnt/c/Users")
-    homes: list[Path] = []
+    homes = []  # type: List[Path]
     if not is_wsl() or not users.is_dir():
         return homes
     ignored = {"All Users", "Default", "Default User", "Public", "desktop.ini"}
@@ -84,9 +90,9 @@ def windows_codex_homes_from_wsl() -> list[Path]:
     return homes
 
 
-def unique_paths(paths: list[Path]) -> list[Path]:
-    seen: set[str] = set()
-    out: list[Path] = []
+def unique_paths(paths):  # type: (List[Path]) -> List[Path]
+    seen = set()  # type: Set[str]
+    out = []  # type: List[Path]
     for path in paths:
         try:
             key = str(path.expanduser().resolve())
@@ -99,8 +105,8 @@ def unique_paths(paths: list[Path]) -> list[Path]:
     return out
 
 
-def find_targets(args: argparse.Namespace) -> list[Path]:
-    homes: list[Path] = []
+def find_targets(args):  # type: (argparse.Namespace) -> List[Path]
+    homes = []  # type: List[Path]
     for raw in args.codex_home:
         converted = wsl_path_from_windows_path(raw)
         homes.append(converted if converted is not None and is_wsl() else Path(raw).expanduser())
@@ -111,21 +117,21 @@ def find_targets(args: argparse.Namespace) -> list[Path]:
     return unique_paths([home / "logs_2.sqlite" for home in homes])
 
 
-def table_exists(conn: sqlite3.Connection, table: str) -> bool:
+def table_exists(conn, table):  # type: (sqlite3.Connection, str) -> bool
     return conn.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
         (table,),
     ).fetchone() is not None
 
 
-def trigger_names(conn: sqlite3.Connection) -> set[str]:
+def trigger_names(conn):  # type: (sqlite3.Connection) -> Set[str]
     return {
         str(row[0])
         for row in conn.execute("SELECT name FROM sqlite_master WHERE type='trigger'")
     }
 
 
-def apply_mode(path: Path, mode: str, vacuum: bool) -> Result:
+def apply_mode(path, mode, vacuum):  # type: (Path, str, bool) -> Result
     size_before = path.stat().st_size if path.exists() else None
     if not path.exists():
         return Result(path, "skipped", "logs_2.sqlite does not exist yet", size_before, size_before)
@@ -175,7 +181,7 @@ def apply_mode(path: Path, mode: str, vacuum: bool) -> Result:
         conn.close()
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args():  # type: () -> argparse.Namespace
     parser = argparse.ArgumentParser(
         description="Install, remove, or inspect the temporary Codex logs_2.sqlite insert guard."
     )
@@ -199,7 +205,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> int:
+def main():  # type: () -> int
     args = parse_args()
     targets = find_targets(args)
     if not targets:

@@ -15,6 +15,7 @@ REGISTRY_INIT_DB=0
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
 INSTALL_GOAL_PLAN=1
+GOAL_PLAN_INCLUDE_WSL_WINDOWS="${GOAL_PLAN_INCLUDE_WSL_WINDOWS:-auto}"
 INSTALL_CC_SWITCH_CLI_UPDATE="${INSTALL_CC_SWITCH_CLI_UPDATE:-1}"
 CC_SWITCH_UPDATE_PROXY_MODE="${CC_SWITCH_UPDATE_PROXY_MODE:-auto}"
 CC_SWITCH_UPDATE_CONNECT_TIMEOUT="${CC_SWITCH_UPDATE_CONNECT_TIMEOUT:-10}"
@@ -1690,8 +1691,56 @@ backup_and_link() {
   ln -s "$source" "$target"
 }
 
+backup_and_copy_managed() {
+  local source="$1"
+  local target="$2"
+  local timestamp backup marker
+
+  if [[ ! -e "$source" && ! -L "$source" ]]; then
+    echo "missing source for copy: $source" >&2
+    return 1
+  fi
+
+  mkdir -p "$(dirname "$target")"
+
+  if [[ -d "$source" ]]; then
+    marker="$target/.agent-tools-managed"
+    if [[ -L "$target" ]]; then
+      rm -f "$target"
+    elif [[ -e "$target" ]]; then
+      if [[ -f "$marker" ]]; then
+        rm -rf "$target"
+      else
+        timestamp="$(date +%Y%m%d-%H%M%S)"
+        backup="${target}.backup-${timestamp}"
+        mv "$target" "$backup"
+        echo "Backed up existing goal-plan target: $backup"
+      fi
+    fi
+    cp -R "$source" "$target"
+    printf 'managed by agent-tools install.sh\n' > "$marker"
+  else
+    marker="${target}.agent-tools-managed"
+    if [[ -L "$target" ]]; then
+      rm -f "$target"
+    elif [[ -e "$target" ]]; then
+      if [[ -f "$marker" ]]; then
+        rm -f "$target" "$marker"
+      else
+        timestamp="$(date +%Y%m%d-%H%M%S)"
+        backup="${target}.backup-${timestamp}"
+        mv "$target" "$backup"
+        echo "Backed up existing goal-plan target: $backup"
+      fi
+    fi
+    cp "$source" "$target"
+    printf 'managed by agent-tools install.sh\n' > "$marker"
+  fi
+}
+
 install_codex_personal_marketplace_goal_plan() {
-  local marketplace="$HOME/.agents/plugins/marketplace.json"
+  local home_dir="${1:-$HOME}"
+  local marketplace="$home_dir/.agents/plugins/marketplace.json"
   local plugin_path="./plugins/goal-plan"
 
   mkdir -p "$(dirname "$marketplace")"
@@ -1736,6 +1785,71 @@ path.chmod(0o600)
 PY
 }
 
+install_goal_plan_for_windows_home() {
+  local win_home="$1"
+  local source_root="$2"
+  local plugin_version="0.1.0"
+
+  backup_and_copy_managed "$source_root/claude/skills/goal-plan" "$win_home/.claude/skills/goal-plan"
+  backup_and_copy_managed "$source_root/claude/commands/goal-plan.md" "$win_home/.claude/commands/goal-plan.md"
+  backup_and_copy_managed "$source_root/claude/agents/goal-plan-reviewer.md" "$win_home/.claude/agents/goal-plan-reviewer.md"
+
+  backup_and_copy_managed "$source_root/codex/skills/goal-plan" "$win_home/.codex/skills/goal-plan"
+  backup_and_copy_managed "$source_root/codex/plugins/goal-plan" "$win_home/plugins/goal-plan"
+  backup_and_copy_managed "$source_root/codex/plugins/goal-plan" "$win_home/.codex/plugins/cache/personal/goal-plan/$plugin_version"
+  install_codex_personal_marketplace_goal_plan "$win_home"
+}
+
+install_goal_plan_for_wsl_windows_homes() {
+  local source_root="$1"
+  local users_dir="/mnt/c/Users"
+  local user_home installed=0
+
+  case "$GOAL_PLAN_INCLUDE_WSL_WINDOWS" in
+    auto)
+      if ! grep -qi microsoft /proc/version 2>/dev/null || [[ ! -d "$users_dir" ]]; then
+        return 0
+      fi
+      ;;
+    always)
+      if [[ ! -d "$users_dir" ]]; then
+        echo "goal-plan Win11 install skipped: $users_dir not found" >&2
+        return 1
+      fi
+      ;;
+    never)
+      return 0
+      ;;
+    *)
+      echo "invalid goal-plan WSL-Windows mode: $GOAL_PLAN_INCLUDE_WSL_WINDOWS (expected auto|always|never)" >&2
+      exit 2
+      ;;
+  esac
+
+  shopt -s nullglob
+  for user_home in "$users_dir"/*; do
+    case "$(basename "$user_home")" in
+      "All Users"|"CodexSandboxOffline"|"Default"|"Default User"|"Public"|"desktop.ini")
+        continue
+        ;;
+    esac
+    if [[ ! -w "$user_home" ]]; then
+      continue
+    fi
+    if [[ -d "$user_home/.codex" || -d "$user_home/.claude" ]]; then
+      install_goal_plan_for_windows_home "$user_home" "$source_root"
+      echo "goal-plan Win11 user install: $user_home"
+      installed=1
+    fi
+  done
+  shopt -u nullglob
+
+  if [[ "$installed" -eq 0 && "$GOAL_PLAN_INCLUDE_WSL_WINDOWS" == "always" ]]; then
+    echo "goal-plan Win11 install skipped: no Windows user with .codex or .claude found" >&2
+    return 1
+  fi
+}
+
 install_goal_plan_tools() {
   GOAL_PLAN_STATUS="skipped"
 
@@ -1752,17 +1866,18 @@ install_goal_plan_tools() {
 
   backup_and_link "$source_root/codex/skills/goal-plan" "${CODEX_HOME:-$HOME/.codex}/skills/goal-plan"
   backup_and_link "$source_root/codex/plugins/goal-plan" "$HOME/plugins/goal-plan"
-  install_codex_personal_marketplace_goal_plan
+  install_codex_personal_marketplace_goal_plan "$HOME"
+  install_goal_plan_for_wsl_windows_homes "$source_root"
 
   if command -v codex >/dev/null 2>&1; then
     if codex plugin add goal-plan@personal >/dev/null 2>&1; then
-      GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin"
+      GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
     else
-      GOAL_PLAN_STATUS="linked; codex plugin add goal-plan@personal failed"
+      GOAL_PLAN_STATUS="linked; codex plugin add goal-plan@personal failed; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
       echo "goal-plan Codex plugin linked, but 'codex plugin add goal-plan@personal' failed." >&2
     fi
   else
-    GOAL_PLAN_STATUS="linked; codex not on PATH, plugin add skipped"
+    GOAL_PLAN_STATUS="linked; codex not on PATH, plugin add skipped; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
     echo "goal-plan Codex plugin linked; codex is not on PATH, so plugin add was skipped." >&2
   fi
 }
@@ -1882,6 +1997,9 @@ Options:
   --no-codex-here          Do not install ~/.local/bin/codex-here.
   --no-goal-plan           Do not install user-level goal-plan tools
                            (Claude /goal-plan + reviewer, Codex skill/plugin).
+  --goal-plan-wsl-windows MODE
+                           Also install goal-plan into Win11 Codex/Claude homes
+                           when running from WSL: auto|always|never. Default: auto.
   --no-cc-switch-update    Do not update cc-switch-cli from the latest GitHub
                            release before Codex provider migration.
   --cc-switch-update-proxy MODE
@@ -2005,6 +2123,10 @@ while [[ $# -gt 0 ]]; do
     --no-goal-plan)
       INSTALL_GOAL_PLAN=0
       shift
+      ;;
+    --goal-plan-wsl-windows)
+      GOAL_PLAN_INCLUDE_WSL_WINDOWS="$2"
+      shift 2
       ;;
     --no-cc-switch-update)
       INSTALL_CC_SWITCH_CLI_UPDATE=0

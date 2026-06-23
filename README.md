@@ -27,9 +27,14 @@ The recommended deployment model is one central tool directory per machine, not 
   patch generator for Codex Desktop builds that drop explicit Fast
   `serviceTier` when using WSL/SSH Connections.
 - `scripts/setup_codex_desktop_connection_fast_mode.py` — higher-level Win11
-  and macOS setup wrapper for the Desktop Connection Fast Mode patch. On Win11
-  from WSL it prepares a writable patched Store-app copy and launcher; on macOS
-  it can patch `Codex.app` when explicitly requested.
+  and macOS setup wrapper for the Desktop Connection Fast Mode patch. It records
+  the Codex Desktop version route: current `26.616.x` Win11 builds need a scoped
+  NewAPI provider override, while older builds keep using the legacy bundle patch.
+  On Win11 from WSL it rebuilds a writable patched Store-app copy plus
+  Desktop/Start Menu shortcuts; on macOS it can patch `Codex.app`.
+- `scripts/verify_codex_fast_mode_runtime.py` — runtime verifier that queries
+  sub2api `usage_logs` by time window or `request_id` and checks whether the
+  request was really billed as Fast/priority.
 - `experiment_registry/` — canonical SQLite experiment registry tooling,
   schema, queries, validation scripts, and the `experiment-registry` skill.
 - `goal_plan/` — canonical Claude Code and Codex App/CLI goal-planning skill,
@@ -249,17 +254,23 @@ also prepare Codex Desktop so WSL/SSH Connections preserve the selected
 `serviceTier`:
 
 - On Win11/WSL, `--codex-desktop-connection-fast-mode auto` prepares a writable
-  patched copy of the Microsoft Store app and writes a launcher under
-  `%LOCALAPPDATA%\OpenAI\CodexDesktopPatched`.
+  patched copy of the Microsoft Store app and writes launchers plus a
+  `Codex Fast Connections` Desktop/Start Menu shortcut. Each run mirrors the
+  current Store package again, so Store updates/reinstalls are handled by
+  rerunning the installer. For Codex Desktop `26.616.x`, this local step is not
+  sufficient by itself; the tokenrouter NewAPI channel must also apply the
+  scoped `/v1/responses` Codex `service_tier = "priority"` override documented
+  in `docs/CODEX_DESKTOP_CONNECTION_FAST_MODE_PATCH.md`.
 - On macOS, `auto` attempts to patch the installed `Codex.app` bundle when it
   is writable. Use `--codex-desktop-connection-fast-mode always` when patch
   failure should fail the install, or `--no-codex-desktop-connection-fast-mode`
   to leave the app bundle untouched.
 
-Follow `docs/CODEX_DESKTOP_CONNECTION_FAST_MODE_PATCH.md` for launch and
-verification. A correctly configured app-server should report Fast-capable
-settings, but the authoritative check is the real provider log and billing row
-for the request.
+Follow `docs/CODEX_DESKTOP_CONNECTION_FAST_MODE_PATCH.md` for launch, version
+routing, provider override, and verification. A correctly configured app-server
+should report Fast-capable settings, but the authoritative check is the real
+provider log and billing row for the request. In the current newapi -> sub2api
+chain, the value to verify is `priority`; `fast` is only a legacy/UI alias.
 
 Before running the Codex provider-bucket migration, the installer updates
 `cc-switch-cli` from the latest GitHub release installer. Use

@@ -995,7 +995,7 @@ setup_codex_desktop_connection_fast_mode() {
 
   select_python_bin
   if "$PYTHON_BIN" "$script" --platform "$platform_arg" "${launch_arg[@]}" "${shortcut_args[@]}"; then
-    CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="configured: platform=${platform_arg}, launch=${CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH}"
+    CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="configured: platform=${platform_arg}, route=version-routed, launch=${CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH}"
   else
     CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="failed: platform=${platform_arg}"
     echo "Codex Desktop Connection Fast mode setup failed." >&2
@@ -2037,11 +2037,14 @@ Options:
                            Also patch the Windows Codex App home when running
                            from WSL: auto|always|never. Default: auto.
   --codex-desktop-connection-fast-mode MODE
-                           Patch or prepare Codex Desktop so WSL/SSH
-                           Connections preserve Fast serviceTier:
+                           Version-route Codex Desktop WSL/SSH Connection
+                           Fast repair and prepare the local bundle:
                            auto|always|never. Default: auto.
                            auto prepares a writable Win11 Store-app copy from
                            WSL and patches macOS Codex.app when writable.
+                           Codex Desktop 26.616+ is marked as requiring a
+                           scoped provider-side priority override plus log
+                           verification.
   --no-codex-desktop-connection-fast-mode
                            Do not patch or prepare Codex Desktop bundles for
                            Connection Fast Mode.

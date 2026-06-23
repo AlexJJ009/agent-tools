@@ -32,8 +32,18 @@ READ_SERVICE_TIER_REPLACEMENTS = [
         "allow explicit per-thread service tier selections",
     ),
     (
+        "if(l.type!==`fromConfig`)return i(null,a(l,null),s);",
+        "if(l.type!==`fromConfig`)return i(null,a(l,null),!0);",
+        "allow explicit per-thread service tier selections",
+    ),
+    (
         "return d.service_tier==null?n(await m(o,c??d.model),d.service_tier,e):n(null,d.service_tier,e)",
         "return d.service_tier==null?n(await m(o,c??d.model),d.service_tier,e):n(null,d.service_tier,!0)",
+        "allow explicit config service_tier values",
+    ),
+    (
+        "return d.service_tier==null?i(await m(o,c??d.model),d.service_tier,s):i(null,d.service_tier,s)",
+        "return d.service_tier==null?i(await m(o,c??d.model),d.service_tier,s):i(null,d.service_tier,!0)",
         "allow explicit config service_tier values",
     ),
 ]
@@ -43,6 +53,11 @@ USE_SERVICE_TIER_REPLACEMENTS = [
     (
         "p=s&&!f&&u!=null&&u?.requirements?.featureRequirements?.fast_mode!==!1",
         "p=!f&&u?.requirements?.featureRequirements?.fast_mode!==!1",
+        "show service-tier selector outside ChatGPT auth when feature is not disabled",
+    ),
+    (
+        "m=c&&!p&&d!=null&&d?.requirements?.featureRequirements?.fast_mode!==!1",
+        "m=!p&&d?.requirements?.featureRequirements?.fast_mode!==!1",
         "show service-tier selector outside ChatGPT auth when feature is not disabled",
     ),
 ]

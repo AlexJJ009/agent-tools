@@ -134,6 +134,14 @@ receive this system-level compatibility patch.
   --no-agent-core
 ```
 
+On ordinary Linux SSH servers, this installer also installs or hardens
+`fail2ban` for `sshd`. The managed jail is intentionally strict:
+`sshd[mode=aggressive]`, `maxretry = 3`, `findtime = 1h`, `bantime = -1`, and
+DROP bans. The managed `ignoreip` remains loopback-only (`127.0.0.1/8 ::1`);
+do not add guessed public allowlists in shared automation. Use
+`--no-fail2ban-hardening` only when a host's SSH protection is managed
+elsewhere.
+
 ## Provider Inputs
 
 Fill these values on the target server. The example uses two providers, but the

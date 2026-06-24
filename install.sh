@@ -12,6 +12,13 @@ MODE="symlink"
 INSTALL_CRON=1
 INSTALL_REGISTRY=1
 REGISTRY_INIT_DB=0
+INSTALL_FAIL2BAN_HARDENING="${INSTALL_FAIL2BAN_HARDENING:-auto}"
+FAIL2BAN_SSHD_MAXRETRY="${FAIL2BAN_SSHD_MAXRETRY:-3}"
+FAIL2BAN_SSHD_FINDTIME="${FAIL2BAN_SSHD_FINDTIME:-1h}"
+FAIL2BAN_SSHD_BANTIME="${FAIL2BAN_SSHD_BANTIME:--1}"
+FAIL2BAN_SSHD_IGNOREIP="${FAIL2BAN_SSHD_IGNOREIP:-127.0.0.1/8 ::1}"
+FAIL2BAN_SSHD_FILTER="${FAIL2BAN_SSHD_FILTER:-sshd[mode=aggressive]}"
+FAIL2BAN_SSHD_BANACTION="${FAIL2BAN_SSHD_BANACTION:-iptables-multiport[blocktype=DROP]}"
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
 INSTALL_GOAL_PLAN=1
@@ -72,6 +79,7 @@ CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS=""
 CLAUDE_DESKTOP_SSH_STATUS=""
 CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS=""
 CODEX_SQLITE_LOG_GUARD_STATUS=""
+FAIL2BAN_HARDENING_STATUS=""
 SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
 
@@ -272,6 +280,166 @@ resolve_existing_path() {
     readlink -f -- "$path" 2>/dev/null && return
   fi
   printf '%s\n' "$path"
+}
+
+configure_fail2ban_hardening() {
+  local root_prefix="${AGENT_TOOLS_TEST_ROOT:-}"
+
+  case "$INSTALL_FAIL2BAN_HARDENING" in
+    1|true|yes|always)
+      ;;
+    0|false|no|never)
+      FAIL2BAN_HARDENING_STATUS="skipped (--no-fail2ban-hardening)"
+      echo "fail2ban hardening skipped (--no-fail2ban-hardening)."
+      return
+      ;;
+    auto)
+      if [[ -z "$root_prefix" ]] && grep -qi microsoft /proc/version 2>/dev/null; then
+        FAIL2BAN_HARDENING_STATUS="skipped: WSL auto mode"
+        echo "fail2ban hardening skipped: WSL auto mode."
+        return
+      fi
+      if [[ -z "$root_prefix" ]] && ! command -v sshd >/dev/null 2>&1 && [[ ! -f /etc/ssh/sshd_config ]]; then
+        FAIL2BAN_HARDENING_STATUS="skipped: no sshd detected"
+        echo "fail2ban hardening skipped: no sshd detected."
+        return
+      fi
+      ;;
+    *)
+      echo "invalid fail2ban hardening mode: $INSTALL_FAIL2BAN_HARDENING (expected auto|always|never)" >&2
+      exit 2
+      ;;
+  esac
+
+  if [[ "$INSTALL_FAIL2BAN_HARDENING" == "auto" ]]; then
+    echo "fail2ban hardening auto mode: sshd detected, enforcing strict jail."
+  fi
+
+  if [[ -n "$root_prefix" ]]; then
+    mkdir -p "$root_prefix/etc/fail2ban/jail.d"
+    cat >"$root_prefix/etc/fail2ban/jail.d/zzz-agent-tools-sshd-hardening.local" <<EOF
+[sshd]
+enabled = true
+port = ssh
+filter = $FAIL2BAN_SSHD_FILTER
+backend = systemd
+maxretry = $FAIL2BAN_SSHD_MAXRETRY
+findtime = $FAIL2BAN_SSHD_FINDTIME
+bantime = $FAIL2BAN_SSHD_BANTIME
+banaction = $FAIL2BAN_SSHD_BANACTION
+ignoreip = $FAIL2BAN_SSHD_IGNOREIP
+EOF
+    FAIL2BAN_HARDENING_STATUS="test-root: $root_prefix/etc/fail2ban/jail.d/zzz-agent-tools-sshd-hardening.local"
+    echo "fail2ban hardening test-root configured: $root_prefix/etc/fail2ban/jail.d/zzz-agent-tools-sshd-hardening.local"
+    return
+  fi
+
+  if ! run_script_as_root_if_available \
+    "$FAIL2BAN_SSHD_MAXRETRY" \
+    "$FAIL2BAN_SSHD_FINDTIME" \
+    "$FAIL2BAN_SSHD_BANTIME" \
+    "$FAIL2BAN_SSHD_IGNOREIP" \
+    "$FAIL2BAN_SSHD_FILTER" \
+    "$FAIL2BAN_SSHD_BANACTION" \
+    -- <<'SH'
+set -eu
+maxretry="$1"
+findtime="$2"
+bantime="$3"
+ignoreip="$4"
+filter="$5"
+banaction="$6"
+
+install_fail2ban() {
+  if command -v fail2ban-client >/dev/null 2>&1; then
+    return 0
+  fi
+
+  export DEBIAN_FRONTEND=noninteractive
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update
+    apt-get install -y fail2ban
+  elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y fail2ban
+  elif command -v yum >/dev/null 2>&1; then
+    yum install -y fail2ban
+  elif command -v pacman >/dev/null 2>&1; then
+    pacman -Sy --noconfirm fail2ban
+  elif command -v apk >/dev/null 2>&1; then
+    apk add --no-cache fail2ban
+  else
+    echo "fail2ban is not installed and no supported package manager was found." >&2
+    exit 1
+  fi
+}
+
+detect_sshd_ports() {
+  if command -v sshd >/dev/null 2>&1; then
+    ports="$(sshd -T 2>/dev/null | awk '$1 == "port" {print $2}' | sort -nu | paste -sd, -)"
+    if [ -n "${ports:-}" ]; then
+      printf '%s\n' "$ports"
+      return 0
+    fi
+  fi
+  printf '%s\n' "ssh"
+}
+
+install_fail2ban
+mkdir -p /etc/fail2ban/jail.d
+timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+conf="/etc/fail2ban/jail.d/zzz-agent-tools-sshd-hardening.local"
+ports="$(detect_sshd_ports)"
+
+if [ -f "$conf" ]; then
+  cp -a "$conf" "$conf.backup-$timestamp"
+fi
+
+cat >"$conf" <<EOF
+[sshd]
+enabled = true
+port = $ports
+filter = $filter
+backend = systemd
+maxretry = $maxretry
+findtime = $findtime
+bantime = $bantime
+banaction = $banaction
+ignoreip = $ignoreip
+EOF
+chmod 0644 "$conf"
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl enable --now fail2ban >/dev/null 2>&1 || true
+  systemctl restart fail2ban
+elif command -v service >/dev/null 2>&1; then
+  service fail2ban restart
+else
+  fail2ban-client reload sshd >/dev/null 2>&1 || fail2ban-client reload >/dev/null 2>&1 || true
+fi
+
+if ! fail2ban-client status sshd >/dev/null 2>&1; then
+  echo "fail2ban sshd jail is not active after hardening." >&2
+  exit 1
+fi
+
+printf 'fail2ban sshd hardening: '
+printf 'ports=%s ' "$ports"
+printf 'maxretry=%s ' "$(fail2ban-client get sshd maxretry)"
+printf 'findtime=%s ' "$(fail2ban-client get sshd findtime)"
+printf 'bantime=%s ' "$(fail2ban-client get sshd bantime)"
+printf 'blocktype=%s\n' "$(fail2ban-client get sshd action iptables-multiport blocktype 2>/dev/null || printf unknown)"
+fail2ban-client get sshd ignoreip
+SH
+  then
+    FAIL2BAN_HARDENING_STATUS="skipped: root/sudo required or fail2ban setup failed"
+    echo "fail2ban hardening skipped: root/passwordless sudo is required or setup failed." >&2
+    if [[ "$INSTALL_FAIL2BAN_HARDENING" == "auto" ]]; then
+      return
+    fi
+    return 1
+  fi
+
+  FAIL2BAN_HARDENING_STATUS="enabled: sshd maxretry=${FAIL2BAN_SSHD_MAXRETRY}, findtime=${FAIL2BAN_SSHD_FINDTIME}, bantime=${FAIL2BAN_SSHD_BANTIME}, banaction=${FAIL2BAN_SSHD_BANACTION}, ignoreip=${FAIL2BAN_SSHD_IGNOREIP}"
 }
 
 configure_claude_desktop_ssh() {
@@ -1994,6 +2162,11 @@ Options:
                            sandbox mode, approvals reviewer, model + reasoning
                            effort, stream timeout/retry, model provider,
                            [features] block).
+  --no-fail2ban-hardening  Do not install or harden fail2ban sshd protection.
+                           Auto mode runs on ordinary Linux sshd hosts, installs
+                           fail2ban when missing, and sets sshd to aggressive
+                           matching, 3 failures within 1 hour, permanent ban,
+                           DROP, and loopback-only ignoreip.
   --no-codex-here          Do not install ~/.local/bin/codex-here.
   --no-goal-plan           Do not install user-level goal-plan tools
                            (Claude /goal-plan + reviewer, Codex skill/plugin).
@@ -2117,6 +2290,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-codex-config)
       INSTALL_CODEX_CONFIG=0
+      shift
+      ;;
+    --no-fail2ban-hardening)
+      INSTALL_FAIL2BAN_HARDENING=0
       shift
       ;;
     --no-codex-here)
@@ -2293,6 +2470,7 @@ fi
 mkdir -p "$INSTALL_REAL/logs"
 configure_tmux_mouse_mode
 configure_local_bin_path
+configure_fail2ban_hardening
 configure_claude_desktop_ssh
 update_cc_switch_cli
 if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then
@@ -2366,6 +2544,7 @@ echo "Installed agent context sync tools in $INSTALL_REAL"
 echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
 echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
 echo "agent-tools PATH: $LOCAL_BIN_PATH_STATUS"
+echo "fail2ban hardening: $FAIL2BAN_HARDENING_STATUS"
 echo "Claude Desktop SSH compatibility: $CLAUDE_DESKTOP_SSH_STATUS"
 if [[ "$INSTALL_CC_SWITCH_CLI_UPDATE" -eq 1 ]]; then
   if version="$(cc_switch_version)"; then

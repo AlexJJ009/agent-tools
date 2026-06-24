@@ -23,6 +23,9 @@ The recommended deployment model is one central tool directory per machine, not 
 - `scripts/configure_codex_app_fast_mode.py` — cross-platform Codex App/CLI
   config patch that keeps `service_tier = "priority"` and
   `[features].fast_mode = true` in the target Codex home.
+- `scripts/configure_codex_sqlite_log_guard.py` — short-term SSD protection
+  patch that blocks high-volume diagnostic inserts into Codex
+  `logs_2.sqlite` until upstream logging is fixed.
 - `scripts/patch_codex_desktop_connection_fast_mode.py` — diagnostic bundle
   patch generator for Codex Desktop builds that drop explicit Fast
   `serviceTier` when using WSL/SSH Connections.
@@ -42,6 +45,9 @@ The recommended deployment model is one central tool directory per machine, not 
 - `AGENTS.md` — project constraints for future agent changes.
 - `docs/CODEX_AUTOREVIEW_DEFAULT.md` — runbook for Codex defaults, including
   AutoReview without Full Access and stream timeout/retry defaults.
+- `docs/CODEX_SQLITE_LOG_GUARD.md` — short-term runbook for the
+  `logs_2.sqlite` trigger guard used to protect SSD write endurance and Codex
+  Desktop startup time.
 - `docs/CODEX_WSL2_PROXY.md` — WSL2-only Codex proxy wrapper runbook for the
   local Windows v2rayN HTTP proxy path; do not treat it as a cross-platform
   default.
@@ -133,6 +139,14 @@ On WSL2 it also patches the detected Windows Codex App home under
 as the WSL/SSH app-server path. Use `--no-codex-app-fast-mode` to skip this
 small config-only patch, or `--codex-app-fast-wsl-windows never` if a WSL
 install should not touch the Windows Codex App config.
+
+The installer also enables the short-term Codex SQLite log guard by default.
+This installs a trigger in `logs_2.sqlite` that ignores new diagnostic log
+rows, protecting SSD write endurance on long streaming or automation runs. On
+WSL2 it patches both the WSL Codex home and detected Win11 Codex App homes by
+default. Use `--no-codex-sqlite-log-guard` to skip it, or
+`--disable-codex-sqlite-log-guard` after OpenAI fixes the upstream logging bug.
+See `docs/CODEX_SQLITE_LOG_GUARD.md`.
 When running installer helpers, `install.sh` probes for a working Python 3.10+
 binary first (`python3.13` through `python3.10`, then version-checked
 `python3`/`python`) before falling back, which avoids hosts where the default
@@ -160,6 +174,17 @@ from fresh keys/Base URLs, follow `docs/CLI_SERVER_BOOTSTRAP.md`.
 
 The installer writes `agent_context_sync.config.json` using the actual paths on the current machine and installs a cron heartbeat by default. It also installs experiment registry symlinks when `experiment_registry/` is present. The local SQLite database is not created unless `--registry-init-db` is passed.
 
+On ordinary Linux hosts with `sshd`, the installer also checks `fail2ban` in
+auto mode. If it is missing and a supported package manager is available, it
+installs it. It then enforces a strict `sshd` jail through
+`/etc/fail2ban/jail.d/zzz-agent-tools-sshd-hardening.local`: aggressive SSH
+matching, 3 failures within 1 hour, permanent ban, and `DROP` rather than
+`REJECT`. The managed `ignoreip` is intentionally loopback-only
+(`127.0.0.1/8 ::1`); the installer does not guess trusted public IPs. Use
+`--no-fail2ban-hardening` only on hosts where agent-tools should not touch
+system SSH protection, or set `INSTALL_FAIL2BAN_HARDENING=always` when a
+non-standard server should be forced through the same check.
+
 By default it also installs the user-level goal-plan tools from `goal_plan/`:
 
 - Claude Code: `~/.claude/skills/goal-plan`, `~/.claude/commands/goal-plan.md`,
@@ -167,6 +192,21 @@ By default it also installs the user-level goal-plan tools from `goal_plan/`:
 - Codex App/CLI: `~/.codex/skills/goal-plan`, `~/plugins/goal-plan`, a personal
   marketplace entry, and `codex plugin add goal-plan@personal` when `codex` is
   available on `PATH`.
+
+`goal_plan/` is the source of truth inside this repo. The installed user-level
+locations are separate:
+
+- Linux, WSL, and server installs use `install.sh` and install into the current
+  Unix user. If the server default user is `root`, this means `/root/.claude`,
+  `/root/.codex`, `/root/plugins/goal-plan`, and `/root/.agents`.
+- WSL installs also copy goal-plan into detected Win11 user homes by default:
+  `C:\Users\<User>\.claude`, `C:\Users\<User>\.codex`,
+  `C:\Users\<User>\plugins\goal-plan`, and the Codex personal plugin cache.
+  Use `--goal-plan-wsl-windows never` to skip this, or
+  `--goal-plan-wsl-windows always` when missing Windows homes should fail the
+  install.
+- Native Win11 clones should run `scripts\install-win11.ps1`. That installs the
+  same Claude Code and Codex App user-level files for the current Windows user.
 
 This creates the explicit `/goal-plan` planning command and Codex plugin command.
 It intentionally does not redirect, wrap, or replace `/goal`; `/goal` remains the
@@ -306,6 +346,11 @@ This combines three default sets:
 - **Feature flags** (`[features]` block). Enables `fast_mode`, `hooks`, `memories`,
   `goals`, `terminal_resize_reflow`, and `remote_control`. The installer also
   removes the deprecated `codex_hooks` key if present.
+- **Temporary SQLite log guard** (`logs_2.sqlite` trigger). Blocks new
+  high-volume diagnostic log rows as a short-term SSD protection patch. It does
+  not affect `state_5.sqlite`, sessions, auth, memories, goals, plugins, Fast
+  Mode, Connections, or cc-switch provider billing. Disable with
+  `--disable-codex-sqlite-log-guard` once upstream logging is fixed.
 
 The installer also installs:
 
@@ -342,6 +387,11 @@ env vars: `CODEX_APPROVAL_POLICY`, `CODEX_SANDBOX_MODE`,
 `CODEX_FEATURE_MEMORIES` / `CODEX_FEATURE_GOALS` /
 `CODEX_FEATURE_TERMINAL_RESIZE_REFLOW` / `CODEX_FEATURE_REMOTE_CONTROL`
 (each accepts `true` or `false`).
+
+The temporary SQLite log guard is controlled separately:
+`INSTALL_CODEX_SQLITE_LOG_GUARD`, `CODEX_SQLITE_LOG_GUARD_MODE`
+(`enable|disable|status`), `CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS`
+(`auto|always|never`), and `CODEX_SQLITE_LOG_GUARD_VACUUM` (`0|1`).
 
 `--no-codex-config` skips the broader default rewrite, provider migration, proxy
 wrapper, and remote-control start. It does not skip the small Codex App Fast

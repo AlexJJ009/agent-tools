@@ -417,7 +417,18 @@ else
   fail2ban-client reload sshd >/dev/null 2>&1 || fail2ban-client reload >/dev/null 2>&1 || true
 fi
 
-if ! fail2ban-client status sshd >/dev/null 2>&1; then
+ready=0
+i=0
+while [ "$i" -lt 10 ]; do
+  if fail2ban-client status sshd >/dev/null 2>&1; then
+    ready=1
+    break
+  fi
+  i=$((i + 1))
+  sleep 1
+done
+
+if [ "$ready" -ne 1 ]; then
   echo "fail2ban sshd jail is not active after hardening." >&2
   exit 1
 fi
@@ -431,11 +442,8 @@ printf 'blocktype=%s\n' "$(fail2ban-client get sshd action iptables-multiport bl
 fail2ban-client get sshd ignoreip
 SH
   then
-    FAIL2BAN_HARDENING_STATUS="skipped: root/sudo required or fail2ban setup failed"
-    echo "fail2ban hardening skipped: root/passwordless sudo is required or setup failed." >&2
-    if [[ "$INSTALL_FAIL2BAN_HARDENING" == "auto" ]]; then
-      return
-    fi
+    FAIL2BAN_HARDENING_STATUS="failed: root/sudo required or fail2ban setup failed"
+    echo "fail2ban hardening failed: root/passwordless sudo is required or setup failed." >&2
     return 1
   fi
 
@@ -658,7 +666,7 @@ select_cc_switch_update_proxy_url() {
 }
 
 update_cc_switch_cli() {
-  local tmp_dir installer proxy_url curl_args=()
+  local tmp_dir installer proxy_url curl_args=() curl_config_lines=()
 
   if [[ "$INSTALL_CC_SWITCH_CLI_UPDATE" -eq 0 ]]; then
     echo "cc-switch update skipped (--no-cc-switch-update)."
@@ -676,24 +684,28 @@ update_cc_switch_cli() {
   installer="$tmp_dir/install.sh"
   trap cleanup_cc_switch_update_tmp RETURN
 
-  cat >"$tmp_dir/.curlrc" <<EOF
-connect-timeout = $CC_SWITCH_UPDATE_CONNECT_TIMEOUT
-max-time = $CC_SWITCH_UPDATE_MAX_TIME
-retry = $CC_SWITCH_UPDATE_RETRY
-retry-delay = $CC_SWITCH_UPDATE_RETRY_DELAY
-retry-all-errors
-speed-limit = $CC_SWITCH_UPDATE_SPEED_LIMIT
-speed-time = $CC_SWITCH_UPDATE_SPEED_TIME
-EOF
-
   curl_args=(
     -fsSL
     --connect-timeout "$CC_SWITCH_UPDATE_CONNECT_TIMEOUT"
     --max-time "$CC_SWITCH_UPDATE_MAX_TIME"
     --retry "$CC_SWITCH_UPDATE_RETRY"
     --retry-delay "$CC_SWITCH_UPDATE_RETRY_DELAY"
-    --retry-all-errors
   )
+  curl_config_lines=(
+    "connect-timeout = $CC_SWITCH_UPDATE_CONNECT_TIMEOUT"
+    "max-time = $CC_SWITCH_UPDATE_MAX_TIME"
+    "retry = $CC_SWITCH_UPDATE_RETRY"
+    "retry-delay = $CC_SWITCH_UPDATE_RETRY_DELAY"
+    "speed-limit = $CC_SWITCH_UPDATE_SPEED_LIMIT"
+    "speed-time = $CC_SWITCH_UPDATE_SPEED_TIME"
+  )
+  if curl --help all 2>/dev/null | grep -q -- '--retry-all-errors'; then
+    curl_args+=(--retry-all-errors)
+    curl_config_lines+=(retry-all-errors)
+  else
+    echo "cc-switch update: curl does not support --retry-all-errors; using compatible retry options."
+  fi
+  printf '%s\n' "${curl_config_lines[@]}" >"$tmp_dir/.curlrc"
 
   case "$CC_SWITCH_UPDATE_PROXY_MODE" in
     auto|always|never)

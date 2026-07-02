@@ -226,11 +226,15 @@ C:\Users\<User>\.codex\.codex-global-state.json
 ```
 
 It sets every value under `remote-connection-auto-connect-by-host-id` to `false`
-and clears `selected-remote-host-id`. The helper uses Python to read/write JSON
-because PowerShell `ConvertFrom-Json` can fail on this state file shape. It does
-not remove saved hosts, SSH config, credentials, plugins, or remote-control
-support; it only prevents Codex App from reconnecting to those hosts during
-startup.
+and attempts to clear `selected-remote-host-id`. Recent Codex App builds may
+restore `selected-remote-host-id` as the currently highlighted host, so the
+helper verifies the actual manual-connect behavior by checking that every
+auto-connect value remains `false` and stopping any already-started
+`codex app-server proxy` SSH process after restart. The helper uses Python to
+read/write JSON because PowerShell `ConvertFrom-Json` can fail on this state
+file shape. It does not remove saved hosts, SSH config, credentials, plugins, or
+remote-control support; it only prevents Codex App from reconnecting to those
+hosts during startup.
 
 Install without changing that behavior:
 

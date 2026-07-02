@@ -84,6 +84,13 @@ function Get-CodexRelatedProcesses {
     }
 }
 
+function Get-CodexRemoteProxyProcesses {
+  Get-CimInstance Win32_Process |
+    Where-Object {
+      $_.Name -eq "ssh.exe" -and $_.CommandLine -match "codex app-server proxy|command -v codex"
+    }
+}
+
 function Stop-CodexTree {
   for ($attempt = 1; $attempt -le 10; $attempt++) {
     $targets = @(Get-CodexRelatedProcesses)
@@ -99,6 +106,24 @@ function Stop-CodexTree {
       return
     }
     Write-Log "still waiting for Codex processes after attempt $attempt count=$($remaining.Count)"
+  }
+}
+
+function Stop-CodexRemoteProxyProcesses {
+  for ($attempt = 1; $attempt -le 5; $attempt++) {
+    $targets = @(Get-CodexRemoteProxyProcesses)
+    foreach ($target in $targets) {
+      Write-Log "stopping Codex remote proxy $($target.Name) pid=$($target.ProcessId) ppid=$($target.ParentProcessId)"
+      Stop-Process -Id $target.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+
+    Start-Sleep -Milliseconds 700
+    $remaining = @(Get-CodexRemoteProxyProcesses)
+    if ($remaining.Count -eq 0) {
+      Write-Log "all Codex remote proxy processes stopped after attempt $attempt"
+      return
+    }
+    Write-Log "still waiting for Codex remote proxy processes after attempt $attempt count=$($remaining.Count)"
   }
 }
 
@@ -149,9 +174,7 @@ verify = json.loads(state_path.read_text(encoding="utf-8-sig"))
 bad = {k: v for k, v in (verify.get(auto_key) or {}).items() if v is not False}
 if bad:
     raise SystemExit(f"auto-connect values still not false: {bad}")
-if verify.get(selected_key) is not None:
-    raise SystemExit("selected-remote-host-id was not cleared")
-log("python verified global state: all remote auto-connect values are false")
+log(f"python verified global state: all remote auto-connect values are false; selected={verify.get(selected_key)!r}")
 '@
 
   Write-Log "saved global state with remote auto-connect disabled"
@@ -179,6 +202,31 @@ with log_path.open("a", encoding="utf-8") as f:
 '@
 }
 
+function Assert-RemoteAutoConnectDisabled {
+  if (-not (Test-Path -LiteralPath $StatePath)) {
+    throw "state file not found: $StatePath"
+  }
+
+  $env:CODEX_GLOBAL_STATE_PATH = $StatePath
+  $env:CODEX_GLOBAL_STATE_LOG_PATH = $logPath
+  Invoke-PythonStdin @'
+import json, os, pathlib
+
+state_path = pathlib.Path(os.environ["CODEX_GLOBAL_STATE_PATH"])
+log_path = pathlib.Path(os.environ["CODEX_GLOBAL_STATE_LOG_PATH"])
+state = json.loads(state_path.read_text(encoding="utf-8-sig"))
+auto = state.get("remote-connection-auto-connect-by-host-id") or {}
+bad = {k: v for k, v in auto.items() if v is not False}
+selected = state.get("selected-remote-host-id")
+
+with log_path.open("a", encoding="utf-8") as f:
+    f.write(f"assert remote auto-connect disabled: bad={bad} selected={selected!r}\n")
+
+if bad:
+    raise SystemExit(f"remote auto-connect values still enabled: {bad}")
+'@
+}
+
 Write-Log "starting Codex manual remote-connect script"
 Write-Log "state path: $StatePath"
 
@@ -194,6 +242,7 @@ if (-not $NoStopProcesses) {
 }
 
 Disable-RemoteAutoConnect
+Assert-RemoteAutoConnectDisabled
 
 if (-not $NoRestart) {
   if ($codexPath -and (Test-Path -LiteralPath $codexPath)) {
@@ -204,6 +253,11 @@ if (-not $NoRestart) {
   }
 
   Start-Sleep -Seconds 10
+  # Codex Desktop may rewrite .codex-global-state.json while booting. Apply the
+  # manual-connect preference again after startup and verify the final state.
+  Disable-RemoteAutoConnect
+  Stop-CodexRemoteProxyProcesses
+  Assert-RemoteAutoConnectDisabled
   Write-PostRestartState
 } else {
   Write-Log "restart skipped by -NoRestart"

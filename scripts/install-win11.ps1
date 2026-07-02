@@ -1,7 +1,9 @@
 param(
   [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
   [string]$UserHome = $env:USERPROFILE,
-  [switch]$NoGoalPlan
+  [switch]$NoGoalPlan,
+  [switch]$NoCodexManualRemoteConnect,
+  [string]$ManualRemoteConnectScript = "C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1"
 )
 
 $ErrorActionPreference = "Stop"
@@ -114,13 +116,46 @@ function Install-GoalPlan {
   Copy-Managed (Join-Path $sourceRoot "codex\skills\goal-plan") (Join-Path $TargetHome ".codex\skills\goal-plan")
   Copy-Managed (Join-Path $sourceRoot "codex\plugins\goal-plan") (Join-Path $TargetHome "plugins\goal-plan")
   Copy-Managed (Join-Path $sourceRoot "codex\plugins\goal-plan") (Join-Path $TargetHome ".codex\plugins\cache\personal\goal-plan\0.1.0")
+  Copy-Managed (Join-Path $sourceRoot "codex\plugins\goal-plan\commands\goal-plan.md") (Join-Path $TargetHome ".codex\prompts\goal-plan.md")
   Install-PersonalMarketplace -TargetHome $TargetHome
 
   Write-Host "goal-plan installed for Win11 user: $TargetHome"
+}
+
+function Install-CodexManualRemoteConnect {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$TargetHome,
+    [Parameter(Mandatory = $true)][string]$TargetScript
+  )
+
+  $source = Join-Path $RepoRoot "scripts\restart-codex-manual-remote.ps1"
+  if (-not (Test-Path -LiteralPath $source)) {
+    throw "Codex manual remote-connect script missing: $source"
+  }
+
+  Copy-Managed $source $TargetScript
+
+  & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $TargetScript `
+    -UserHome $TargetHome `
+    -NoStopProcesses `
+    -NoRestart
+  if ($LASTEXITCODE -ne 0) {
+    throw "Codex manual remote-connect state install failed with exit code $LASTEXITCODE"
+  }
+
+  Write-Host "Codex remote auto-connect disabled for Win11 user: $TargetHome"
+  Write-Host "Codex manual remote-connect helper installed: $TargetScript"
 }
 
 if (-not $NoGoalPlan) {
   Install-GoalPlan -RepoRoot $Root -TargetHome $UserHome
 } else {
   Write-Host "goal-plan tools not installed (-NoGoalPlan)."
+}
+
+if (-not $NoCodexManualRemoteConnect) {
+  Install-CodexManualRemoteConnect -RepoRoot $Root -TargetHome $UserHome -TargetScript $ManualRemoteConnectScript
+} else {
+  Write-Host "Codex manual remote-connect helper not installed (-NoCodexManualRemoteConnect)."
 }

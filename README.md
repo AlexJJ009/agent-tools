@@ -207,10 +207,42 @@ locations are separate:
   install.
 - Native Win11 clones should run `scripts\install-win11.ps1`. That installs the
   same Claude Code and Codex App user-level files for the current Windows user.
+  It also installs
+  `C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1` and
+  disables Codex App remote auto-connect by default for that Windows user.
 
 This creates the explicit `/goal-plan` planning command and Codex plugin command.
 It intentionally does not redirect, wrap, or replace `/goal`; `/goal` remains the
 execution loop. Use `--no-goal-plan` to skip this installation.
+
+## Win11 Codex Remote Connections
+
+Codex App can become slow on startup when saved remote Connections reconnect
+automatically. Native Win11 installs therefore make remote Connections manual by
+default. The installed helper edits:
+
+```text
+C:\Users\<User>\.codex\.codex-global-state.json
+```
+
+It sets every value under `remote-connection-auto-connect-by-host-id` to `false`
+and clears `selected-remote-host-id`. The helper uses Python to read/write JSON
+because PowerShell `ConvertFrom-Json` can fail on this state file shape. It does
+not remove saved hosts, SSH config, credentials, plugins, or remote-control
+support; it only prevents Codex App from reconnecting to those hosts during
+startup.
+
+Install without changing that behavior:
+
+```powershell
+scripts\install-win11.ps1 -NoCodexManualRemoteConnect
+```
+
+Run the full restart helper manually when Codex App is already sluggish:
+
+```powershell
+C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1
+```
 
 ## Experiment Registry
 

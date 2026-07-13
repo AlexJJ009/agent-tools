@@ -1,4 +1,4 @@
 interface:
   display_name: "Goal Plan"
-  short_description: "Plan and gate long-running goals"
-  default_prompt: "Use $goal-plan to prepare a reviewed Codex Go or CLI goal plan."
+  short_description: "Plan and govern long-running goals"
+  default_prompt: "Use $goal-plan to prepare or govern a reviewed Goal with append-only runtime validation."

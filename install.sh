@@ -1968,7 +1968,7 @@ PY
 install_goal_plan_for_windows_home() {
   local win_home="$1"
   local source_root="$2"
-  local plugin_version="0.1.0"
+  local plugin_version="0.2.0"
 
   backup_and_copy_managed "$source_root/claude/skills/goal-plan" "$win_home/.claude/skills/goal-plan"
   backup_and_copy_managed "$source_root/claude/commands/goal-plan.md" "$win_home/.claude/commands/goal-plan.md"
@@ -2049,9 +2049,29 @@ install_goal_plan_tools() {
   install_codex_personal_marketplace_goal_plan "$HOME"
   install_goal_plan_for_wsl_windows_homes "$source_root"
 
+  local runtime_source="$source_root/runtime"
+  local runtime_home="${GOAL_PLAN_RUNTIME_HOME:-$HOME/.local/share/goal-plan/runtime}"
+  local runtime_bin="${GOAL_PLAN_RUNTIME_BIN:-$HOME/.local/bin/goal-plan-runtime}"
+  if [[ ! -f "$runtime_source/pyproject.toml" ]]; then
+    echo "goal-plan runtime not installed: missing $runtime_source/pyproject.toml" >&2
+    return 1
+  fi
+  if ! command -v uv >/dev/null 2>&1; then
+    echo "goal-plan runtime requires uv on PATH; install uv and rerun install.sh" >&2
+    return 1
+  fi
+  mkdir -p "$runtime_home" "$(dirname "$runtime_bin")"
+  uv venv --clear --python 3.12 "$runtime_home/.venv" >/dev/null
+  uv pip install --python "$runtime_home/.venv/bin/python" "$runtime_source" >/dev/null
+  cat >"$runtime_bin" <<EOF
+#!/usr/bin/env bash
+exec "$runtime_home/.venv/bin/goal-plan-runtime" "\$@"
+EOF
+  chmod 0755 "$runtime_bin"
+
   if command -v codex >/dev/null 2>&1; then
     if codex plugin add goal-plan@personal >/dev/null 2>&1; then
-      GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
+      GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin + isolated uv runtime; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
     else
       GOAL_PLAN_STATUS="linked; codex plugin add goal-plan@personal failed; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
       echo "goal-plan Codex plugin linked, but 'codex plugin add goal-plan@personal' failed." >&2

@@ -192,6 +192,12 @@ By default it also installs the user-level goal-plan tools from `goal_plan/`:
 - Codex App/CLI: `~/.codex/skills/goal-plan`, `~/plugins/goal-plan`, a personal
   marketplace entry, and `codex plugin add goal-plan@personal` when `codex` is
   available on `PATH`.
+- Runtime tools: an isolated uv environment at
+  `~/.local/share/goal-plan/runtime/.venv` and the launcher
+  `~/.local/bin/goal-plan-runtime`. The runtime never imports the target
+  project's Python environment, so Goals can govern repositories written in any
+  language. `uv` must already be available on `PATH`; installation does not
+  silently download it from the network.
 
 `goal_plan/` is the source of truth inside this repo. The installed user-level
 locations are separate:

@@ -15,8 +15,10 @@ REQUIRED_PLAN_SECTIONS = (
     "Outcome",
     "Scope",
     "Acceptance Criteria",
+    "Feasibility Probes",
     "Milestones",
     "Runtime Contract",
+    "Progression Policy",
     "Reviewer Contract",
     "Verification Commands",
 )
@@ -30,10 +32,19 @@ VALID_EVENTS = {
     "REVIEW_COMPLETED",
     "ACCEPTANCE_REQUESTED",
     "ACCEPTANCE_COMPLETED",
+    "USER_DECISION_REQUESTED",
+    "USER_DECISION_RECORDED",
     "GOAL_COMPLETED",
     "GOAL_BLOCKED",
     "EVENT_CORRECTED",
 }
+# Absolute numeric budgets in an AC (latency, size, throughput, percentile
+# targets) must be backed by a feasibility probe before the plan is READY.
+BUDGET_PATTERN = re.compile(
+    r"\b\d[\d,.]*\s*(?:ms|msec|milliseconds?|MiB|MB|GiB|GB|KiB|KB|req/s|rps|qps)\b"
+    r"|\bp\d{2}\b",
+    re.IGNORECASE,
+)
 VALID_FINDING_EVENTS = {
     "FINDING_OPENED",
     "FINDING_CLASSIFIED",
@@ -94,6 +105,15 @@ def validate_sequence(records: list[dict[str, Any]], path: Path) -> list[str]:
     return errors
 
 
+def section_body(text: str, section: str) -> str:
+    match = re.search(
+        rf"^## {re.escape(section)}\s*$\n(?P<body>.*?)(?=^##\s|\Z)",
+        text,
+        re.MULTILINE | re.DOTALL,
+    )
+    return match.group("body") if match else ""
+
+
 def validate_plan(path: Path) -> list[str]:
     text = path.read_text(encoding="utf-8")
     errors = []
@@ -106,6 +126,7 @@ def validate_plan(path: Path) -> list[str]:
     criteria = re.findall(r"^###\s+(AC-[A-Za-z0-9_-]+)\b(?P<body>.*?)(?=^###\s+AC-|^##\s|\Z)", text, re.MULTILINE | re.DOTALL)
     if not criteria:
         errors.append("Acceptance Criteria must define at least one AC")
+    feasibility_body = section_body(text, "Feasibility Probes")
     for ac_id, body in criteria:
         for word in ("Given", "When", "Then"):
             if not re.search(rf"\b{word}\b", body):
@@ -114,6 +135,15 @@ def validate_plan(path: Path) -> list[str]:
             errors.append(f"{ac_id}: missing verification command")
         if not re.search(r"Expected evidence", body, re.IGNORECASE):
             errors.append(f"{ac_id}: missing expected evidence")
+        if BUDGET_PATTERN.search(body) and ac_id not in feasibility_body:
+            errors.append(
+                f"{ac_id}: declares a numeric budget; record a feasibility probe"
+                " (or an explicit waiver) for it under Feasibility Probes"
+            )
+    progression_body = section_body(text, "Progression Policy")
+    for marker in ("AUTO_ADVANCE", "USER_DECISION"):
+        if marker not in progression_body:
+            errors.append(f"Progression Policy missing class: {marker}")
     required_rules = (
         "IN_SCOPE",
         "DEFERRED",
@@ -145,6 +175,7 @@ def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
         "goal_status": "ACTIVE",
         "open_findings": {},
         "latest_review": None,
+        "pending_user_decisions": [],
     }
     expected_hash = plan_hash(plan)
     latest_plan_event_seq = max(
@@ -174,6 +205,11 @@ def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
                 errors.append(f"runtime seq {record['seq']}: milestone started before READY plan review")
             if state["current_milestone"] is not None:
                 errors.append(f"runtime seq {record['seq']}: another milestone is already active")
+            if state["pending_user_decisions"]:
+                errors.append(
+                    f"runtime seq {record['seq']}: milestone started while user decision pending:"
+                    f" {', '.join(state['pending_user_decisions'])}"
+                )
             state["current_milestone"] = record.get("milestone")
         elif event == "MILESTONE_COMPLETED":
             if record.get("milestone") != state["current_milestone"]:
@@ -188,9 +224,28 @@ def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
             if record.get("plan_version") != state["plan_version"]:
                 errors.append(f"runtime seq {record['seq']}: review binds stale plan version")
             state["latest_review"] = record
+        elif event == "USER_DECISION_REQUESTED":
+            decision_id = record.get("decision_id")
+            if not decision_id:
+                errors.append(f"runtime seq {record['seq']}: missing decision_id")
+            elif decision_id in state["pending_user_decisions"]:
+                errors.append(f"runtime seq {record['seq']}: decision {decision_id!r} already pending")
+            else:
+                state["pending_user_decisions"].append(decision_id)
+        elif event == "USER_DECISION_RECORDED":
+            decision_id = record.get("decision_id")
+            if decision_id in state["pending_user_decisions"]:
+                state["pending_user_decisions"].remove(decision_id)
+            else:
+                errors.append(f"runtime seq {record['seq']}: no pending user decision {decision_id!r}")
         elif event == "GOAL_COMPLETED":
             if not state["latest_review"] or state["latest_review"].get("event") != "ACCEPTANCE_COMPLETED" or state["latest_review"].get("verdict") != "PASS":
                 errors.append(f"runtime seq {record['seq']}: goal completed without passing independent acceptance")
+            if state["pending_user_decisions"]:
+                errors.append(
+                    f"runtime seq {record['seq']}: goal completed while user decision pending:"
+                    f" {', '.join(state['pending_user_decisions'])}"
+                )
             state["goal_status"] = "COMPLETED"
         elif event == "GOAL_BLOCKED":
             state["goal_status"] = "BLOCKED"

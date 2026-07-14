@@ -30,6 +30,8 @@ $additional_focus
 6. Do not amend the Plan, continue implementation, or accept implementer claims as evidence.
 7. Receipt existence, documentation text, and test names are not proof without reviewer-owned behavioral evidence.
 8. Report the commands executed, relevant output, reviewed Plan version, and reviewed commit.
+9. For a Plan review, reject `READY` when any AC declares an absolute numeric performance or resource budget that has no recorded feasibility probe in the Plan's `Feasibility Probes` section, or whose budget contradicts the probe's measured floor.
+10. When your only blocking findings are purely mechanical (formatting, patch context offsets, artifact or directory placement) with no behavioral or contract impact, say so explicitly and offer a light same-reviewer re-verification scoped to those findings instead of demanding a fresh full round.
 
 ## Required Output
 

@@ -16,3 +16,7 @@ Report each AC as `PASS`, `FAIL`, or `WEAKENED`. Classify additional observation
 - `CONTRACT_CONTRADICTION`: safe completion requires changing the contract.
 
 Do not turn a suggestion into a blocking requirement. Do not accept receipts, documentation statements, test names, or implementer claims without reviewer-owned behavioral evidence.
+
+For a Plan review, reject `READY` when any AC declares an absolute numeric performance or resource budget without a recorded feasibility probe in the Plan's `Feasibility Probes` section, or when the budget contradicts the probe's measured floor.
+
+When your only blocking findings are purely mechanical (formatting, patch context offsets, artifact placement) with no behavioral or contract impact, state that explicitly and offer a light same-reviewer re-verification scoped to those findings instead of a fresh full round.

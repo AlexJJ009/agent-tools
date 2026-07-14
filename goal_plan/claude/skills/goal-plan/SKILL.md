@@ -39,13 +39,14 @@ goal-plan-runtime init <goal-dir> --title "<goal title>" --actor "<implementer i
 ## Lifecycle
 
 1. Author the Plan.
-2. Validate the Plan.
-3. Obtain an independent Plan Review.
-4. Assemble the launch prompt.
-5. Execute the authorized milestone, only when explicitly requested.
-6. Classify findings and validate runtime transitions.
-7. Obtain milestone review when required.
-8. Obtain independent final acceptance.
+2. Probe feasibility of every numeric budget in the target environment.
+3. Validate the Plan.
+4. Obtain an independent Plan Review.
+5. Assemble the launch prompt, including the standing `AUTO_ADVANCE` authorization.
+6. Execute the authorized milestones, auto-advancing deterministic steps and stopping only at `USER_DECISION` gates.
+7. Classify findings and validate runtime transitions.
+8. Obtain milestone review when required.
+9. Obtain independent final acceptance.
 
 The protocol applies throughout the Goal lifecycle, but reinvoke the skill only at lifecycle boundaries: initial planning, Plan amendment, reviewer prompt construction, convergence review, and final acceptance.
 
@@ -58,8 +59,10 @@ The Plan must contain:
 - included and excluded scope;
 - numbered Given/When/Then acceptance criteria;
 - exact verification commands and expected evidence;
+- feasibility probes backing every numeric budget;
 - hard-ordered milestones when artifacts have producer-consumer dependencies;
 - a Runtime Contract;
+- a Progression Policy;
 - a Goal-specific Reviewer Contract;
 - deferred follow-ups that must not expand the current Goal.
 
@@ -70,6 +73,25 @@ goal-plan-runtime validate-plan <goal-dir>
 ```
 
 Do not implement against an invalid or unreviewed Plan.
+
+## Feasibility Probes
+
+Freeze numeric budgets only after measuring reality. Any AC that declares an absolute numeric performance or resource budget (latency, throughput, memory, disk) must be backed by a feasibility probe before Plan review can return `READY`:
+
+- measure the floor in the target verification environment with the cheapest honest command — for example, the raw Redis round-trip before promising an end-to-end latency budget, or actual free disk before freezing a disk gate;
+- record the probe command, raw measurement, environment, and the derived budget with an explicit margin in the Plan's `Feasibility Probes` section, referencing the AC id;
+- a budget below a measured hard floor is a Plan defect to fix now, not an implementation challenge to discover mid-milestone.
+
+If no AC declares a numeric budget, state `None`. `validate-plan` fails when a budgeted AC is not referenced in the section, and the Plan reviewer must reject `READY` when a probe is missing or contradicted.
+
+## Progression Policy
+
+A Goal must not stall because nobody prompted "continue". Classify every next step into one of two classes:
+
+- `AUTO_ADVANCE`: the next lifecycle step is deterministic, safe, reversible, and inside the frozen Plan. It carries standing authorization from the launch prompt — proceed immediately, without asking. Defaults: validating an amended Plan and requesting its review; building reviewer prompts and starting due reviews; classifying findings; applying an authorized `IN_SCOPE` fix and re-requesting review; starting the next authorized milestone after the previous one completes; collecting evidence and running validators.
+- `USER_DECISION`: stop, append `USER_DECISION_REQUESTED` with a `decision_id` and a short decision brief, notify the user, and continue only independent authorized work until the matching `USER_DECISION_RECORDED` is appended. Always required for: mutations of production or shared live systems; destructive or hard-to-reverse actions, including deleting resources the Goal did not create; security, credential, or data-exposure risks; `CONTRADICTION` or `AC_CHANGE` findings; resource-threshold failures whose remedy touches anything outside the Goal; and starting or skipping a Goal.
+
+The launch prompt must state the standing `AUTO_ADVANCE` authorization explicitly so the implementer never idles between deterministic steps. `validate-runtime` rejects starting a milestone or completing the Goal while a user decision is pending.
 
 ## Plan Review
 
@@ -111,6 +133,18 @@ If two related implementation-review rounds leave the same finding open, stop be
 4. more than one independently useful outcome.
 
 Classify the result as an in-scope architectural fix, deferred work, or a split Goal. The runtime validator rejects a third ordinary fix round.
+
+## Review Lanes
+
+Not every rejection deserves a fresh full review round. Before requesting any review, run a pre-review self-check: `validate-plan`, `validate-runtime`, formatting, patch dry-runs (for example `git apply --check`), and confirmation that every temporary artifact stays inside the Goal directory. A defect a self-check would have caught must not reach a reviewer.
+
+When a review rejects on purely mechanical grounds — formatting, patch context offsets, file or directory hygiene, evidence placement — with no behavioral or contract change:
+
+- fix it and request a light re-verification from the same reviewer, scoped to the rejected finding only, instead of a fresh full round;
+- record the lane on the review events, for example `--data '{"lane":"mechanical",...}'`;
+- mechanical rounds still count toward the convergence rule; a recurring mechanical failure means a self-check is missing — add it.
+
+Behavioral or contract-affecting rejections always take the full independent lane.
 
 ## Runtime Validation
 
@@ -160,7 +194,9 @@ The reviewer may add opinions. Opinions outside frozen ACs are non-blocking `DEF
 
 Execute only when the user explicitly requests it and the current Plan is `READY`.
 
-- Proceed serially through authorized milestones.
+- Proceed serially through authorized milestones, auto-advancing every `AUTO_ADVANCE` step without waiting for a prompt.
+- Stop at `USER_DECISION` gates and record them in the ledger; do not start new milestones while a decision is pending.
+- Keep unrelated investigations and side questions out of the Goal session; run them separately so the ledger timeline stays attributable.
 - Mock external services used as acceptance evidence.
 - Preserve existing user changes.
 - Never delete, skip, loosen, or trivialize tests to get green.

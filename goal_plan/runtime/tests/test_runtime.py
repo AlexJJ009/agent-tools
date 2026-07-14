@@ -90,6 +90,80 @@ class RuntimeTests(unittest.TestCase):
         _, errors = replay_runtime(goal)
         self.assertTrue(any("convergence review required" in error for error in errors))
 
+    def test_plan_rejects_numeric_budget_without_feasibility_probe(self) -> None:
+        goal = self.create_goal()
+        plan = goal / "plan.md"
+        text = plan.read_text().replace(
+            "- Then describe the observable result.",
+            "- Then p95 latency stays below 15 ms.",
+        )
+        plan.write_text(text)
+        errors = validate_plan(plan)
+        self.assertTrue(any("feasibility probe" in error for error in errors))
+
+    def test_plan_accepts_numeric_budget_with_feasibility_probe(self) -> None:
+        goal = self.create_goal()
+        plan = goal / "plan.md"
+        text = plan.read_text().replace(
+            "- Then describe the observable result.",
+            "- Then p95 latency stays below 15 ms.",
+        )
+        text = text.replace(
+            "- None: no acceptance criterion declares an absolute numeric performance or resource budget.",
+            "- AC-01: `redis-cli --latency` on target host measured 6.2 ms raw round-trip; budget 15 ms = floor + margin.",
+        )
+        plan.write_text(text)
+        self.assertEqual(validate_plan(plan), [])
+
+    def test_plan_rejects_missing_progression_classes(self) -> None:
+        goal = self.create_goal()
+        plan = goal / "plan.md"
+        plan.write_text(plan.read_text().replace("AUTO_ADVANCE", "AUTOMATIC"))
+        errors = validate_plan(plan)
+        self.assertTrue(any("Progression Policy missing class: AUTO_ADVANCE" in error for error in errors))
+
+    def test_runtime_blocks_milestone_while_user_decision_pending(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {"event": "PLAN_REVIEWED", "plan_version": 1, "verdict": "READY", "reviewer": "reviewer"},
+        )
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {"event": "USER_DECISION_REQUESTED", "decision_id": "D-01", "summary": "disk below gate"},
+        )
+        append_jsonl(goal / "runtime.jsonl", {"event": "MILESTONE_STARTED", "milestone": "M1"})
+        _, errors = replay_runtime(goal)
+        self.assertTrue(any("user decision pending: D-01" in error for error in errors))
+
+    def test_runtime_allows_milestone_after_user_decision_recorded(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {"event": "PLAN_REVIEWED", "plan_version": 1, "verdict": "READY", "reviewer": "reviewer"},
+        )
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {"event": "USER_DECISION_REQUESTED", "decision_id": "D-01", "summary": "disk below gate"},
+        )
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {"event": "USER_DECISION_RECORDED", "decision_id": "D-01", "decision": "user authorized cleanup"},
+        )
+        append_jsonl(goal / "runtime.jsonl", {"event": "MILESTONE_STARTED", "milestone": "M1"})
+        state, errors = replay_runtime(goal)
+        self.assertEqual(errors, [])
+        self.assertEqual(state["pending_user_decisions"], [])
+
+    def test_runtime_rejects_unmatched_decision_recorded(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {"event": "USER_DECISION_RECORDED", "decision_id": "D-99"},
+        )
+        _, errors = replay_runtime(goal)
+        self.assertTrue(any("no pending user decision" in error for error in errors))
+
     def test_runtime_rejects_self_acceptance(self) -> None:
         goal = self.create_goal()
         append_jsonl(

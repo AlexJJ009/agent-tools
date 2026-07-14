@@ -11,3 +11,5 @@ Load the `$goal-plan` skill and use the isolated `goal-plan-runtime` launcher.
 - Do not create/start a Codex Goal unless the user explicitly asks.
 - Do not rewrite `runtime.jsonl` or `findings.jsonl`; append correction events.
 - Final acceptance requires reviewer-owned command evidence bound to the current Plan version and candidate commit.
+- During authorized execution, auto-advance deterministic `AUTO_ADVANCE` lifecycle steps without waiting for prompts; stop only at `USER_DECISION` gates (production mutations, destructive actions, security risks, contract changes, resource-threshold failures).
+- Numeric performance or resource budgets in ACs require a feasibility probe in the Plan before `READY`.

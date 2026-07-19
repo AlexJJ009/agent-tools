@@ -1229,6 +1229,12 @@ setup_codex_desktop_connection_fast_mode() {
 sync_codex_config_from_cc_switch_current() {
   local output provider_id
 
+  if [[ "${SYNC_CC_SWITCH_CODEX_CURRENT:-1}" == "0" ]]; then
+    CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS="skipped: SYNC_CC_SWITCH_CODEX_CURRENT=0"
+    echo "Codex config sync from cc-switch current provider skipped."
+    return
+  fi
+
   if ! command -v cc-switch >/dev/null 2>&1; then
     CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS="skipped: cc-switch is not on PATH"
     return
@@ -1253,7 +1259,7 @@ sync_codex_config_from_cc_switch_current() {
   fi
 
   echo "Syncing Codex config from cc-switch provider: $provider_id"
-  printf 'y\n' | cc-switch provider switch -a codex "$provider_id"
+  cc-switch provider switch -a codex "$provider_id"
   normalize_codex_provider_auth
   CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS="synced: $provider_id"
 }

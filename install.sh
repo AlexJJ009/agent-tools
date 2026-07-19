@@ -1285,7 +1285,7 @@ if not provider_id or not all(c.isalnum() or c in "-_." for c in provider_id):
 ALLOWED_APPROVAL_POLICIES = {"on-request", "on-failure", "untrusted", "never"}
 ALLOWED_SANDBOX_MODES = {"read-only", "workspace-write", "danger-full-access"}
 ALLOWED_APPROVALS_REVIEWERS = {"user", "auto_review", "guardian_subagent"}
-ALLOWED_REASONING_EFFORTS = {"minimal", "low", "medium", "high"}
+ALLOWED_REASONING_EFFORTS = {"minimal", "low", "medium", "high", "xhigh", "ultra"}
 ALLOWED_SERVICE_TIERS = {"auto", "default", "fast", "priority"}
 if approval_policy not in ALLOWED_APPROVAL_POLICIES:
     raise SystemExit(f"invalid CODEX_APPROVAL_POLICY: {approval_policy}")

@@ -11,7 +11,7 @@ For progressive disclosure, do not bulk-read every linked document; read the spe
 To refresh the bridge after editing either side, run:
 
 ```bash
-python3 sync_agent_context.py sync . --direction bidirectional
+python.exe sync_agent_context.py sync . --direction bidirectional
 ```
 
 ## Project Skill Index
@@ -58,6 +58,13 @@ The section below is copied verbatim from `AGENTS.md`.
   switching does not fragment Codex resume history. Keep stream timeout/retry
   keys inside `[model_providers.custom]`; do not add them as top-level keys if
   the current standalone Codex CLI rejects them under `--strict-config`.
+- Native Win11 Codex App installs are subscription-only. Do not sync or copy
+  relay provider templates such as dragtokens/subrouter into the Win11 App
+  config. Keep history in the stable `custom` bucket, but point
+  `[model_providers.custom]` at `https://chatgpt.com/backend-api/codex` with
+  `requires_openai_auth = true`, and keep cc-switch's current Codex provider on
+  the official/subscription provider when present. Use
+  `scripts/install-win11.ps1` for this path.
 - Linux server installs must check `fail2ban` for SSH protection. If `fail2ban`
   is missing and a supported package manager is available, install it. The
   managed sshd jail should be strict by default: aggressive sshd filter,

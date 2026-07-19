@@ -20,6 +20,13 @@ The recommended deployment model is one central tool directory per machine, not 
 - `migrate_codex_provider_bucket.py` — Codex history and cc-switch template
   migration that forces every non-target Codex provider bucket into `custom`.
 - `install.sh` — portable installer for a new Linux/WSL2 machine.
+- `scripts/install-win11.ps1` — native Win11 installer for the current Windows
+  user. It installs goal-plan, configures Codex App to use the subscription
+  backed `custom` history bucket, enables the SQLite log guard, and migrates
+  existing Codex history into that bucket.
+- `scripts/configure_codex_win11_subscription.py` — Win11-specific Codex App
+  config patch that keeps `model_provider = "custom"` while routing through
+  the official ChatGPT/Codex backend instead of relay providers.
 - `scripts/configure_codex_app_fast_mode.py` — cross-platform Codex App/CLI
   config patch that keeps `service_tier = "priority"` and
   `[features].fast_mode = true` in the target Codex home.
@@ -216,6 +223,15 @@ locations are separate:
   It also installs
   `C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1` and
   disables Codex App remote auto-connect by default for that Windows user.
+  Unlike Linux/WSL provider bootstraps, native Win11 Codex App is subscription
+  only: the installer forces cc-switch Codex current provider to the official
+  provider when present, writes `model_provider = "custom"` with
+  `base_url = "https://chatgpt.com/backend-api/codex"`, and runs history
+  migration with `--skip-cc-switch` so dragtokens/subrouter templates are not
+  copied into the Win11 App config. Use
+  `-DryRunCodexProviderBucketMigration` to inspect history first, or
+  `-AllowRunningCodexProviderBucketMigration` when running from inside an
+  active Codex conversation.
 
 This creates the explicit `/goal-plan` planning command and Codex plugin command.
 It intentionally does not redirect, wrap, or replace `/goal`; `/goal` remains the

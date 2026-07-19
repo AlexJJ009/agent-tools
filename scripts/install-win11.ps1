@@ -1,12 +1,57 @@
 param(
   [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
   [string]$UserHome = $env:USERPROFILE,
+  [string]$CodexHome = (Join-Path $env:USERPROFILE ".codex"),
+  [string]$CcSwitchDb = (Join-Path $env:USERPROFILE ".cc-switch\cc-switch.db"),
   [switch]$NoGoalPlan,
   [switch]$NoCodexManualRemoteConnect,
-  [string]$ManualRemoteConnectScript = "C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1"
+  [string]$ManualRemoteConnectScript = "C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1",
+  [switch]$NoCodexConfig,
+  [switch]$NoCodexSqliteLogGuard,
+  [switch]$DisableCodexSqliteLogGuard,
+  [switch]$CodexSqliteLogGuardVacuum,
+  [switch]$NoCodexProviderBucketMigration,
+  [switch]$DryRunCodexProviderBucketMigration,
+  [switch]$AllowRunningCodexProviderBucketMigration,
+  [switch]$NoKillRunningCodexProviderBucketMigration
 )
 
 $ErrorActionPreference = "Stop"
+
+function Get-PythonCommand {
+  $python = Get-Command python -ErrorAction SilentlyContinue
+  if ($python) {
+    return $python.Source
+  }
+
+  $py = Get-Command py -ErrorAction SilentlyContinue
+  if ($py) {
+    return $py.Source
+  }
+
+  throw "Python was not found on PATH. Install Python or run from a shell where python is available."
+}
+
+function Invoke-AgentToolsPython {
+  param(
+    [Parameter(Mandatory = $true)][string]$Script,
+    [Parameter(ValueFromRemainingArguments = $true)][string[]]$ScriptArgs
+  )
+
+  if (-not (Test-Path -LiteralPath $Script)) {
+    throw "missing Python helper: $Script"
+  }
+
+  $python = Get-PythonCommand
+  if ((Split-Path -Leaf $python) -ieq "py.exe") {
+    & $python -3 $Script @ScriptArgs
+  } else {
+    & $python $Script @ScriptArgs
+  }
+  if ($LASTEXITCODE -ne 0) {
+    throw "Python helper failed ($LASTEXITCODE): $Script"
+  }
+}
 
 function Copy-Managed {
   param(
@@ -166,6 +211,67 @@ function Install-CodexManualRemoteConnect {
   Write-Host "Codex manual remote-connect helper installed: $TargetScript"
 }
 
+function Install-CodexWin11SubscriptionConfig {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$TargetCodexHome,
+    [Parameter(Mandatory = $true)][string]$TargetCcSwitchDb
+  )
+
+  $script = Join-Path $RepoRoot "scripts\configure_codex_win11_subscription.py"
+  Invoke-AgentToolsPython $script `
+    --codex-home $TargetCodexHome `
+    --cc-switch-db $TargetCcSwitchDb
+}
+
+function Install-CodexSqliteLogGuard {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$TargetCodexHome
+  )
+
+  $script = Join-Path $RepoRoot "scripts\configure_codex_sqlite_log_guard.py"
+  $mode = "enable"
+  if ($DisableCodexSqliteLogGuard) {
+    $mode = "disable"
+  }
+
+  $args = @("--mode", $mode, "--codex-home", $TargetCodexHome)
+  if ($CodexSqliteLogGuardVacuum) {
+    $args += "--vacuum"
+  }
+  Invoke-AgentToolsPython $script @args
+}
+
+function Invoke-CodexProviderBucketMigration {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$TargetCodexHome,
+    [Parameter(Mandatory = $true)][string]$TargetCcSwitchDb
+  )
+
+  $script = Join-Path $RepoRoot "migrate_codex_provider_bucket.py"
+  $args = @(
+    "--target", "custom",
+    "--codex-dir", $TargetCodexHome,
+    "--cc-switch-db", $TargetCcSwitchDb,
+    "--all-non-target-providers",
+    "--repair-resume-index",
+    "--skip-cc-switch"
+  )
+
+  if (-not $DryRunCodexProviderBucketMigration) {
+    $args += @("--apply", "--yes")
+    if ($AllowRunningCodexProviderBucketMigration) {
+      $args += "--allow-running-codex"
+    } elseif (-not $NoKillRunningCodexProviderBucketMigration) {
+      $args += "--kill-running-codex"
+    }
+  }
+
+  Invoke-AgentToolsPython $script @args
+}
+
 if (-not $NoGoalPlan) {
   Install-GoalPlan -RepoRoot $Root -TargetHome $UserHome
 } else {
@@ -176,4 +282,22 @@ if (-not $NoCodexManualRemoteConnect) {
   Install-CodexManualRemoteConnect -RepoRoot $Root -TargetHome $UserHome -TargetScript $ManualRemoteConnectScript
 } else {
   Write-Host "Codex manual remote-connect helper not installed (-NoCodexManualRemoteConnect)."
+}
+
+if (-not $NoCodexConfig) {
+  Install-CodexWin11SubscriptionConfig -RepoRoot $Root -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
+} else {
+  Write-Host "Win11 Codex subscription config not changed (-NoCodexConfig)."
+}
+
+if (-not $NoCodexSqliteLogGuard) {
+  Install-CodexSqliteLogGuard -RepoRoot $Root -TargetCodexHome $CodexHome
+} else {
+  Write-Host "Codex SQLite log guard not changed (-NoCodexSqliteLogGuard)."
+}
+
+if (-not $NoCodexProviderBucketMigration) {
+  Invoke-CodexProviderBucketMigration -RepoRoot $Root -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
+} else {
+  Write-Host "Codex provider bucket migration not run (-NoCodexProviderBucketMigration)."
 }

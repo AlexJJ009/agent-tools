@@ -407,6 +407,9 @@ class ProcessInfo:
 
 
 def running_codex_processes() -> list[ProcessInfo]:
+    if os.name == "nt":
+        return running_codex_processes_windows()
+
     output = command_output(["ps", "-eo", "pid=,ppid=,comm=,args="])
     current_pid = os.getpid()
     matches: list[ProcessInfo] = []
@@ -431,6 +434,39 @@ def running_codex_processes() -> list[ProcessInfo]:
             exe_name = args.split(None, 1)[0].rsplit("/", 1)[-1] if args else ""
         if comm == "codex" or exe_name == "codex":
             matches.append(ProcessInfo(pid=pid, ppid=ppid, comm=comm, args=args))
+    return matches
+
+
+def running_codex_processes_windows() -> list[ProcessInfo]:
+    script = r"""
+$rows = Get-CimInstance Win32_Process |
+  Where-Object { $_.Name -in @('codex.exe', 'Codex.exe') } |
+  Select-Object ProcessId, ParentProcessId, Name, CommandLine
+$rows | ConvertTo-Json -Compress
+"""
+    output = command_output(["powershell", "-NoProfile", "-Command", script])
+    if not output.strip():
+        return []
+    try:
+        data = json.loads(output)
+    except Exception:
+        return []
+    rows = data if isinstance(data, list) else [data]
+    current_pid = os.getpid()
+    matches: list[ProcessInfo] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        try:
+            pid = int(row.get("ProcessId"))
+            ppid = int(row.get("ParentProcessId") or 0)
+        except (TypeError, ValueError):
+            continue
+        if pid == current_pid:
+            continue
+        name = str(row.get("Name") or "")
+        args = str(row.get("CommandLine") or "")
+        matches.append(ProcessInfo(pid=pid, ppid=ppid, comm=name, args=args))
     return matches
 
 
@@ -940,7 +976,22 @@ def atomic_write_text(path: Path, text: str, mode: int | None = None) -> None:
             fh.write(text)
         if mode is not None:
             os.chmod(tmp_name, mode)
-        os.replace(tmp_name, path)
+        try:
+            os.replace(tmp_name, path)
+        except PermissionError:
+            if os.name != "nt":
+                raise
+            # Windows can deny atomic replacement for files under the live
+            # Codex App profile even when the file is otherwise writable.  The
+            # caller has already copied a backup before invoking this helper,
+            # so fall back to a direct truncate/write to finish the migration.
+            with path.open("w", encoding="utf-8") as fh:
+                fh.write(text)
+            if mode is not None:
+                try:
+                    os.chmod(path, mode)
+                except OSError:
+                    pass
     finally:
         try:
             os.unlink(tmp_name)

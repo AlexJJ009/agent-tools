@@ -1253,7 +1253,7 @@ sync_codex_config_from_cc_switch_current() {
   fi
 
   echo "Syncing Codex config from cc-switch provider: $provider_id"
-  cc-switch provider switch -a codex "$provider_id"
+  printf 'y\n' | cc-switch provider switch -a codex "$provider_id"
   normalize_codex_provider_auth
   CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS="synced: $provider_id"
 }

@@ -2035,6 +2035,23 @@ path.chmod(0o600)
 PY
 }
 
+install_codex_goal_plan_prompt() {
+  local source_root="$1"
+  local codex_home="${2:-${CODEX_HOME:-$HOME/.codex}}"
+  local source="$source_root/codex/plugins/goal-plan/commands/goal-plan.md"
+  local target="$codex_home/prompts/goal-plan.md"
+
+  if [[ ! -f "$source" ]]; then
+    echo "goal-plan Codex prompt not installed: missing $source" >&2
+    return 1
+  fi
+
+  # Codex CLI custom slash commands are loaded from ~/.codex/prompts/*.md.
+  # Plugin commands are available to app/plugin surfaces, but CLI 0.142.x does
+  # not expose plugin commands as top-level slash commands.
+  backup_and_copy_managed "$source" "$target"
+}
+
 install_goal_plan_for_windows_home() {
   local win_home="$1"
   local source_root="$2"
@@ -2047,6 +2064,7 @@ install_goal_plan_for_windows_home() {
   backup_and_copy_managed "$source_root/codex/skills/goal-plan" "$win_home/.codex/skills/goal-plan"
   backup_and_copy_managed "$source_root/codex/plugins/goal-plan" "$win_home/plugins/goal-plan"
   backup_and_copy_managed "$source_root/codex/plugins/goal-plan" "$win_home/.codex/plugins/cache/personal/goal-plan/$plugin_version"
+  install_codex_goal_plan_prompt "$source_root" "$win_home/.codex"
   install_codex_personal_marketplace_goal_plan "$win_home"
 }
 
@@ -2104,18 +2122,22 @@ install_goal_plan_tools() {
   GOAL_PLAN_STATUS="skipped"
 
   local source_root="$INSTALL_REAL/goal_plan"
+  local codex_home="${CODEX_HOME:-$HOME/.codex}"
+  local plugin_version="0.1.0"
   if [[ ! -d "$source_root" ]]; then
     GOAL_PLAN_STATUS="absent: no $source_root"
     echo "goal-plan tools not installed: missing $source_root" >&2
     return 0
   fi
 
-  backup_and_link "$source_root/claude/skills/goal-plan" "$HOME/.claude/skills/goal-plan"
-  backup_and_link "$source_root/claude/commands/goal-plan.md" "$HOME/.claude/commands/goal-plan.md"
-  backup_and_link "$source_root/claude/agents/goal-plan-reviewer.md" "$HOME/.claude/agents/goal-plan-reviewer.md"
+  backup_and_copy_managed "$source_root/claude/skills/goal-plan" "$HOME/.claude/skills/goal-plan"
+  backup_and_copy_managed "$source_root/claude/commands/goal-plan.md" "$HOME/.claude/commands/goal-plan.md"
+  backup_and_copy_managed "$source_root/claude/agents/goal-plan-reviewer.md" "$HOME/.claude/agents/goal-plan-reviewer.md"
 
-  backup_and_link "$source_root/codex/skills/goal-plan" "${CODEX_HOME:-$HOME/.codex}/skills/goal-plan"
-  backup_and_link "$source_root/codex/plugins/goal-plan" "$HOME/plugins/goal-plan"
+  backup_and_copy_managed "$source_root/codex/skills/goal-plan" "$codex_home/skills/goal-plan"
+  backup_and_copy_managed "$source_root/codex/plugins/goal-plan" "$HOME/plugins/goal-plan"
+  backup_and_copy_managed "$source_root/codex/plugins/goal-plan" "$codex_home/plugins/cache/personal/goal-plan/$plugin_version"
+  install_codex_goal_plan_prompt "$source_root"
   install_codex_personal_marketplace_goal_plan "$HOME"
   install_goal_plan_for_wsl_windows_homes "$source_root"
 
@@ -2141,14 +2163,14 @@ EOF
 
   if command -v codex >/dev/null 2>&1; then
     if codex plugin add goal-plan@personal >/dev/null 2>&1; then
-      GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin + isolated uv runtime; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
+      GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin/prompt + isolated uv runtime; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
     else
-      GOAL_PLAN_STATUS="linked; codex plugin add goal-plan@personal failed; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
-      echo "goal-plan Codex plugin linked, but 'codex plugin add goal-plan@personal' failed." >&2
+      GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin/prompt; codex plugin add failed; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
+      echo "goal-plan Codex plugin cache installed, but 'codex plugin add goal-plan@personal' failed." >&2
     fi
   else
-    GOAL_PLAN_STATUS="linked; codex not on PATH, plugin add skipped; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
-    echo "goal-plan Codex plugin linked; codex is not on PATH, so plugin add was skipped." >&2
+    GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin/prompt; codex not on PATH; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
+    echo "goal-plan Codex plugin cache installed; codex is not on PATH, so plugin add was skipped." >&2
   fi
 }
 
@@ -2271,7 +2293,7 @@ Options:
                            DROP, and loopback-only ignoreip.
   --no-codex-here          Do not install ~/.local/bin/codex-here.
   --no-goal-plan           Do not install user-level goal-plan tools
-                           (Claude /goal-plan + reviewer, Codex skill/plugin).
+                           (Claude /goal-plan + reviewer, Codex skill/plugin/prompt).
   --goal-plan-wsl-windows MODE
                            Also install goal-plan into Win11 Codex/Claude homes
                            when running from WSL: auto|always|never. Default: auto.

@@ -58,3 +58,9 @@ The section below is copied verbatim from `AGENTS.md`.
   switching does not fragment Codex resume history. Keep stream timeout/retry
   keys inside `[model_providers.custom]`; do not add them as top-level keys if
   the current standalone Codex CLI rejects them under `--strict-config`.
+- Linux server installs must check `fail2ban` for SSH protection. If `fail2ban`
+  is missing and a supported package manager is available, install it. The
+  managed sshd jail should be strict by default: aggressive sshd filter,
+  `maxretry = 3`, `findtime = 1h`, `bantime = -1`, DROP bans, and loopback-only
+  `ignoreip` (`127.0.0.1/8 ::1`). Do not guess or add trusted public IPs to
+  `ignoreip`; only the operator should decide external allowlists.

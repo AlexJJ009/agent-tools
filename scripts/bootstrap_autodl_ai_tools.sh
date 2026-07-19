@@ -523,7 +523,7 @@ name = "{default.get('name', default['id'])}"
 base_url = "{default['base_url'].rstrip('/')}"
 wire_api = "responses"
 requires_openai_auth = true
-supports_websockets = false
+supports_websockets = true
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 """.strip() + "\n"
@@ -557,7 +557,7 @@ name = "{name}"
 base_url = "{base_url}"
 wire_api = "responses"
 requires_openai_auth = true
-supports_websockets = false
+supports_websockets = true
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 """.strip() + "\n"

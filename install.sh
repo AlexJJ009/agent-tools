@@ -775,6 +775,7 @@ lines = text.splitlines()
 out = []
 in_target_provider = False
 inserted_auth = False
+inserted_websockets = False
 
 def section_path(line):
     stripped = line.strip()
@@ -789,13 +790,27 @@ def insert_auth():
     out.append("requires_openai_auth = true")
     inserted_auth = True
 
+def insert_websockets():
+    global inserted_websockets
+    while out and not out[-1].strip():
+        out.pop()
+    out.append("supports_websockets = true")
+    inserted_websockets = True
+
+def insert_provider_defaults():
+    if not inserted_auth:
+        insert_auth()
+    if not inserted_websockets:
+        insert_websockets()
+
 for line in lines:
     path_parts = section_path(line)
     if path_parts is not None:
-        if in_target_provider and not inserted_auth:
-            insert_auth()
+        if in_target_provider:
+            insert_provider_defaults()
         in_target_provider = len(path_parts) >= 2 and path_parts[0] == "model_providers" and path_parts[1] == target
         inserted_auth = False
+        inserted_websockets = False
         out.append(line)
         continue
 
@@ -807,11 +822,15 @@ for line in lines:
             if not inserted_auth:
                 insert_auth()
             continue
+        if key == "supports_websockets":
+            if not inserted_websockets:
+                insert_websockets()
+            continue
 
     out.append(line)
 
-if in_target_provider and not inserted_auth:
-    insert_auth()
+if in_target_provider:
+    insert_provider_defaults()
 
 cleaned = []
 previous_blank = False
@@ -863,6 +882,7 @@ def normalize_config(text):
     out = []
     in_target_provider = False
     inserted_auth = False
+    inserted_websockets = False
 
     def insert_auth():
         nonlocal inserted_auth
@@ -871,15 +891,29 @@ def normalize_config(text):
         out.append("requires_openai_auth = true")
         inserted_auth = True
 
+    def insert_websockets():
+        nonlocal inserted_websockets
+        while out and not out[-1].strip():
+            out.pop()
+        out.append("supports_websockets = true")
+        inserted_websockets = True
+
+    def insert_provider_defaults():
+        if not inserted_auth:
+            insert_auth()
+        if not inserted_websockets:
+            insert_websockets()
+
     for line in lines:
         path_parts = section_path(line)
         if path_parts is not None:
-            if in_target_provider and not inserted_auth:
-                insert_auth()
+            if in_target_provider:
+                insert_provider_defaults()
             in_target_provider = (
                 len(path_parts) >= 2 and path_parts[0] == "model_providers" and path_parts[1] == target
             )
             inserted_auth = False
+            inserted_websockets = False
             out.append(line)
             continue
 
@@ -891,11 +925,15 @@ def normalize_config(text):
                 if not inserted_auth:
                     insert_auth()
                 continue
+            if key == "supports_websockets":
+                if not inserted_websockets:
+                    insert_websockets()
+                continue
 
         out.append(line)
 
-    if in_target_provider and not inserted_auth:
-        insert_auth()
+    if in_target_provider:
+        insert_provider_defaults()
 
     cleaned = []
     previous_blank = False
@@ -1367,6 +1405,38 @@ while i < len(rest):
     i += 1
 rest = filtered_rest
 
+def _force_websockets(lines):
+    updated = []
+    in_target_provider = False
+    target_found = False
+    setting_found = False
+
+    for line in lines:
+        path = _toml_section_path(line)
+        if path:
+            if in_target_provider and not setting_found:
+                updated.append("supports_websockets = true")
+            in_target_provider = path == f"model_providers.{provider_id}"
+            if in_target_provider:
+                target_found = True
+                setting_found = False
+
+        if in_target_provider:
+            stripped = line.strip()
+            key = stripped.split("=", 1)[0].strip() if "=" in stripped else None
+            if key == "supports_websockets":
+                line = "supports_websockets = true"
+                setting_found = True
+
+        updated.append(line)
+
+    if in_target_provider and not setting_found:
+        updated.append("supports_websockets = true")
+
+    return updated, target_found
+
+rest, has_target_model_provider = _force_websockets(rest)
+
 if rest:
     kept.append("")
     kept.extend(rest)
@@ -1376,10 +1446,10 @@ if kept and kept[-1].strip():
 if not has_target_model_provider and not has_third_party_model_provider:
     kept.extend([
         provider_header,
-        'name = "OpenAI HTTPS no WebSocket"',
+        'name = "OpenAI WebSocket"',
         'base_url = "https://chatgpt.com/backend-api/codex"',
         "requires_openai_auth = true",
-        "supports_websockets = false",
+        "supports_websockets = true",
         f"stream_idle_timeout_ms = {timeout}",
         f"stream_max_retries = {retries}",
     ])
@@ -2598,7 +2668,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex service tier: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_SERVICE_TIER}"
   echo "Codex stream idle timeout: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_IDLE_TIMEOUT_MS} ms"
   echo "Codex stream max retries: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_MAX_RETRIES}"
-  echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (HTTPS, no WebSocket)"
+  echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (WebSocket enabled)"
   echo "Codex [features]: fast_mode=${CODEX_FEATURE_FAST_MODE} hooks=${CODEX_FEATURE_HOOKS} memories=${CODEX_FEATURE_MEMORIES} goals=${CODEX_FEATURE_GOALS} terminal_resize_reflow=${CODEX_FEATURE_TERMINAL_RESIZE_REFLOW} remote_control=${CODEX_FEATURE_REMOTE_CONTROL}"
   echo "Codex App Fast mode config: enabled=${INSTALL_CODEX_APP_FAST_MODE}, wsl_windows=${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS}"
   echo "Codex Desktop Connection Fast mode: mode=${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE}, status=${CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS}"

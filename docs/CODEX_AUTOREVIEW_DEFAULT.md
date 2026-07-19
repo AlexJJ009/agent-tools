@@ -28,14 +28,14 @@ stream_max_retries = 20
 model_provider = "custom"
 ```
 
-Define the HTTPS-only Codex provider:
+Define the WebSocket-enabled Codex provider:
 
 ```toml
 [model_providers.custom]
-name = "OpenAI HTTPS no WebSocket"
+name = "OpenAI WebSocket"
 base_url = "https://chatgpt.com/backend-api/codex"
 requires_openai_auth = true
-supports_websockets = false
+supports_websockets = true
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 ```
@@ -71,11 +71,10 @@ Meaning:
   `CODEX_MODEL_REASONING_EFFORT` if you want a different default per machine.
 - `stream_idle_timeout_ms = 1800000` gives Codex 30 minutes of idle stream time
   before treating compression or app/CLI streaming as timed out.
-- `stream_max_retries = 20` gives transient SSE streaming disconnects more
+- `stream_max_retries = 20` gives transient streaming disconnects more
   retry attempts before Codex gives up on the active response.
-- `model_provider = "custom"` uses OpenAI/ChatGPT auth but disables the
-  Responses WebSocket transport. This avoids `tls handshake eof` failures seen
-  on this WSL2-to-Windows-proxy path while keeping HTTPS `/responses` working.
+- `model_provider = "custom"` uses OpenAI/ChatGPT auth and forces the Responses
+  WebSocket transport for generated Codex and cc-switch provider configs.
   The stable `custom` bucket also matches cc-switch's Codex provider-switching
   convention, so resume history is not split across third-party provider IDs.
 - `[features]` enables Codex lifecycle hooks, the memory layer, goal tracking,
@@ -165,7 +164,7 @@ The installer replaces the managed keys above, including top-level
 `service_tier = "priority"` and `[features].fast_mode = true`. Do not put
 `service_tier` under `[features]`. It preserves existing project trust entries
 and other TOML tables (`[mcp_servers.*]`, `[tui]`, `[notice]`, etc.) and the
-managed HTTPS-only Codex provider, and removes the deprecated
+managed WebSocket-enabled Codex provider, and removes the deprecated
 `[features].codex_hooks` key if present. It also removes stale top-level
 `remote_control`, any `remote_connections` key, the obsolete
 `disable_response_storage` key, and the incorrect `[features].service_tier` key
@@ -245,10 +244,10 @@ Ensure this provider table exists:
 
 ```toml
 [model_providers.custom]
-name = "OpenAI HTTPS no WebSocket"
+name = "OpenAI WebSocket"
 base_url = "https://chatgpt.com/backend-api/codex"
 requires_openai_auth = true
-supports_websockets = false
+supports_websockets = true
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 ```

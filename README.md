@@ -323,10 +323,10 @@ terminal_resize_reflow = true
 remote_control = true
 
 [model_providers.custom]
-name = "OpenAI HTTPS no WebSocket"
+name = "OpenAI WebSocket"
 base_url = "https://chatgpt.com/backend-api/codex"
 requires_openai_auth = true
-supports_websockets = false
+supports_websockets = true
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 ```
@@ -380,9 +380,9 @@ This combines three default sets:
   tier for new conversations.
 - **Compression / streaming resilience** (`stream_idle_timeout_ms`,
   `stream_max_retries`, `model_provider` + the managed `custom`
-  provider). 30 minutes of idle stream time, 20 SSE retries, and an HTTPS-only
-  provider that avoids WebSocket transport on proxy paths where WebSocket TLS
-  handshakes are unstable. The stable `custom` bucket also matches cc-switch's
+  provider). 30 minutes of idle stream time, 20 streaming retries, and
+  WebSocket transport enabled for every generated provider configuration. The
+  stable `custom` bucket also matches cc-switch's
   Codex provider-switching convention, so history stays visible across
   third-party providers.
 - **Feature flags** (`[features]` block). Enables `fast_mode`, `hooks`, `memories`,

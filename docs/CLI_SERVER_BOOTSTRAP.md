@@ -249,7 +249,7 @@ name = "{default_provider_name}"
 base_url = "{default_base_url}"
 wire_api = "responses"
 requires_openai_auth = true
-supports_websockets = false
+supports_websockets = true
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 """.strip()
@@ -310,7 +310,7 @@ name = "{name}"
 base_url = "{base_url}"
 wire_api = "responses"
 requires_openai_auth = true
-supports_websockets = false
+supports_websockets = true
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 """.strip() + "\n"

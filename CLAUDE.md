@@ -40,11 +40,11 @@ The section below is copied verbatim from `AGENTS.md`.
   or native Windows default. See `docs/CODEX_WSL2_PROXY.md`.
 - Codex default config should include `stream_idle_timeout_ms = 1800000` and
   `stream_max_retries = 20` to tolerate long compression pauses and transient
-  SSE streaming disconnects. It should also use the `custom` model provider
-  with `supports_websockets = false`, `requires_openai_auth = true`,
-  and `base_url = "https://chatgpt.com/backend-api/codex"` because this WSL2
-  proxy path can fail during Responses WebSocket TLS handshakes while HTTPS
-  requests still work. These stream/provider defaults are independent of the
+  streaming disconnects. It should also use the `custom` model provider with
+  `supports_websockets = true`, `requires_openai_auth = true`, and
+  `base_url = "https://chatgpt.com/backend-api/codex"`. All generated Codex and
+  cc-switch provider configurations must keep WebSocket transport enabled.
+  These stream/provider defaults are independent of the
   approval reviewer; do not overwrite an existing `approvals_reviewer` value
   unless the user explicitly asks for approval-mode changes. See
   `docs/CODEX_AUTOREVIEW_DEFAULT.md`.

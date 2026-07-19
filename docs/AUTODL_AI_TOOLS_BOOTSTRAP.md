@@ -39,7 +39,7 @@ Codex stays on one stable provider bucket:
 model_provider = "custom"
 
 [model_providers.custom]
-supports_websockets = false
+supports_websockets = true
 stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 ```

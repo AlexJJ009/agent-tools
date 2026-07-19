@@ -773,6 +773,7 @@ if not target or not re.fullmatch(r"[A-Za-z0-9_.-]+", target):
 text = path.read_text(encoding="utf-8")
 lines = text.splitlines()
 out = []
+in_model_provider = False
 in_target_provider = False
 inserted_auth = False
 inserted_websockets = False
@@ -798,7 +799,7 @@ def insert_websockets():
     inserted_websockets = True
 
 def insert_provider_defaults():
-    if not inserted_auth:
+    if in_target_provider and not inserted_auth:
         insert_auth()
     if not inserted_websockets:
         insert_websockets()
@@ -806,19 +807,20 @@ def insert_provider_defaults():
 for line in lines:
     path_parts = section_path(line)
     if path_parts is not None:
-        if in_target_provider:
+        if in_model_provider:
             insert_provider_defaults()
-        in_target_provider = len(path_parts) >= 2 and path_parts[0] == "model_providers" and path_parts[1] == target
+        in_model_provider = len(path_parts) == 2 and path_parts[0] == "model_providers"
+        in_target_provider = in_model_provider and path_parts[1] == target
         inserted_auth = False
         inserted_websockets = False
         out.append(line)
         continue
 
-    if in_target_provider and "=" in line and not line.strip().startswith("#"):
+    if in_model_provider and "=" in line and not line.strip().startswith("#"):
         key = line.split("=", 1)[0].strip()
-        if key == "env_key":
+        if in_target_provider and key == "env_key":
             continue
-        if key == "requires_openai_auth":
+        if in_target_provider and key == "requires_openai_auth":
             if not inserted_auth:
                 insert_auth()
             continue
@@ -829,7 +831,7 @@ for line in lines:
 
     out.append(line)
 
-if in_target_provider:
+if in_model_provider:
     insert_provider_defaults()
 
 cleaned = []
@@ -880,6 +882,7 @@ def section_path(line):
 def normalize_config(text):
     lines = text.splitlines()
     out = []
+    in_model_provider = False
     in_target_provider = False
     inserted_auth = False
     inserted_websockets = False
@@ -899,7 +902,7 @@ def normalize_config(text):
         inserted_websockets = True
 
     def insert_provider_defaults():
-        if not inserted_auth:
+        if in_target_provider and not inserted_auth:
             insert_auth()
         if not inserted_websockets:
             insert_websockets()
@@ -907,21 +910,20 @@ def normalize_config(text):
     for line in lines:
         path_parts = section_path(line)
         if path_parts is not None:
-            if in_target_provider:
+            if in_model_provider:
                 insert_provider_defaults()
-            in_target_provider = (
-                len(path_parts) >= 2 and path_parts[0] == "model_providers" and path_parts[1] == target
-            )
+            in_model_provider = len(path_parts) == 2 and path_parts[0] == "model_providers"
+            in_target_provider = in_model_provider and path_parts[1] == target
             inserted_auth = False
             inserted_websockets = False
             out.append(line)
             continue
 
-        if in_target_provider and "=" in line and not line.strip().startswith("#"):
+        if in_model_provider and "=" in line and not line.strip().startswith("#"):
             key = line.split("=", 1)[0].strip()
-            if key == "env_key":
+            if in_target_provider and key == "env_key":
                 continue
-            if key == "requires_openai_auth":
+            if in_target_provider and key == "requires_openai_auth":
                 if not inserted_auth:
                     insert_auth()
                 continue
@@ -932,7 +934,7 @@ def normalize_config(text):
 
         out.append(line)
 
-    if in_target_provider:
+    if in_model_provider:
         insert_provider_defaults()
 
     cleaned = []
@@ -1407,21 +1409,23 @@ rest = filtered_rest
 
 def _force_websockets(lines):
     updated = []
-    in_target_provider = False
+    in_model_provider = False
     target_found = False
     setting_found = False
 
     for line in lines:
         path = _toml_section_path(line)
         if path:
-            if in_target_provider and not setting_found:
+            if in_model_provider and not setting_found:
                 updated.append("supports_websockets = true")
-            in_target_provider = path == f"model_providers.{provider_id}"
-            if in_target_provider:
-                target_found = True
+            parts = path.split(".")
+            in_model_provider = len(parts) == 2 and parts[0] == "model_providers"
+            if in_model_provider:
+                if parts[1] == provider_id:
+                    target_found = True
                 setting_found = False
 
-        if in_target_provider:
+        if in_model_provider:
             stripped = line.strip()
             key = stripped.split("=", 1)[0].strip() if "=" in stripped else None
             if key == "supports_websockets":
@@ -1430,7 +1434,7 @@ def _force_websockets(lines):
 
         updated.append(line)
 
-    if in_target_provider and not setting_found:
+    if in_model_provider and not setting_found:
         updated.append("supports_websockets = true")
 
     return updated, target_found

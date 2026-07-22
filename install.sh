@@ -317,7 +317,19 @@ configure_fail2ban_hardening() {
 
   if [[ -n "$root_prefix" ]]; then
     mkdir -p "$root_prefix/etc/fail2ban/jail.d"
-    cat >"$root_prefix/etc/fail2ban/jail.d/zzz-agent-tools-sshd-hardening.local" <<EOF
+    local test_conf="$root_prefix/etc/fail2ban/jail.d/zzz-agent-tools-sshd-hardening.local"
+    # Same replace-not-union hazard as the privileged path below; keep the two
+    # branches in step so a test root reproduces production merge behaviour.
+    local test_ignoreip=""
+    if [[ -f "$test_conf" ]]; then
+      test_ignoreip="$(sed -n 's/^[[:space:]]*ignoreip[[:space:]]*=[[:space:]]*//p' "$test_conf")"
+    fi
+    test_ignoreip="$(
+      printf '%s %s\n' "$FAIL2BAN_SSHD_IGNOREIP" "$test_ignoreip" \
+        | tr ' \t' '\n\n' | grep -v '^$' | awk '!seen[$0]++' | paste -sd' ' -
+    )"
+    [[ -n "$test_ignoreip" ]] || test_ignoreip="$FAIL2BAN_SSHD_IGNOREIP"
+    cat >"$test_conf" <<EOF
 [sshd]
 enabled = true
 port = ssh
@@ -327,7 +339,7 @@ maxretry = $FAIL2BAN_SSHD_MAXRETRY
 findtime = $FAIL2BAN_SSHD_FINDTIME
 bantime = $FAIL2BAN_SSHD_BANTIME
 banaction = $FAIL2BAN_SSHD_BANACTION
-ignoreip = $FAIL2BAN_SSHD_IGNOREIP
+ignoreip = $test_ignoreip
 EOF
     FAIL2BAN_HARDENING_STATUS="test-root: $root_prefix/etc/fail2ban/jail.d/zzz-agent-tools-sshd-hardening.local"
     echo "fail2ban hardening test-root configured: $root_prefix/etc/fail2ban/jail.d/zzz-agent-tools-sshd-hardening.local"
@@ -384,11 +396,34 @@ detect_sshd_ports() {
   printf '%s\n' "ssh"
 }
 
+# fail2ban resolves ignoreip by replacement, not union: the last jail.d file
+# wins outright. Rewriting this file with only the requested value therefore
+# un-whitelists every address an earlier run or a lower-precedence jail.d file
+# had authorised, and with bantime = -1 those peers get locked out for good.
+# Merge instead, so the operator still owns the list and a reinstall can only
+# ever grow it. Sources: requested value, this file's current value, and the
+# live effective list (absent on a first install, hence the guards).
+merge_ignoreip() {
+  {
+    printf '%s\n' "$1" | tr ' \t' '\n\n'
+    if [ -f "$conf" ]; then
+      sed -n 's/^[[:space:]]*ignoreip[[:space:]]*=[[:space:]]*//p' "$conf" | tr ' \t' '\n\n'
+    fi
+    fail2ban-client get sshd ignoreip 2>/dev/null | sed -n 's/^[|`]-[[:space:]]*//p' || true
+  } | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' \
+    | grep -v '^$' \
+    | awk '!seen[$0]++' \
+    | paste -sd' ' -
+}
+
 install_fail2ban
 mkdir -p /etc/fail2ban/jail.d
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 conf="/etc/fail2ban/jail.d/zzz-agent-tools-sshd-hardening.local"
 ports="$(detect_sshd_ports)"
+
+effective_ignoreip="$(merge_ignoreip "$ignoreip")"
+[ -n "$effective_ignoreip" ] || effective_ignoreip="$ignoreip"
 
 if [ -f "$conf" ]; then
   cp -a "$conf" "$conf.backup-$timestamp"
@@ -404,7 +439,7 @@ maxretry = $maxretry
 findtime = $findtime
 bantime = $bantime
 banaction = $banaction
-ignoreip = $ignoreip
+ignoreip = $effective_ignoreip
 EOF
 chmod 0644 "$conf"
 

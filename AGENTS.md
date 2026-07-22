@@ -44,3 +44,11 @@
   `maxretry = 3`, `findtime = 1h`, `bantime = -1`, DROP bans, and loopback-only
   `ignoreip` (`127.0.0.1/8 ::1`). Do not guess or add trusted public IPs to
   `ignoreip`; only the operator should decide external allowlists.
+- Never shrink an existing `ignoreip`. fail2ban resolves it by replacement, not
+  union, so rewriting the managed jail file with the default would silently
+  un-whitelist every address the operator had already trusted — and with
+  `bantime = -1` those peers stay locked out. The installer merges the
+  requested value with the managed file's current value and the live effective
+  list, so a reinstall can only ever grow the allowlist. This is not a
+  contradiction of the rule above: the installer still contributes no addresses
+  of its own, it only refuses to discard the operator's.

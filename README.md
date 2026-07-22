@@ -186,8 +186,11 @@ auto mode. If it is missing and a supported package manager is available, it
 installs it. It then enforces a strict `sshd` jail through
 `/etc/fail2ban/jail.d/zzz-agent-tools-sshd-hardening.local`: aggressive SSH
 matching, 3 failures within 1 hour, permanent ban, and `DROP` rather than
-`REJECT`. The managed `ignoreip` is intentionally loopback-only
-(`127.0.0.1/8 ::1`); the installer does not guess trusted public IPs. Use
+`REJECT`. The managed `ignoreip` defaults to loopback-only
+(`127.0.0.1/8 ::1`); the installer does not guess trusted public IPs. It does,
+however, preserve the ones you added yourself: on every run it merges the
+default with the managed file's current `ignoreip` and the live effective list,
+so reinstalling never drops a peer you had already whitelisted. Use
 `--no-fail2ban-hardening` only on hosts where agent-tools should not touch
 system SSH protection, or set `INSTALL_FAIL2BAN_HARDENING=always` when a
 non-standard server should be forced through the same check.

@@ -90,6 +90,40 @@ class RuntimeTests(unittest.TestCase):
         _, errors = replay_runtime(goal)
         self.assertTrue(any("convergence review required" in error for error in errors))
 
+    def test_runtime_rejects_ready_plan_with_open_contradiction(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_OPENED", "finding_id": "F-01"})
+        append_jsonl(
+            goal / "findings.jsonl",
+            {"event": "FINDING_CLASSIFIED", "finding_id": "F-01", "classification": "CONTRADICTION"},
+        )
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {"event": "PLAN_REVIEWED", "plan_version": 1, "verdict": "READY", "reviewer": "reviewer"},
+        )
+
+        _, errors = replay_runtime(goal)
+
+        self.assertTrue(any("plan must return to review" in error for error in errors))
+
+    def test_runtime_allows_ready_plan_after_contradiction_is_closed(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_OPENED", "finding_id": "F-01"})
+        append_jsonl(
+            goal / "findings.jsonl",
+            {"event": "FINDING_CLASSIFIED", "finding_id": "F-01", "classification": "CONTRADICTION"},
+        )
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_CLOSED", "finding_id": "F-01"})
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {"event": "PLAN_REVIEWED", "plan_version": 1, "verdict": "READY", "reviewer": "reviewer"},
+        )
+
+        state, errors = replay_runtime(goal)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(state["open_findings"]["F-01"]["status"], "CLOSED")
+
     def test_plan_rejects_numeric_budget_without_feasibility_probe(self) -> None:
         goal = self.create_goal()
         plan = goal / "plan.md"

@@ -275,7 +275,11 @@ def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
             errors.append(f"finding {finding_id}: open finding is unclassified")
         if finding["status"] == "OPEN" and finding["review_fix_rounds"] >= 2:
             errors.append(f"finding {finding_id}: convergence review required before a third fix round")
-        if finding.get("classification") in {"CONTRADICTION", "AC_CHANGE"} and state["plan_status"] == "READY":
+        if (
+            finding["status"] == "OPEN"
+            and finding.get("classification") in {"CONTRADICTION", "AC_CHANGE"}
+            and state["plan_status"] == "READY"
+        ):
             errors.append(f"finding {finding_id}: plan must return to review before implementation continues")
     return state, errors
 

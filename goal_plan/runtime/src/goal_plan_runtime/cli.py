@@ -29,10 +29,12 @@ VALID_EVENTS = {
     "PLAN_REVIEWED",
     "MILESTONE_STARTED",
     "MILESTONE_COMPLETED",
+    "MILESTONE_REVIEWED",
     "REVIEW_REQUESTED",
     "REVIEW_COMPLETED",
     "ACCEPTANCE_REQUESTED",
     "ACCEPTANCE_COMPLETED",
+    "RISK_NOTICE_RECORDED",
     "USER_DECISION_REQUESTED",
     "USER_DECISION_RECORDED",
     "IDENTITY_CONFIGURED",
@@ -51,6 +53,7 @@ VALID_FINDING_EVENTS = {
     "FINDING_OPENED",
     "FINDING_CLASSIFIED",
     "FINDING_FIX_PROPOSED",
+    "FINDING_FIX_APPLIED",
     "FINDING_REVIEWED",
     "FINDING_CLOSED",
     "FINDING_REOPENED",
@@ -58,6 +61,20 @@ VALID_FINDING_EVENTS = {
 }
 FINDING_CLASSES = {"IN_SCOPE", "DEFERRED", "CONTRADICTION", "AC_CHANGE"}
 REVIEW_VERDICTS = {"READY", "NOT_READY", "PASS", "FAIL", "WEAKENED", "CONTRADICTION"}
+STOP_CATEGORIES = {
+    "deletion",
+    "destructive_or_hard_to_reverse",
+    "public_sharing_or_exposure_expansion",
+    "permission_expansion",
+    "owner_transfer",
+    "force_or_history_rewrite",
+    "non_disposable_live_object_access",
+    "credential_or_sensitive_data_exposure",
+    "tool_confirmation_required",
+    "new_outcome_or_out_of_scope",
+    "CONTRADICTION",
+    "AC_CHANGE",
+}
 AGENT_IDENTITIES = {
     "claude": ("Claude", "noreply@anthropic.com"),
     "codex": ("Codex", "noreply@openai.com"),
@@ -142,12 +159,39 @@ def section_body(text: str, section: str) -> str:
     return match.group("body") if match else ""
 
 
+def milestone_authorization_values(body: str) -> list[str]:
+    lines = body.splitlines()
+    start = next(
+        (index for index, line in enumerate(lines) if re.match(r"^\s*-\s*Milestone overrides:", line, re.IGNORECASE)),
+        None,
+    )
+    if start is None:
+        return []
+    first = lines[start].split(":", 1)[1].strip().rstrip(".")
+    if first.lower() in {"`none`", "none"}:
+        return []
+    values = []
+    if first:
+        first_match = re.search(r":\s*`?([A-Za-z][A-Za-z_]*)`?", first)
+        if first_match:
+            values.append(first_match.group(1).upper())
+    for line in lines[start + 1:]:
+        match = re.match(r"^\s{2,}-\s*`?[^:`]+:\s*([A-Za-z][A-Za-z_]*)`?", line)
+        if not match:
+            break
+        values.append(match.group(1).upper())
+    return values
+
+
 def validate_plan(path: Path) -> list[str]:
     text = path.read_text(encoding="utf-8")
     errors = []
     for section in REQUIRED_PLAN_SECTIONS:
         if not re.search(rf"^##\s+{re.escape(section)}\s*$", text, re.MULTILINE):
             errors.append(f"missing section: {section}")
+    if re.search(r"^- Authorization policy version:\s*`?2`?\s*$", text, re.MULTILINE):
+        if not re.search(r"^##\s+Authorization Policy\s*$", text, re.MULTILINE):
+            errors.append("missing section: Authorization Policy")
     outcome = re.search(r"^## Outcome\s*$\n(?P<body>.*?)(?=^##\s|\Z)", text, re.MULTILINE | re.DOTALL)
     if not outcome or not outcome.group("body").strip():
         errors.append("Outcome must contain one concrete capability, artifact, or decision")
@@ -172,6 +216,23 @@ def validate_plan(path: Path) -> list[str]:
     for marker in ("AUTO_ADVANCE", "USER_DECISION"):
         if marker not in progression_body:
             errors.append(f"Progression Policy missing class: {marker}")
+    authorization_body = section_body(text, "Authorization Policy")
+    if authorization_body:
+        authorization_markers = (
+            "DEFAULT_AUTHORIZED",
+            "Whole-Goal authorization",
+            "Milestone overrides",
+            "RISK_NOTICE",
+            "PREAUTHORIZED_STOP_ACTION",
+            "USER_DECISION",
+        )
+        for marker in authorization_markers:
+            if marker.lower() not in authorization_body.lower():
+                errors.append(f"Authorization Policy missing rule: {marker}")
+        valid_overrides = {"INHERIT", "AUTHORIZED", "HOLD", "DENIED"}
+        for value in milestone_authorization_values(authorization_body):
+            if value not in valid_overrides:
+                errors.append(f"Authorization Policy invalid milestone override: {value}")
     required_rules = (
         "IN_SCOPE",
         "DEFERRED",
@@ -195,7 +256,40 @@ def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
     findings_path = goal_dir / "findings.jsonl"
     runtime = load_jsonl(runtime_path)
     findings = load_jsonl(findings_path)
-    errors = validate_sequence(runtime, runtime_path) + validate_sequence(findings, findings_path)
+    authorization_v2 = bool(
+        re.search(
+            r"^- Authorization policy version:\s*`?2`?\s*$",
+            plan.read_text(encoding="utf-8"),
+            re.MULTILINE,
+        )
+    )
+    runtime_sequences = {record.get("seq") for record in runtime}
+    correction_records = [record for record in runtime if record.get("event") == "EVENT_CORRECTED"]
+    corrected_corrections = {
+        record.get("corrects_seq")
+        for record in correction_records
+        if record.get("corrects_seq") in {candidate.get("seq") for candidate in correction_records}
+    }
+    active_corrections = [record for record in correction_records if record.get("seq") not in corrected_corrections]
+    correction_targets = {record.get("corrects_seq") for record in active_corrections}
+    errors = []
+    for record in active_corrections:
+        target = record.get("corrects_seq")
+        if not isinstance(target, int) or target not in runtime_sequences or target >= record.get("seq", 0):
+            errors.append(f"runtime seq {record.get('seq')}: correction target is missing")
+    effective_runtime = [
+        dict(record, seq=index)
+        for index, record in enumerate(
+            [
+                record
+                for record in runtime
+                if record.get("event") != "EVENT_CORRECTED" and record.get("seq") not in correction_targets
+            ],
+            1,
+        )
+    ]
+    errors += validate_sequence(effective_runtime, runtime_path) + validate_sequence(findings, findings_path)
+    runtime = effective_runtime
     state: dict[str, Any] = {
         "plan_version": 0,
         "plan_status": "UNREVIEWED",
@@ -243,17 +337,35 @@ def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
             if record.get("milestone") != state["current_milestone"]:
                 errors.append(f"runtime seq {record['seq']}: completed milestone is not active")
             state["current_milestone"] = None
-        elif event in {"REVIEW_COMPLETED", "ACCEPTANCE_COMPLETED"}:
+        elif event in {"MILESTONE_REVIEWED", "REVIEW_COMPLETED", "ACCEPTANCE_COMPLETED"}:
             verdict = record.get("verdict")
             if verdict not in REVIEW_VERDICTS:
                 errors.append(f"runtime seq {record['seq']}: invalid review verdict")
             if record.get("reviewer") == record.get("implementer"):
                 errors.append(f"runtime seq {record['seq']}: implementer cannot self-review")
             if record.get("plan_version") != state["plan_version"]:
-                errors.append(f"runtime seq {record['seq']}: review binds stale plan version")
+                if event != "MILESTONE_REVIEWED" or record.get("plan_version") is not None:
+                    errors.append(f"runtime seq {record['seq']}: review binds stale plan version")
             state["latest_review"] = record
+        elif event == "RISK_NOTICE_RECORDED":
+            for field in ("risk", "mitigation", "target"):
+                if not record.get(field):
+                    errors.append(f"runtime seq {record['seq']}: risk notice missing {field}")
         elif event == "USER_DECISION_REQUESTED":
             decision_id = record.get("decision_id")
+            legacy_request = "stop_category" not in record
+            if legacy_request:
+                # Ledgers created before Authorization Policy v2 remain replayable,
+                # but new requests must use the narrow, structured stop schema.
+                if authorization_v2 or record.get("authorization_policy_version") is not None:
+                    errors.append(f"runtime seq {record['seq']}: missing stop_category")
+            else:
+                stop_category = record.get("stop_category")
+                if stop_category not in STOP_CATEGORIES:
+                    errors.append(f"runtime seq {record['seq']}: invalid stop_category {stop_category!r}")
+                for field in ("target", "operation", "risk", "decision_needed"):
+                    if not record.get(field):
+                        errors.append(f"runtime seq {record['seq']}: user decision missing {field}")
             if not decision_id:
                 errors.append(f"runtime seq {record['seq']}: missing decision_id")
             elif decision_id in state["pending_user_decisions"]:
@@ -428,7 +540,13 @@ def append_event(args: argparse.Namespace) -> int:
 def build_reviewer_prompt(args: argparse.Namespace) -> int:
     goal_dir = Path(args.goal_dir).resolve()
     state, errors = replay_runtime(goal_dir)
-    if errors:
+    convergence_only = args.review_type == "Convergence Review" and all(
+        error.endswith("convergence review required before a third fix round") for error in errors
+    )
+    plan_reentry_only = args.review_type == "Plan Re-entry Review" and all(
+        error.endswith("plan must return to review before implementation continues") for error in errors
+    )
+    if errors and not convergence_only and not plan_reentry_only:
         raise ValueError("runtime validation failed:\n- " + "\n- ".join(errors))
     template = (runtime_template_dir() / "reviewer_prompt.md").read_text(encoding="utf-8")
     focus = Path(args.focus_file).read_text(encoding="utf-8") if args.focus_file else args.focus

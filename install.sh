@@ -72,6 +72,7 @@ CODEX_PROXY_CONNECT_TIMEOUT="${CODEX_PROXY_CONNECT_TIMEOUT:-2}"
 CODEX_PROXY_MAX_TIME="${CODEX_PROXY_MAX_TIME:-6}"
 AGENT_CORE_DIR="${AGENT_CORE_HOME:-$HOME/agent-core}"
 INSTALL_AGENT_CORE_ENTRIES=1
+GOAL_PLAN_ONLY=0
 AGENT_CORE_ENTRIES_STATUS=""
 GOAL_PLAN_STATUS=""
 LOCAL_BIN_PATH_STATUS=""
@@ -2169,7 +2170,7 @@ install_goal_plan_for_wsl_windows_homes() {
 goal_plan_managed_pairs() {
   local source_root="$1"
   local codex_home="${CODEX_HOME:-$HOME/.codex}"
-  local plugin_version="0.1.0"
+  local plugin_version="0.2.0"
   printf '%s\t%s\n' \
     "$source_root/claude/skills/goal-plan" "$HOME/.claude/skills/goal-plan" \
     "$source_root/claude/commands/goal-plan.md" "$HOME/.claude/commands/goal-plan.md" \
@@ -2194,7 +2195,7 @@ check_goal_plan_drift() {
       echo "DRIFT: $dst is missing (source: $src)"
       drift=1
     elif [[ -d "$src" ]]; then
-      if ! diff -r -q -x '.agent-tools-managed' "$src" "$dst" >/dev/null; then
+      if ! diff -r -q -x '.agent-tools-managed' -x 'migrated-command-skills' "$src" "$dst" >/dev/null; then
         echo "DRIFT: $dst differs from $src"
         drift=1
       fi
@@ -2224,7 +2225,7 @@ install_goal_plan_tools() {
 
   local source_root="$INSTALL_REAL/goal_plan"
   local codex_home="${CODEX_HOME:-$HOME/.codex}"
-  local plugin_version="0.1.0"
+  local plugin_version="0.2.0"
   if [[ ! -d "$source_root" ]]; then
     GOAL_PLAN_STATUS="absent: no $source_root"
     echo "goal-plan tools not installed: missing $source_root" >&2
@@ -2271,6 +2272,25 @@ EOF
     GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin/prompt; codex not on PATH; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
     echo "goal-plan Codex plugin cache installed; codex is not on PATH, so plugin add was skipped." >&2
   fi
+}
+
+install_goal_plan_only() {
+  local source_real install_real
+  source_real="$(cd -- "$SOURCE_DIR" && pwd -P)"
+  mkdir -p "$INSTALL_DIR"
+  install_real="$(cd -- "$INSTALL_DIR" && pwd -P)"
+  if [[ "$source_real" != "$install_real" ]]; then
+    if [[ -e "$install_real/goal_plan" ]]; then
+      echo "goal-plan-only refuses to replace existing target: $install_real/goal_plan" >&2
+      echo "Use the default source install or move the target aside explicitly." >&2
+      return 1
+    fi
+    cp -R "$SOURCE_DIR/goal_plan" "$install_real/goal_plan"
+  fi
+  configure_local_bin_path
+  INSTALL_REAL="$install_real"
+  install_goal_plan_tools
+  printf '%s\n' "$GOAL_PLAN_STATUS"
 }
 
 start_codex_remote_control() {
@@ -2371,6 +2391,7 @@ usage() {
   cat <<'EOF'
 Usage:
   install.sh [options]
+  install.sh --goal-plan-only
 
 Options:
   --install-dir PATH       Install/copy tools to PATH. Default: this directory.
@@ -2393,6 +2414,8 @@ Options:
   --no-codex-here          Do not install ~/.local/bin/codex-here.
   --no-goal-plan           Do not install user-level goal-plan tools
                            (Claude /goal-plan + reviewer, Codex skill/plugin/prompt).
+  --goal-plan-only         Install only the user-level goal-plan copies and
+                           isolated runtime, then exit. Do not configure other tools.
   --goal-plan-wsl-windows MODE
                            Also install goal-plan into Win11 Codex/Claude homes
                            when running from WSL: auto|always|never. Default: auto.
@@ -2478,6 +2501,10 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
+    --goal-plan-only)
+      GOAL_PLAN_ONLY=1
+      shift
+      ;;
     --install-dir)
       INSTALL_DIR="$2"
       shift 2
@@ -2663,6 +2690,11 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
+
+if [[ "$GOAL_PLAN_ONLY" -eq 1 ]]; then
+  install_goal_plan_only
+  exit 0
+fi
 
 if [[ ${#SCAN_ROOTS[@]} -eq 0 ]]; then
   SCAN_ROOTS+=("$(pwd)")

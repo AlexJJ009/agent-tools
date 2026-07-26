@@ -11,5 +11,6 @@ Load the `$goal-plan` skill and use the isolated `goal-plan-runtime` launcher.
 - Do not create/start a Codex Goal unless the user explicitly asks.
 - Do not rewrite `runtime.jsonl` or `findings.jsonl`; append correction events.
 - Final acceptance requires reviewer-owned command evidence bound to the current Plan version and candidate commit.
-- During authorized execution, auto-advance deterministic `AUTO_ADVANCE` lifecycle steps without waiting for prompts; stop only at `USER_DECISION` gates (production mutations, destructive actions, security risks, contract changes, resource-threshold failures).
+- Authorization defaults to granted for every exact-target action inside the frozen Plan. Freeze one Whole-Goal envelope or explicit milestone overrides before execution; milestone boundaries do not ask again.
+- During execution, report concrete risks and continue. Stop only for an uncovered stop-class action: deletion, exposure or permission expansion, owner transfer, history rewrite, non-disposable live-object access, credential/data exposure, a tool-enforced current-turn confirmation, a new outcome, or unresolved `CONTRADICTION`/`AC_CHANGE`.
 - Numeric performance or resource budgets in ACs require a feasibility probe in the Plan before `READY`.

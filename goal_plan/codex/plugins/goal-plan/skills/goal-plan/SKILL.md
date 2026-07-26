@@ -74,8 +74,8 @@ already authorizes; committing authorized work is `AUTO_ADVANCE`.
 2. Probe feasibility of every numeric budget in the target environment.
 3. Validate the Plan.
 4. Obtain an independent Plan Review.
-5. Assemble the launch prompt, including the standing `AUTO_ADVANCE` authorization.
-6. Execute the authorized milestones, auto-advancing deterministic steps and stopping only at `USER_DECISION` gates.
+5. Freeze the Authorization Policy and assemble the launch prompt. One execution request starts the whole authorized envelope; milestone boundaries do not require fresh approval.
+6. Execute the milestones, auto-advancing every covered step and stopping only for an uncovered stop-class action.
 7. Classify findings and validate runtime transitions.
 8. Obtain milestone review when required.
 9. Obtain independent final acceptance.
@@ -93,6 +93,7 @@ The Plan must contain:
 - exact verification commands and expected evidence;
 - feasibility probes backing every numeric budget;
 - hard-ordered milestones when artifacts have producer-consumer dependencies;
+- an Authorization Policy;
 - a Runtime Contract;
 - a Progression Policy;
 - a Goal-specific Reviewer Contract;
@@ -116,14 +117,41 @@ Freeze numeric budgets only after measuring reality. Any AC that declares an abs
 
 If no AC declares a numeric budget, state `None`. `validate-plan` fails when a budgeted AC is not referenced in the section, and the Plan reviewer must reject `READY` when a probe is missing or contradicted.
 
+## Authorization Policy
+
+Creating a Plan does not start execution. Once the user asks to execute a `READY` Plan, use `DEFAULT_AUTHORIZED`: every Plan-defined, in-scope action with an exact target is authorized unless the Plan explicitly marks it `HOLD` or `DENIED`. Silence about authorization means authorized, not undecided.
+
+Freeze authorization while preparing the Plan or immediately before execution:
+
+- prefer one Whole-Goal authorization inherited by all milestones;
+- use milestone overrides only for a real exception, never as mandatory approval checkpoints;
+- record a stop-class action in advance as `PREAUTHORIZED_STOP_ACTION` with its exact action, target, boundary, and milestone when the user has already decided it;
+- if any of those facts change or broaden, the prior authorization no longer covers the action.
+
+Risk and permission are separate. `RISK_NOTICE` means append `RISK_NOTICE_RECORDED` with the concrete risk, mitigation, and exact target, then continue. Do not turn warnings, live-system mutations already frozen in the Plan, test failures, retries, reviews, commits, ordinary pushes, resource adjustments inside Scope, or implementation choices into permission requests.
+
+Use `USER_DECISION` only for an uncovered stop-class action:
+
+- deletion or another destructive or hard-to-reverse action;
+- public sharing or another exposure expansion;
+- permission expansion or owner transfer;
+- force-push or another history rewrite;
+- access to a non-disposable live object;
+- credential or sensitive-data exposure;
+- a tool-enforced confirmation that explicitly requires approval in the current turn;
+- a new independently useful outcome or work outside the frozen Scope;
+- an unresolved `CONTRADICTION` or `AC_CHANGE`.
+
+When one is reached, append `USER_DECISION_REQUESTED` with `authorization_policy_version: 2`, a `decision_id`, allowed `stop_category`, exact `target`, proposed `operation`, concrete `risk`, and `decision_needed`. Continue independent authorized work until a matching `USER_DECISION_RECORDED` or reviewed `PREAUTHORIZED_STOP_ACTION` covers it.
+
 ## Progression Policy
 
 A Goal must not stall because nobody prompted "continue". Classify every next step into one of two classes:
 
-- `AUTO_ADVANCE`: the next lifecycle step is deterministic, safe, reversible, and inside the frozen Plan. It carries standing authorization from the launch prompt — proceed immediately, without asking. Defaults: validating an amended Plan and requesting its review; building reviewer prompts and starting due reviews; classifying findings; applying an authorized `IN_SCOPE` fix and re-requesting review; starting the next authorized milestone after the previous one completes; collecting evidence and running validators.
-- `USER_DECISION`: stop, append `USER_DECISION_REQUESTED` with a `decision_id` and a short decision brief, notify the user, and continue only independent authorized work until the matching `USER_DECISION_RECORDED` is appended. Always required for: mutations of production or shared live systems; destructive or hard-to-reverse actions, including deleting resources the Goal did not create; security, credential, or data-exposure risks; `CONTRADICTION` or `AC_CHANGE` findings; resource-threshold failures whose remedy touches anything outside the Goal; and starting or skipping a Goal.
+- `AUTO_ADVANCE`: every action covered by the Authorization Policy. Proceed immediately, including after a risk notice and across milestone boundaries.
+- `USER_DECISION`: only an uncovered stop-class action. Do not use it for a risk notice, validator failure, reviewer rejection, or milestone boundary.
 
-The launch prompt must state the standing `AUTO_ADVANCE` authorization explicitly so the implementer never idles between deterministic steps. `validate-runtime` rejects starting a milestone or completing the Goal while a user decision is pending.
+The launch prompt must summarize the frozen authorization envelope so the implementer never idles between covered steps. `validate-runtime` rejects starting a milestone or completing the Goal while a real user decision is pending.
 
 ## Plan Review
 
@@ -226,13 +254,13 @@ The reviewer may add opinions. Opinions outside frozen ACs are non-blocking `DEF
 
 Execute only when the user explicitly requests it and the current Plan is `READY`.
 
-- Proceed serially through authorized milestones, auto-advancing every `AUTO_ADVANCE` step without waiting for a prompt.
-- Stop at `USER_DECISION` gates and record them in the ledger; do not start new milestones while a decision is pending.
+- Proceed serially through milestones under the Whole-Goal authorization, applying any explicit milestone override and auto-advancing every covered step without waiting for a prompt.
+- Report risks and continue. Stop only for an uncovered stop-class action, record it in the ledger, and do not start dependent work while its decision is pending.
 - Keep unrelated investigations and side questions out of the Goal session; run them separately so the ledger timeline stays attributable.
 - Mock external services used as acceptance evidence.
 - Preserve existing user changes.
 - Never delete, skip, loosen, or trivialize tests to get green.
-- Stop on contradiction, AC change, invalid runtime transition, or required convergence review.
+- Stop dependent implementation on contradiction, AC change, invalid runtime transition, or required convergence review; perform the required governance or review action automatically when it does not itself require a user decision.
 - Treat another independently useful deliverable, subsystem, runtime environment, or acceptance surface as a re-planning trigger rather than relying on fixed line, file, token, or time budgets.
 
 ## Independent Acceptance

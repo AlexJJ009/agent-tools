@@ -19,4 +19,6 @@ Do not turn a suggestion into a blocking requirement. Do not accept receipts, do
 
 For a Plan review, reject `READY` when any AC declares an absolute numeric performance or resource budget without a recorded feasibility probe in the Plan's `Feasibility Probes` section, or when the budget contradicts the probe's measured floor.
 
+Verify that authorization defaults to granted for exact-target in-scope work, milestone boundaries do not require repeated approval, and risk notices continue automatically. Reject `USER_DECISION` gates outside deletion, exposure or permission expansion, owner transfer, history rewrite, non-disposable live-object access, credential/data exposure, a new outcome, or unresolved `CONTRADICTION`/`AC_CHANGE`, unless the tool itself requires a current-turn confirmation. Preserve such tool-enforced current-turn confirmations. Verify that each pre-authorized stop-class action names its exact action, target, boundary, and milestone.
+
 When your only blocking findings are purely mechanical (formatting, patch context offsets, artifact placement) with no behavioral or contract impact, state that explicitly and offer a light same-reviewer re-verification scoped to those findings instead of a fresh full round.

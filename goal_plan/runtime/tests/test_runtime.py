@@ -10,6 +10,7 @@ from pathlib import Path
 
 from goal_plan_runtime.cli import (
     append_jsonl,
+    build_reviewer_prompt,
     init_goal,
     plan_hash,
     replay_runtime,
@@ -133,6 +134,81 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(state["open_findings"]["F-01"]["status"], "CLOSED")
 
+    def test_runtime_accepts_applied_fix_evidence_without_new_fix_round(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_OPENED", "finding_id": "F-01"})
+        append_jsonl(
+            goal / "findings.jsonl",
+            {"event": "FINDING_CLASSIFIED", "finding_id": "F-01", "classification": "IN_SCOPE"},
+        )
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_FIX_PROPOSED", "finding_id": "F-01"})
+        append_jsonl(
+            goal / "findings.jsonl",
+            {"event": "FINDING_FIX_APPLIED", "finding_id": "F-01", "evidence": "validated"},
+        )
+
+        state, errors = replay_runtime(goal)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(state["open_findings"]["F-01"]["review_fix_rounds"], 1)
+
+    def test_convergence_prompt_is_available_when_convergence_review_is_required(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_OPENED", "finding_id": "F-01"})
+        append_jsonl(
+            goal / "findings.jsonl",
+            {"event": "FINDING_CLASSIFIED", "finding_id": "F-01", "classification": "IN_SCOPE"},
+        )
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_FIX_PROPOSED", "finding_id": "F-01"})
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_FIX_PROPOSED", "finding_id": "F-01"})
+        output = goal / "reviews" / "convergence.md"
+
+        result = build_reviewer_prompt(
+            argparse.Namespace(
+                goal_dir=str(goal),
+                review_type="Convergence Review",
+                milestone=None,
+                base_commit=None,
+                candidate_commit=None,
+                applicable_acs=None,
+                verification_commands=None,
+                focus="",
+                focus_file=None,
+                output=str(output),
+            )
+        )
+
+        self.assertEqual(result, 0)
+        self.assertIn("Convergence Review", output.read_text())
+
+    def test_plan_reentry_prompt_is_available_for_open_contradiction(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(goal / "runtime.jsonl", {"event": "PLAN_REVIEWED", "plan_version": 1, "verdict": "READY", "reviewer": "reviewer"})
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_OPENED", "finding_id": "F-01"})
+        append_jsonl(
+            goal / "findings.jsonl",
+            {"event": "FINDING_CLASSIFIED", "finding_id": "F-01", "classification": "CONTRADICTION"},
+        )
+        output = goal / "reviews" / "reentry.md"
+
+        result = build_reviewer_prompt(
+            argparse.Namespace(
+                goal_dir=str(goal),
+                review_type="Plan Re-entry Review",
+                milestone=None,
+                base_commit=None,
+                candidate_commit=None,
+                applicable_acs=None,
+                verification_commands=None,
+                focus="",
+                focus_file=None,
+                output=str(output),
+            )
+        )
+
+        self.assertEqual(result, 0)
+        self.assertIn("Plan Re-entry Review", output.read_text())
+
     def test_plan_rejects_numeric_budget_without_feasibility_probe(self) -> None:
         goal = self.create_goal()
         plan = goal / "plan.md"
@@ -165,6 +241,79 @@ class RuntimeTests(unittest.TestCase):
         errors = validate_plan(plan)
         self.assertTrue(any("Progression Policy missing class: AUTO_ADVANCE" in error for error in errors))
 
+    def test_plan_rejects_missing_default_authorization(self) -> None:
+        goal = self.create_goal()
+        plan = goal / "plan.md"
+        plan.write_text(plan.read_text().replace("DEFAULT_AUTHORIZED", "ASK_BY_DEFAULT"))
+
+        errors = validate_plan(plan)
+
+        self.assertTrue(any("Authorization Policy missing rule: DEFAULT_AUTHORIZED" in error for error in errors))
+
+    def test_legacy_plan_without_authorization_policy_remains_valid(self) -> None:
+        goal = self.create_goal()
+        plan = goal / "plan.md"
+        text = plan.read_text()
+        text = text.replace(
+            text[text.index("## Authorization Policy"):text.index("## Runtime Contract")],
+            "",
+        )
+        text = text.replace("- Authorization policy version: `2`\n", "")
+        plan.write_text(text)
+
+        self.assertEqual(validate_plan(plan), [])
+
+    def test_plan_rejects_invalid_milestone_authorization_override(self) -> None:
+        goal = self.create_goal()
+        plan = goal / "plan.md"
+        plan.write_text(
+            plan.read_text().replace(
+                "Milestone overrides: `None`.",
+                "Milestone overrides: `M2: ASK_EACH_TIME`.",
+            )
+        )
+
+        errors = validate_plan(plan)
+
+        self.assertTrue(
+            any("Authorization Policy invalid milestone override: ASK_EACH_TIME" in error for error in errors)
+        )
+
+    def test_new_plan_requires_authorization_policy(self) -> None:
+        goal = self.create_goal()
+        plan = goal / "plan.md"
+        text = plan.read_text()
+        text = text.replace(
+            text[text.index("## Authorization Policy"):text.index("## Runtime Contract")],
+            "",
+        )
+        plan.write_text(text)
+
+        errors = validate_plan(plan)
+
+        self.assertIn("missing section: Authorization Policy", errors)
+
+    def test_plan_accepts_multiline_lowercase_milestone_overrides(self) -> None:
+        goal = self.create_goal()
+        plan = goal / "plan.md"
+        plan.write_text(
+            plan.read_text().replace(
+                "Milestone overrides: `None`.",
+                "Milestone overrides:\n  - M2: hold\n  - M3: authorized",
+            )
+        )
+
+        self.assertEqual(validate_plan(plan), [])
+
+    def test_plan_template_separates_risk_notice_from_user_decision(self) -> None:
+        goal = self.create_goal()
+        plan_text = (goal / "plan.md").read_text()
+
+        self.assertIn("Silence about authorization means authorized", plan_text)
+        self.assertIn("A risk notice is evidence and communication, not a permission request", plan_text)
+        self.assertIn("PREAUTHORIZED_STOP_ACTION", plan_text)
+        self.assertIn("Do not treat a risk notice", plan_text)
+
     def test_runtime_blocks_milestone_while_user_decision_pending(self) -> None:
         goal = self.create_goal()
         append_jsonl(
@@ -173,11 +322,78 @@ class RuntimeTests(unittest.TestCase):
         )
         append_jsonl(
             goal / "runtime.jsonl",
-            {"event": "USER_DECISION_REQUESTED", "decision_id": "D-01", "summary": "disk below gate"},
+            {
+                "event": "USER_DECISION_REQUESTED",
+                "authorization_policy_version": 2,
+                "decision_id": "D-01",
+                "stop_category": "deletion",
+                "target": "exact disposable artifact",
+                "operation": "delete artifact",
+                "risk": "data loss",
+                "decision_needed": "approve deletion",
+            },
         )
         append_jsonl(goal / "runtime.jsonl", {"event": "MILESTONE_STARTED", "milestone": "M1"})
         _, errors = replay_runtime(goal)
         self.assertTrue(any("user decision pending: D-01" in error for error in errors))
+
+    def test_runtime_rejects_new_unclassified_user_decision(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {
+                "event": "USER_DECISION_REQUESTED",
+                "authorization_policy_version": 2,
+                "decision_id": "D-01",
+                "summary": "disk below gate",
+            },
+        )
+
+        _, errors = replay_runtime(goal)
+
+        self.assertTrue(any("missing stop_category" in error for error in errors))
+
+    def test_runtime_rejects_user_decision_outside_stop_classes(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {
+                "event": "USER_DECISION_REQUESTED",
+                "authorization_policy_version": 2,
+                "decision_id": "D-01",
+                "stop_category": "routine_risk",
+                "target": "fixture",
+                "operation": "rerun test",
+                "risk": "test may fail",
+                "decision_needed": "approve rerun",
+            },
+        )
+
+        _, errors = replay_runtime(goal)
+
+        self.assertTrue(any("invalid stop_category 'routine_risk'" in error for error in errors))
+
+    def test_runtime_risk_notice_is_recorded_without_blocking(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {"event": "PLAN_REVIEWED", "plan_version": 1, "verdict": "READY", "reviewer": "reviewer"},
+        )
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {
+                "event": "RISK_NOTICE_RECORDED",
+                "target": "private fast-forward push",
+                "risk": "remote state changes",
+                "mitigation": "exact SHA and normal revert",
+            },
+        )
+        append_jsonl(goal / "runtime.jsonl", {"event": "MILESTONE_STARTED", "milestone": "M1"})
+
+        state, errors = replay_runtime(goal)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(state["pending_user_decisions"], [])
 
     def test_runtime_allows_milestone_after_user_decision_recorded(self) -> None:
         goal = self.create_goal()
@@ -187,7 +403,16 @@ class RuntimeTests(unittest.TestCase):
         )
         append_jsonl(
             goal / "runtime.jsonl",
-            {"event": "USER_DECISION_REQUESTED", "decision_id": "D-01", "summary": "disk below gate"},
+            {
+                "event": "USER_DECISION_REQUESTED",
+                "authorization_policy_version": 2,
+                "decision_id": "D-01",
+                "stop_category": "deletion",
+                "target": "exact disposable artifact",
+                "operation": "delete artifact",
+                "risk": "data loss",
+                "decision_needed": "approve deletion",
+            },
         )
         append_jsonl(
             goal / "runtime.jsonl",
@@ -225,6 +450,47 @@ class RuntimeTests(unittest.TestCase):
         )
         _, errors = replay_runtime(goal)
         self.assertTrue(any("cannot self-review" in error for error in errors))
+
+    def test_runtime_accepts_closed_ac_change_after_fresh_ready_review(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_OPENED", "finding_id": "F-01"})
+        append_jsonl(
+            goal / "findings.jsonl",
+            {"event": "FINDING_CLASSIFIED", "finding_id": "F-01", "classification": "AC_CHANGE"},
+        )
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_CLOSED", "finding_id": "F-01"})
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {"event": "PLAN_REVIEWED", "plan_version": 1, "verdict": "READY", "reviewer": "reviewer"},
+        )
+
+        state, errors = replay_runtime(goal)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(state["plan_status"], "READY")
+
+    def test_runtime_accepts_milestone_review_event(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {"event": "PLAN_REVIEWED", "plan_version": 1, "verdict": "READY", "reviewer": "plan-reviewer"},
+        )
+        append_jsonl(goal / "runtime.jsonl", {"event": "MILESTONE_STARTED", "milestone": "Milestone 1"})
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {
+                "event": "MILESTONE_REVIEWED",
+                "milestone": "Milestone 1",
+                "verdict": "FAIL",
+                "reviewer": "milestone-reviewer",
+                "implementer": "main",
+            },
+        )
+
+        state, errors = replay_runtime(goal)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(state["latest_review"]["event"], "MILESTONE_REVIEWED")
 
 
 class SetupIdentityTests(unittest.TestCase):

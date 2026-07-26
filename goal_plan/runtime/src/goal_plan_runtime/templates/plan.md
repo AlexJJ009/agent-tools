@@ -2,6 +2,7 @@
 
 - Goal ID: `$goal_id`
 - Plan version: `1`
+- Authorization policy version: `2`
 - Plan status: `DRAFT`
 
 ## Outcome
@@ -37,6 +38,27 @@ Describe the single independently verifiable capability, artifact, or decision d
 
 1. Define the hard-ordered implementation milestones.
 
+## Authorization Policy
+
+- Execution begins only after the user asks to execute this Goal and the Plan is `READY`. That single request starts the authorized execution envelope; it is not repeated at milestone boundaries.
+- Default: `DEFAULT_AUTHORIZED`. Every Plan-defined, in-scope action with an exact target is authorized unless this section explicitly marks it `HOLD` or `DENIED`. Silence about authorization means authorized.
+- Whole-Goal authorization: `AUTHORIZED`. A milestone inherits this value unless a milestone override below says otherwise.
+- Milestone overrides: `None`.
+  When needed, add indented entries such as `- M2: HOLD` or `- M3: AUTHORIZED` before execution. Allowed values are `INHERIT`, `AUTHORIZED`, `HOLD`, and `DENIED`; do not create approval gates for milestones that inherit the Whole-Goal authorization.
+- `RISK_NOTICE`: append `RISK_NOTICE_RECORDED` with the concrete risk, mitigation, and exact target, then continue. A risk notice is evidence and communication, not a permission request.
+- `PREAUTHORIZED_STOP_ACTION`: `None`. A stop-class action may be decided before execution by recording its exact action, target, boundary, and milestone here. It remains authorized only while those facts stay unchanged.
+- `USER_DECISION`: request a decision only when an action falls into a stop class below and no matching `PREAUTHORIZED_STOP_ACTION` or recorded decision already covers the exact facts:
+  - deletion or another destructive or hard-to-reverse action;
+  - public sharing or other exposure expansion;
+  - permission expansion or owner transfer;
+  - force-push or another history rewrite;
+  - access to a non-disposable live object;
+  - credential or sensitive-data exposure;
+  - a tool-enforced confirmation that explicitly requires approval in the current turn;
+  - a new independently useful outcome or work outside the frozen Scope;
+  - an unresolved `CONTRADICTION` or `AC_CHANGE`.
+- A changed target, broader boundary, or new risk outside an existing authorization requires a new decision. Ordinary in-scope implementation choices, live-system mutations already described by the Plan, test failures, retries, repairs, reviews, commits, pushes without history rewrite, and resource adjustments inside the frozen Scope do not.
+
 ## Runtime Contract
 
 - The implementer may implement only against a `READY` plan and must not self-certify.
@@ -51,8 +73,8 @@ Describe the single independently verifiable capability, artifact, or decision d
 
 ## Progression Policy
 
-- `AUTO_ADVANCE`: deterministic, safe, in-scope lifecycle steps proceed immediately under the standing launch authorization, without waiting for a user prompt: plan validation, reviewer prompt construction and review requests, classification of findings, authorized `IN_SCOPE` fixes and their re-review, starting the next authorized milestone after the previous one completes, and evidence collection.
-- `USER_DECISION`: stop and append `USER_DECISION_REQUESTED` (with a `decision_id` and a short decision brief) before: any mutation of production or shared live systems; destructive or hard-to-reverse actions, including deleting resources this Goal did not create; security, credential, or data-exposure risks; `CONTRADICTION` or `AC_CHANGE` findings; and resource-threshold failures whose remedy touches anything outside this Goal. Do not start new milestones until the matching `USER_DECISION_RECORDED` is appended.
+- `AUTO_ADVANCE`: every action covered by the Authorization Policy proceeds immediately without waiting for a user prompt. This includes risk-noticed actions, Plan validation, reviewer prompt construction and review requests, finding classification, `IN_SCOPE` fixes and re-review, milestone transitions, evidence collection, exact-target live-system changes, retries, and in-scope repairs.
+- `USER_DECISION`: only an uncovered stop-class action pauses execution. Append `USER_DECISION_REQUESTED` with `authorization_policy_version: 2`, a `decision_id`, allowed `stop_category`, exact `target`, proposed `operation`, concrete `risk`, and `decision_needed`. Continue independent authorized work, and resume the paused action only after a matching `USER_DECISION_RECORDED` or reviewed `PREAUTHORIZED_STOP_ACTION` covers it. Do not treat a risk notice, validator failure, reviewer rejection, or milestone boundary as a human approval gate.
 
 ## Reviewer Contract
 

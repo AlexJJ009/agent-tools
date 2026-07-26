@@ -2,11 +2,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from goal_plan_runtime.cli import append_jsonl, init_goal, plan_hash, replay_runtime, validate_plan
+from goal_plan_runtime.cli import (
+    append_jsonl,
+    init_goal,
+    plan_hash,
+    replay_runtime,
+    setup_identity,
+    validate_plan,
+)
 
 
 class RuntimeTests(unittest.TestCase):
@@ -216,6 +225,99 @@ class RuntimeTests(unittest.TestCase):
         )
         _, errors = replay_runtime(goal)
         self.assertTrue(any("cannot self-review" in error for error in errors))
+
+
+class SetupIdentityTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.repo = Path(self.temp_dir.name) / "repo"
+        self.repo.mkdir()
+        self.git("init")
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def git(self, *args: str, expect_failure: bool = False) -> subprocess.CompletedProcess:
+        result = subprocess.run(
+            ["git", "-C", str(self.repo), *args], capture_output=True, text=True
+        )
+        if expect_failure:
+            self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        else:
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return result
+
+    def run_setup(self, agent: str = "claude", goal_dir: str | None = None) -> None:
+        setup_identity(argparse.Namespace(repo_dir=str(self.repo), agent=agent, goal_dir=goal_dir))
+
+    def commit(self, message: str, *, expect_failure: bool = False) -> subprocess.CompletedProcess:
+        (self.repo / "file.txt").write_text(message, encoding="utf-8")
+        self.git("add", "file.txt")
+        return self.git("commit", "-m", message, expect_failure=expect_failure)
+
+    def test_sets_repo_local_agent_identity(self) -> None:
+        self.run_setup("claude")
+        self.assertEqual(self.git("config", "user.name").stdout.strip(), "Claude")
+        self.assertEqual(self.git("config", "user.email").stdout.strip(), "noreply@anthropic.com")
+
+    def test_guard_rejects_non_goal_author_and_accepts_agent_identity(self) -> None:
+        self.run_setup("codex")
+        self.commit("agent identity passes")
+        self.git("config", "user.email", "someone@example.com")
+        rejected = self.commit("hand-typed identity", expect_failure=True)
+        self.assertIn("allowed goal identities", rejected.stderr)
+        self.assertIn("setup-identity", rejected.stderr)
+
+    def test_guard_rejects_committer_outside_allowlist(self) -> None:
+        self.run_setup("claude")
+        (self.repo / "file.txt").write_text("committer check", encoding="utf-8")
+        self.git("add", "file.txt")
+        result = subprocess.run(
+            ["git", "-C", str(self.repo), "commit", "-m", "committer check"],
+            capture_output=True,
+            text=True,
+            env={
+                **os.environ,
+                "GIT_COMMITTER_NAME": "Someone",
+                "GIT_COMMITTER_EMAIL": "someone@example.com",
+            },
+        )
+        self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("committer 'someone@example.com'", result.stderr)
+
+    def test_refuses_to_overwrite_unrelated_pre_commit_hook(self) -> None:
+        hooks = self.repo / ".git" / "hooks"
+        hooks.mkdir(parents=True, exist_ok=True)
+        (hooks / "pre-commit").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            self.run_setup()
+
+    def test_respects_core_hooks_path(self) -> None:
+        self.git("config", "core.hooksPath", ".githooks")
+        self.run_setup()
+        self.assertTrue((self.repo / ".githooks" / "pre-commit").exists())
+        self.assertTrue((self.repo / ".githooks" / "goal-allowed-emails.txt").exists())
+
+    def test_is_idempotent(self) -> None:
+        self.run_setup()
+        self.run_setup()
+        self.commit("still commits after rerun")
+
+    def test_goal_dir_declaration_makes_guard_drift_a_validation_error(self) -> None:
+        goal = Path(self.temp_dir.name) / "goal"
+        init_goal(argparse.Namespace(goal_dir=str(goal), title="Guarded Goal", actor="main"))
+        self.run_setup("claude", goal_dir=str(goal))
+        _, errors = replay_runtime(goal)
+        self.assertEqual(errors, [])
+        (self.repo / ".git" / "hooks" / "pre-commit").unlink()
+        _, errors = replay_runtime(goal)
+        self.assertTrue(any("guard hook missing" in error for error in errors))
+
+    def test_undeclared_goal_is_not_checked_for_guard(self) -> None:
+        goal = Path(self.temp_dir.name) / "goal"
+        init_goal(argparse.Namespace(goal_dir=str(goal), title="Plain Goal", actor="main"))
+        _, errors = replay_runtime(goal)
+        self.assertEqual(errors, [])
 
 
 if __name__ == "__main__":

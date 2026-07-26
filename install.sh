@@ -2163,6 +2163,62 @@ install_goal_plan_for_wsl_windows_homes() {
   fi
 }
 
+# Single source of truth for the goal-plan managed copies. Both the installer
+# and --check iterate this list, so a new copy target cannot be added to one
+# without the other seeing it.
+goal_plan_managed_pairs() {
+  local source_root="$1"
+  local codex_home="${CODEX_HOME:-$HOME/.codex}"
+  local plugin_version="0.1.0"
+  printf '%s\t%s\n' \
+    "$source_root/claude/skills/goal-plan" "$HOME/.claude/skills/goal-plan" \
+    "$source_root/claude/commands/goal-plan.md" "$HOME/.claude/commands/goal-plan.md" \
+    "$source_root/claude/agents/goal-plan-reviewer.md" "$HOME/.claude/agents/goal-plan-reviewer.md" \
+    "$source_root/codex/skills/goal-plan" "$codex_home/skills/goal-plan" \
+    "$source_root/codex/plugins/goal-plan" "$HOME/plugins/goal-plan" \
+    "$source_root/codex/plugins/goal-plan" "$codex_home/plugins/cache/personal/goal-plan/$plugin_version" \
+    "$source_root/codex/plugins/goal-plan/commands/goal-plan.md" "${CODEX_HOME:-$HOME/.codex}/prompts/goal-plan.md"
+}
+
+# Byte-compare every managed goal-plan copy (and the runtime venv's installed
+# cli.py) against the source tree. Exit 0 only when everything is in sync.
+check_goal_plan_drift() {
+  local source_root="$1"
+  local drift=0 src dst
+  if [[ ! -d "$source_root" ]]; then
+    echo "CHECK: missing source tree $source_root" >&2
+    return 1
+  fi
+  while IFS=$'\t' read -r src dst; do
+    if [[ ! -e "$dst" ]]; then
+      echo "DRIFT: $dst is missing (source: $src)"
+      drift=1
+    elif [[ -d "$src" ]]; then
+      if ! diff -r -q -x '.agent-tools-managed' "$src" "$dst" >/dev/null; then
+        echo "DRIFT: $dst differs from $src"
+        drift=1
+      fi
+    elif ! cmp -s "$src" "$dst"; then
+      echo "DRIFT: $dst differs from $src"
+      drift=1
+    fi
+  done < <(goal_plan_managed_pairs "$source_root")
+  local runtime_home="${GOAL_PLAN_RUNTIME_HOME:-$HOME/.local/share/goal-plan/runtime}"
+  local installed_cli
+  installed_cli="$(compgen -G "$runtime_home/.venv/lib/python*/site-packages/goal_plan_runtime/cli.py" | head -1 || true)"
+  if [[ -z "$installed_cli" ]]; then
+    echo "DRIFT: runtime venv has no installed goal_plan_runtime/cli.py under $runtime_home"
+    drift=1
+  elif ! cmp -s "$source_root/runtime/src/goal_plan_runtime/cli.py" "$installed_cli"; then
+    echo "DRIFT: runtime venv cli.py differs from source (source edited without reinstall, or vice versa)"
+    drift=1
+  fi
+  if [[ "$drift" -eq 0 ]]; then
+    echo "goal-plan managed copies: in sync"
+  fi
+  return "$drift"
+}
+
 install_goal_plan_tools() {
   GOAL_PLAN_STATUS="skipped"
 
@@ -2175,14 +2231,12 @@ install_goal_plan_tools() {
     return 0
   fi
 
-  backup_and_copy_managed "$source_root/claude/skills/goal-plan" "$HOME/.claude/skills/goal-plan"
-  backup_and_copy_managed "$source_root/claude/commands/goal-plan.md" "$HOME/.claude/commands/goal-plan.md"
-  backup_and_copy_managed "$source_root/claude/agents/goal-plan-reviewer.md" "$HOME/.claude/agents/goal-plan-reviewer.md"
-
-  backup_and_copy_managed "$source_root/codex/skills/goal-plan" "$codex_home/skills/goal-plan"
-  backup_and_copy_managed "$source_root/codex/plugins/goal-plan" "$HOME/plugins/goal-plan"
-  backup_and_copy_managed "$source_root/codex/plugins/goal-plan" "$codex_home/plugins/cache/personal/goal-plan/$plugin_version"
-  install_codex_goal_plan_prompt "$source_root"
+  # The Codex CLI prompt copy is included in the pair list (CLI 0.142.x loads
+  # slash commands from ~/.codex/prompts/*.md, not from plugin commands).
+  local src dst
+  while IFS=$'\t' read -r src dst; do
+    backup_and_copy_managed "$src" "$dst"
+  done < <(goal_plan_managed_pairs "$source_root")
   install_codex_personal_marketplace_goal_plan "$HOME"
   install_goal_plan_for_wsl_windows_homes "$source_root"
 
@@ -2415,6 +2469,9 @@ Options:
   --registry-init-db       Initialize the local registry DB if missing.
   --no-cron                Write config but do not install crontab entry.
   --no-agent-core          Do not auto-verify or run ~/agent-core/scripts/install.sh.
+  --check                  Install nothing. Byte-compare the goal-plan managed
+                           copies (and the runtime venv cli.py) against the
+                           source tree; exit 1 on any drift.
   -h, --help               Show this help.
 EOF
 }
@@ -2591,6 +2648,10 @@ while [[ $# -gt 0 ]]; do
       INSTALL_AGENT_CORE_ENTRIES=0
       shift
       ;;
+    --check)
+      CHECK_ONLY=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -2605,6 +2666,12 @@ done
 
 if [[ ${#SCAN_ROOTS[@]} -eq 0 ]]; then
   SCAN_ROOTS+=("$(pwd)")
+fi
+
+if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
+  SOURCE_REAL="$(cd "$SOURCE_DIR" && pwd -P)"
+  check_goal_plan_drift "$SOURCE_REAL/goal_plan"
+  exit "$?"
 fi
 
 mkdir -p "$INSTALL_DIR"

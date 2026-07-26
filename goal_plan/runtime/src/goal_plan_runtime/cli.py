@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -34,6 +35,7 @@ VALID_EVENTS = {
     "ACCEPTANCE_COMPLETED",
     "USER_DECISION_REQUESTED",
     "USER_DECISION_RECORDED",
+    "IDENTITY_CONFIGURED",
     "GOAL_COMPLETED",
     "GOAL_BLOCKED",
     "EVENT_CORRECTED",
@@ -56,6 +58,32 @@ VALID_FINDING_EVENTS = {
 }
 FINDING_CLASSES = {"IN_SCOPE", "DEFERRED", "CONTRADICTION", "AC_CHANGE"}
 REVIEW_VERDICTS = {"READY", "NOT_READY", "PASS", "FAIL", "WEAKENED", "CONTRADICTION"}
+AGENT_IDENTITIES = {
+    "claude": ("Claude", "noreply@anthropic.com"),
+    "codex": ("Codex", "noreply@openai.com"),
+}
+IDENTITY_HOOK = """\
+#!/usr/bin/env bash
+# goal-plan identity guard - installed by `goal-plan-runtime setup-identity`.
+# Rejects commits whose author or committer email is not an allowed goal identity.
+set -euo pipefail
+hookdir="$(cd -- "$(dirname -- "$0")" && pwd)"
+allow="$hookdir/goal-allowed-emails.txt"
+ident="$(git var GIT_AUTHOR_IDENT)"
+author="${ident##*<}"; author="${author%%>*}"
+cident="$(git var GIT_COMMITTER_IDENT)"
+committer="${cident##*<}"; committer="${committer%%>*}"
+allowed() { [[ -f "$allow" ]] && grep -qxF "$1" "$allow"; }
+if allowed "$author" && allowed "$committer"; then
+  exit 0
+fi
+{
+  echo "goal-plan identity guard: author '$author' and committer '$committer' must both be allowed goal identities."
+  echo "allowed:"; sed 's/^/  - /' "$allow" 2>/dev/null || true
+  echo "fix: goal-plan-runtime setup-identity <repo> --agent claude|codex"
+} >&2
+exit 1
+"""
 
 
 def utc_now() -> str:
@@ -247,6 +275,13 @@ def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
                     f" {', '.join(state['pending_user_decisions'])}"
                 )
             state["goal_status"] = "COMPLETED"
+        elif event == "IDENTITY_CONFIGURED":
+            state["identity"] = {
+                "agent": record.get("agent"),
+                "repo": record.get("repo"),
+                "hook": record.get("hook"),
+                "allowlist": record.get("allowlist"),
+            }
         elif event == "GOAL_BLOCKED":
             state["goal_status"] = "BLOCKED"
     for record in findings:
@@ -270,6 +305,18 @@ def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
             current["status"] = "CLOSED"
         elif event == "FINDING_REOPENED":
             current["status"] = "OPEN"
+    # A Goal that declared agent identity must still have the guard installed;
+    # a missing or gutted hook is exactly the drift this event exists to catch.
+    identity = state.get("identity")
+    if identity:
+        hook = Path(identity["hook"]) if identity.get("hook") else None
+        if hook is None or not hook.is_file():
+            errors.append(f"identity: guard hook missing at {identity.get('hook')!r}; rerun setup-identity")
+        elif "goal-plan identity guard" not in hook.read_text(encoding="utf-8"):
+            errors.append(f"identity: {hook} is not the goal-plan identity guard; rerun setup-identity")
+        allowlist = identity.get("allowlist")
+        if not allowlist or not Path(allowlist).is_file():
+            errors.append(f"identity: allowlist missing at {allowlist!r}; rerun setup-identity")
     for finding_id, finding in state["open_findings"].items():
         if "classification" not in finding:
             errors.append(f"finding {finding_id}: open finding is unclassified")
@@ -313,6 +360,57 @@ def init_goal(args: argparse.Namespace) -> int:
         },
     )
     print(goal_dir)
+    return 0
+
+
+def setup_identity(args: argparse.Namespace) -> int:
+    repo_dir = Path(args.repo_dir).resolve()
+    name, email = AGENT_IDENTITIES[args.agent]
+    # Hooks resolve through core.hooksPath when set; writing .git/hooks there would be inert.
+    hooks_config = subprocess.run(
+        ["git", "-C", str(repo_dir), "config", "core.hooksPath"],
+        capture_output=True,
+        text=True,
+    )
+    if hooks_config.returncode == 0 and hooks_config.stdout.strip():
+        hooks_dir = Path(hooks_config.stdout.strip())
+    else:
+        git_path_raw = subprocess.run(
+            ["git", "-C", str(repo_dir), "rev-parse", "--git-path", "hooks"],
+            capture_output=True,
+            text=True,
+        )
+        if git_path_raw.returncode != 0:
+            raise ValueError(f"not a git repository: {repo_dir}\n{git_path_raw.stderr.strip()}")
+        hooks_dir = Path(git_path_raw.stdout.strip())
+    if not hooks_dir.is_absolute():
+        hooks_dir = repo_dir / hooks_dir
+    hook_path = hooks_dir / "pre-commit"
+    if hook_path.exists() and "goal-plan identity guard" not in hook_path.read_text(encoding="utf-8"):
+        raise ValueError(
+            f"refusing to overwrite an existing unrelated pre-commit hook: {hook_path}\n"
+            "chain the identity guard from that hook manually, or run setup-identity in an isolated worktree"
+        )
+    for key, value in (("user.name", name), ("user.email", email)):
+        subprocess.run(["git", "-C", str(repo_dir), "config", key, value], check=True)
+    hooks_dir.mkdir(parents=True, exist_ok=True)
+    allow_path = hooks_dir / "goal-allowed-emails.txt"
+    allow_path.write_text("".join(f"{e}\n" for _, e in AGENT_IDENTITIES.values()), encoding="utf-8")
+    hook_path.write_text(IDENTITY_HOOK, encoding="utf-8")
+    hook_path.chmod(hook_path.stat().st_mode | 0o755)
+    if args.goal_dir:
+        append_jsonl(
+            Path(args.goal_dir).resolve() / "runtime.jsonl",
+            {
+                "event": "IDENTITY_CONFIGURED",
+                "agent": args.agent,
+                "repo": str(repo_dir),
+                "hook": str(hook_path),
+                "allowlist": str(allow_path),
+            },
+        )
+    print(f"identity: {name} <{email}>")
+    print(f"guard: {hook_path}")
     return 0
 
 
@@ -376,6 +474,14 @@ def parser() -> argparse.ArgumentParser:
     plan = commands.add_parser("validate-plan")
     plan.add_argument("goal_dir")
     plan.set_defaults(func=lambda a: print_validation(validate_plan(Path(a.goal_dir) / "plan.md")))
+    identity = commands.add_parser("setup-identity")
+    identity.add_argument("repo_dir")
+    identity.add_argument("--agent", required=True, choices=sorted(AGENT_IDENTITIES))
+    identity.add_argument(
+        "--goal-dir",
+        help="append IDENTITY_CONFIGURED to this goal's runtime ledger so validate-runtime keeps checking the guard",
+    )
+    identity.set_defaults(func=setup_identity)
     append = commands.add_parser("append-event")
     append.add_argument("goal_dir")
     append.add_argument("event")

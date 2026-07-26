@@ -36,6 +36,38 @@ goal-plan-runtime init <goal-dir> --title "<goal title>" --actor "<implementer i
 
 `runtime.jsonl` and `findings.jsonl` are append-only audit ledgers. Correct mistakes by appending correction events; never rewrite prior lines. `acceptance.md` is completed only by the independent final reviewer.
 
+## Git Identity
+
+Goal commits are agent-authored by design: inside a Goal's repository or isolated
+worktree, the running agent's official identity (`Claude <noreply@anthropic.com>`
+or `Codex <noreply@openai.com>`) is the commit author, so the ledger and the git
+history agree on who implemented the Goal. This is a deliberate, repo-scoped
+exception to the global copilot rule (human author + `Co-Authored-By` trailer);
+outside a Goal checkout the global rule stands.
+
+Set the identity by code once the Goal's repository (or isolated worktree) exists:
+
+```bash
+goal-plan-runtime setup-identity <repo-dir> --agent claude|codex
+```
+
+This sets repo-local `user.name`/`user.email` to that agent's official identity and
+installs a `pre-commit` guard that rejects any commit whose author email is not an
+allowed goal identity. Never hand-type a name or invent a placeholder email (an
+author like `*@local.invalid` is a defect, not an identity), and do not pass
+`--author` to route around the guard. The `--actor` string in the ledger is a
+descriptive label only; it does not set the git identity.
+
+Pass `--goal-dir <goal-dir>` so the command appends `IDENTITY_CONFIGURED` to the
+Goal's runtime ledger; from then on `validate-runtime` goes red if the guard is
+removed or gutted -- the identity requirement stays machine-checked instead of
+remembered.
+
+A guard rejection is mechanical, never a stop condition: run the `fix:` command it
+prints, then commit again. Identity rules decide which name goes on a commit --
+they are never a reason to defer, batch, or ask permission for a commit the Plan
+already authorizes; committing authorized work is `AUTO_ADVANCE`.
+
 ## Lifecycle
 
 1. Author the Plan.

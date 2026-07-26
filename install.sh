@@ -2181,6 +2181,26 @@ goal_plan_managed_pairs() {
     "$source_root/codex/plugins/goal-plan/commands/goal-plan.md" "${CODEX_HOME:-$HOME/.codex}/prompts/goal-plan.md"
 }
 
+# uv on native Windows (Git Bash/MSYS, not WSL) lays out venvs as
+# Scripts/*.exe + Lib/site-packages instead of POSIX bin/* + lib/pythonX/
+# site-packages. Sets GOAL_PLAN_VENV_BINDIR, GOAL_PLAN_VENV_EXE,
+# GOAL_PLAN_VENV_SITE_GLOB so the runtime install and drift check use the
+# right paths on every platform.
+_goal_plan_venv_paths() {
+  case "$(uname -s 2>/dev/null || true)" in
+    MINGW*|MSYS*|CYGWIN*)
+      GOAL_PLAN_VENV_BINDIR="Scripts"
+      GOAL_PLAN_VENV_EXE=".exe"
+      GOAL_PLAN_VENV_SITE_GLOB="Lib/site-packages"
+      ;;
+    *)
+      GOAL_PLAN_VENV_BINDIR="bin"
+      GOAL_PLAN_VENV_EXE=""
+      GOAL_PLAN_VENV_SITE_GLOB="lib/python*/site-packages"
+      ;;
+  esac
+}
+
 # Byte-compare every managed goal-plan copy (and the runtime venv's installed
 # cli.py) against the source tree. Exit 0 only when everything is in sync.
 check_goal_plan_drift() {
@@ -2205,8 +2225,9 @@ check_goal_plan_drift() {
     fi
   done < <(goal_plan_managed_pairs "$source_root")
   local runtime_home="${GOAL_PLAN_RUNTIME_HOME:-$HOME/.local/share/goal-plan/runtime}"
+  _goal_plan_venv_paths
   local installed_cli
-  installed_cli="$(compgen -G "$runtime_home/.venv/lib/python*/site-packages/goal_plan_runtime/cli.py" | head -1 || true)"
+  installed_cli="$(compgen -G "$runtime_home/.venv/$GOAL_PLAN_VENV_SITE_GLOB/goal_plan_runtime/cli.py" | head -1 || true)"
   if [[ -z "$installed_cli" ]]; then
     echo "DRIFT: runtime venv has no installed goal_plan_runtime/cli.py under $runtime_home"
     drift=1
@@ -2253,11 +2274,12 @@ install_goal_plan_tools() {
     return 1
   fi
   mkdir -p "$runtime_home" "$(dirname "$runtime_bin")"
+  _goal_plan_venv_paths
   uv venv --clear --python 3.12 "$runtime_home/.venv" >/dev/null
-  uv pip install --python "$runtime_home/.venv/bin/python" "$runtime_source" >/dev/null
+  uv pip install --python "$runtime_home/.venv/$GOAL_PLAN_VENV_BINDIR/python$GOAL_PLAN_VENV_EXE" "$runtime_source" >/dev/null
   cat >"$runtime_bin" <<EOF
 #!/usr/bin/env bash
-exec "$runtime_home/.venv/bin/goal-plan-runtime" "\$@"
+exec "$runtime_home/.venv/$GOAL_PLAN_VENV_BINDIR/goal-plan-runtime$GOAL_PLAN_VENV_EXE" "\$@"
 EOF
   chmod 0755 "$runtime_bin"
 

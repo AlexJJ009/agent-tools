@@ -250,14 +250,13 @@ def validate_plan(path: Path) -> list[str]:
     return errors
 
 
-def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
-    plan = goal_dir / "plan.md"
-    runtime_path = goal_dir / "runtime.jsonl"
-    findings_path = goal_dir / "findings.jsonl"
-    runtime = load_jsonl(runtime_path)
-    findings = load_jsonl(findings_path)
-    runtime_sequences = {record.get("seq") for record in runtime}
-    correction_records = [record for record in runtime if record.get("event") == "EVENT_CORRECTED"]
+def apply_corrections(
+    records: list[dict[str, Any]],
+    correction_event: str,
+    ledger_name: str,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    sequences = {record.get("seq") for record in records}
+    correction_records = [record for record in records if record.get("event") == correction_event]
     corrected_corrections = {
         record.get("corrects_seq")
         for record in correction_records
@@ -268,21 +267,32 @@ def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
     errors = []
     for record in active_corrections:
         target = record.get("corrects_seq")
-        if not isinstance(target, int) or target not in runtime_sequences or target >= record.get("seq", 0):
-            errors.append(f"runtime seq {record.get('seq')}: correction target is missing")
-    effective_runtime = [
+        if not isinstance(target, int) or target not in sequences or target >= record.get("seq", 0):
+            errors.append(f"{ledger_name} seq {record.get('seq')}: correction target is missing")
+    effective_records = [
         dict(record, seq=index)
         for index, record in enumerate(
             [
                 record
-                for record in runtime
-                if record.get("event") != "EVENT_CORRECTED" and record.get("seq") not in correction_targets
+                for record in records
+                if record.get("event") != correction_event and record.get("seq") not in correction_targets
             ],
             1,
         )
     ]
-    errors += validate_sequence(effective_runtime, runtime_path) + validate_sequence(findings, findings_path)
-    runtime = effective_runtime
+    return effective_records, errors
+
+
+def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
+    plan = goal_dir / "plan.md"
+    runtime_path = goal_dir / "runtime.jsonl"
+    findings_path = goal_dir / "findings.jsonl"
+    runtime = load_jsonl(runtime_path)
+    findings = load_jsonl(findings_path)
+    runtime, runtime_correction_errors = apply_corrections(runtime, "EVENT_CORRECTED", "runtime")
+    findings, finding_correction_errors = apply_corrections(findings, "FINDING_CORRECTED", "findings")
+    errors = runtime_correction_errors + finding_correction_errors
+    errors += validate_sequence(runtime, runtime_path) + validate_sequence(findings, findings_path)
     state: dict[str, Any] = {
         "plan_version": 0,
         "plan_status": "UNREVIEWED",

@@ -170,6 +170,44 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(state["open_findings"]["F-01"]["review_fix_rounds"], 1)
 
+    def test_findings_correction_suppresses_invalid_event(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_OPENED", "finding_id": "F-01"})
+        append_jsonl(
+            goal / "findings.jsonl",
+            {"event": "FINDING_CLASSIFIED", "finding_id": "F-01", "classification": "IN_SCOPE"},
+        )
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_RESOLVED", "finding_id": "F-01"})
+        append_jsonl(
+            goal / "findings.jsonl",
+            {"event": "FINDING_CORRECTED", "finding_id": "F-01", "corrects_seq": 3},
+        )
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_CLOSED", "finding_id": "F-01"})
+
+        state, errors = replay_runtime(goal)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(state["open_findings"]["F-01"]["status"], "CLOSED")
+
+    def test_findings_correction_does_not_collide_with_runtime_sequence(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(goal / "runtime.jsonl", {"event": "MILESTONE_STARTED", "milestone": "M1"})
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_OPENED", "finding_id": "F-01"})
+        append_jsonl(
+            goal / "findings.jsonl",
+            {"event": "FINDING_CLASSIFIED", "finding_id": "F-01", "classification": "IN_SCOPE"},
+        )
+        append_jsonl(goal / "findings.jsonl", {"event": "FINDING_RESOLVED", "finding_id": "F-01"})
+        append_jsonl(
+            goal / "findings.jsonl",
+            {"event": "FINDING_CORRECTED", "finding_id": "F-01", "corrects_seq": 3},
+        )
+
+        _, errors = replay_runtime(goal)
+
+        self.assertTrue(any("before READY" in error for error in errors))
+        self.assertFalse(any("unknown event 'FINDING_RESOLVED'" in error for error in errors))
+
     def test_convergence_prompt_is_available_when_convergence_review_is_required(self) -> None:
         goal = self.create_goal()
         append_jsonl(goal / "findings.jsonl", {"event": "FINDING_OPENED", "finding_id": "F-01"})

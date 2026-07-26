@@ -11,7 +11,7 @@ For progressive disclosure, do not bulk-read every linked document; read the spe
 To refresh the bridge after editing either side, run:
 
 ```bash
-python.exe sync_agent_context.py sync . --direction bidirectional
+python3 sync_agent_context.py sync . --direction bidirectional
 ```
 
 ## Project Skill Index
@@ -58,16 +58,29 @@ The section below is copied verbatim from `AGENTS.md`.
   switching does not fragment Codex resume history. Keep stream timeout/retry
   keys inside `[model_providers.custom]`; do not add them as top-level keys if
   the current standalone Codex CLI rejects them under `--strict-config`.
-- Native Win11 Codex App installs are subscription-only. Do not sync or copy
-  relay provider templates such as dragtokens/subrouter into the Win11 App
-  config. Keep history in the stable `custom` bucket, but point
-  `[model_providers.custom]` at `https://chatgpt.com/backend-api/codex` with
-  `requires_openai_auth = true`, and keep cc-switch's current Codex provider on
-  the official/subscription provider when present. Use
-  `scripts/install-win11.ps1` for this path.
+- Native Win11 Codex App installs use the local custom bearer-token mode, not
+  the Linux/WSL `auth.OPENAI_API_KEY` provider mode and not the official
+  subscription backend. Keep history in the stable `custom` bucket. Write
+  `OPENAI_API_KEY = null` and `auth_mode = "chatgpt"` plus placeholder tokens in
+  `auth.json`; write the live credential as `experimental_bearer_token` in both
+  top-level `config.toml` and `[model_providers.custom]`; set
+  `base_url = "http://15.204.109.26:8080/"`, `requires_openai_auth = true`,
+  `supports_websockets = true`, and `wire_api = "responses"`. Keep cc-switch's
+  current Codex provider on this same custom bearer-token provider so
+  reinstalling agent-tools or CC Switch cannot overwrite the working Win11
+  config with an unusable official/empty provider. Use `scripts/install-win11.ps1`
+  for this path.
 - Linux server installs must check `fail2ban` for SSH protection. If `fail2ban`
   is missing and a supported package manager is available, install it. The
   managed sshd jail should be strict by default: aggressive sshd filter,
   `maxretry = 3`, `findtime = 1h`, `bantime = -1`, DROP bans, and loopback-only
   `ignoreip` (`127.0.0.1/8 ::1`). Do not guess or add trusted public IPs to
   `ignoreip`; only the operator should decide external allowlists.
+- Never shrink an existing `ignoreip`. fail2ban resolves it by replacement, not
+  union, so rewriting the managed jail file with the default would silently
+  un-whitelist every address the operator had already trusted — and with
+  `bantime = -1` those peers stay locked out. The installer merges the
+  requested value with the managed file's current value and the live effective
+  list, so a reinstall can only ever grow the allowlist. This is not a
+  contradiction of the rule above: the installer still contributes no addresses
+  of its own, it only refuses to discard the operator's.

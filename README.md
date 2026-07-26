@@ -226,12 +226,14 @@ locations are separate:
   It also installs
   `C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1` and
   disables Codex App remote auto-connect by default for that Windows user.
-  Unlike Linux/WSL provider bootstraps, native Win11 Codex App is subscription
-  only: the installer forces cc-switch Codex current provider to the official
-  provider when present, writes `model_provider = "custom"` with
-  `base_url = "https://chatgpt.com/backend-api/codex"`, and runs history
-  migration with `--skip-cc-switch` so dragtokens/subrouter templates are not
-  copied into the Win11 App config. Use
+  Unlike Linux/WSL provider bootstraps, native Win11 Codex App uses a custom
+  bearer-token mode: `auth.json` keeps `auth_mode = "chatgpt"`,
+  `OPENAI_API_KEY = null`, and placeholder tokens; `config.toml` keeps
+  `model_provider = "custom"`, `base_url = "http://15.204.109.26:8080/"`,
+  `requires_openai_auth = true`, `supports_websockets = true`,
+  `wire_api = "responses"`, and the live credential in
+  `experimental_bearer_token`. The installer also keeps cc-switch's current
+  Codex provider on this same custom bearer-token provider. Use
   `-DryRunCodexProviderBucketMigration` to inspect history first, or
   `-AllowRunningCodexProviderBucketMigration` when running from inside an
   active Codex conversation.

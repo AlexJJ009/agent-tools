@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 from goal_plan_runtime.cli import (
+    append_event,
     append_jsonl,
     build_reviewer_prompt,
     init_goal,
@@ -70,6 +71,23 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertEqual(state["plan_status"], "UNREVIEWED")
         self.assertEqual(state["plan_version"], 2)
+
+    def test_append_event_binds_plan_amendment_to_current_hash(self) -> None:
+        goal = self.create_goal()
+        plan = goal / "plan.md"
+        plan.write_text(plan.read_text() + "\nAmended detail.\n")
+
+        append_event(
+            argparse.Namespace(
+                goal_dir=str(goal),
+                event="PLAN_AMENDED",
+                ledger="runtime",
+                data='{"plan_version":2}',
+            )
+        )
+
+        latest = json.loads((goal / "runtime.jsonl").read_text().splitlines()[-1])
+        self.assertEqual(latest["plan_sha256"], plan_hash(plan))
 
     def test_runtime_rejects_plan_amendment_with_stale_hash(self) -> None:
         goal = self.create_goal()
@@ -352,6 +370,22 @@ class RuntimeTests(unittest.TestCase):
         _, errors = replay_runtime(goal)
 
         self.assertTrue(any("missing stop_category" in error for error in errors))
+
+    def test_plan_v2_upgrade_keeps_historical_decision_requests_replayable(self) -> None:
+        goal = self.create_goal()
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {"event": "USER_DECISION_REQUESTED", "decision_id": "D-LEGACY", "summary": "historical gate"},
+        )
+        append_jsonl(
+            goal / "runtime.jsonl",
+            {"event": "USER_DECISION_RECORDED", "decision_id": "D-LEGACY", "decision": "approved"},
+        )
+
+        state, errors = replay_runtime(goal)
+
+        self.assertEqual(errors, [])
+        self.assertEqual(state["pending_user_decisions"], [])
 
     def test_runtime_rejects_user_decision_outside_stop_classes(self) -> None:
         goal = self.create_goal()

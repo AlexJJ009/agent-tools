@@ -256,13 +256,6 @@ def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
     findings_path = goal_dir / "findings.jsonl"
     runtime = load_jsonl(runtime_path)
     findings = load_jsonl(findings_path)
-    authorization_v2 = bool(
-        re.search(
-            r"^- Authorization policy version:\s*`?2`?\s*$",
-            plan.read_text(encoding="utf-8"),
-            re.MULTILINE,
-        )
-    )
     runtime_sequences = {record.get("seq") for record in runtime}
     correction_records = [record for record in runtime if record.get("event") == "EVENT_CORRECTED"]
     corrected_corrections = {
@@ -357,7 +350,7 @@ def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
             if legacy_request:
                 # Ledgers created before Authorization Policy v2 remain replayable,
                 # but new requests must use the narrow, structured stop schema.
-                if authorization_v2 or record.get("authorization_policy_version") is not None:
+                if record.get("authorization_policy_version") is not None:
                     errors.append(f"runtime seq {record['seq']}: missing stop_category")
             else:
                 stop_category = record.get("stop_category")
@@ -532,6 +525,8 @@ def append_event(args: argparse.Namespace) -> int:
     if not isinstance(payload, dict):
         raise ValueError("--data must be a JSON object")
     payload["event"] = args.event
+    if args.ledger != "findings" and args.event in {"PLAN_CREATED", "PLAN_AMENDED"}:
+        payload.setdefault("plan_sha256", plan_hash(goal_dir / "plan.md"))
     path = goal_dir / ("findings.jsonl" if args.ledger == "findings" else "runtime.jsonl")
     print(canonical_json(append_jsonl(path, payload)))
     return 0

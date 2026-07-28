@@ -19,6 +19,9 @@ The recommended deployment model is one central tool directory per machine, not 
   directory pinned via `codex -C "$PWD"`.
 - `migrate_codex_provider_bucket.py` — Codex history and cc-switch template
   migration that forces every non-target Codex provider bucket into `custom`.
+- `skills/codex-win11-patch-safety/` — discoverable, versioned Win11 ChatGPT
+  Codex patch workflow with protected-state snapshots, external config
+  dependency checks, exact release selection, and human activation gates.
 - `install.sh` — portable installer for a new Linux/WSL2 machine.
 - `scripts/install-win11.ps1` — native Win11 installer for the current Windows
   user. It installs goal-plan, configures Codex App to use the subscription

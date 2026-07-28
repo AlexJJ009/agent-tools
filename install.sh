@@ -75,6 +75,7 @@ INSTALL_AGENT_CORE_ENTRIES=1
 GOAL_PLAN_ONLY=0
 AGENT_CORE_ENTRIES_STATUS=""
 GOAL_PLAN_STATUS=""
+CODEX_PATCH_SAFETY_SKILL_STATUS=""
 LOCAL_BIN_PATH_STATUS=""
 CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS=""
 CLAUDE_DESKTOP_SSH_STATUS=""
@@ -1987,6 +1988,32 @@ backup_and_link() {
   ln -s "$source" "$target"
 }
 
+install_codex_patch_safety_skill() {
+  local source="$INSTALL_REAL/skills/codex-win11-patch-safety"
+  local target="${CODEX_HOME:-$HOME/.codex}/skills/codex-win11-patch-safety"
+
+  if [[ ! -f "$source/SKILL.md" ]]; then
+    CODEX_PATCH_SAFETY_SKILL_STATUS="failed: missing $source/SKILL.md"
+    echo "Codex Win11 patch safety skill source is missing: $source" >&2
+    return 1
+  fi
+  backup_and_link "$source" "$target"
+  CODEX_PATCH_SAFETY_SKILL_STATUS="$target -> $source"
+}
+
+check_codex_patch_safety_skill_drift() {
+  local source="$1/skills/codex-win11-patch-safety"
+  local target="${CODEX_HOME:-$HOME/.codex}/skills/codex-win11-patch-safety"
+  local expected current
+
+  expected="$(readlink -f -- "$source")"
+  current="$(readlink -f -- "$target" 2>/dev/null || true)"
+  if [[ ! -L "$target" || "$current" != "$expected" ]]; then
+    echo "Codex Win11 patch safety skill drift: $target -> ${current:-missing}; expected $expected" >&2
+    return 1
+  fi
+}
+
 backup_and_copy_managed() {
   local source="$1"
   local target="$2"
@@ -2725,6 +2752,7 @@ fi
 if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
   SOURCE_REAL="$(cd "$SOURCE_DIR" && pwd -P)"
   check_goal_plan_drift "$SOURCE_REAL/goal_plan"
+  check_codex_patch_safety_skill_drift "$SOURCE_REAL"
   exit "$?"
 fi
 
@@ -2744,6 +2772,7 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   [[ -d "$SOURCE_DIR/docs" ]] && cp -R "$SOURCE_DIR/docs" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/experiment_registry" ]] && cp -R "$SOURCE_DIR/experiment_registry" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/goal_plan" ]] && cp -R "$SOURCE_DIR/goal_plan" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/skills" ]] && cp -R "$SOURCE_DIR/skills" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/agent_context_sync.config.example.json" ]] && cp "$SOURCE_DIR/agent_context_sync.config.example.json" "$INSTALL_REAL/"
 fi
 
@@ -2786,6 +2815,7 @@ fi
 if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
   verify_agent_core_entries
 fi
+install_codex_patch_safety_skill
 if [[ "$INSTALL_GOAL_PLAN" -eq 1 ]]; then
   install_goal_plan_tools
 fi
@@ -2905,3 +2935,4 @@ if [[ "$INSTALL_GOAL_PLAN" -eq 1 ]]; then
 else
   echo "goal-plan tools not installed (--no-goal-plan)."
 fi
+echo "Codex Win11 patch safety skill: ${CODEX_PATCH_SAFETY_SKILL_STATUS}"

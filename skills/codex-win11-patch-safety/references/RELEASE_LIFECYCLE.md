@@ -72,7 +72,7 @@ Promotion checks package/source identity, the recorded patcher hash, PASS status
 
 - Never edit a verified release. Create a new candidate for changed AppX/source ASAR, patcher behavior, or verification contract.
 - Keep release recipes reproducible and small. Put large generated reports outside the skill and bind them by hash.
-- Store runtime artifacts required to keep protected config valid inside the exact candidate release and bind them in `patcher.artifacts`; do not depend on leftovers in an output directory.
+- Store runtime artifacts required to keep protected config valid inside the exact candidate release and bind each required config artifact to `configKey`, exact `targetPath`, and SHA256 in `patcher.artifacts`; do not depend on leftovers in an output directory. Provide a narrow restore companion that cannot stage apps, rewrite shortcuts/config, register plugins, activate, or promote.
 - Keep three lifecycles separate: candidate evidence is regenerable, evolution/verdict ledgers are append-only machine records, and safety principles change only after a lesson generalizes.
 - Agents may propose and test; humans approve promotion and activation.
 

@@ -15,6 +15,7 @@ Read [SAFETY_CONTRACT.md](references/SAFETY_CONTRACT.md) before any patch, backu
 - **Patch a known build:** select an exact release by `packageVersion + sourceAsarSha256`. Follow the gated patch run in [OPERATIONS.md](references/OPERATIONS.md).
 - **Handle a new build:** follow [RELEASE_LIFECYCLE.md](references/RELEASE_LIFECYCLE.md). Unknown builds become candidates; never reuse the nearest release.
 - **Change patch behavior:** update [PATCH_PROMPT_TEMPLATE.md](references/PATCH_PROMPT_TEMPLATE.md), create a new candidate release, and preserve working official implementations.
+- **Repair Windows setup/config fallback incidents:** read [INCIDENT_MODEL_CATALOG_DEPENDENCY.md](references/INCIDENT_MODEL_CATALOG_DEPENDENCY.md) before changing ACLs, reinstalling, resetting a profile, or repairing a configured dependency.
 - **Migrate CC Switch history:** audit first. Use the repository migration only after explicit approval; it rewrites state.
 - **Install monitoring:** install only the read-only scheduled detector. Activation remains explicit.
 

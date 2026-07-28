@@ -109,6 +109,10 @@ def validate_release_entry(index_path: Path, entry: dict) -> tuple[Path, dict, P
         artifact_hash = str(artifact.get("sha256", ""))
         if not artifact_hash or sha256(artifact_path) != artifact_hash:
             raise ValueError("release artifact hash does not match recipe")
+        if artifact.get("requiredWhileConfigured") and (
+            not artifact.get("configKey") or not artifact.get("targetPath")
+        ):
+            raise ValueError("required config artifact lacks configKey/targetPath")
     if entry.get("status") == "verified" and not recipe.get("verificationEvidence"):
         raise ValueError("verified release lacks promotion evidence")
     return recipe_path, recipe, patcher

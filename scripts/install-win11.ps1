@@ -218,6 +218,20 @@ function Install-LinearWorkflow {
   Write-Host "Linear Workflow installed for native Win11 user: $TargetHome"
 }
 
+function Install-CodexPatchSafetySkill {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$TargetHome
+  )
+
+  $source = Join-Path $RepoRoot "skills\codex-win11-patch-safety"
+  if (-not (Test-Path -LiteralPath (Join-Path $source "SKILL.md"))) {
+    throw "Codex patch safety skill missing: $source"
+  }
+  Copy-Managed $source (Join-Path $TargetHome ".codex\skills\codex-win11-patch-safety")
+  Write-Host "Installed Codex Win11 patch safety skill."
+}
+
 function Install-CodexManualRemoteConnect {
   param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
@@ -340,6 +354,7 @@ if ($installLinearWorkflow) {
 } else {
   Write-Host "Linear Workflow not installed (-NoLinearWorkflow)."
 }
+Install-CodexPatchSafetySkill -RepoRoot $Root -TargetHome $UserHome
 
 if (-not $NoCodexManualRemoteConnect) {
   Install-CodexManualRemoteConnect -RepoRoot $Root -TargetHome $UserHome -TargetScript $ManualRemoteConnectScript

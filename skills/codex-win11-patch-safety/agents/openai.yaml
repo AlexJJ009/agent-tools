@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Win11 Patch Releases"
+  short_description: "Safely evolve versioned Codex App patches."
+  default_prompt: "Use $codex-win11-patch-safety to detect or repair the installed ChatGPT Codex build, validate external config dependencies, select or create an exact versioned patch release, and enforce snapshot, verification, and human approval gates."

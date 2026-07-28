@@ -38,6 +38,7 @@
         "path": "model-catalog.json",
         "sha256": "6d6c694360ad6adaf91b4d72b32014afce4c8c8322a304cd01ade377cc00d5f6",
         "configKey": "model_catalog_json",
+        "targetPath": "C:\\Users\\Alex Mercer\\Downloads\\Report\\CodexPatched\\model-catalog.json",
         "requiredWhileConfigured": true
       }
     ],
@@ -45,6 +46,10 @@
       {
         "entrypoint": "Patch-CodexApp.ps1",
         "sha256": "567a77f36b63d944f2fbbe4ccae1c4c08305cfa3e66262eda31d82126775bd86"
+      },
+      {
+        "entrypoint": "Restore-CodexModelCatalog.ps1",
+        "sha256": "e233143fe94b165eb0802fbb3795eb8015cd252d170b4915675c923e00d4cf01"
       },
       {
         "entrypoint": "register-plugin-marketplace.ps1",

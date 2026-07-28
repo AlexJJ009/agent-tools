@@ -191,6 +191,25 @@ class RegistryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "release artifact hash"):
                 registry.validate_release_entry(index, entry)
 
+    def test_required_config_artifact_needs_exact_target(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            index, release, _ = self.make_registry(root)
+            artifact = release / "catalog.json"
+            artifact.write_text('{"models":[]}', encoding="utf-8")
+            recipe_path = release / "recipe.json"
+            recipe = registry.load_json(recipe_path)
+            recipe["patcher"]["artifacts"] = [{
+                "path": "catalog.json",
+                "sha256": registry.sha256(artifact),
+                "configKey": "model_catalog_json",
+                "requiredWhileConfigured": True,
+            }]
+            registry.atomic_json(recipe_path, recipe)
+            entry = registry.load_json(index)["releases"][0]
+            with self.assertRaisesRegex(ValueError, "configKey/targetPath"):
+                registry.validate_release_entry(index, entry)
+
     def test_promotion_requires_bound_human_approval(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

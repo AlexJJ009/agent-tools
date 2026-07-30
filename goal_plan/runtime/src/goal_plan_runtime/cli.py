@@ -23,7 +23,7 @@ REQUIRED_PLAN_SECTIONS = (
     "Reviewer Contract",
     "Verification Commands",
 )
-VALID_EVENTS = {
+APPENDABLE_RUNTIME_EVENTS = {
     "PLAN_CREATED",
     "PLAN_AMENDED",
     "PLAN_REVIEWED",
@@ -42,6 +42,45 @@ VALID_EVENTS = {
     "GOAL_BLOCKED",
     "EVENT_CORRECTED",
 }
+LEGACY_CONSUMPTION_EVENT = "TOKENROUTER_LOCAL_REPLACEMENT_AUTHORIZATION_CONSUMED"
+VALID_EVENTS = APPENDABLE_RUNTIME_EVENTS | {LEGACY_CONSUMPTION_EVENT}
+LEGACY_CONSUMPTION_KEYS = {
+    "event",
+    "plan_version",
+    "plan_sha256",
+    "repository",
+    "branch",
+    "base",
+    "old_first",
+    "old_head",
+    "new_head",
+    "candidate_commit",
+    "report_commit",
+    "verifier_blob",
+    "fixture_blob",
+    "objects_sha256",
+    "decision_id",
+    "seq",
+    "time",
+}
+LEGACY_CONSUMPTION_OID_FIELDS = (
+    "base",
+    "old_first",
+    "old_head",
+    "new_head",
+    "candidate_commit",
+    "report_commit",
+    "verifier_blob",
+    "fixture_blob",
+)
+LEGACY_CONSUMPTION_REPOSITORY = "AlexJJ009/tokenrouter"
+LEGACY_CONSUMPTION_BRANCH = "fix/trusted-review-failure-fence"
+LEGACY_CONSUMPTION_DECISION_ID = "D-M3-V14-TOKENROUTER-LOCAL-CANDIDATE-V15-01"
+LEGACY_CONSUMPTION_TIME_PATTERN = re.compile(
+    r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]+)?Z"
+)
+LOWERCASE_OID_PATTERN = re.compile(r"[0-9a-f]{40}")
+LOWERCASE_SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 # Absolute numeric budgets in an AC (latency, size, throughput, percentile
 # targets) must be backed by a feasibility probe before the plan is READY.
 BUDGET_PATTERN = re.compile(
@@ -147,6 +186,113 @@ def validate_sequence(records: list[dict[str, Any]], path: Path) -> list[str]:
             errors.append(f"{path}: expected seq {index}, got {record.get('seq')!r}")
         if not isinstance(record.get("time"), str):
             errors.append(f"{path}:{index}: missing time")
+    return errors
+
+
+def validate_legacy_consumption_record(record: dict[str, Any]) -> list[str]:
+    errors = []
+    seq = record.get("seq")
+    if set(record) != LEGACY_CONSUMPTION_KEYS:
+        missing = sorted(LEGACY_CONSUMPTION_KEYS - set(record))
+        extra = sorted(set(record) - LEGACY_CONSUMPTION_KEYS)
+        errors.append(
+            f"runtime seq {seq!r}: legacy consumption schema mismatch;"
+            f" missing={missing!r} extra={extra!r}"
+        )
+    if type(seq) is not int or seq <= 0:
+        errors.append(f"runtime seq {seq!r}: legacy consumption seq must be a positive int")
+    plan_version = record.get("plan_version")
+    if type(plan_version) is not int or plan_version <= 0:
+        errors.append(
+            f"runtime seq {seq!r}: legacy consumption plan_version must be a positive int"
+        )
+    for field in LEGACY_CONSUMPTION_OID_FIELDS:
+        value = record.get(field)
+        if not isinstance(value, str) or not LOWERCASE_OID_PATTERN.fullmatch(value):
+            errors.append(
+                f"runtime seq {seq!r}: legacy consumption {field} must be lowercase 40-hex"
+            )
+    for field in ("plan_sha256", "objects_sha256"):
+        value = record.get(field)
+        if not isinstance(value, str) or not LOWERCASE_SHA256_PATTERN.fullmatch(value):
+            errors.append(
+                f"runtime seq {seq!r}: legacy consumption {field} must be lowercase 64-hex"
+            )
+    fixed_values = {
+        "repository": LEGACY_CONSUMPTION_REPOSITORY,
+        "branch": LEGACY_CONSUMPTION_BRANCH,
+        "decision_id": LEGACY_CONSUMPTION_DECISION_ID,
+    }
+    for field, expected in fixed_values.items():
+        if record.get(field) != expected:
+            errors.append(f"runtime seq {seq!r}: legacy consumption {field} mismatch")
+    timestamp = record.get("time")
+    if not isinstance(timestamp, str) or not LEGACY_CONSUMPTION_TIME_PATTERN.fullmatch(timestamp):
+        errors.append(f"runtime seq {seq!r}: legacy consumption time must be UTC RFC3339 Z")
+    else:
+        try:
+            parsed = datetime.fromisoformat(timestamp[:-1] + "+00:00")
+        except ValueError:
+            errors.append(f"runtime seq {seq!r}: legacy consumption time is not a valid instant")
+        else:
+            if parsed.utcoffset() != timezone.utc.utcoffset(None):
+                errors.append(f"runtime seq {seq!r}: legacy consumption time is not UTC")
+    return errors
+
+
+def validate_legacy_physical_runtime(
+    records: list[dict[str, Any]],
+    path: Path,
+) -> list[str]:
+    errors = []
+    physical_records: list[tuple[int, dict[str, Any]]] = []
+    record_index = 0
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            errors.append(f"{path}:{line_number}: blank physical line in legacy runtime ledger")
+            continue
+        if record_index >= len(records):
+            errors.append(f"{path}:{line_number}: physical/runtime record inventory mismatch")
+            continue
+        record = records[record_index]
+        record_index += 1
+        physical_records.append((line_number, record))
+        seq = record.get("seq")
+        if type(seq) is not int or seq != line_number:
+            errors.append(f"{path}:{line_number}: expected physical seq {line_number}, got {seq!r}")
+        if not isinstance(record.get("time"), str):
+            errors.append(f"{path}:{line_number}: missing physical time")
+    if record_index != len(records):
+        errors.append(f"{path}: physical/runtime record inventory mismatch")
+
+    legacy = [
+        (line_number, record)
+        for line_number, record in physical_records
+        if record.get("event") == LEGACY_CONSUMPTION_EVENT
+    ]
+    if len(legacy) != 1:
+        errors.append(
+            f"{path}: expected exactly one physical {LEGACY_CONSUMPTION_EVENT}, got {len(legacy)}"
+        )
+    for _, record in legacy:
+        errors += validate_legacy_consumption_record(record)
+
+    legacy_targets = {line_number for line_number, _ in legacy}
+    legacy_targets.update(
+        record["seq"]
+        for _, record in legacy
+        if type(record.get("seq")) is int and record["seq"] > 0
+    )
+    for line_number, record in physical_records:
+        if record.get("event") != "EVENT_CORRECTED":
+            continue
+        target = record.get("corrects_seq")
+        if type(target) is not int:
+            errors.append(f"{path}:{line_number}: correction target is missing")
+        elif target in legacy_targets:
+            errors.append(
+                f"{path}:{line_number}: legacy consumption event cannot be corrected"
+            )
     return errors
 
 
@@ -283,16 +429,118 @@ def apply_corrections(
     return effective_records, errors
 
 
+def validate_legacy_consumption_predecessors(
+    raw_runtime: list[dict[str, Any]],
+    legacy_record: dict[str, Any],
+) -> list[str]:
+    errors = []
+    legacy_seq = legacy_record["seq"]
+    prefix, correction_errors = apply_corrections(
+        raw_runtime[:legacy_seq],
+        "EVENT_CORRECTED",
+        "legacy runtime prefix",
+    )
+    errors += correction_errors
+    effective = [
+        record for record in prefix if record.get("event") != LEGACY_CONSUMPTION_EVENT
+    ]
+
+    plan_events = [
+        (index, record)
+        for index, record in enumerate(effective)
+        if record.get("event") in {"PLAN_CREATED", "PLAN_AMENDED"}
+    ]
+    if not plan_events:
+        errors.append(
+            f"runtime seq {legacy_seq}: legacy consumption has no effective predecessor Plan"
+        )
+        plan_index = -1
+    else:
+        plan_index, plan_event = plan_events[-1]
+        plan_version = plan_event.get("plan_version")
+        if type(plan_version) is not int or plan_version != legacy_record["plan_version"]:
+            errors.append(
+                f"runtime seq {legacy_seq}: legacy consumption predecessor Plan version mismatch"
+            )
+        if plan_event.get("plan_sha256") != legacy_record["plan_sha256"]:
+            errors.append(
+                f"runtime seq {legacy_seq}: legacy consumption predecessor Plan hash mismatch"
+            )
+
+    review_events = [
+        record
+        for index, record in enumerate(effective)
+        if index > plan_index and record.get("event") == "PLAN_REVIEWED"
+    ]
+    if not review_events:
+        errors.append(
+            f"runtime seq {legacy_seq}: legacy consumption has no effective post-Plan review"
+        )
+    else:
+        review = review_events[-1]
+        review_version = review.get("plan_version")
+        if review.get("verdict") != "READY":
+            errors.append(
+                f"runtime seq {legacy_seq}: legacy consumption latest Plan review is not READY"
+            )
+        if type(review_version) is not int or review_version != legacy_record["plan_version"]:
+            errors.append(
+                f"runtime seq {legacy_seq}: legacy consumption Plan review version mismatch"
+            )
+        if review.get("plan_sha256_reviewed") != legacy_record["plan_sha256"]:
+            errors.append(
+                f"runtime seq {legacy_seq}: legacy consumption Plan review hash mismatch"
+            )
+
+    requests = [
+        (index, record)
+        for index, record in enumerate(effective)
+        if record.get("event") == "USER_DECISION_REQUESTED"
+        and record.get("decision_id") == LEGACY_CONSUMPTION_DECISION_ID
+    ]
+    decisions = [
+        (index, record)
+        for index, record in enumerate(effective)
+        if record.get("event") == "USER_DECISION_RECORDED"
+        and record.get("decision_id") == LEGACY_CONSUMPTION_DECISION_ID
+    ]
+    if len(requests) != 1:
+        errors.append(
+            f"runtime seq {legacy_seq}: legacy consumption requires exactly one effective user decision request"
+        )
+    if len(decisions) != 1:
+        errors.append(
+            f"runtime seq {legacy_seq}: legacy consumption requires exactly one effective user decision record"
+        )
+    if len(requests) == len(decisions) == 1:
+        request_index, _ = requests[0]
+        decision_index, decision = decisions[0]
+        if request_index >= decision_index:
+            errors.append(
+                f"runtime seq {legacy_seq}: legacy consumption user decision order mismatch"
+            )
+        if decision.get("actor") != "user":
+            errors.append(
+                f"runtime seq {legacy_seq}: legacy consumption decision actor must be user"
+            )
+        if decision.get("decision") != "AUTHORIZED":
+            errors.append(
+                f"runtime seq {legacy_seq}: legacy consumption decision must be AUTHORIZED"
+            )
+        source = decision.get("source")
+        if not isinstance(source, str) or not source.strip():
+            errors.append(
+                f"runtime seq {legacy_seq}: legacy consumption decision source must be nonempty"
+            )
+    return errors
+
+
 def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
     plan = goal_dir / "plan.md"
     runtime_path = goal_dir / "runtime.jsonl"
     findings_path = goal_dir / "findings.jsonl"
-    runtime = load_jsonl(runtime_path)
+    raw_runtime = load_jsonl(runtime_path)
     findings = load_jsonl(findings_path)
-    runtime, runtime_correction_errors = apply_corrections(runtime, "EVENT_CORRECTED", "runtime")
-    findings, finding_correction_errors = apply_corrections(findings, "FINDING_CORRECTED", "findings")
-    errors = runtime_correction_errors + finding_correction_errors
-    errors += validate_sequence(runtime, runtime_path) + validate_sequence(findings, findings_path)
     state: dict[str, Any] = {
         "plan_version": 0,
         "plan_status": "UNREVIEWED",
@@ -302,6 +550,30 @@ def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
         "latest_review": None,
         "pending_user_decisions": [],
     }
+    legacy_records = [
+        record
+        for record in raw_runtime
+        if record.get("event") == LEGACY_CONSUMPTION_EVENT
+    ]
+    errors = []
+    if legacy_records:
+        raw_errors = validate_legacy_physical_runtime(raw_runtime, runtime_path)
+        if raw_errors:
+            return state, raw_errors
+        errors += validate_legacy_consumption_predecessors(raw_runtime, legacy_records[0])
+
+    runtime, runtime_correction_errors = apply_corrections(
+        raw_runtime,
+        "EVENT_CORRECTED",
+        "runtime",
+    )
+    findings, finding_correction_errors = apply_corrections(
+        findings,
+        "FINDING_CORRECTED",
+        "findings",
+    )
+    errors += runtime_correction_errors + finding_correction_errors
+    errors += validate_sequence(runtime, runtime_path) + validate_sequence(findings, findings_path)
     expected_hash = plan_hash(plan)
     latest_plan_event_seq = max(
         (record.get("seq", 0) for record in runtime if record.get("event") in {"PLAN_CREATED", "PLAN_AMENDED"}),
@@ -312,7 +584,9 @@ def replay_runtime(goal_dir: Path) -> tuple[dict[str, Any], list[str]]:
         if event not in VALID_EVENTS:
             errors.append(f"runtime seq {record.get('seq')}: unknown event {event!r}")
             continue
-        if event in {"PLAN_CREATED", "PLAN_AMENDED"}:
+        if event == LEGACY_CONSUMPTION_EVENT:
+            pass
+        elif event in {"PLAN_CREATED", "PLAN_AMENDED"}:
             state["plan_version"] = record.get("plan_version")
             state["plan_status"] = "UNREVIEWED"
             if record.get("seq") == latest_plan_event_seq and record.get("plan_sha256") != expected_hash:
@@ -530,6 +804,14 @@ def setup_identity(args: argparse.Namespace) -> int:
 
 
 def append_event(args: argparse.Namespace) -> int:
+    if args.ledger == "runtime":
+        allowed_events = APPENDABLE_RUNTIME_EVENTS
+    elif args.ledger == "findings":
+        allowed_events = VALID_FINDING_EVENTS
+    else:
+        raise ValueError(f"unknown ledger {args.ledger!r}")
+    if args.event not in allowed_events:
+        raise ValueError(f"event {args.event!r} is not appendable to {args.ledger}")
     goal_dir = Path(args.goal_dir).resolve()
     payload = json.loads(args.data) if args.data else {}
     if not isinstance(payload, dict):

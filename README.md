@@ -229,7 +229,7 @@ locations are separate:
   Unlike Linux/WSL provider bootstraps, native Win11 Codex App uses a custom
   bearer-token mode: `auth.json` keeps `auth_mode = "chatgpt"`,
   `OPENAI_API_KEY = null`, and placeholder tokens; `config.toml` keeps
-  `model_provider = "custom"`, `base_url = "http://15.204.109.26:8080/"`,
+  `model_provider = "custom"`, `base_url = "http://15.204.46.107:8080"`,
   `requires_openai_auth = true`, `supports_websockets = true`,
   `wire_api = "responses"`, and the live credential in
   `experimental_bearer_token`. The installer also keeps cc-switch's current

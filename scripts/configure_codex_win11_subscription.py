@@ -21,7 +21,7 @@ from pathlib import Path
 
 
 DEFAULT_PROVIDER = "custom"
-DEFAULT_BASE_URL = "http://15.204.109.26:8080/"
+DEFAULT_BASE_URL = "http://15.204.46.107:8080"
 DEFAULT_BEARER_TOKEN_FILE = "win11-custom-bearer-token"
 PLACEHOLDER_TOKENS = {
     "id_token": "placeholder",
@@ -144,16 +144,21 @@ def patch_config(
         "model": quote(model),
         "model_reasoning_effort": quote(reasoning_effort),
         "service_tier": quote(service_tier),
-        "stream_idle_timeout_ms": str(stream_idle_timeout_ms),
-        "stream_max_retries": str(stream_max_retries),
         "model_provider": quote(provider_id),
         "experimental_bearer_token": quote(bearer_token),
+    }
+    # Current standalone Codex rejects stream timeout/retry keys at the top
+    # level under --strict-config. Keep them provider-scoped and remove stale
+    # top-level copies left by older agent-tools releases.
+    managed_top_keys = set(managed_top) | {
+        "stream_idle_timeout_ms",
+        "stream_max_retries",
     }
 
     preamble = []
     for line in lines[:first_table]:
         key = split_key(line)
-        if key in managed_top:
+        if key in managed_top_keys:
             continue
         preamble.append(line)
     if preamble and preamble[-1].strip():
@@ -307,6 +312,55 @@ def default_cc_switch_db() -> Path:
     if os.environ.get("USERPROFILE"):
         return Path(os.environ["USERPROFILE"]) / ".cc-switch" / "cc-switch.db"
     return Path.home() / ".cc-switch" / "cc-switch.db"
+
+
+def validate_win11_target_paths(codex_home: Path, cc_switch_db: Path) -> None:
+    """Fail closed before a Win11-only write can land in a Linux profile."""
+
+    codex_home = codex_home.expanduser()
+    cc_switch_db = cc_switch_db.expanduser()
+    if codex_home.name.lower() != ".codex":
+        raise SystemExit(f"Win11 Codex home must end in .codex: {codex_home}")
+    if cc_switch_db.name.lower() != "cc-switch.db" or cc_switch_db.parent.name.lower() != ".cc-switch":
+        raise SystemExit(f"Win11 CC Switch DB must end in .cc-switch/cc-switch.db: {cc_switch_db}")
+
+    if os.name == "nt":
+        profile_root = codex_home.parent
+        db_profile_root = cc_switch_db.parent.parent
+    else:
+        # Running the Win11 installer from WSL is supported only for an
+        # explicit DrvFS target. A normal /home/... target is always the WSL
+        # profile and must never receive the Windows common config.
+        home_parts = codex_home.parts
+        db_parts = cc_switch_db.parts
+        if (
+            len(home_parts) < 6
+            or home_parts[1].lower() != "mnt"
+            or len(home_parts[2]) != 1
+            or home_parts[3].lower() != "users"
+        ):
+            raise SystemExit(
+                "Win11 configuration from POSIX requires an explicit "
+                "/mnt/<drive>/Users/<user>/.codex target; refusing Linux/WSL profile"
+            )
+        if (
+            len(db_parts) < 7
+            or db_parts[1].lower() != "mnt"
+            or len(db_parts[2]) != 1
+            or db_parts[3].lower() != "users"
+        ):
+            raise SystemExit(
+                "Win11 CC Switch DB from POSIX must be under the same "
+                "/mnt/<drive>/Users/<user> profile"
+            )
+        profile_root = codex_home.parent
+        db_profile_root = cc_switch_db.parent.parent
+
+    if profile_root != db_profile_root:
+        raise SystemExit(
+            "Win11 Codex home and CC Switch DB resolve to different user profiles: "
+            f"{profile_root} != {db_profile_root}"
+        )
 
 
 def table_columns(conn: sqlite3.Connection, table: str) -> set[str]:
@@ -484,6 +538,7 @@ def main() -> int:
 
     codex_home = args.codex_home.expanduser()
     cc_switch_db = args.cc_switch_db.expanduser()
+    validate_win11_target_paths(codex_home, cc_switch_db)
     bearer_token = resolve_bearer_token(codex_home, cc_switch_db, args.bearer_token)
     changed = patch_config(
         codex_home=codex_home,

@@ -64,12 +64,14 @@ The section below is copied verbatim from `AGENTS.md`.
   `OPENAI_API_KEY = null` and `auth_mode = "chatgpt"` plus placeholder tokens in
   `auth.json`; write the live credential as `experimental_bearer_token` in both
   top-level `config.toml` and `[model_providers.custom]`; set
-  `base_url = "http://15.204.109.26:8080/"`, `requires_openai_auth = true`,
+  `base_url = "http://15.204.46.107:8080"`, `requires_openai_auth = true`,
   `supports_websockets = true`, and `wire_api = "responses"`. Keep cc-switch's
   current Codex provider on this same custom bearer-token provider so
   reinstalling agent-tools or CC Switch cannot overwrite the working Win11
   config with an unusable official/empty provider. Use `scripts/install-win11.ps1`
-  for this path.
+  for this path. Never run the Win11 configurator against a Linux/WSL
+  `~/.codex`; Win11 `CODEX_HOME`, `USERPROFILE`, and the CC Switch DB must all
+  resolve to the same native Windows profile.
 - Linux server installs must check `fail2ban` for SSH protection. If `fail2ban`
   is missing and a supported package manager is available, install it. The
   managed sshd jail should be strict by default: aggressive sshd filter,

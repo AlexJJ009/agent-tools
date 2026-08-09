@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import copy
+import json
 import unittest
+from dataclasses import replace
 from typing import Any, Mapping, Sequence
 
 from linear_workflow_runtime.contracts import load_json
@@ -174,6 +176,31 @@ class PlanningRuntimeTests(unittest.TestCase):
             with self.subTest(approval=approval), self.assertRaises(PlanningFailure) as caught:
                 self.runtime.apply(preview, approval)
             self.assertEqual("approval_required", caught.exception.code)
+        self.assertEqual(0, self.github.create_count)
+        self.assertEqual(0, self.linear.write_count)
+
+    def test_preview_payload_is_snapshotted_and_forgery_fails_before_writes(self) -> None:
+        preview = self.preview()
+        self.plan["issues"][0]["title"] = "mutated after preview"
+        detached_payload = preview.operations[0].payload
+        detached_payload["issue"]["title"] = "also mutated"
+        self.assertEqual("Establish contracts", preview.operations[0].payload["issue"]["title"])
+
+        forged_payload = preview.operations[0].payload
+        forged_payload["issue"]["title"] = "forged write"
+        forged_operation = replace(
+            preview.operations[0],
+            payload_json=json.dumps(
+                forged_payload, sort_keys=True, separators=(",", ":")
+            ),
+        )
+        forged_preview = replace(preview, operations=(forged_operation,))
+        with self.assertRaises(PlanningFailure) as caught:
+            self.runtime.apply(
+                forged_preview,
+                PreviewApproval(preview.preview_id, "GongxunLi"),
+            )
+        self.assertEqual("preview_integrity", caught.exception.code)
         self.assertEqual(0, self.github.create_count)
         self.assertEqual(0, self.linear.write_count)
 

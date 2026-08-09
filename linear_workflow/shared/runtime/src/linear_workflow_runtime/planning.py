@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import hmac
 import json
 from dataclasses import dataclass
 from typing import Any, Mapping, Sequence
@@ -23,8 +24,33 @@ class PreviewOperation:
     destination: str
     action: str
     repository_full_name: str | None
-    payload: Mapping[str, Any]
+    payload_json: str
     github_body: str | None = None
+
+    @classmethod
+    def create(
+        cls,
+        proposal_key: str,
+        issue_id: str,
+        destination: str,
+        action: str,
+        repository_full_name: str | None,
+        payload: Mapping[str, Any],
+        github_body: str | None = None,
+    ) -> PreviewOperation:
+        return cls(
+            proposal_key,
+            issue_id,
+            destination,
+            action,
+            repository_full_name,
+            json.dumps(payload, sort_keys=True, separators=(",", ":")),
+            github_body,
+        )
+
+    @property
+    def payload(self) -> dict[str, Any]:
+        return json.loads(self.payload_json)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -33,7 +59,7 @@ class PreviewOperation:
             "destination": self.destination,
             "action": self.action,
             "repository_full_name": self.repository_full_name,
-            "payload": dict(self.payload),
+            "payload": self.payload,
             "github_body": self.github_body,
         }
 
@@ -149,7 +175,7 @@ class PlanningRuntime:
                 existing = self._linear.find_by_proposal_key(proposal_key)
                 action = "update_linear" if existing else "create_linear"
                 operations.append(
-                    PreviewOperation(
+                    PreviewOperation.create(
                         proposal_key,
                         issue["id"],
                         "linear_only",
@@ -171,7 +197,7 @@ class PlanningRuntime:
             if existing is not None:
                 self._assert_github_identity(existing, repository, proposal_key)
             operations.append(
-                PreviewOperation(
+                PreviewOperation.create(
                     proposal_key,
                     issue["id"],
                     "github_to_linear",
@@ -189,9 +215,7 @@ class PlanningRuntime:
             "sync_timeout_seconds": self._sync_timeout_seconds,
             "operations": [operation.as_dict() for operation in operations],
         }
-        preview_id = hashlib.sha256(
-            json.dumps(preview_body, sort_keys=True, separators=(",", ":")).encode()
-        ).hexdigest()
+        preview_id = self._preview_id(preview_body)
         return PlanningPreview(
             preview_id,
             self._workflow_version,
@@ -204,6 +228,20 @@ class PlanningRuntime:
     def apply(
         self, preview: PlanningPreview, approval: PreviewApproval
     ) -> tuple[AppliedMapping, ...]:
+        current_preview_id = self._preview_id(
+            {
+                "workflow_version": preview.workflow_version,
+                "plan_id": preview.plan_id,
+                "expected_team": preview.expected_team,
+                "sync_timeout_seconds": preview.sync_timeout_seconds,
+                "operations": [operation.as_dict() for operation in preview.operations],
+            }
+        )
+        if not hmac.compare_digest(current_preview_id, preview.preview_id):
+            raise PlanningFailure(
+                "preview_integrity",
+                "preview content changed after its approval identity was computed",
+            )
         if approval.preview_id != preview.preview_id or not approval.approved_by.strip():
             raise PlanningFailure(
                 "approval_required",
@@ -211,9 +249,10 @@ class PlanningRuntime:
             )
         mappings: list[AppliedMapping] = []
         for operation in preview.operations:
+            payload = operation.payload
             if operation.destination == "linear_only":
                 issue = self._linear.upsert_linear_only(
-                    operation.proposal_key, operation.payload
+                    operation.proposal_key, payload
                 )
                 mappings.append(
                     AppliedMapping(operation.proposal_key, issue.id, None, False)
@@ -227,7 +266,7 @@ class PlanningRuntime:
             )
             created = github_issue is None
             if github_issue is None:
-                title = str(operation.payload["issue"]["title"])
+                title = str(payload["issue"]["title"])
                 github_issue = self._github.create_issue(
                     repository,
                     title,
@@ -248,7 +287,7 @@ class PlanningRuntime:
                 preview.expected_team,
             )
             bound = self._linear.bind_synced_issue(
-                synced.id, operation.proposal_key, operation.payload
+                synced.id, operation.proposal_key, payload
             )
             mappings.append(
                 AppliedMapping(
@@ -259,6 +298,12 @@ class PlanningRuntime:
                 )
             )
         return tuple(mappings)
+
+    @staticmethod
+    def _preview_id(value: Mapping[str, Any]) -> str:
+        return hashlib.sha256(
+            json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
 
     @staticmethod
     def _proposal_key(plan_id: str, issue: Mapping[str, Any]) -> str:

@@ -16,7 +16,8 @@
     "candidate_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
     "github_pull_request": {"type": "string", "pattern": "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[1-9][0-9]*"},
     "risk_profile": {"type": "string", "enum": ["fast", "standard", "high"]},
-    "pull_request": {"type": "object", "required": ["repository_full_name", "base_branch", "head_branch", "head_sha", "draft"], "properties": {
+    "pull_request": {"type": "object", "required": ["github_pull_request", "repository_full_name", "base_branch", "head_branch", "head_sha", "draft"], "properties": {
+      "github_pull_request": {"type": "string", "pattern": "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[1-9][0-9]*"},
       "repository_full_name": {"type": "string", "pattern": "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"},
       "base_branch": {"type": "string", "minLength": 1},
       "head_branch": {"type": "string", "pattern": "linear/[a-z0-9-]+"},

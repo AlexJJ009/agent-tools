@@ -20,6 +20,7 @@ PLAN_BLOCKING_RULES = {
     "LW-PLN-005",  # DAG cycle
     "LW-PLN-006",  # duplicate work item
     "LW-PLN-007",  # Batch membership
+    "LW-PLN-008",  # Batch repository coverage
 }
 BATCH_BLOCKING_RULES = {
     "LW-BAT-001",  # Ready admission
@@ -124,6 +125,10 @@ def _path_matches_prefix(path: str, prefixes: list[str]) -> bool:
     return False
 
 
+def _github_reference_repo(reference: str) -> str:
+    return reference.rsplit("#", 1)[0]
+
+
 def validate_batch(batch: dict[str, Any], *, require_ready: bool = True) -> list[Violation]:
     errors = _schema_violations(batch, "batch")
     if errors:
@@ -164,6 +169,7 @@ def validate_plan(plan: dict[str, Any]) -> list[Violation]:
         errors.append(_violation(plan, "blocking_questions", "LW-PLN-002", "Approved PRD contains blocking questions", "resolve them or move the PRD out of Approved"))
 
     issues: dict[str, dict[str, Any]] = {}
+    github_issue_owners: dict[str, str] = {}
     for index, issue in enumerate(plan["issues"]):
         schema_errors = _schema_violations(issue, "issue")
         if schema_errors:
@@ -181,6 +187,14 @@ def validate_plan(plan: dict[str, Any]) -> list[Violation]:
             destination == "linear_only" and (repo is not None or github_issue is not None)
         ):
             errors.append(_violation(issue, "destination", "LW-PLN-003", "destination and GitHub mapping disagree", "provide full repo/Issue mapping only for github_to_linear"))
+        if destination == "github_to_linear" and repo and github_issue:
+            if _github_reference_repo(github_issue) != repo:
+                errors.append(_violation(issue, "github_issue", "LW-PLN-003", "GitHub Issue repository differs from repository_full_name", "use one canonical owner/repository identity"))
+            prior_owner = github_issue_owners.get(github_issue)
+            if prior_owner is not None:
+                errors.append(_violation(issue, "github_issue", "LW-PLN-006", f"GitHub Issue is already mapped to {prior_owner}", "reuse the single canonical synced Linear Issue"))
+            else:
+                github_issue_owners[github_issue] = issue_id
         if issue["duplicate_of"] is not None:
             errors.append(_violation(issue, "duplicate_of", "LW-PLN-006", "duplicate Issue cannot enter a new DAG or Batch", "use the canonical duplicate target"))
     known = set(issues)
@@ -194,6 +208,14 @@ def validate_plan(plan: dict[str, Any]) -> list[Violation]:
     membership: dict[str, int] = {issue_id: 0 for issue_id in issues}
     for batch in plan["batches"]:
         errors.extend(validate_batch(batch, require_ready=False))
+        work_ref_repositories = [item["repository_full_name"] for item in batch.get("work_references", [])]
+        included_repositories = {
+            issues[issue_id]["repository_full_name"]
+            for issue_id in batch.get("included_issues", [])
+            if issue_id in issues and issues[issue_id]["repository_full_name"] is not None
+        }
+        if set(work_ref_repositories) != included_repositories or len(work_ref_repositories) != len(set(work_ref_repositories)):
+            errors.append(_violation(batch, "work_references", "LW-PLN-008", f"Batch repositories {sorted(set(work_ref_repositories))!r} do not exactly cover included Issue repositories {sorted(included_repositories)!r}", "add exactly one work reference for each included code repository"))
         for issue_id in batch.get("included_issues", []):
             if issue_id in membership:
                 membership[issue_id] += 1
@@ -219,6 +241,10 @@ def validate_pr(evidence: dict[str, Any]) -> list[Violation]:
     identity_mismatches = []
     if pull_request["repository_full_name"] != evidence["repository_full_name"]:
         identity_mismatches.append("repository")
+    if _github_reference_repo(evidence["github_pull_request"]) != evidence["repository_full_name"]:
+        identity_mismatches.append("PR reference repository")
+    if pull_request["github_pull_request"] != evidence["github_pull_request"]:
+        identity_mismatches.append("PR reference")
     if pull_request["base_branch"] != evidence["base_branch"]:
         identity_mismatches.append("base branch")
     if pull_request["head_branch"] != evidence["working_branch"]:

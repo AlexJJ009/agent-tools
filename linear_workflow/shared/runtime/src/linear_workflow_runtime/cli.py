@@ -6,21 +6,21 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .contracts import load_json, validate_schema
+from .contracts import load_json
+from .validators import validate_batch, validate_plan
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="linear-workflow")
     parser.add_argument("--version", action="version", version=__version__)
     subparsers = parser.add_subparsers(dest="command")
-    for command, schema in (
-        ("plan-check", "prd"),
-        ("batch-check", "batch"),
-        ("pr-check", "evidence"),
+    for command in (
+        "plan-check",
+        "batch-check",
+        "pr-check",
     ):
         child = subparsers.add_parser(command)
         child.add_argument("--input", type=Path, required=True)
-        child.set_defaults(schema=schema)
     return parser
 
 
@@ -32,13 +32,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     try:
         value = load_json(args.input)
-        errors = validate_schema(value, args.schema)
+        if args.command == "plan-check":
+            errors = validate_plan(value)
+        elif args.command == "batch-check":
+            errors = validate_batch(value)
+        else:
+            from .validators import validate_pr
+
+            errors = validate_pr(value)
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"input: field=$ rule=LW-INPUT: {exc}; fix: provide readable valid JSON", file=sys.stderr)
         return 2
     if errors:
         for error in errors:
-            print(f"schema: field={error} rule=LW-SCHEMA: invalid contract; fix: follow the canonical schema", file=sys.stderr)
+            print(error.render(), file=sys.stderr)
         return 1
     print(f"ok: {args.command} schema contract passed")
     return 0

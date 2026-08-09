@@ -1,0 +1,5 @@
+{
+  "workflow_version": "0.2.0",
+  "schema_version": 1,
+  "canonical_contract": "linear_workflow/shared/"
+}

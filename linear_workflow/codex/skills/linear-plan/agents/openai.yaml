@@ -1,0 +1,4 @@
+interface:
+  display_name: "Linear Plan"
+  short_description: "Plan Linear projects with shared contracts"
+  default_prompt: "Use $linear-plan to prepare an approval-bound Linear planning preview."

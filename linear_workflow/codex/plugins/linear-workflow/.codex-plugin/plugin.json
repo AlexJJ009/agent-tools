@@ -1,0 +1,22 @@
+{
+  "name": "linear-workflow",
+  "version": "0.2.0",
+  "description": "Plan Linear-first software delivery with shared deterministic contracts.",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Linear Workflow",
+    "shortDescription": "Plan Linear-first delivery batches.",
+    "longDescription": "Linear Plan reads Linear and candidate repositories, builds an approval-bound planning preview, and applies it through the shared runtime without entering Delivery.",
+    "developerName": "Local developer",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": "Use /linear-plan to prepare a reviewed Linear planning preview."
+  }
+}

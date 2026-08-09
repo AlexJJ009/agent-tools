@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-tools.local/linear-workflow/issue.schema.json",
+  "title": "Normalized Linear Workflow Issue",
+  "type": "object",
+  "required": ["schema_version", "id", "title", "destination", "repository_full_name", "github_issue", "dependencies", "duplicate_of"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "id": {"type": "string", "pattern": "[A-Z][A-Z0-9]+-[1-9][0-9]*"},
+    "title": {"type": "string", "minLength": 1},
+    "destination": {"type": "string", "enum": ["github_to_linear", "linear_only"]},
+    "repository_full_name": {"type": ["string", "null"], "pattern": "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"},
+    "github_issue": {"type": ["string", "null"], "pattern": "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[1-9][0-9]*"},
+    "dependencies": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "[A-Z][A-Z0-9]+-[1-9][0-9]*"}},
+    "duplicate_of": {"type": ["string", "null"], "pattern": "[A-Z][A-Z0-9]+-[1-9][0-9]*"}
+  },
+  "additionalProperties": false
+}

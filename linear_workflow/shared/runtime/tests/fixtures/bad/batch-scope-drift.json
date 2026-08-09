@@ -1,0 +1,1 @@
+{"base":"good/batch.json","set":{"/changed_paths":["install.sh"]},"expected_rule":"LW-BAT-003"}

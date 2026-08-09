@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-tools.local/linear-workflow/review-verdict.schema.json",
+  "title": "Independent reviewer verdict",
+  "type": "object",
+  "required": ["round", "candidate_sha", "reviewer", "independent_context", "verdict", "findings", "created_at", "artifact_path", "artifact_commit"],
+  "properties": {
+    "round": {"type": "integer"},
+    "candidate_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "reviewer": {"type": "string", "minLength": 1},
+    "independent_context": {"type": "boolean"},
+    "verdict": {"type": "string", "enum": ["approved", "changes_requested"]},
+    "findings": {"type": "array", "items": {"type": "object", "required": ["id", "severity", "summary", "new"], "properties": {"id": {"type": "string", "minLength": 1}, "severity": {"type": "string", "enum": ["low", "medium", "high", "critical"]}, "summary": {"type": "string", "minLength": 1}, "new": {"type": "boolean"}}, "additionalProperties": false}},
+    "created_at": {"type": "string", "minLength": 1},
+    "artifact_path": {"type": "string", "minLength": 1},
+    "artifact_commit": {"type": "string", "pattern": "[0-9a-f]{40}"}
+  },
+  "additionalProperties": false
+}

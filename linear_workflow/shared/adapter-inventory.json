@@ -26,7 +26,7 @@
     "linear_workflow/codex/plugins/linear-workflow/commands/linear-plan.md",
     "linear_workflow/claude/commands/linear-plan.md"
   ],
-  "required_command": "linear-workflow plan-check --input <normalized-preview.json>",
+  "required_command": "linear-workflow plan-check --input <normalized-prd.json>",
   "required_stop_markers": [
     "Do not mark your own PRD or decomposition Approved or Ready.",
     "Do not modify implementation code",

@@ -23,8 +23,8 @@ Treat those files and the schemas under `linear_workflow/shared/schemas/` as can
 1. Read the requested Linear Issue or Project, its relations, and its current PRD through Linear MCP.
 2. Resolve every candidate repository to `owner/repository`. Read its `AGENTS.md` or `CLAUDE.md`, architecture entry points, relevant code, tests, and technical documents. Do not claim reliable technical decomposition for a repository that was not inspected.
 3. Separate product questions from implementation choices. Keep blocking questions explicit and stop before approval while any answer could change behavior, scope, repository, or acceptance.
-4. Build one complete preview containing the PRD change, every proposed Issue and destination, DAG relation, Delivery Batch, repository, risk profile, and expected create/update action.
-5. Run `linear-workflow plan-check --input <normalized-preview.json>` with the installed shared runtime. Fix contract errors before presenting the preview.
+4. Build one complete preview containing the normalized PRD, every proposed Issue and destination, DAG relation, Delivery Batch, repository, risk profile, and expected create/update action.
+5. Write the preview's PRD contract to a temporary input and run `linear-workflow plan-check --input <normalized-prd.json>` with the installed shared runtime. Fix contract errors before presenting the complete preview; do not pass the outer preview envelope to this PRD validator.
 6. Present the full diff-like preview. Allow item-level revisions, regenerate the preview after each revision, and accept only an identifiable human approval bound to the exact current preview ID.
 7. Apply the approved preview through `linear_workflow_runtime.planning.PlanningRuntime`. Use stable proposal keys and the normalized Linear/GitHub gateways. For `github_to_linear`, create or reuse the approved GitHub Issue and resolve its unique native-synced Linear Issue; for `linear_only`, do not call GitHub.
 8. Report the resulting Linear and GitHub identities plus validator evidence. A human may mark the PRD and eligible Batches Ready. Stop; Delivery requires a new explicit command or session with a Ready Batch ID.

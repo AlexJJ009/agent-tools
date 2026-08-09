@@ -247,6 +247,8 @@ def validate_pr(evidence: dict[str, Any]) -> list[Violation]:
         identity_mismatches.append("PR reference")
     if pull_request["base_branch"] != evidence["base_branch"]:
         identity_mismatches.append("base branch")
+    if pull_request["base_sha"] != evidence["base_sha"]:
+        identity_mismatches.append("base SHA")
     if pull_request["head_branch"] != evidence["working_branch"]:
         identity_mismatches.append("head branch")
     latest_artifact_commit = evidence["review_verdicts"][-1].get("artifact_commit")
@@ -274,7 +276,11 @@ def validate_pr(evidence: dict[str, Any]) -> list[Violation]:
     commits = evidence["commits"]
     commit_shas = [commit["sha"] for commit in commits]
     bad_subjects = [commit["subject"] for commit in commits if not COMMIT_SUBJECT.fullmatch(commit["subject"]) or re.match(r"(?i)(?:WIP|fixup!|squash!)", commit["subject"])]
-    invalid_commit_chain = commit_shas.count(candidate) != 1 or len(commit_shas) != len(set(commit_shas))
+    invalid_commit_chain = (
+        commit_shas.count(candidate) != 1
+        or len(commit_shas) != len(set(commit_shas))
+        or commit_shas != pull_request["commit_shas"]
+    )
     if not invalid_commit_chain:
         candidate_index = commit_shas.index(candidate)
         expected_artifact_commits = [verdict["artifact_commit"] for verdict in new_verdicts]

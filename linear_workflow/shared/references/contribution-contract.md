@@ -30,4 +30,6 @@ PR commit evidence is an ordered complete chain whose final SHA equals the
 fetched PR head. The reviewed candidate appears exactly once; every later
 commit must match a newly appended verdict's artifact commit and may add only
 that verdict's new artifact path. Any intervening code commit invalidates the
-candidate CI and review.
+candidate CI and review. The evidence chain must exactly equal the ordered
+commit SHA list returned by the fetched GitHub PR metadata and bind the same
+base SHA, so omitting an intermediate commit also fails admission.

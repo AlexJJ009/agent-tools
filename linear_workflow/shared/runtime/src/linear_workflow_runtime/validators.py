@@ -268,13 +268,23 @@ def validate_pr(evidence: dict[str, Any]) -> list[Violation]:
         if check["sha"] != candidate:
             errors.append(_violation(evidence, f"required_checks.{name}.sha", "LW-PR-004", "required check is bound to a stale candidate", "run it on the current candidate SHA"))
 
-    commit_shas = {commit["sha"] for commit in evidence["commits"]}
-    bad_subjects = [commit["subject"] for commit in evidence["commits"] if not COMMIT_SUBJECT.fullmatch(commit["subject"]) or re.match(r"(?i)(?:WIP|fixup!|squash!)", commit["subject"])]
-    if candidate not in commit_shas or bad_subjects:
-        errors.append(_violation(evidence, "commits", "LW-PR-005", f"candidate absent or invalid commit subjects: {bad_subjects!r}", "include the candidate and clean WIP/fixup/squash or non-conventional subjects"))
-
     base_verdicts = evidence["base_review_verdicts"]
     verdicts = evidence["review_verdicts"]
+    new_verdicts = verdicts[len(base_verdicts) :]
+    commits = evidence["commits"]
+    commit_shas = [commit["sha"] for commit in commits]
+    bad_subjects = [commit["subject"] for commit in commits if not COMMIT_SUBJECT.fullmatch(commit["subject"]) or re.match(r"(?i)(?:WIP|fixup!|squash!)", commit["subject"])]
+    invalid_commit_chain = commit_shas.count(candidate) != 1 or len(commit_shas) != len(set(commit_shas))
+    if not invalid_commit_chain:
+        candidate_index = commit_shas.index(candidate)
+        expected_artifact_commits = [verdict["artifact_commit"] for verdict in new_verdicts]
+        invalid_commit_chain = (
+            commit_shas[candidate_index + 1 :] != expected_artifact_commits
+            or pull_request["head_sha"] != commit_shas[-1]
+        )
+    if invalid_commit_chain or bad_subjects:
+        errors.append(_violation(evidence, "commits", "LW-PR-005", f"candidate/PR commit chain is incomplete or contains invalid subjects: {bad_subjects!r}", "provide the ordered complete PR commit chain; after candidate allow only the new verdict artifact commits"))
+
     rounds = [item["round"] for item in verdicts]
     all_artifact_paths = [item["artifact_path"] for item in verdicts]
     base_artifact_paths = {item["artifact_path"] for item in base_verdicts}
@@ -298,16 +308,23 @@ def validate_pr(evidence: dict[str, Any]) -> list[Violation]:
     ):
         errors.append(_violation(evidence, "review_verdicts[-1]", "LW-PR-006", "latest review is stale, non-independent, unapproved, or contains new findings", "obtain an independent approved round with no new findings on the current candidate"))
 
-    new_verdicts = verdicts[len(base_verdicts) :]
     expected_verdict_paths = {item.get("artifact_path") for item in new_verdicts}
     path_changes = evidence["verdict_commit_path_changes"]
     actual_verdict_paths = {item["path"] for item in path_changes if item["status"] == "added"}
     root = policy["verdict_artifact_root"]
+    artifact_commit_changes_valid = True
+    if not invalid_commit_chain:
+        artifact_commits = commits[commit_shas.index(candidate) + 1 :]
+        artifact_commit_changes_valid = all(
+            commit["path_changes"] == [{"path": verdict["artifact_path"], "status": "added"}]
+            for commit, verdict in zip(artifact_commits, new_verdicts, strict=True)
+        )
     if (
         actual_verdict_paths != expected_verdict_paths
         or not actual_verdict_paths
         or any(item["status"] != "added" for item in path_changes)
         or len(path_changes) != len(actual_verdict_paths)
+        or not artifact_commit_changes_valid
         or any(not path.startswith(root) for path in actual_verdict_paths if isinstance(path, str))
     ):
         errors.append(_violation(evidence, "verdict_commit_path_changes", "LW-PR-008", "verdict commit is missing, changes code, modifies an existing path, or writes outside the artifact root", "make an add-only verdict artifact commit whose diff reports only added paths"))

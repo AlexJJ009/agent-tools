@@ -26,3 +26,8 @@ under the policy-owned verdict root. Evidence preserves the exact base verdict
 prefix and records each verdict-commit path with its Git diff status. A valid
 verdict-only commit contains only `added` paths for the newly appended rounds;
 reusing, modifying, or deleting an existing artifact path fails admission.
+PR commit evidence is an ordered complete chain whose final SHA equals the
+fetched PR head. The reviewed candidate appears exactly once; every later
+commit must match a newly appended verdict's artifact commit and may add only
+that verdict's new artifact path. Any intervening code commit invalidates the
+candidate CI and review.

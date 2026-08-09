@@ -23,6 +23,8 @@ INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
 INSTALL_GOAL_PLAN=1
 GOAL_PLAN_INCLUDE_WSL_WINDOWS="${GOAL_PLAN_INCLUDE_WSL_WINDOWS:-never}"
+INSTALL_LINEAR_WORKFLOW=1
+LINEAR_WORKFLOW_ONLY=0
 INSTALL_CC_SWITCH_CLI_UPDATE="${INSTALL_CC_SWITCH_CLI_UPDATE:-1}"
 CC_SWITCH_UPDATE_PROXY_MODE="${CC_SWITCH_UPDATE_PROXY_MODE:-auto}"
 CC_SWITCH_UPDATE_CONNECT_TIMEOUT="${CC_SWITCH_UPDATE_CONNECT_TIMEOUT:-10}"
@@ -111,6 +113,16 @@ PY
 
   PYTHON_BIN="python"
   echo "WARNING: no Python executable found on PATH before selecting fallback: $PYTHON_BIN." >&2
+}
+
+run_codex_target_guard() {
+  local script="$SOURCE_DIR/scripts/codex_target_guard.py"
+  local codex_home="${CODEX_HOME:-$HOME/.codex}"
+  local cc_switch_db="${CC_SWITCH_DB_PATH:-$HOME/.cc-switch/cc-switch.db}"
+  select_python_bin
+  "$PYTHON_BIN" "$script" --platform auto --codex-home "$codex_home" \
+    --cc-switch-db "$cc_switch_db" --expected-user "$(id -un)" --path-only \
+    --allow-missing-config --allow-missing-cc-switch --skip-cc-switch-read-check
 }
 
 configure_tmux_mouse_mode() {
@@ -2263,6 +2275,47 @@ install_goal_plan_only() {
   printf '%s\n' "$GOAL_PLAN_STATUS"
 }
 
+install_linear_workflow_tools() {
+  LINEAR_WORKFLOW_STATUS="skipped"
+  local descriptor="$INSTALL_REAL/config/managed-packages/linear-workflow.json"
+  if [[ ! -f "$descriptor" ]]; then
+    echo "Linear Workflow not installed: missing $descriptor" >&2
+    return 1
+  fi
+  select_python_bin
+  "$PYTHON_BIN" "$INSTALL_REAL/scripts/managed_package_installer.py" install \
+    --descriptor "$descriptor" --repo-root "$INSTALL_REAL" --home "$HOME" --platform unix
+  if command -v codex >/dev/null 2>&1; then
+    if codex plugin add linear-workflow@personal >/dev/null 2>&1; then
+      LINEAR_WORKFLOW_STATUS="installed: Codex/Claude adapters + personal plugin + isolated uv runtime"
+    else
+      LINEAR_WORKFLOW_STATUS="installed; codex plugin add failed"
+      echo "Linear Workflow plugin cache installed, but 'codex plugin add linear-workflow@personal' failed." >&2
+    fi
+  else
+    LINEAR_WORKFLOW_STATUS="installed; codex plugin add skipped (codex unavailable)"
+  fi
+}
+
+install_linear_workflow_only() {
+  local source_real install_real
+  source_real="$(cd -- "$SOURCE_DIR" && pwd -P)"
+  mkdir -p "$INSTALL_DIR"
+  install_real="$(cd -- "$INSTALL_DIR" && pwd -P)"
+  if [[ "$source_real" != "$install_real" ]]; then
+    for item in linear_workflow config scripts; do
+      if [[ -e "$install_real/$item" ]]; then
+        echo "linear-workflow-only refuses to replace existing target: $install_real/$item" >&2
+        return 1
+      fi
+      cp -R "$SOURCE_DIR/$item" "$install_real/$item"
+    done
+  fi
+  INSTALL_REAL="$install_real"
+  install_linear_workflow_tools
+  printf '%s\n' "$LINEAR_WORKFLOW_STATUS"
+}
+
 start_codex_remote_control() {
   if [[ "$INSTALL_CODEX_REMOTE_CONTROL" -eq 0 ]]; then
     echo "Codex remote control not started (--no-codex-remote-control)."
@@ -2362,6 +2415,7 @@ usage() {
 Usage:
   install.sh [options]
   install.sh --goal-plan-only
+  install.sh --linear-workflow-only
 
 Options:
   --install-dir PATH       Install/copy tools to PATH. Default: this directory.
@@ -2389,6 +2443,9 @@ Options:
   --goal-plan-wsl-windows MODE
                            Also install goal-plan into Win11 Codex/Claude homes
                            when running from WSL: auto|always|never. Default: never.
+  --linear-workflow       Install Linear Workflow (default).
+  --linear-workflow-only  Install only Linear Workflow adapters/runtime/plugin.
+  --no-linear-workflow    Do not install Linear Workflow.
   --no-cc-switch-update    Do not update cc-switch-cli from the latest GitHub
                            release before Codex provider migration.
   --cc-switch-update-proxy MODE
@@ -2462,9 +2519,8 @@ Options:
   --registry-init-db       Initialize the local registry DB if missing.
   --no-cron                Write config but do not install crontab entry.
   --no-agent-core          Do not auto-verify or run ~/agent-core/scripts/install.sh.
-  --check                  Install nothing. Byte-compare the goal-plan managed
-                           copies (and the runtime venv cli.py) against the
-                           source tree; exit 1 on any drift.
+  --check                  Install nothing. Check all managed package copies,
+                           launchers and runtime versions; exit 1 on any drift.
   -h, --help               Show this help.
 EOF
 }
@@ -2473,6 +2529,18 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --goal-plan-only)
       GOAL_PLAN_ONLY=1
+      shift
+      ;;
+    --linear-workflow)
+      INSTALL_LINEAR_WORKFLOW=1
+      shift
+      ;;
+    --linear-workflow-only)
+      LINEAR_WORKFLOW_ONLY=1
+      shift
+      ;;
+    --no-linear-workflow)
+      INSTALL_LINEAR_WORKFLOW=0
       shift
       ;;
     --install-dir)
@@ -2661,6 +2729,13 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+run_codex_target_guard
+
+if [[ "$LINEAR_WORKFLOW_ONLY" -eq 1 ]]; then
+  install_linear_workflow_only
+  exit 0
+fi
+
 if [[ "$GOAL_PLAN_ONLY" -eq 1 ]]; then
   install_goal_plan_only
   exit 0
@@ -2672,7 +2747,18 @@ fi
 
 if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
   SOURCE_REAL="$(cd "$SOURCE_DIR" && pwd -P)"
-  check_goal_plan_drift "$SOURCE_REAL/goal_plan"
+  goal_status=0
+  linear_status=0
+  if ! check_goal_plan_drift "$SOURCE_REAL/goal_plan"; then
+    goal_status=1
+  fi
+  select_python_bin
+  if ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/managed_package_installer.py" check \
+    --descriptor "$SOURCE_REAL/config/managed-packages/linear-workflow.json" \
+    --repo-root "$SOURCE_REAL" --home "$HOME" --platform unix; then
+    linear_status=1
+  fi
+  [[ "$goal_status" -eq 0 && "$linear_status" -eq 0 ]]
   exit "$?"
 fi
 
@@ -2693,6 +2779,7 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   [[ -d "$SOURCE_DIR/docs" ]] && cp -R "$SOURCE_DIR/docs" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/experiment_registry" ]] && cp -R "$SOURCE_DIR/experiment_registry" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/goal_plan" ]] && cp -R "$SOURCE_DIR/goal_plan" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/linear_workflow" ]] && cp -R "$SOURCE_DIR/linear_workflow" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/agent_context_sync.config.example.json" ]] && cp "$SOURCE_DIR/agent_context_sync.config.example.json" "$INSTALL_REAL/"
 fi
 
@@ -2737,6 +2824,9 @@ if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
 fi
 if [[ "$INSTALL_GOAL_PLAN" -eq 1 ]]; then
   install_goal_plan_tools
+fi
+if [[ "$INSTALL_LINEAR_WORKFLOW" -eq 1 ]]; then
+  install_linear_workflow_tools
 fi
 
 select_python_bin
@@ -2853,4 +2943,9 @@ if [[ "$INSTALL_GOAL_PLAN" -eq 1 ]]; then
   echo "goal-plan tools: ${GOAL_PLAN_STATUS}"
 else
   echo "goal-plan tools not installed (--no-goal-plan)."
+fi
+if [[ "$INSTALL_LINEAR_WORKFLOW" -eq 1 ]]; then
+  echo "Linear Workflow: ${LINEAR_WORKFLOW_STATUS}"
+else
+  echo "Linear Workflow not installed (--no-linear-workflow)."
 fi

@@ -21,6 +21,10 @@ def build_parser() -> argparse.ArgumentParser:
     ):
         child = subparsers.add_parser(command)
         child.add_argument("--input", type=Path, required=True)
+    doctor = subparsers.add_parser("doctor")
+    doctor.add_argument("--local-only", action="store_true")
+    doctor.add_argument("--home", type=Path, default=Path.home())
+    doctor.add_argument("--repo-config", type=Path)
     return parser
 
 
@@ -30,6 +34,10 @@ def main(argv: list[str] | None = None) -> int:
     if not args.command:
         parser.print_help()
         return 2
+    if args.command == "doctor":
+        from .doctor import render, run_doctor
+
+        return render(run_doctor(args.home, args.repo_config, args.local_only))
     try:
         value = load_json(args.input)
         if args.command == "plan-check":

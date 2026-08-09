@@ -4,6 +4,8 @@ param(
   [string]$CodexHome = (Join-Path $env:USERPROFILE ".codex"),
   [string]$CcSwitchDb = (Join-Path $env:USERPROFILE ".cc-switch\cc-switch.db"),
   [switch]$NoGoalPlan,
+  [switch]$LinearWorkflow,
+  [switch]$NoLinearWorkflow,
   [switch]$NoCodexManualRemoteConnect,
   [string]$ManualRemoteConnectScript = "C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1",
   [switch]$NoCodexConfig,
@@ -51,6 +53,18 @@ function Invoke-AgentToolsPython {
   if ($LASTEXITCODE -ne 0) {
     throw "Python helper failed ($LASTEXITCODE): $Script"
   }
+}
+
+function Assert-CodexTargetGuard {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$TargetCodexHome,
+    [Parameter(Mandatory = $true)][string]$TargetCcSwitchDb
+  )
+  Invoke-AgentToolsPython (Join-Path $RepoRoot "scripts\codex_target_guard.py") `
+    --platform win11 --codex-home $TargetCodexHome --cc-switch-db $TargetCcSwitchDb `
+    --expected-user $env:USERNAME --path-only --allow-missing-config `
+    --allow-missing-cc-switch --skip-cc-switch-read-check
 }
 
 function Copy-Managed {
@@ -161,6 +175,17 @@ function Install-GoalPlan {
   Write-Host "goal-plan installed for Win11 user: $TargetHome"
 }
 
+function Install-LinearWorkflow {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$TargetHome
+  )
+  $helper = Join-Path $RepoRoot "scripts\managed_package_installer.py"
+  $descriptor = Join-Path $RepoRoot "config\managed-packages\linear-workflow.json"
+  Invoke-AgentToolsPython $helper install --descriptor $descriptor --repo-root $RepoRoot --home $TargetHome --platform win11
+  Write-Host "Linear Workflow installed for native Win11 user: $TargetHome"
+}
+
 function Install-CodexManualRemoteConnect {
   param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
@@ -248,10 +273,20 @@ function Invoke-CodexProviderBucketMigration {
   Invoke-AgentToolsPython $script @args
 }
 
+Assert-CodexTargetGuard -RepoRoot $Root -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
+
 if (-not $NoGoalPlan) {
   Install-GoalPlan -RepoRoot $Root -TargetHome $UserHome
 } else {
   Write-Host "goal-plan tools not installed (-NoGoalPlan)."
+}
+
+$installLinearWorkflow = -not $NoLinearWorkflow
+if ($LinearWorkflow) { $installLinearWorkflow = $true }
+if ($installLinearWorkflow) {
+  Install-LinearWorkflow -RepoRoot $Root -TargetHome $UserHome
+} else {
+  Write-Host "Linear Workflow not installed (-NoLinearWorkflow)."
 }
 
 if (-not $NoCodexManualRemoteConnect) {

@@ -18,6 +18,7 @@
     {"source": "goal_plan/claude/commands/goal-plan.md", "destination": ".claude/commands/goal-plan.md"},
     {"source": "goal_plan/claude/agents/goal-plan-reviewer.md", "destination": ".claude/agents/goal-plan-reviewer.md"}
   ],
+  "shared_targets": [],
   "plugin_registration": {
     "name": "goal-plan",
     "path": "./plugins/goal-plan",

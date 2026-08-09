@@ -11,6 +11,7 @@ import shutil
 import stat
 import subprocess
 import sys
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -45,7 +46,8 @@ def load_descriptor(path: Path, repo_root: Path) -> dict[str, Any]:
     if not version:
         raise InstallerError("package version is empty")
     data["resolved_version"] = version
-    for group in ("codex_targets", "claude_targets"):
+    data.setdefault("shared_targets", [])
+    for group in ("codex_targets", "claude_targets", "shared_targets"):
         if not isinstance(data[group], list):
             raise InstallerError(f"{group} must be a list")
         for target in data[group]:
@@ -54,15 +56,19 @@ def load_descriptor(path: Path, repo_root: Path) -> dict[str, Any]:
     return data
 
 
-def target_pairs(descriptor: dict[str, Any], repo_root: Path, home: Path) -> list[tuple[Path, Path]]:
+def target_records(descriptor: dict[str, Any], repo_root: Path, home: Path) -> list[tuple[str, Path, Path]]:
     version = descriptor["resolved_version"]
-    pairs: list[tuple[Path, Path]] = []
-    for group in ("claude_targets", "codex_targets"):
+    pairs: list[tuple[str, Path, Path]] = []
+    for group in ("claude_targets", "codex_targets", "shared_targets"):
         for target in descriptor[group]:
             src = repo_root / target["source"]
             dst = home / target["destination"].format(version=version)
-            pairs.append((src, dst))
+            pairs.append((group.removesuffix("_targets"), src, dst))
     return pairs
+
+
+def target_pairs(descriptor: dict[str, Any], repo_root: Path, home: Path) -> list[tuple[Path, Path]]:
+    return [(source, target) for _, source, target in target_records(descriptor, repo_root, home)]
 
 
 def marker_for(source: Path, target: Path) -> Path:
@@ -168,6 +174,41 @@ def compare_tree(source: Path, target: Path) -> bool:
     return left == right and all(filecmp.cmp(source / rel, target / rel, shallow=False) for rel in left)
 
 
+def fingerprint(path: Path) -> str:
+    digest = hashlib.sha256()
+    ignored = {".agent-tools-managed", "migrated-command-skills", "__pycache__"}
+    files = [path] if path.is_file() else [p for p in path.rglob("*") if p.is_file() and not ignored.intersection(p.parts)]
+    for file in sorted(files, key=lambda item: str(item.relative_to(path) if path.is_dir() else item.name)):
+        relative = str(file.relative_to(path)) if path.is_dir() else file.name
+        digest.update(relative.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(file.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def write_manifest(descriptor: dict[str, Any], repo_root: Path, home: Path, platform: str) -> Path:
+    runtime_home, _, launcher = runtime_paths(descriptor, home, platform)
+    records = []
+    for client, _, target in target_records(descriptor, repo_root, home):
+        records.append({"client": client, "path": str(target), "sha256": fingerprint(target)})
+    manifest = {
+        "schema_version": 1,
+        "package": descriptor["name"],
+        "version": descriptor["resolved_version"],
+        "platform": platform,
+        "home": str(home.resolve()),
+        "launcher": str(launcher),
+        "targets": records,
+    }
+    path = runtime_home.parent / "install-manifest.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    if os.name != "nt":
+        path.chmod(0o600)
+    return path
+
+
 def drift_report(descriptor: dict[str, Any], repo_root: Path, home: Path, platform: str) -> list[str]:
     drift = [str(dst) for src, dst in target_pairs(descriptor, repo_root, home) if not compare_tree(src, dst)]
     runtime_home, _, launcher = runtime_paths(descriptor, home, platform)
@@ -188,6 +229,7 @@ def install(descriptor: dict[str, Any], repo_root: Path, home: Path, platform: s
     update_marketplace(home, descriptor)
     if not skip_runtime:
         install_runtime(descriptor, repo_root, home, platform, uv)
+        write_manifest(descriptor, repo_root, home, platform)
 
 
 def parse_args() -> argparse.Namespace:

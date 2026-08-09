@@ -305,14 +305,14 @@ def validate_pr(evidence: dict[str, Any]) -> list[Violation]:
     ):
         errors.append(_violation(evidence, "review_verdicts", "LW-PR-007", "prior verdict artifacts were modified/deleted or no new round was appended", "preserve the exact base history and append one new artifact"))
     latest = verdicts[-1]
-    latest_new_findings = [finding for finding in latest.get("findings", []) if finding.get("new")]
+    latest_findings = latest.get("findings", [])
     if (
         latest.get("candidate_sha") != candidate
         or not latest.get("independent_context")
         or latest.get("verdict") != "approved"
-        or latest_new_findings
+        or latest_findings
     ):
-        errors.append(_violation(evidence, "review_verdicts[-1]", "LW-PR-006", "latest review is stale, non-independent, unapproved, or contains new findings", "obtain an independent approved round with no new findings on the current candidate"))
+        errors.append(_violation(evidence, "review_verdicts[-1]", "LW-PR-006", "latest review is stale, non-independent, unapproved, or contains unresolved findings", "obtain an independent approved round with no unresolved findings on the current candidate"))
 
     expected_verdict_paths = {item.get("artifact_path") for item in new_verdicts}
     path_changes = evidence["verdict_commit_path_changes"]

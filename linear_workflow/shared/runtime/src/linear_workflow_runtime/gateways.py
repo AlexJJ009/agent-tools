@@ -28,6 +28,8 @@ class GitHubIssue:
     url: str
     repository_full_name: str
     proposal_key: str
+    title: str = ""
+    body: str = ""
 
 
 class LinearGateway(Protocol):
@@ -60,6 +62,14 @@ class GitHubGateway(Protocol):
     def create_issue(
         self,
         repository_full_name: str,
+        title: str,
+        body: str,
+        proposal_key: str,
+    ) -> GitHubIssue: ...
+
+    def update_issue(
+        self,
+        issue: GitHubIssue,
         title: str,
         body: str,
         proposal_key: str,
@@ -99,6 +109,8 @@ def normalize_github_issue(raw: Mapping[str, Any]) -> GitHubIssue:
     number = raw.get("number")
     url = raw.get("url")
     proposal_key = raw.get("proposal_key")
+    title = raw.get("title")
+    body = raw.get("body")
     if not isinstance(repository, str) or "/" not in repository:
         raise GatewayFailure("invalid_response", "GitHub repository_full_name is invalid")
     if type(number) is not int or number <= 0:
@@ -107,9 +119,15 @@ def normalize_github_issue(raw: Mapping[str, Any]) -> GitHubIssue:
         raise GatewayFailure("invalid_response", "GitHub issue URL is missing")
     if not isinstance(proposal_key, str) or not proposal_key:
         raise GatewayFailure("invalid_response", "GitHub proposal key is missing")
+    if not isinstance(title, str) or not title:
+        raise GatewayFailure("invalid_response", "GitHub issue title is missing")
+    if not isinstance(body, str) or not body:
+        raise GatewayFailure("invalid_response", "GitHub issue body is missing")
     return GitHubIssue(
         reference=f"{repository}#{number}",
         url=url,
         repository_full_name=repository,
         proposal_key=proposal_key,
+        title=title,
+        body=body,
     )

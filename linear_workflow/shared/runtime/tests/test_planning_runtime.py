@@ -78,6 +78,7 @@ class FakeGitHubGateway:
     def __init__(self) -> None:
         self.by_key: dict[tuple[str, str], GitHubIssue] = {}
         self.create_count = 0
+        self.update_count = 0
 
     def find_by_proposal_key(
         self, repository_full_name: str, proposal_key: str
@@ -97,9 +98,30 @@ class FakeGitHubGateway:
             f"https://github.com/{repository_full_name}/issues/100",
             repository_full_name,
             proposal_key,
+            title,
+            body,
         )
         self.by_key[(repository_full_name, proposal_key)] = issue
         return issue
+
+    def update_issue(
+        self,
+        issue: GitHubIssue,
+        title: str,
+        body: str,
+        proposal_key: str,
+    ) -> GitHubIssue:
+        self.update_count += 1
+        updated = GitHubIssue(
+            issue.reference,
+            issue.url,
+            issue.repository_full_name,
+            proposal_key,
+            title,
+            body,
+        )
+        self.by_key[(issue.repository_full_name, proposal_key)] = updated
+        return updated
 
 
 class PlanningRuntimeTests(unittest.TestCase):
@@ -223,6 +245,30 @@ class PlanningRuntimeTests(unittest.TestCase):
         self.assertEqual("issue_sync_missing", caught.exception.code)
         self.assertEqual(1, self.github.create_count)
         self.assertEqual(0, self.linear.write_count)
+
+    def test_revised_preview_updates_issue_after_create_then_sync_missing(self) -> None:
+        first = self.preview()
+        with self.assertRaises(PlanningFailure):
+            self.runtime.apply(first, PreviewApproval(first.preview_id, "GongxunLi"))
+        self.assertEqual(1, self.github.create_count)
+
+        self.plan["issues"][0]["title"] = "Revised approved title"
+        self.drafts["DRAGAI-67"]["outcome"] = "Revised approved outcome."
+        revised = self.preview()
+        self.assertEqual("update_github", revised.operations[0].action)
+        self.add_sync_match()
+        result = self.runtime.apply(
+            revised, PreviewApproval(revised.preview_id, "GongxunLi")
+        )
+        stored = self.github.find_by_proposal_key(
+            "AlexJJ009/agent-tools", revised.operations[0].proposal_key
+        )
+        assert stored is not None
+        self.assertEqual(1, self.github.create_count)
+        self.assertEqual(1, self.github.update_count)
+        self.assertEqual("Revised approved title", stored.title)
+        self.assertIn("Revised approved outcome.", stored.body)
+        self.assertEqual("DRAGAI-901", result[0].linear_issue_id)
 
     def test_wrong_repo_and_multiple_canonical_matches_fail_closed(self) -> None:
         preview = self.preview()
@@ -383,6 +429,8 @@ class GatewayNormalizationTests(unittest.TestCase):
                 "number": 6,
                 "url": "https://github.com/AlexJJ009/agent-tools/issues/6",
                 "proposal_key": "linear-workflow:dragai-70:abc",
+                "title": "Implement Planning runtime",
+                "body": "Approved issue body",
             }
         )
         self.assertEqual("AlexJJ009/agent-tools#6", github.reference)

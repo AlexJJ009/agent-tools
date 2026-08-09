@@ -196,12 +196,19 @@ class PlanningRuntime:
             existing = self._github.find_by_proposal_key(repository, proposal_key)
             if existing is not None:
                 self._assert_github_identity(existing, repository, proposal_key)
+            expected_title = str(issue["title"])
+            if existing is None:
+                action = "create_github"
+            elif existing.title == expected_title and existing.body == github_body:
+                action = "reuse_github_unchanged"
+            else:
+                action = "update_github"
             operations.append(
                 PreviewOperation.create(
                     proposal_key,
                     issue["id"],
                     "github_to_linear",
-                    "reuse_github" if existing else "create_github",
+                    action,
                     repository,
                     payload,
                     github_body,
@@ -265,10 +272,17 @@ class PlanningRuntime:
                 repository, operation.proposal_key
             )
             created = github_issue is None
+            title = str(payload["issue"]["title"])
             if github_issue is None:
-                title = str(payload["issue"]["title"])
                 github_issue = self._github.create_issue(
                     repository,
+                    title,
+                    operation.github_body,
+                    operation.proposal_key,
+                )
+            elif github_issue.title != title or github_issue.body != operation.github_body:
+                github_issue = self._github.update_issue(
+                    github_issue,
                     title,
                     operation.github_body,
                     operation.proposal_key,
@@ -276,6 +290,11 @@ class PlanningRuntime:
             self._assert_github_identity(
                 github_issue, repository, operation.proposal_key
             )
+            if github_issue.title != title or github_issue.body != operation.github_body:
+                raise PlanningFailure(
+                    "github_update_failed",
+                    "GitHub Issue content does not match the exact approved preview",
+                )
             matches = self._linear.find_sync_matches(
                 github_issue.url,
                 preview.expected_team,

@@ -1,7 +1,7 @@
 [project]
 name = "linear-workflow-runtime"
-version = "0.1.0"
-description = "Deterministic contracts and validators for Linear Workflow"
+version = "0.2.0"
+description = "Deterministic contracts, validators, and Planning runtime for Linear Workflow"
 requires-python = ">=3.11"
 dependencies = []
 

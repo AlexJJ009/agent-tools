@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "adapter": "linear-plan",
+  "workflow_version_source": "linear_workflow/VERSION",
+  "canonical_skill_source": "linear_workflow/shared/adapters/linear-plan.skill.md",
+  "shared_references": [
+    "linear_workflow/shared/references/linear-object-contract.md",
+    "linear_workflow/shared/references/source-of-truth.md",
+    "linear_workflow/shared/references/risk-profiles.md",
+    "linear_workflow/shared/references/lifecycle.md"
+  ],
+  "generated_skills": [
+    "linear_workflow/codex/skills/linear-plan/SKILL.md",
+    "linear_workflow/codex/plugins/linear-workflow/skills/linear-plan/SKILL.md",
+    "linear_workflow/claude/skills/linear-plan/SKILL.md"
+  ],
+  "generated_metadata": [
+    "linear_workflow/codex/skills/linear-plan/agents/openai.yaml",
+    "linear_workflow/codex/skills/linear-plan/references/contract.json",
+    "linear_workflow/codex/plugins/linear-workflow/skills/linear-plan/agents/openai.yaml",
+    "linear_workflow/codex/plugins/linear-workflow/skills/linear-plan/references/contract.json",
+    "linear_workflow/claude/skills/linear-plan/references/contract.json",
+    "linear_workflow/codex/plugins/linear-workflow/.codex-plugin/plugin.json"
+  ],
+  "generated_commands": [
+    "linear_workflow/codex/plugins/linear-workflow/commands/linear-plan.md",
+    "linear_workflow/claude/commands/linear-plan.md"
+  ],
+  "required_command": "linear-workflow plan-check --input <normalized-prd.json>",
+  "required_stop_markers": [
+    "Do not mark your own PRD or decomposition Approved or Ready.",
+    "Do not modify implementation code",
+    "Delivery requires a new explicit command or session"
+  ]
+}

@@ -12,6 +12,7 @@ from linear_workflow_runtime.validators import (
     PLAN_BLOCKING_RULES,
     validate_batch,
     validate_plan,
+    _path_allowed,
 )
 
 
@@ -78,6 +79,10 @@ class BatchValidatorTests(unittest.TestCase):
         batch["work_references"][0]["base_sha"] = "abc123"
         batch["work_references"][0]["repository_full_name"] = "AT"
         self.assertTrue(validate_schema(batch, "batch"))
+
+    def test_scope_prefix_does_not_match_sibling_name(self) -> None:
+        self.assertTrue(_path_allowed("linear_workflow/VERSION", ["linear_workflow/"]))
+        self.assertFalse(_path_allowed("linear_workflow_evil/VERSION", ["linear_workflow/"]))
 
 
 if __name__ == "__main__":

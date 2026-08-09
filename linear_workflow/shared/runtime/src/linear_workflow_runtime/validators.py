@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
 import re
+from importlib import resources
+from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
 
@@ -25,6 +28,24 @@ BATCH_BLOCKING_RULES = {
     "LW-BAT-004",  # cross-repo risk
     "LW-BAT-005",  # High cross-repo evidence shape
 }
+PR_BLOCKING_RULES = {
+    "LW-PR-001",  # PR identity / current head
+    "LW-PR-002",  # required check presence
+    "LW-PR-003",  # required check result
+    "LW-PR-004",  # required check candidate binding
+    "LW-PR-005",  # commit subject / candidate membership
+    "LW-PR-006",  # current independent review verdict
+    "LW-PR-007",  # append-only verdict history
+    "LW-PR-008",  # verdict-only commit
+    "LW-PR-009",  # reviewer context candidate
+    "LW-PR-010",  # base policy authority
+    "LW-PR-011",  # protected path risk lane
+}
+
+COMMIT_SUBJECT = re.compile(
+    r"(?:feat|fix|refactor|test|docs|perf|build|ci|chore|revert)"
+    r"\([A-Za-z0-9_.-]+\): [^\s].+"
+)
 
 
 def _violation(value: dict[str, Any], field: str, rule: str, message: str, fix: str) -> Violation:
@@ -74,11 +95,31 @@ def _has_cycle(issues: dict[str, dict[str, Any]]) -> bool:
 def _path_allowed(path: str, permitted: list[str]) -> bool:
     normalized = PurePosixPath(path).as_posix()
     for entry in permitted:
-        prefix = PurePosixPath(entry).as_posix()
+        prefix = PurePosixPath(entry).as_posix().rstrip("/")
         if entry.endswith("/"):
-            if normalized.startswith(prefix):
+            if normalized == prefix or normalized.startswith(prefix + "/"):
                 return True
         elif normalized == prefix:
+            return True
+    return False
+
+
+def load_gate_policy() -> dict[str, Any]:
+    source = Path(__file__).resolve().parents[3] / "gate-policy.json"
+    if source.is_file():
+        return json.loads(source.read_text(encoding="utf-8"))
+    packaged = resources.files("linear_workflow_runtime").joinpath("gate-policy.json")
+    return json.loads(packaged.read_text(encoding="utf-8"))
+
+
+def _path_matches_prefix(path: str, prefixes: list[str]) -> bool:
+    normalized = PurePosixPath(path).as_posix()
+    for prefix in prefixes:
+        normalized_prefix = PurePosixPath(prefix).as_posix().rstrip("/")
+        if prefix.endswith("/"):
+            if normalized == normalized_prefix or normalized.startswith(normalized_prefix + "/"):
+                return True
+        elif normalized == normalized_prefix:
             return True
     return False
 
@@ -150,4 +191,86 @@ def validate_plan(plan: dict[str, Any]) -> list[Violation]:
     for issue_id, count in membership.items():
         if count != 1:
             errors.append(_violation(issues[issue_id], "batch", "LW-PLN-007", f"Issue belongs to {count} proposed Batches", "assign it to exactly one unfinished Batch"))
+    return errors
+
+
+def validate_pr(evidence: dict[str, Any]) -> list[Violation]:
+    errors = _schema_violations(evidence, "evidence")
+    if errors:
+        return errors
+    for verdict in evidence["base_review_verdicts"] + evidence["review_verdicts"]:
+        errors.extend(_schema_violations(verdict, "review-verdict"))
+    if errors:
+        return errors
+    policy = load_gate_policy()
+    candidate = evidence["candidate_sha"]
+    pull_request = evidence["pull_request"]
+    identity_mismatches = []
+    if pull_request["repository_full_name"] != evidence["repository_full_name"]:
+        identity_mismatches.append("repository")
+    if pull_request["base_branch"] != evidence["base_branch"]:
+        identity_mismatches.append("base branch")
+    if pull_request["head_branch"] != evidence["working_branch"]:
+        identity_mismatches.append("head branch")
+    latest_artifact_commit = evidence["review_verdicts"][-1].get("artifact_commit")
+    if pull_request["head_sha"] not in {candidate, latest_artifact_commit}:
+        identity_mismatches.append("head SHA")
+    if pull_request["draft"]:
+        identity_mismatches.append("draft state")
+    if identity_mismatches:
+        errors.append(_violation(evidence, "pull_request", "LW-PR-001", f"PR identity mismatch: {', '.join(identity_mismatches)}", "use the declared repository/base/branch and current candidate or verdict-only tip"))
+
+    checks = {check["name"]: check for check in evidence["required_checks"]}
+    for name in policy["required_checks"]:
+        check = checks.get(name)
+        if check is None:
+            errors.append(_violation(evidence, "required_checks", "LW-PR-002", f"required check {name!r} is absent", "run the exact base-policy required check"))
+            continue
+        if check["status"] != "success":
+            errors.append(_violation(evidence, f"required_checks.{name}.status", "LW-PR-003", f"required check is {check['status']}", "wait for or rerun a successful check"))
+        if check["sha"] != candidate:
+            errors.append(_violation(evidence, f"required_checks.{name}.sha", "LW-PR-004", "required check is bound to a stale candidate", "run it on the current candidate SHA"))
+
+    commit_shas = {commit["sha"] for commit in evidence["commits"]}
+    bad_subjects = [commit["subject"] for commit in evidence["commits"] if not COMMIT_SUBJECT.fullmatch(commit["subject"]) or re.match(r"(?i)(?:WIP|fixup!|squash!)", commit["subject"])]
+    if candidate not in commit_shas or bad_subjects:
+        errors.append(_violation(evidence, "commits", "LW-PR-005", f"candidate absent or invalid commit subjects: {bad_subjects!r}", "include the candidate and clean WIP/fixup/squash or non-conventional subjects"))
+
+    base_verdicts = evidence["base_review_verdicts"]
+    verdicts = evidence["review_verdicts"]
+    rounds = [item["round"] for item in verdicts]
+    if (
+        len(verdicts) <= len(base_verdicts)
+        or verdicts[: len(base_verdicts)] != base_verdicts
+        or rounds != sorted(set(rounds))
+        or any(round_number <= 0 for round_number in rounds)
+    ):
+        errors.append(_violation(evidence, "review_verdicts", "LW-PR-007", "prior verdict artifacts were modified/deleted or no new round was appended", "preserve the exact base history and append one new artifact"))
+    latest = verdicts[-1]
+    latest_new_findings = [finding for finding in latest.get("findings", []) if finding.get("new")]
+    if (
+        latest.get("candidate_sha") != candidate
+        or not latest.get("independent_context")
+        or latest.get("verdict") != "approved"
+        or latest_new_findings
+    ):
+        errors.append(_violation(evidence, "review_verdicts[-1]", "LW-PR-006", "latest review is stale, non-independent, unapproved, or contains new findings", "obtain an independent approved round with no new findings on the current candidate"))
+
+    new_verdicts = verdicts[len(base_verdicts) :]
+    expected_verdict_paths = {item.get("artifact_path") for item in new_verdicts}
+    actual_verdict_paths = set(evidence["verdict_commit_changed_paths"])
+    root = policy["verdict_artifact_root"]
+    if (
+        actual_verdict_paths != expected_verdict_paths
+        or not actual_verdict_paths
+        or any(not path.startswith(root) for path in actual_verdict_paths if isinstance(path, str))
+    ):
+        errors.append(_violation(evidence, "verdict_commit_changed_paths", "LW-PR-008", "verdict commit is missing, changes code, or writes outside the artifact root", "make an add-only verdict artifact commit"))
+    if evidence["reviewer_context"]["candidate_sha"] != candidate:
+        errors.append(_violation(evidence, "reviewer_context.candidate_sha", "LW-PR-009", "reviewer brief targets a stale candidate", "regenerate the context index for the current candidate"))
+    if evidence["gate_policy_source"] != "base" or evidence["gate_policy_sha"] != evidence["base_sha"]:
+        errors.append(_violation(evidence, "gate_policy_sha", "LW-PR-010", "gate policy is not bound to the declared base SHA", "load policy from the protected base revision"))
+    protected = [path for path in evidence["changed_paths"] if _path_matches_prefix(path, policy["review_required_paths"])]
+    if protected and evidence["risk_profile"] != "high":
+        errors.append(_violation(evidence, "risk_profile", "LW-PR-011", f"gate-owned paths require High-risk review: {protected!r}", "use the High-risk review lane or remove the gate change"))
     return errors

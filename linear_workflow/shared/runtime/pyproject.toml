@@ -17,3 +17,4 @@ packages = ["src/linear_workflow_runtime"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "../schemas" = "linear_workflow_runtime/schemas"
+"../gate-policy.json" = "linear_workflow_runtime/gate-policy.json"

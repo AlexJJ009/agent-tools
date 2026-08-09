@@ -1,0 +1,1 @@
+{"base":"good/evidence.json","set":{"/review_verdicts/0/findings":[{"id":"F-1","severity":"high","summary":"New defect","new":true}]},"expected_rule":"LW-PR-006"}

@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "required_checks": ["linear-workflow-runtime"],
+  "review_required_paths": [
+    ".github/workflows/",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "linear_workflow/shared/gate-policy.json",
+    "linear_workflow/shared/references/",
+    "linear_workflow/shared/runtime/",
+    "linear_workflow/shared/schemas/"
+  ],
+  "verdict_artifact_root": "linear_workflow/reviews/"
+}

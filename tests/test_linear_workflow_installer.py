@@ -34,7 +34,7 @@ class LinearWorkflowInstallerContractTests(unittest.TestCase):
         descriptor = json.loads((ROOT / "config" / "managed-packages" / "linear-workflow.json").read_text())
         for group in ("codex_targets", "claude_targets", "shared_targets"):
             for target in descriptor[group]:
-                destination = target["destination"].replace("{version}", "0.3.0")
+                destination = target["destination"].replace("{version}", "0.4.0")
                 self.assertFalse(destination.startswith(("/mnt/", "C:\\", "\\\\")))
                 self.assertNotIn("..", Path(destination).parts)
 

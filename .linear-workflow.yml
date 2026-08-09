@@ -1,5 +1,5 @@
 schema_version: 1
-workflow_version: 0.3.0
+workflow_version: 0.4.0
 repository_full_name: AlexJJ009/agent-tools
 github_linear_sync_map: github_to_linear
 base_branch: main

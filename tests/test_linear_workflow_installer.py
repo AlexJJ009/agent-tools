@@ -23,6 +23,14 @@ class LinearWorkflowInstallerContractTests(unittest.TestCase):
         win = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
         self.assertLess(win.rindex("Assert-CodexTargetGuard -RepoRoot"), win.rindex("Install-LinearWorkflow -RepoRoot"))
 
+    def test_win11_guard_binds_actual_write_home_to_codex_and_cc_switch_profile(self):
+        text = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
+        invocation = "Assert-CodexTargetGuard -RepoRoot $Root -TargetUserHome $UserHome -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb"
+        self.assertIn(invocation, text)
+        self.assertIn("$normalizedUserHome.Equals($codexProfile", text)
+        self.assertIn("$normalizedUserHome.Equals($ccSwitchProfile", text)
+        self.assertIn("must belong to the same native Win11 profile", text)
+
     def test_win11_flags_and_launcher_contract(self):
         text = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
         self.assertIn("[switch]$LinearWorkflow", text)

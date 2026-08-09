@@ -58,9 +58,17 @@ function Invoke-AgentToolsPython {
 function Assert-CodexTargetGuard {
   param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$TargetUserHome,
     [Parameter(Mandatory = $true)][string]$TargetCodexHome,
     [Parameter(Mandatory = $true)][string]$TargetCcSwitchDb
   )
+  $normalizedUserHome = [IO.Path]::GetFullPath($TargetUserHome).TrimEnd('\')
+  $codexProfile = [IO.Path]::GetFullPath((Split-Path -Parent $TargetCodexHome)).TrimEnd('\')
+  $ccSwitchProfile = [IO.Path]::GetFullPath((Split-Path -Parent (Split-Path -Parent $TargetCcSwitchDb))).TrimEnd('\')
+  if (-not $normalizedUserHome.Equals($codexProfile, [StringComparison]::OrdinalIgnoreCase) -or
+      -not $normalizedUserHome.Equals($ccSwitchProfile, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "UserHome, CodexHome, and CcSwitchDb must belong to the same native Win11 profile"
+  }
   Invoke-AgentToolsPython (Join-Path $RepoRoot "scripts\codex_target_guard.py") `
     --platform win11 --codex-home $TargetCodexHome --cc-switch-db $TargetCcSwitchDb `
     --expected-user $env:USERNAME --path-only --allow-missing-config `
@@ -273,7 +281,7 @@ function Invoke-CodexProviderBucketMigration {
   Invoke-AgentToolsPython $script @args
 }
 
-Assert-CodexTargetGuard -RepoRoot $Root -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
+Assert-CodexTargetGuard -RepoRoot $Root -TargetUserHome $UserHome -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
 
 if (-not $NoGoalPlan) {
   Install-GoalPlan -RepoRoot $Root -TargetHome $UserHome

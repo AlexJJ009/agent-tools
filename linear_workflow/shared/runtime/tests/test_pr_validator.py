@@ -40,6 +40,24 @@ class PullRequestValidatorTests(unittest.TestCase):
         self.assertTrue(_path_matches_prefix("linear_workflow/shared/runtime/pyproject.toml", prefixes))
         self.assertFalse(_path_matches_prefix("linear_workflow/shared/runtime_evil/file", prefixes))
 
+    def test_duplicate_issue_identity_fails_closed(self) -> None:
+        evidence = load_json(FIXTURES / "good/evidence.json")
+        evidence["linear_issues"][2] = evidence["linear_issues"][1]
+        rules = {error.rule_id for error in validate_pr(evidence)}
+        self.assertIn("LW-SCHEMA", rules)
+
+    def test_stale_gate_self_test_fails_closed(self) -> None:
+        evidence = load_json(FIXTURES / "good/evidence.json")
+        evidence["gate_self_test"]["sha"] = "3" * 40
+        rules = {error.rule_id for error in validate_pr(evidence)}
+        self.assertIn("LW-PR-014", rules)
+
+    def test_stale_workflow_version_fails_closed(self) -> None:
+        evidence = load_json(FIXTURES / "good/evidence.json")
+        evidence["workflow_version"] = "0.1.0"
+        rules = {error.rule_id for error in validate_pr(evidence)}
+        self.assertIn("LW-PR-015", rules)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,41 @@
+name: Linear Workflow PR evidence gate
+description: Validate candidate-bound PR, CI, and review evidence with the declared base revision.
+inputs:
+  evidence:
+    description: Path to normalized evidence JSON in the caller workspace.
+    required: true
+  base-sha:
+    description: Exact 40-character lowercase SHA for the authoritative base validator.
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Load base validator and fail closed
+      shell: bash
+      env:
+        EVIDENCE_PATH: ${{ inputs.evidence }}
+        LINEAR_WORKFLOW_BASE_SHA: ${{ inputs.base-sha }}
+      run: |
+        set -euo pipefail
+        if [[ ! "$LINEAR_WORKFLOW_BASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+          echo "base-sha must be an exact lowercase 40-character SHA" >&2
+          exit 2
+        fi
+        if [[ ! -f "$EVIDENCE_PATH" ]]; then
+          echo "evidence file is missing: $EVIDENCE_PATH" >&2
+          exit 2
+        fi
+        if ! git cat-file -e "${LINEAR_WORKFLOW_BASE_SHA}^{commit}"; then
+          git fetch --no-tags origin "$LINEAR_WORKFLOW_BASE_SHA"
+        fi
+        git cat-file -e "${LINEAR_WORKFLOW_BASE_SHA}^{commit}"
+        validator_root="${RUNNER_TEMP}/linear-workflow-base-validator-${LINEAR_WORKFLOW_BASE_SHA}"
+        mkdir -p "$validator_root"
+        git archive "$LINEAR_WORKFLOW_BASE_SHA" \
+          linear_workflow/shared/runtime \
+          linear_workflow/shared/schemas \
+          linear_workflow/shared/gate-policy.json | tar -x -C "$validator_root"
+        python -m venv "$validator_root/venv"
+        "$validator_root/venv/bin/python" -m pip install \
+          "$validator_root/linear_workflow/shared/runtime"
+        "$validator_root/venv/bin/linear-workflow" pr-check --input "$EVIDENCE_PATH"

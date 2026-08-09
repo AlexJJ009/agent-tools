@@ -3,12 +3,17 @@
   "$id": "https://agent-tools.local/linear-workflow/evidence.schema.json",
   "title": "Normalized PR, CI, and review evidence",
   "type": "object",
-  "required": ["schema_version", "workflow_version", "linear_batch", "linear_issues", "repository_full_name", "base_branch", "base_sha", "working_branch", "candidate_sha", "github_pull_request", "risk_profile", "pull_request", "commits", "required_checks", "base_review_verdicts", "review_verdicts", "verdict_commit_path_changes", "reviewer_context", "changed_paths", "gate_policy_source", "gate_policy_sha"],
+  "required": ["schema_version", "workflow_version", "linear_batch", "linear_issues", "batch_members", "issue_dag", "repository_full_name", "base_branch", "base_sha", "working_branch", "candidate_sha", "github_pull_request", "risk_profile", "pull_request", "commits", "required_checks", "base_review_verdicts", "review_verdicts", "verdict_commit_path_changes", "reviewer_context", "changed_paths", "gate_policy_source", "gate_policy_sha", "gate_self_test"],
   "properties": {
     "schema_version": {"type": "integer", "enum": [1]},
     "workflow_version": {"type": "string", "pattern": "[0-9]+\\.[0-9]+\\.[0-9]+"},
     "linear_batch": {"type": "string", "pattern": "[A-Z][A-Z0-9]+-[1-9][0-9]*"},
     "linear_issues": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "[A-Z][A-Z0-9]+-[1-9][0-9]*"}},
+    "batch_members": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "[A-Z][A-Z0-9]+-[1-9][0-9]*"}},
+    "issue_dag": {"type": "array", "minItems": 1, "items": {"type": "object", "required": ["id", "dependencies"], "properties": {
+      "id": {"type": "string", "pattern": "[A-Z][A-Z0-9]+-[1-9][0-9]*"},
+      "dependencies": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "[A-Z][A-Z0-9]+-[1-9][0-9]*"}}
+    }, "additionalProperties": false}},
     "repository_full_name": {"type": "string", "pattern": "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"},
     "base_branch": {"type": "string", "minLength": 1},
     "base_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
@@ -34,7 +39,11 @@
     "reviewer_context": {"type": "object", "required": ["candidate_sha", "files"], "properties": {"candidate_sha": {"type": "string", "pattern": "[0-9a-f]{40}"}, "files": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}, "additionalProperties": false},
     "changed_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
     "gate_policy_source": {"type": "string", "enum": ["base"]},
-    "gate_policy_sha": {"type": "string", "pattern": "[0-9a-f]{40}"}
+    "gate_policy_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "gate_self_test": {"type": "object", "required": ["sha", "status"], "properties": {
+      "sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+      "status": {"type": "string", "enum": ["success", "failure", "missing"]}
+    }, "additionalProperties": false}
   },
   "additionalProperties": false
 }

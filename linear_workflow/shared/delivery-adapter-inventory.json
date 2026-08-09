@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "adapter": "linear-deliver",
+  "display_name": "Linear Deliver",
+  "short_description": "Deliver one explicitly dispatched Ready Batch",
+  "default_prompt": "Use $linear-deliver to execute the supplied Ready Batch within its approved scope.",
+  "command_description": "Execute one explicitly dispatched Ready Delivery Batch and stop at its merge approval boundary.",
+  "argument_hint": "[Ready Linear Batch ID]",
+  "command_body": "Use `$linear-deliver` for the supplied Ready Batch ID. Read the shared contract and live Linear/repository facts, execute only the Batch members in DAG order, bind CI and independent review to one candidate, and stop before merge unless a human explicitly approves it.",
+  "workflow_version_source": "linear_workflow/VERSION",
+  "canonical_skill_source": "linear_workflow/shared/adapters/linear-deliver.skill.md",
+  "shared_references": [
+    "linear_workflow/shared/references/linear-object-contract.md",
+    "linear_workflow/shared/references/source-of-truth.md",
+    "linear_workflow/shared/references/risk-profiles.md",
+    "linear_workflow/shared/references/lifecycle.md"
+  ],
+  "generated_skills": [
+    "linear_workflow/codex/skills/linear-deliver/SKILL.md",
+    "linear_workflow/codex/plugins/linear-workflow/skills/linear-deliver/SKILL.md",
+    "linear_workflow/claude/skills/linear-deliver/SKILL.md"
+  ],
+  "generated_metadata": [
+    "linear_workflow/codex/skills/linear-deliver/agents/openai.yaml",
+    "linear_workflow/codex/skills/linear-deliver/references/contract.json",
+    "linear_workflow/codex/plugins/linear-workflow/skills/linear-deliver/agents/openai.yaml",
+    "linear_workflow/codex/plugins/linear-workflow/skills/linear-deliver/references/contract.json",
+    "linear_workflow/claude/skills/linear-deliver/references/contract.json"
+  ],
+  "generated_commands": [
+    "linear_workflow/codex/plugins/linear-workflow/commands/linear-deliver.md",
+    "linear_workflow/claude/commands/linear-deliver.md"
+  ],
+  "required_command": "linear-workflow batch-check --input <normalized-batch.json>",
+  "required_stop_markers": [
+    "A Project ID is context, not Delivery authorization.",
+    "Do not run full CI or merge main at each Issue boundary.",
+    "Do not merge without explicit human approval."
+  ]
+}

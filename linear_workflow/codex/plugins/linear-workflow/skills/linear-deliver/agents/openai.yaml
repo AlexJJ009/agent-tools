@@ -1,0 +1,4 @@
+interface:
+  display_name: "Linear Deliver"
+  short_description: "Deliver one explicitly dispatched Ready Batch"
+  default_prompt: "Use $linear-deliver to execute the supplied Ready Batch within its approved scope."

@@ -84,6 +84,16 @@ class BatchValidatorTests(unittest.TestCase):
         self.assertTrue(_path_allowed("linear_workflow/VERSION", ["linear_workflow/"]))
         self.assertFalse(_path_allowed("linear_workflow_evil/VERSION", ["linear_workflow/"]))
 
+    def test_fast_branch_uses_issue_id_and_batch_branch_uses_batch_id(self) -> None:
+        fast = load_json(FIXTURES / "good/batch-fast.json")
+        standard = load_json(FIXTURES / "good/batch.json")
+        self.assertEqual([], validate_batch(fast))
+        self.assertEqual([], validate_batch(standard))
+        fast["work_references"][0]["working_branch"] = "linear/dragai-62-wrong"
+        standard["work_references"][0]["working_branch"] = "linear/dragai-67-wrong"
+        self.assertIn("LW-BAT-002", {error.rule_id for error in validate_batch(fast)})
+        self.assertIn("LW-BAT-002", {error.rule_id for error in validate_batch(standard)})
+
 
 if __name__ == "__main__":
     unittest.main()

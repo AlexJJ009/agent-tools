@@ -10,10 +10,18 @@ from pathlib import Path
 WORKFLOW_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = WORKFLOW_ROOT.parent
 INVENTORY_PATH = WORKFLOW_ROOT / "shared" / "adapter-inventory.json"
+DELIVERY_INVENTORY_PATH = WORKFLOW_ROOT / "shared" / "delivery-adapter-inventory.json"
 
 
 def load_inventory() -> dict[str, object]:
     return json.loads(INVENTORY_PATH.read_text(encoding="utf-8"))
+
+
+def load_inventories() -> list[dict[str, object]]:
+    return [
+        load_inventory(),
+        json.loads(DELIVERY_INVENTORY_PATH.read_text(encoding="utf-8")),
+    ]
 
 
 def validate_skill_source(source: str, inventory: dict[str, object]) -> None:
@@ -27,21 +35,21 @@ def validate_skill_source(source: str, inventory: dict[str, object]) -> None:
             raise ValueError(f"canonical skill source is missing shared reference: {reference}")
 
 
-def _openai_yaml() -> str:
-    return '''interface:
-  display_name: "Linear Plan"
-  short_description: "Plan Linear projects with shared contracts"
-  default_prompt: "Use $linear-plan to prepare an approval-bound Linear planning preview."
+def _openai_yaml(inventory: dict[str, object]) -> str:
+    return f'''interface:
+  display_name: "{inventory["display_name"]}"
+  short_description: "{inventory["short_description"]}"
+  default_prompt: "{inventory["default_prompt"]}"
 '''
 
 
-def _command() -> str:
-    return '''---
-description: Prepare or revise a Linear PRD, DAG, and Delivery Batch preview without entering Delivery.
-argument-hint: [Linear Issue or Project ID]
+def _command(inventory: dict[str, object]) -> str:
+    return f'''---
+description: {inventory["command_description"]}
+argument-hint: {inventory["argument_hint"]}
 ---
 
-Use `$linear-plan` for the supplied Linear Issue or Project. Read the shared contract and candidate repositories, present the complete approval-bound preview, apply only the exact approved preview, and stop before Delivery.
+{inventory["command_body"]}
 '''
 
 
@@ -49,17 +57,17 @@ def _plugin(version: str) -> str:
     value = {
         "name": "linear-workflow",
         "version": version,
-        "description": "Plan Linear-first software delivery with shared deterministic contracts.",
+        "description": "Plan and deliver Linear-first software batches with shared deterministic contracts.",
         "author": {"name": "Local developer"},
         "skills": "./skills/",
         "interface": {
             "displayName": "Linear Workflow",
-            "shortDescription": "Plan Linear-first delivery batches.",
-            "longDescription": "Linear Plan reads Linear and candidate repositories, builds an approval-bound planning preview, and applies it through the shared runtime without entering Delivery.",
+            "shortDescription": "Plan and deliver Linear-first batches.",
+            "longDescription": "Linear Workflow separates approval-bound Planning from Ready-Batch Delivery while sharing one deterministic runtime and contract.",
             "developerName": "Local developer",
             "category": "Developer Tools",
             "capabilities": ["Interactive", "Read", "Write"],
-            "defaultPrompt": "Use /linear-plan to prepare a reviewed Linear planning preview.",
+            "defaultPrompt": "Use /linear-plan for Planning or /linear-deliver for an explicitly dispatched Ready Batch.",
         },
     }
     return json.dumps(value, ensure_ascii=False, indent=2) + "\n"
@@ -77,26 +85,26 @@ def _contract_metadata(version: str) -> str:
 
 
 def render_targets() -> dict[Path, str]:
-    inventory = load_inventory()
-    source_path = REPO_ROOT / inventory["canonical_skill_source"]
-    source = source_path.read_text(encoding="utf-8")
-    validate_skill_source(source, inventory)
-    version = (REPO_ROOT / inventory["workflow_version_source"]).read_text(
-        encoding="utf-8"
-    ).strip()
     rendered: dict[Path, str] = {}
-    for path in inventory["generated_skills"]:
-        rendered[REPO_ROOT / path] = source
-    for path in inventory["generated_metadata"]:
-        target = REPO_ROOT / path
-        if target.name == "plugin.json":
-            rendered[target] = _plugin(version)
-        elif target.name == "contract.json":
-            rendered[target] = _contract_metadata(version)
-        else:
-            rendered[target] = _openai_yaml()
-    for path in inventory["generated_commands"]:
-        rendered[REPO_ROOT / path] = _command()
+    for inventory in load_inventories():
+        source_path = REPO_ROOT / inventory["canonical_skill_source"]
+        source = source_path.read_text(encoding="utf-8")
+        validate_skill_source(source, inventory)
+        version = (REPO_ROOT / inventory["workflow_version_source"]).read_text(
+            encoding="utf-8"
+        ).strip()
+        for path in inventory["generated_skills"]:
+            rendered[REPO_ROOT / path] = source
+        for path in inventory["generated_metadata"]:
+            target = REPO_ROOT / path
+            if target.name == "plugin.json":
+                rendered[target] = _plugin(version)
+            elif target.name == "contract.json":
+                rendered[target] = _contract_metadata(version)
+            else:
+                rendered[target] = _openai_yaml(inventory)
+        for path in inventory["generated_commands"]:
+            rendered[REPO_ROOT / path] = _command(inventory)
     return rendered
 
 

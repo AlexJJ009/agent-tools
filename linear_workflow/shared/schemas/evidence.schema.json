@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-tools.local/linear-workflow/evidence.schema.json",
+  "title": "Normalized PR, CI, and review evidence",
+  "type": "object",
+  "required": ["schema_version", "workflow_version", "linear_batch", "linear_issues", "repository_full_name", "base_branch", "base_sha", "working_branch", "candidate_sha", "github_pull_request", "risk_profile", "commits", "required_checks", "review_verdicts", "changed_paths"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "workflow_version": {"type": "string", "pattern": "[0-9]+\\.[0-9]+\\.[0-9]+"},
+    "linear_batch": {"type": "string", "pattern": "[A-Z][A-Z0-9]+-[1-9][0-9]*"},
+    "linear_issues": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "[A-Z][A-Z0-9]+-[1-9][0-9]*"}},
+    "repository_full_name": {"type": "string", "pattern": "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+"},
+    "base_branch": {"type": "string", "minLength": 1},
+    "base_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "working_branch": {"type": "string", "pattern": "linear/[a-z0-9-]+"},
+    "candidate_sha": {"type": "string", "pattern": "[0-9a-f]{40}"},
+    "github_pull_request": {"type": "string", "pattern": "[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[1-9][0-9]*"},
+    "risk_profile": {"type": "string", "enum": ["fast", "standard", "high"]},
+    "commits": {"type": "array", "items": {"type": "object", "required": ["sha", "subject"], "properties": {"sha": {"type": "string", "pattern": "[0-9a-f]{40}"}, "subject": {"type": "string", "minLength": 1}}, "additionalProperties": false}},
+    "required_checks": {"type": "array", "items": {"type": "object", "required": ["name", "sha", "status", "url"], "properties": {"name": {"type": "string", "minLength": 1}, "sha": {"type": "string", "pattern": "[0-9a-f]{40}"}, "status": {"type": "string", "enum": ["success", "failure", "pending", "cancelled"]}, "url": {"type": "string", "minLength": 1}}, "additionalProperties": false}},
+    "review_verdicts": {"type": "array", "items": {"type": "object"}},
+    "changed_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+  },
+  "additionalProperties": false
+}

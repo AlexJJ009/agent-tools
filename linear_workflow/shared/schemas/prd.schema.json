@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-tools.local/linear-workflow/prd.schema.json",
+  "title": "Normalized Linear Workflow PRD",
+  "type": "object",
+  "required": ["schema_version", "workflow_version", "id", "status", "owner", "goals", "non_goals", "scope", "acceptance", "blocking_questions"],
+  "properties": {
+    "schema_version": {"type": "integer", "enum": [1]},
+    "workflow_version": {"type": "string", "pattern": "[0-9]+\\.[0-9]+\\.[0-9]+"},
+    "id": {"type": "string", "minLength": 1},
+    "status": {"type": "string", "enum": ["Draft", "In review", "Approved", "Superseded"]},
+    "owner": {"type": "string", "minLength": 1},
+    "goals": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "non_goals": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "scope": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "acceptance": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}},
+    "blocking_questions": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  },
+  "additionalProperties": false
+}

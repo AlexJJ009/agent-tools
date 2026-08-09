@@ -1,0 +1,1 @@
+{"schema_version":1,"workflow_version":"0.1.0","id":"prd:linear-workflow-v1","status":"Approved","owner":"GongxunLi","goals":["Deliver deterministic workflow contracts"],"non_goals":["Build a project-management SaaS"],"scope":["AlexJJ009/agent-tools"],"acceptance":["Known-bad contracts fail"],"blocking_questions":[]}

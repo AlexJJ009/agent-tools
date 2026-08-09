@@ -88,6 +88,26 @@ class CodexTargetGuardTests(unittest.TestCase):
                     allow_missing=False,
                 )
 
+    def test_wsl_rejects_native_windows_path_spellings(self):
+        for windows_path in (
+            r"C:\Users\Alice\model-catalog.json",
+            r"\\?\C:\Users\Alice\model-catalog.json",
+            "C:/Users/Alice/model-catalog.json",
+        ):
+            with self.subTest(windows_path=windows_path), tempfile.TemporaryDirectory() as tmp:
+                config = Path(tmp) / "config.toml"
+                config.write_text(
+                    f"model_catalog_json = '{windows_path}'\n" + VALID_CONFIG,
+                    encoding="utf-8",
+                )
+                with self.assertRaisesRegex(MODULE.GateFailure, "Windows path pollution"):
+                    MODULE.validate_config_contract(
+                        config,
+                        "wsl",
+                        "http://15.204.46.107:8080",
+                        allow_missing=False,
+                    )
+
     def test_provider_contract_accepts_only_provider_scoped_streams(self):
         with tempfile.TemporaryDirectory() as tmp:
             config = Path(tmp) / "config.toml"

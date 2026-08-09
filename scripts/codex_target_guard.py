@@ -23,7 +23,7 @@ from typing import Any, Iterable
 
 
 PLATFORMS = ("auto", "linux", "wsl", "win11")
-WINDOWS_PATH_RE = re.compile(r"(?i)(?:[a-z]:\\\\|\\\\\\?\\[a-z]:\\\\)")
+WINDOWS_PATH_RE = re.compile(r"(?i)(?:\b[a-z]:[\\/]|\\\\\?\\[a-z]:[\\/])")
 WSL_WINDOWS_HOME_RE = re.compile(r"(?i)^/mnt/[a-z]/users/[^/]+(?:/|$)")
 
 

@@ -20,7 +20,8 @@ class PlanningFailure(RuntimeError):
 @dataclass(frozen=True)
 class PreviewOperation:
     proposal_key: str
-    issue_id: str
+    object_type: str
+    object_id: str
     destination: str
     action: str
     repository_full_name: str | None
@@ -31,7 +32,8 @@ class PreviewOperation:
     def create(
         cls,
         proposal_key: str,
-        issue_id: str,
+        object_type: str,
+        object_id: str,
         destination: str,
         action: str,
         repository_full_name: str | None,
@@ -40,7 +42,8 @@ class PreviewOperation:
     ) -> PreviewOperation:
         return cls(
             proposal_key,
-            issue_id,
+            object_type,
+            object_id,
             destination,
             action,
             repository_full_name,
@@ -55,7 +58,8 @@ class PreviewOperation:
     def as_dict(self) -> dict[str, Any]:
         return {
             "proposal_key": self.proposal_key,
-            "issue_id": self.issue_id,
+            "object_type": self.object_type,
+            "object_id": self.object_id,
             "destination": self.destination,
             "action": self.action,
             "repository_full_name": self.repository_full_name,
@@ -69,6 +73,7 @@ class PlanningPreview:
     preview_id: str
     workflow_version: str
     plan_id: str
+    project_id: str
     expected_team: str
     sync_timeout_seconds: int
     operations: tuple[PreviewOperation, ...]
@@ -78,6 +83,7 @@ class PlanningPreview:
             "preview_id": self.preview_id,
             "workflow_version": self.workflow_version,
             "plan_id": self.plan_id,
+            "project_id": self.project_id,
             "expected_team": self.expected_team,
             "sync_timeout_seconds": self.sync_timeout_seconds,
             "dry_run": True,
@@ -119,6 +125,7 @@ class PlanningRuntime:
         self,
         plan: Mapping[str, Any],
         *,
+        project_id: str,
         expected_team: str,
         repository_inspections: Mapping[str, Sequence[str]],
         github_drafts: Mapping[str, Mapping[str, Any]],
@@ -151,6 +158,33 @@ class PlanningRuntime:
             )
 
         operations: list[PreviewOperation] = []
+        prd_key = self._object_proposal_key(normalized_plan["id"], "prd", normalized_plan["id"])
+        existing_prd = self._linear.find_planning_object("prd", prd_key)
+        operations.append(
+            PreviewOperation.create(
+                prd_key,
+                "prd",
+                normalized_plan["id"],
+                "linear_only",
+                "update_prd" if existing_prd else "create_prd",
+                None,
+                {"project_id": project_id, "plan": normalized_plan},
+            )
+        )
+        for batch in normalized_plan["batches"]:
+            batch_key = self._object_proposal_key(normalized_plan["id"], "batch", batch["id"])
+            existing_batch = self._linear.find_planning_object("batch", batch_key)
+            operations.append(
+                PreviewOperation.create(
+                    batch_key,
+                    "batch",
+                    batch["id"],
+                    "linear_only",
+                    "update_batch" if existing_batch else "create_batch",
+                    None,
+                    {"project_id": project_id, "batch": batch},
+                )
+            )
         batch_by_issue = {
             issue_id: batch["id"]
             for batch in normalized_plan["batches"]
@@ -177,6 +211,7 @@ class PlanningRuntime:
                 operations.append(
                     PreviewOperation.create(
                         proposal_key,
+                        "issue",
                         issue["id"],
                         "linear_only",
                         action,
@@ -206,6 +241,7 @@ class PlanningRuntime:
             operations.append(
                 PreviewOperation.create(
                     proposal_key,
+                    "issue",
                     issue["id"],
                     "github_to_linear",
                     action,
@@ -215,9 +251,31 @@ class PlanningRuntime:
                 )
             )
 
+        for issue in normalized_plan["issues"]:
+            relation_key = self._object_proposal_key(
+                normalized_plan["id"], "relations", issue["id"]
+            )
+            operations.append(
+                PreviewOperation.create(
+                    relation_key,
+                    "relations",
+                    issue["id"],
+                    "linear_only",
+                    "reconcile_relations",
+                    issue["repository_full_name"],
+                    {
+                        "project_id": project_id,
+                        "issue_id": issue["id"],
+                        "batch_id": batch_by_issue[issue["id"]],
+                        "dependency_issue_ids": issue["dependencies"],
+                    },
+                )
+            )
+
         preview_body = {
             "workflow_version": self._workflow_version,
             "plan_id": normalized_plan["id"],
+            "project_id": project_id,
             "expected_team": expected_team,
             "sync_timeout_seconds": self._sync_timeout_seconds,
             "operations": [operation.as_dict() for operation in operations],
@@ -227,6 +285,7 @@ class PlanningRuntime:
             preview_id,
             self._workflow_version,
             normalized_plan["id"],
+            project_id,
             expected_team,
             self._sync_timeout_seconds,
             tuple(operations),
@@ -239,6 +298,7 @@ class PlanningRuntime:
             {
                 "workflow_version": preview.workflow_version,
                 "plan_id": preview.plan_id,
+                "project_id": preview.project_id,
                 "expected_team": preview.expected_team,
                 "sync_timeout_seconds": preview.sync_timeout_seconds,
                 "operations": [operation.as_dict() for operation in preview.operations],
@@ -249,18 +309,62 @@ class PlanningRuntime:
                 "preview_integrity",
                 "preview content changed after its approval identity was computed",
             )
+        self._validate_preview_inventory(preview)
         if approval.preview_id != preview.preview_id or not approval.approved_by.strip():
             raise PlanningFailure(
                 "approval_required",
                 "external writes require an identifiable approval of the exact current preview",
             )
         mappings: list[AppliedMapping] = []
+        batch_ids: dict[str, str] = {}
+        issue_ids: dict[str, str] = {}
         for operation in preview.operations:
             payload = operation.payload
+            if operation.object_type in {"prd", "batch"}:
+                planned = self._linear.upsert_planning_object(
+                    operation.object_type, operation.proposal_key, payload
+                )
+                if operation.object_type == "batch":
+                    batch_ids[operation.object_id] = planned.id
+                mappings.append(
+                    AppliedMapping(operation.proposal_key, planned.id, None, False)
+                )
+                continue
+            if operation.object_type == "relations":
+                try:
+                    resolved_issue = issue_ids[operation.object_id]
+                    resolved_batch = batch_ids[str(payload["batch_id"])]
+                    resolved_dependencies = [
+                        issue_ids[str(issue_id)]
+                        for issue_id in payload["dependency_issue_ids"]
+                    ]
+                except KeyError as error:
+                    raise PlanningFailure(
+                        "preview_incomplete",
+                        f"relation operation cannot resolve approved object {error.args[0]}",
+                    ) from error
+                self._linear.reconcile_issue_relations(
+                    resolved_issue,
+                    project_id=preview.project_id,
+                    batch_id=resolved_batch,
+                    dependency_issue_ids=resolved_dependencies,
+                )
+                mappings.append(
+                    AppliedMapping(
+                        operation.proposal_key, resolved_issue, None, False
+                    )
+                )
+                continue
+            if operation.object_type != "issue":
+                raise PlanningFailure(
+                    "preview_incomplete",
+                    f"unknown preview operation type {operation.object_type}",
+                )
             if operation.destination == "linear_only":
                 issue = self._linear.upsert_linear_only(
                     operation.proposal_key, payload
                 )
+                issue_ids[operation.object_id] = issue.id
                 mappings.append(
                     AppliedMapping(operation.proposal_key, issue.id, None, False)
                 )
@@ -308,6 +412,7 @@ class PlanningRuntime:
             bound = self._linear.bind_synced_issue(
                 synced.id, operation.proposal_key, payload
             )
+            issue_ids[operation.object_id] = bound.id
             mappings.append(
                 AppliedMapping(
                     operation.proposal_key,
@@ -325,6 +430,36 @@ class PlanningRuntime:
         ).hexdigest()
 
     @staticmethod
+    def _validate_preview_inventory(preview: PlanningPreview) -> None:
+        prd_operations = [
+            operation for operation in preview.operations if operation.object_type == "prd"
+        ]
+        if len(prd_operations) != 1:
+            raise PlanningFailure(
+                "preview_incomplete", "preview must contain exactly one PRD operation"
+            )
+        plan = prd_operations[0].payload.get("plan")
+        if not isinstance(plan, dict):
+            raise PlanningFailure(
+                "preview_incomplete", "PRD operation does not contain the normalized plan"
+            )
+        expected = (
+            [("prd", str(plan.get("id")))]
+            + [("batch", str(batch["id"])) for batch in plan.get("batches", [])]
+            + [("issue", str(issue["id"])) for issue in plan.get("issues", [])]
+            + [("relations", str(issue["id"])) for issue in plan.get("issues", [])]
+        )
+        actual = [
+            (operation.object_type, operation.object_id)
+            for operation in preview.operations
+        ]
+        if actual != expected:
+            raise PlanningFailure(
+                "preview_incomplete",
+                "preview must explicitly cover PRD, Batches, Issues, and DAG relations in order",
+            )
+
+    @staticmethod
     def _proposal_key(plan_id: str, issue: Mapping[str, Any]) -> str:
         identity = {
             "plan_id": plan_id,
@@ -336,6 +471,13 @@ class PlanningRuntime:
             json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()[:24]
         return f"linear-workflow:{issue['id'].lower()}:{digest}"
+
+    @staticmethod
+    def _object_proposal_key(plan_id: str, object_type: str, object_id: str) -> str:
+        digest = hashlib.sha256(
+            f"{plan_id}\0{object_type}\0{object_id}".encode()
+        ).hexdigest()[:24]
+        return f"linear-workflow:{object_type}:{digest}"
 
     @staticmethod
     def _github_body(

@@ -23,6 +23,13 @@ class LinearIssue:
 
 
 @dataclass(frozen=True)
+class LinearPlanningObject:
+    id: str
+    object_type: str
+    proposal_key: str
+
+
+@dataclass(frozen=True)
 class GitHubIssue:
     reference: str
     url: str
@@ -37,6 +44,14 @@ class LinearGateway(Protocol):
 
     def find_by_proposal_key(self, proposal_key: str) -> LinearIssue | None: ...
 
+    def find_planning_object(
+        self, object_type: str, proposal_key: str
+    ) -> LinearPlanningObject | None: ...
+
+    def upsert_planning_object(
+        self, object_type: str, proposal_key: str, payload: Mapping[str, Any]
+    ) -> LinearPlanningObject: ...
+
     def upsert_linear_only(
         self, proposal_key: str, payload: Mapping[str, Any]
     ) -> LinearIssue: ...
@@ -50,6 +65,15 @@ class LinearGateway(Protocol):
     def bind_synced_issue(
         self, issue_id: str, proposal_key: str, payload: Mapping[str, Any]
     ) -> LinearIssue: ...
+
+    def reconcile_issue_relations(
+        self,
+        issue_id: str,
+        *,
+        project_id: str,
+        batch_id: str,
+        dependency_issue_ids: Sequence[str],
+    ) -> None: ...
 
 
 class GitHubGateway(Protocol):

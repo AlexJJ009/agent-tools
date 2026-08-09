@@ -154,33 +154,9 @@ function Install-GoalPlan {
     throw "goal-plan tools not installed: missing $sourceRoot"
   }
 
-  Copy-Managed (Join-Path $sourceRoot "claude\skills\goal-plan") (Join-Path $TargetHome ".claude\skills\goal-plan")
-  Copy-Managed (Join-Path $sourceRoot "claude\commands\goal-plan.md") (Join-Path $TargetHome ".claude\commands\goal-plan.md")
-  Copy-Managed (Join-Path $sourceRoot "claude\agents\goal-plan-reviewer.md") (Join-Path $TargetHome ".claude\agents\goal-plan-reviewer.md")
-
-  Copy-Managed (Join-Path $sourceRoot "codex\skills\goal-plan") (Join-Path $TargetHome ".codex\skills\goal-plan")
-  Copy-Managed (Join-Path $sourceRoot "codex\plugins\goal-plan") (Join-Path $TargetHome "plugins\goal-plan")
-  Copy-Managed (Join-Path $sourceRoot "codex\plugins\goal-plan") (Join-Path $TargetHome ".codex\plugins\cache\personal\goal-plan\0.2.0")
-  Copy-Managed (Join-Path $sourceRoot "codex\plugins\goal-plan\commands\goal-plan.md") (Join-Path $TargetHome ".codex\prompts\goal-plan.md")
-  Install-PersonalMarketplace -TargetHome $TargetHome
-
-  $uv = Get-Command uv -ErrorAction SilentlyContinue
-  if (-not $uv) {
-    throw "goal-plan runtime requires uv on PATH; install uv and rerun install-win11.ps1"
-  }
-  $runtimeSource = Join-Path $sourceRoot "runtime"
-  $runtimeHome = Join-Path $TargetHome ".local\share\goal-plan\runtime"
-  $runtimeBin = Join-Path $TargetHome ".local\bin"
-  New-Item -ItemType Directory -Force -Path $runtimeHome, $runtimeBin | Out-Null
-  & $uv.Source venv --clear --python 3.12 (Join-Path $runtimeHome ".venv") | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "failed to create goal-plan uv environment" }
-  & $uv.Source pip install --python (Join-Path $runtimeHome ".venv\Scripts\python.exe") $runtimeSource | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "failed to install goal-plan runtime" }
-  $launcher = @"
-@echo off
-"$runtimeHome\.venv\Scripts\goal-plan-runtime.exe" %*
-"@
-  Set-Content -LiteralPath (Join-Path $runtimeBin "goal-plan-runtime.cmd") -Value $launcher -Encoding ASCII
+  $helper = Join-Path $RepoRoot "scripts\managed_package_installer.py"
+  $descriptor = Join-Path $RepoRoot "config\managed-packages\goal-plan.json"
+  Invoke-AgentToolsPython $helper install --descriptor $descriptor --repo-root $RepoRoot --home $TargetHome --platform win11
 
   Write-Host "goal-plan installed for Win11 user: $TargetHome"
 }

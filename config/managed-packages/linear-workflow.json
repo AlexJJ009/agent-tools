@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "name": "linear-workflow",
+  "version_file": "linear_workflow/VERSION",
+  "runtime": {
+    "source": "linear_workflow/shared/runtime",
+    "module": "linear_workflow_runtime",
+    "entrypoint": "linear-workflow"
+  },
+  "codex_targets": [
+    {"source": "linear_workflow/codex/skills/linear-plan", "destination": ".codex/skills/linear-plan"},
+    {"source": "linear_workflow/codex/skills/linear-deliver", "destination": ".codex/skills/linear-deliver"},
+    {"source": "linear_workflow/codex/plugins/linear-workflow", "destination": "plugins/linear-workflow"},
+    {"source": "linear_workflow/codex/plugins/linear-workflow", "destination": ".codex/plugins/cache/personal/linear-workflow/{version}"}
+  ],
+  "claude_targets": [
+    {"source": "linear_workflow/claude/skills/linear-plan", "destination": ".claude/skills/linear-plan"},
+    {"source": "linear_workflow/claude/skills/linear-deliver", "destination": ".claude/skills/linear-deliver"},
+    {"source": "linear_workflow/claude/commands/linear-plan.md", "destination": ".claude/commands/linear-plan.md"},
+    {"source": "linear_workflow/claude/commands/linear-deliver.md", "destination": ".claude/commands/linear-deliver.md"}
+  ],
+  "plugin_registration": {
+    "name": "linear-workflow",
+    "path": "./plugins/linear-workflow",
+    "category": "Developer Tools"
+  },
+  "launcher": {
+    "name": "linear-workflow",
+    "windows_name": "linear-workflow.cmd"
+  },
+  "legacy_policy": "coexist-with-goal-plan"
+}

@@ -22,7 +22,7 @@ FAIL2BAN_SSHD_BANACTION="${FAIL2BAN_SSHD_BANACTION:-iptables-multiport[blocktype
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
 INSTALL_GOAL_PLAN=1
-GOAL_PLAN_INCLUDE_WSL_WINDOWS="${GOAL_PLAN_INCLUDE_WSL_WINDOWS:-auto}"
+GOAL_PLAN_INCLUDE_WSL_WINDOWS="${GOAL_PLAN_INCLUDE_WSL_WINDOWS:-never}"
 INSTALL_CC_SWITCH_CLI_UPDATE="${INSTALL_CC_SWITCH_CLI_UPDATE:-1}"
 CC_SWITCH_UPDATE_PROXY_MODE="${CC_SWITCH_UPDATE_PROXY_MODE:-auto}"
 CC_SWITCH_UPDATE_CONNECT_TIMEOUT="${CC_SWITCH_UPDATE_CONNECT_TIMEOUT:-10}"
@@ -2205,40 +2205,12 @@ _goal_plan_venv_paths() {
 # cli.py) against the source tree. Exit 0 only when everything is in sync.
 check_goal_plan_drift() {
   local source_root="$1"
-  local drift=0 src dst
-  if [[ ! -d "$source_root" ]]; then
-    echo "CHECK: missing source tree $source_root" >&2
-    return 1
-  fi
-  while IFS=$'\t' read -r src dst; do
-    if [[ ! -e "$dst" ]]; then
-      echo "DRIFT: $dst is missing (source: $src)"
-      drift=1
-    elif [[ -d "$src" ]]; then
-      if ! diff -r -q -x '.agent-tools-managed' -x 'migrated-command-skills' "$src" "$dst" >/dev/null; then
-        echo "DRIFT: $dst differs from $src"
-        drift=1
-      fi
-    elif ! cmp -s "$src" "$dst"; then
-      echo "DRIFT: $dst differs from $src"
-      drift=1
-    fi
-  done < <(goal_plan_managed_pairs "$source_root")
-  local runtime_home="${GOAL_PLAN_RUNTIME_HOME:-$HOME/.local/share/goal-plan/runtime}"
-  _goal_plan_venv_paths
-  local installed_cli
-  installed_cli="$(compgen -G "$runtime_home/.venv/$GOAL_PLAN_VENV_SITE_GLOB/goal_plan_runtime/cli.py" | head -1 || true)"
-  if [[ -z "$installed_cli" ]]; then
-    echo "DRIFT: runtime venv has no installed goal_plan_runtime/cli.py under $runtime_home"
-    drift=1
-  elif ! cmp -s "$source_root/runtime/src/goal_plan_runtime/cli.py" "$installed_cli"; then
-    echo "DRIFT: runtime venv cli.py differs from source (source edited without reinstall, or vice versa)"
-    drift=1
-  fi
-  if [[ "$drift" -eq 0 ]]; then
-    echo "goal-plan managed copies: in sync"
-  fi
-  return "$drift"
+  local repo_root
+  repo_root="$(cd "$source_root/.." && pwd -P)"
+  select_python_bin
+  "$PYTHON_BIN" "$repo_root/scripts/managed_package_installer.py" check \
+    --descriptor "$repo_root/config/managed-packages/goal-plan.json" \
+    --repo-root "$repo_root" --home "$HOME" --platform unix
 }
 
 install_goal_plan_tools() {
@@ -2253,35 +2225,11 @@ install_goal_plan_tools() {
     return 0
   fi
 
-  # The Codex CLI prompt copy is included in the pair list (CLI 0.142.x loads
-  # slash commands from ~/.codex/prompts/*.md, not from plugin commands).
-  local src dst
-  while IFS=$'\t' read -r src dst; do
-    backup_and_copy_managed "$src" "$dst"
-  done < <(goal_plan_managed_pairs "$source_root")
-  install_codex_personal_marketplace_goal_plan "$HOME"
+  select_python_bin
+  "$PYTHON_BIN" "$INSTALL_REAL/scripts/managed_package_installer.py" install \
+    --descriptor "$INSTALL_REAL/config/managed-packages/goal-plan.json" \
+    --repo-root "$INSTALL_REAL" --home "$HOME" --platform unix
   install_goal_plan_for_wsl_windows_homes "$source_root"
-
-  local runtime_source="$source_root/runtime"
-  local runtime_home="${GOAL_PLAN_RUNTIME_HOME:-$HOME/.local/share/goal-plan/runtime}"
-  local runtime_bin="${GOAL_PLAN_RUNTIME_BIN:-$HOME/.local/bin/goal-plan-runtime}"
-  if [[ ! -f "$runtime_source/pyproject.toml" ]]; then
-    echo "goal-plan runtime not installed: missing $runtime_source/pyproject.toml" >&2
-    return 1
-  fi
-  if ! command -v uv >/dev/null 2>&1; then
-    echo "goal-plan runtime requires uv on PATH; install uv and rerun install.sh" >&2
-    return 1
-  fi
-  mkdir -p "$runtime_home" "$(dirname "$runtime_bin")"
-  _goal_plan_venv_paths
-  uv venv --clear --python 3.12 "$runtime_home/.venv" >/dev/null
-  uv pip install --python "$runtime_home/.venv/$GOAL_PLAN_VENV_BINDIR/python$GOAL_PLAN_VENV_EXE" "$runtime_source" >/dev/null
-  cat >"$runtime_bin" <<EOF
-#!/usr/bin/env bash
-exec "$runtime_home/.venv/$GOAL_PLAN_VENV_BINDIR/goal-plan-runtime$GOAL_PLAN_VENV_EXE" "\$@"
-EOF
-  chmod 0755 "$runtime_bin"
 
   if command -v codex >/dev/null 2>&1; then
     if codex plugin add goal-plan@personal >/dev/null 2>&1; then
@@ -2440,7 +2388,7 @@ Options:
                            isolated runtime, then exit. Do not configure other tools.
   --goal-plan-wsl-windows MODE
                            Also install goal-plan into Win11 Codex/Claude homes
-                           when running from WSL: auto|always|never. Default: auto.
+                           when running from WSL: auto|always|never. Default: never.
   --no-cc-switch-update    Do not update cc-switch-cli from the latest GitHub
                            release before Codex provider migration.
   --cc-switch-update-proxy MODE
@@ -2740,6 +2688,7 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   cp "$SOURCE_DIR/install.sh" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/bin" ]] && cp -R "$SOURCE_DIR/bin" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/scripts" ]] && cp -R "$SOURCE_DIR/scripts" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/config" ]] && cp -R "$SOURCE_DIR/config" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/README.md" ]] && cp "$SOURCE_DIR/README.md" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/docs" ]] && cp -R "$SOURCE_DIR/docs" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/experiment_registry" ]] && cp -R "$SOURCE_DIR/experiment_registry" "$INSTALL_REAL/"

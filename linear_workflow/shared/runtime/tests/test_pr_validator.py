@@ -52,6 +52,12 @@ class PullRequestValidatorTests(unittest.TestCase):
         rules = {error.rule_id for error in validate_pr(evidence)}
         self.assertIn("LW-PR-014", rules)
 
+    def test_stale_workflow_version_fails_closed(self) -> None:
+        evidence = load_json(FIXTURES / "good/evidence.json")
+        evidence["workflow_version"] = "0.1.0"
+        rules = {error.rule_id for error in validate_pr(evidence)}
+        self.assertIn("LW-PR-015", rules)
+
 
 if __name__ == "__main__":
     unittest.main()

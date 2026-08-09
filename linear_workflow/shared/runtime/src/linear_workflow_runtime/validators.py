@@ -7,6 +7,7 @@ from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
 
+from . import __version__
 from .contracts import Violation, validate_schema
 
 
@@ -44,6 +45,7 @@ PR_BLOCKING_RULES = {
     "LW-PR-012",  # Batch / Issue identity
     "LW-PR-013",  # evidence DAG
     "LW-PR-014",  # gate self-test binding
+    "LW-PR-015",  # workflow version binding
 }
 
 COMMIT_SUBJECT = re.compile(
@@ -241,6 +243,8 @@ def validate_pr(evidence: dict[str, Any]) -> list[Violation]:
     policy = load_gate_policy()
     candidate = evidence["candidate_sha"]
     pull_request = evidence["pull_request"]
+    if evidence["workflow_version"] != __version__:
+        errors.append(_violation(evidence, "workflow_version", "LW-PR-015", f"evidence workflow version {evidence['workflow_version']!r} does not match validator version {__version__!r}", "regenerate evidence with the current workflow runtime; never let an older client interpret a newer contract"))
     members = evidence["batch_members"]
     dag_records = evidence["issue_dag"]
     dag_ids = [item["id"] for item in dag_records]

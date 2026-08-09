@@ -49,17 +49,23 @@ jobs:
           python -m venv "$RUNNER_TEMP/linear-workflow-venv"
           "$RUNNER_TEMP/linear-workflow-venv/bin/python" -m pip install "$RUNNER_TEMP"/wheels/*.whl
       - name: Verify installed environment
-        run: "$RUNNER_TEMP/linear-workflow-venv/bin/python" -m pip check
+        run: |
+          "$RUNNER_TEMP/linear-workflow-venv/bin/python" -m pip check
       - name: Run runtime, adapter, and gate tests
-        run: "$RUNNER_TEMP/linear-workflow-venv/bin/python" -m unittest discover -s linear_workflow/shared/runtime/tests -v
+        run: |
+          "$RUNNER_TEMP/linear-workflow-venv/bin/python" -m unittest discover -s linear_workflow/shared/runtime/tests -v
       - name: Run repository tests
-        run: "$RUNNER_TEMP/linear-workflow-venv/bin/python" -m unittest discover -s tests -v
+        run: |
+          "$RUNNER_TEMP/linear-workflow-venv/bin/python" -m unittest discover -s tests -v
       - name: Validate generated adapters
-        run: "$RUNNER_TEMP/linear-workflow-venv/bin/python" linear_workflow/scripts/assemble_adapters.py --check
+        run: |
+          "$RUNNER_TEMP/linear-workflow-venv/bin/python" linear_workflow/scripts/assemble_adapters.py --check
       - name: Validate metadata, workflow, and adoption contract
-        run: "$RUNNER_TEMP/linear-workflow-venv/bin/python" linear_workflow/scripts/validate_repo_adoption.py
+        run: |
+          "$RUNNER_TEMP/linear-workflow-venv/bin/python" linear_workflow/scripts/validate_repo_adoption.py
       - name: Compile Python sources
-        run: "$RUNNER_TEMP/linear-workflow-venv/bin/python" -m compileall -q linear_workflow scripts tests
+        run: |
+          "$RUNNER_TEMP/linear-workflow-venv/bin/python" -m compileall -q linear_workflow scripts tests
       - name: Reject whitespace errors
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}

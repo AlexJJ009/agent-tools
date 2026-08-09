@@ -34,6 +34,8 @@ def _event_block(text: str, event: str) -> str:
 
 def validate_workflow_text(text: str) -> list[str]:
     errors: list[str] = []
+    if re.search(r'^\s+run:\s+"[^"]+"\s+\S', text, re.MULTILINE):
+        errors.append("workflow has an invalid partially quoted inline run scalar")
     pull_request = _event_block(text, "pull_request")
     push = _event_block(text, "push")
     if not pull_request:

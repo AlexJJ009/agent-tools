@@ -35,6 +35,13 @@ class GateAdoptionTests(unittest.TestCase):
         broken = self.workflow.replace("      - linear_workflow/**\n", "", 1)
         self.assertTrue(any("pull_request paths" in error for error in self.validator.validate_workflow_text(broken)))
 
+    def test_partially_quoted_run_scalar_is_rejected(self) -> None:
+        broken = self.workflow.replace(
+            "        run: |\n          \"$RUNNER_TEMP/linear-workflow-venv/bin/python\" -m pip check",
+            "        run: \"$RUNNER_TEMP/linear-workflow-venv/bin/python\" -m pip check",
+        )
+        self.assertTrue(any("partially quoted" in error for error in self.validator.validate_workflow_text(broken)))
+
     def test_base_validator_fetch_or_archive_deletion_is_observed(self) -> None:
         for marker in ("git cat-file -e", "git archive", "pr-check --input"):
             with self.subTest(marker=marker):

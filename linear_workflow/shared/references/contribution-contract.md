@@ -20,3 +20,9 @@ a co-author.
 Each Issue gets only targeted checks. After every included Issue is complete,
 fix the candidate and run required CI once. A new commit creates a new candidate
 and invalidates prior CI, review, and integration verdicts.
+
+Review verdict history is append-only. Every round uses a new artifact path
+under the policy-owned verdict root. Evidence preserves the exact base verdict
+prefix and records each verdict-commit path with its Git diff status. A valid
+verdict-only commit contains only `added` paths for the newly appended rounds;
+reusing, modifying, or deleting an existing artifact path fails admission.

@@ -1,1 +1,1 @@
-{"base":"good/evidence.json","set":{"/verdict_commit_changed_paths":["linear_workflow/reviews/DRAGAI-62/round-1.json","linear_workflow/shared/runtime/src/linear_workflow_runtime/validators.py"]},"expected_rule":"LW-PR-008"}
+{"base":"good/evidence.json","set":{"/verdict_commit_path_changes":[{"path":"linear_workflow/reviews/DRAGAI-62/round-1.json","status":"added"},{"path":"linear_workflow/shared/runtime/src/linear_workflow_runtime/validators.py","status":"modified"}]},"expected_rule":"LW-PR-008"}

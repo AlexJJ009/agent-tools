@@ -130,7 +130,13 @@ def validate_batch(batch: dict[str, Any], *, require_ready: bool = True) -> list
         return errors
     if require_ready and batch["status"] != "Ready":
         errors.append(_violation(batch, "status", "LW-BAT-001", "only a Ready Batch can enter Delivery", "obtain human Ready admission"))
-    expected = f"linear/{batch['id'].lower()}-"
+    if batch["risk_profile"] == "fast":
+        if len(batch["included_issues"]) != 1:
+            errors.append(_violation(batch, "included_issues", "LW-BAT-002", "Fast delivery must contain exactly one Issue", "use one Issue or a Standard/High Batch"))
+        branch_id = batch["included_issues"][0]
+    else:
+        branch_id = batch["id"]
+    expected = f"linear/{branch_id.lower()}-"
     for index, work_ref in enumerate(batch["work_references"]):
         if not work_ref["working_branch"].startswith(expected):
             errors.append(_violation(batch, f"work_references[{index}].working_branch", "LW-BAT-002", f"Batch branch must start with {expected}", "use the client-independent Batch branch format"))
@@ -164,6 +170,9 @@ def validate_plan(plan: dict[str, Any]) -> list[Violation]:
             errors.extend(schema_errors)
             continue
         issue_id = issue["id"]
+        if issue_id in issues:
+            errors.append(_violation(issue, "id", "LW-PLN-006", f"duplicate Issue ID {issue_id} has multiple planning records", "keep the single canonical Issue mapping"))
+            continue
         issues[issue_id] = issue
         destination = issue["destination"]
         repo = issue["repository_full_name"]
@@ -188,6 +197,8 @@ def validate_plan(plan: dict[str, Any]) -> list[Violation]:
         for issue_id in batch.get("included_issues", []):
             if issue_id in membership:
                 membership[issue_id] += 1
+            else:
+                errors.append(_violation(batch, "included_issues", "LW-PLN-007", f"Batch includes unknown Issue {issue_id}", "include only declared non-duplicate Issues"))
     for issue_id, count in membership.items():
         if count != 1:
             errors.append(_violation(issues[issue_id], "batch", "LW-PLN-007", f"Issue belongs to {count} proposed Batches", "assign it to exactly one unfinished Batch"))
@@ -239,11 +250,16 @@ def validate_pr(evidence: dict[str, Any]) -> list[Violation]:
     base_verdicts = evidence["base_review_verdicts"]
     verdicts = evidence["review_verdicts"]
     rounds = [item["round"] for item in verdicts]
+    all_artifact_paths = [item["artifact_path"] for item in verdicts]
+    base_artifact_paths = {item["artifact_path"] for item in base_verdicts}
+    new_artifact_paths = [item["artifact_path"] for item in verdicts[len(base_verdicts) :]]
     if (
         len(verdicts) <= len(base_verdicts)
         or verdicts[: len(base_verdicts)] != base_verdicts
         or rounds != sorted(set(rounds))
         or any(round_number <= 0 for round_number in rounds)
+        or len(all_artifact_paths) != len(set(all_artifact_paths))
+        or any(path in base_artifact_paths for path in new_artifact_paths)
     ):
         errors.append(_violation(evidence, "review_verdicts", "LW-PR-007", "prior verdict artifacts were modified/deleted or no new round was appended", "preserve the exact base history and append one new artifact"))
     latest = verdicts[-1]
@@ -258,14 +274,17 @@ def validate_pr(evidence: dict[str, Any]) -> list[Violation]:
 
     new_verdicts = verdicts[len(base_verdicts) :]
     expected_verdict_paths = {item.get("artifact_path") for item in new_verdicts}
-    actual_verdict_paths = set(evidence["verdict_commit_changed_paths"])
+    path_changes = evidence["verdict_commit_path_changes"]
+    actual_verdict_paths = {item["path"] for item in path_changes if item["status"] == "added"}
     root = policy["verdict_artifact_root"]
     if (
         actual_verdict_paths != expected_verdict_paths
         or not actual_verdict_paths
+        or any(item["status"] != "added" for item in path_changes)
+        or len(path_changes) != len(actual_verdict_paths)
         or any(not path.startswith(root) for path in actual_verdict_paths if isinstance(path, str))
     ):
-        errors.append(_violation(evidence, "verdict_commit_changed_paths", "LW-PR-008", "verdict commit is missing, changes code, or writes outside the artifact root", "make an add-only verdict artifact commit"))
+        errors.append(_violation(evidence, "verdict_commit_path_changes", "LW-PR-008", "verdict commit is missing, changes code, modifies an existing path, or writes outside the artifact root", "make an add-only verdict artifact commit whose diff reports only added paths"))
     if evidence["reviewer_context"]["candidate_sha"] != candidate:
         errors.append(_violation(evidence, "reviewer_context.candidate_sha", "LW-PR-009", "reviewer brief targets a stale candidate", "regenerate the context index for the current candidate"))
     if evidence["gate_policy_source"] != "base" or evidence["gate_policy_sha"] != evidence["base_sha"]:

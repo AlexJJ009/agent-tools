@@ -129,6 +129,16 @@ class FakeGitHubGateway:
     ) -> GitHubIssue | None:
         return self.by_key.get((repository_full_name, proposal_key))
 
+    def find_any_by_proposal_key(self, proposal_key: str) -> GitHubIssue | None:
+        matches = [
+            issue for (_, key), issue in self.by_key.items() if key == proposal_key
+        ]
+        if len(matches) > 1:
+            raise GatewayFailure(
+                "multiple_matches", "proposal key maps to multiple GitHub Issues"
+            )
+        return matches[0] if matches else None
+
     def create_issue(
         self,
         repository_full_name: str,
@@ -372,6 +382,39 @@ class PlanningRuntimeTests(unittest.TestCase):
         self.assertEqual("Revised approved title", stored.title)
         self.assertIn("Revised approved outcome.", stored.body)
         self.assertEqual("DRAGAI-901", self.github_mapping(result).linear_issue_id)
+
+    def test_destination_change_after_partial_github_write_fails_closed(self) -> None:
+        first = self.preview()
+        with self.assertRaises(PlanningFailure):
+            self.runtime.apply(first, PreviewApproval(first.preview_id, "GongxunLi"))
+        original_key = self.issue_operation(first).proposal_key
+
+        self.plan["issues"][0].update(
+            {
+                "destination": "linear_only",
+                "repository_full_name": None,
+                "github_issue": None,
+            }
+        )
+        second_issue = copy.deepcopy(self.plan["issues"][0])
+        second_issue.update(
+            {
+                "id": "DRAGAI-68",
+                "title": "Keep a code repository in the approved Batch",
+                "destination": "github_to_linear",
+                "repository_full_name": "AlexJJ009/agent-tools",
+                "github_issue": None,
+            }
+        )
+        self.plan["issues"].append(second_issue)
+        self.plan["batches"][0]["included_issues"] = ["DRAGAI-67", "DRAGAI-68"]
+        self.drafts["DRAGAI-68"] = copy.deepcopy(self.drafts["DRAGAI-67"])
+
+        with self.assertRaises(PlanningFailure) as caught:
+            self.preview()
+        self.assertEqual("destination_conflict", caught.exception.code)
+        self.assertIsNotNone(self.github.find_any_by_proposal_key(original_key))
+        self.assertEqual(0, self.linear.linear_issue_write_count)
 
     def test_wrong_repo_and_multiple_canonical_matches_fail_closed(self) -> None:
         preview = self.preview()

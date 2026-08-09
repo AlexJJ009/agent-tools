@@ -83,6 +83,8 @@ class GitHubGateway(Protocol):
         self, repository_full_name: str, proposal_key: str
     ) -> GitHubIssue | None: ...
 
+    def find_any_by_proposal_key(self, proposal_key: str) -> GitHubIssue | None: ...
+
     def create_issue(
         self,
         repository_full_name: str,

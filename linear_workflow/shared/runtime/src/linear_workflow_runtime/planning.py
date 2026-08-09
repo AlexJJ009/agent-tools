@@ -198,6 +198,7 @@ class PlanningRuntime:
                     f"{issue['id']}: reliable decomposition requires inspected repository {repository}",
                 )
             proposal_key = self._proposal_key(normalized_plan["id"], issue)
+            prior_github = self._github.find_any_by_proposal_key(proposal_key)
             payload = {
                 "workflow_version": self._workflow_version,
                 "plan_id": normalized_plan["id"],
@@ -206,6 +207,11 @@ class PlanningRuntime:
                 "batch_id": batch_by_issue[issue["id"]],
             }
             if issue["destination"] == "linear_only":
+                if prior_github is not None:
+                    raise PlanningFailure(
+                        "destination_conflict",
+                        f"{issue['id']}: an external GitHub write already exists for this logical item; resolve its sync/cleanup before changing destination",
+                    )
                 existing = self._linear.find_by_proposal_key(proposal_key)
                 action = "update_linear" if existing else "create_linear"
                 operations.append(
@@ -228,7 +234,7 @@ class PlanningRuntime:
                     f"{issue['id']}: github_to_linear item requires an approved GitHub draft",
                 )
             github_body = self._github_body(issue, draft, normalized_plan["id"])
-            existing = self._github.find_by_proposal_key(repository, proposal_key)
+            existing = prior_github
             if existing is not None:
                 self._assert_github_identity(existing, repository, proposal_key)
             expected_title = str(issue["title"])
@@ -372,9 +378,13 @@ class PlanningRuntime:
 
             repository = operation.repository_full_name
             assert repository is not None and operation.github_body is not None
-            github_issue = self._github.find_by_proposal_key(
-                repository, operation.proposal_key
+            github_issue = self._github.find_any_by_proposal_key(
+                operation.proposal_key
             )
+            if github_issue is not None:
+                self._assert_github_identity(
+                    github_issue, repository, operation.proposal_key
+                )
             created = github_issue is None
             title = str(payload["issue"]["title"])
             if github_issue is None:
@@ -464,8 +474,6 @@ class PlanningRuntime:
         identity = {
             "plan_id": plan_id,
             "issue_id": issue["id"],
-            "destination": issue["destination"],
-            "repository_full_name": issue["repository_full_name"],
         }
         digest = hashlib.sha256(
             json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()

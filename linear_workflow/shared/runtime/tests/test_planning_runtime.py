@@ -109,6 +109,7 @@ class PlanningRuntimeTests(unittest.TestCase):
         )
         self.plan = load_json(FIXTURES / "good/prd.json")
         self.plan["workflow_version"] = "0.2.0"
+        self.plan["issues"][0]["github_issue"] = None
         self.drafts = {
             "DRAGAI-67": {
                 "project_url": "https://linear.app/example/project/example",
@@ -152,6 +153,17 @@ class PlanningRuntimeTests(unittest.TestCase):
         self.assertEqual("create_github", first.operations[0].action)
         self.assertEqual(0, self.github.create_count)
         self.assertEqual(0, self.linear.write_count)
+
+    def test_new_github_item_can_be_previewed_before_number_is_known(self) -> None:
+        self.assertIsNone(self.plan["issues"][0]["github_issue"])
+        preview = self.preview()
+        self.assertEqual("create_github", preview.operations[0].action)
+        self.assertEqual(0, self.github.create_count)
+        self.add_sync_match()
+        result = self.runtime.apply(
+            preview, PreviewApproval(preview.preview_id, "GongxunLi")
+        )
+        self.assertEqual("AlexJJ009/agent-tools#100", result[0].github_issue)
 
     def test_exact_identifiable_approval_is_required(self) -> None:
         preview = self.preview()
@@ -245,6 +257,61 @@ class PlanningRuntimeTests(unittest.TestCase):
             preview, PreviewApproval(preview.preview_id, "GongxunLi")
         )
         self.assertEqual("DRAGAI-800", result[0].linear_issue_id)
+
+    def test_duplicate_canonical_target_identity_conflicts_fail_closed(self) -> None:
+        preview = self.preview()
+        operation = preview.operations[0]
+        url = "https://github.com/AlexJJ009/agent-tools/issues/100"
+        duplicate = LinearIssue(
+            "DRAGAI-801",
+            "DragAI",
+            "AlexJJ009/agent-tools",
+            url,
+            operation.proposal_key,
+            duplicate_of="DRAGAI-800",
+        )
+        self.linear.matches = [duplicate]
+        cases = {
+            "wrong repo": LinearIssue(
+                "DRAGAI-800", "DragAI", "Other/repo", url, operation.proposal_key
+            ),
+            "wrong url": LinearIssue(
+                "DRAGAI-800",
+                "DragAI",
+                "AlexJJ009/agent-tools",
+                "https://github.com/AlexJJ009/agent-tools/issues/99",
+                operation.proposal_key,
+            ),
+            "wrong team": LinearIssue(
+                "DRAGAI-800",
+                "OtherTeam",
+                "AlexJJ009/agent-tools",
+                url,
+                operation.proposal_key,
+            ),
+            "wrong proposal": LinearIssue(
+                "DRAGAI-800",
+                "DragAI",
+                "AlexJJ009/agent-tools",
+                url,
+                "linear-workflow:different",
+            ),
+            "chained duplicate": LinearIssue(
+                "DRAGAI-800",
+                "DragAI",
+                "AlexJJ009/agent-tools",
+                url,
+                operation.proposal_key,
+                duplicate_of="DRAGAI-700",
+            ),
+        }
+        for name, canonical in cases.items():
+            with self.subTest(name=name):
+                self.linear.by_id[canonical.id] = canonical
+                with self.assertRaises(PlanningFailure):
+                    self.runtime.apply(
+                        preview, PreviewApproval(preview.preview_id, "GongxunLi")
+                    )
 
     def test_repository_inspection_and_draft_identity_are_enforced(self) -> None:
         with self.assertRaises(PlanningFailure) as caught:

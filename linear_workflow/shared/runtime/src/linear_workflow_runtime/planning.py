@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 from dataclasses import dataclass
@@ -97,7 +98,23 @@ class PlanningRuntime:
         github_drafts: Mapping[str, Mapping[str, Any]],
     ) -> PlanningPreview:
         normalized_plan = dict(plan)
-        violations = validate_plan(normalized_plan)
+        validation_plan = copy.deepcopy(normalized_plan)
+        used_references = {
+            issue["github_issue"]
+            for issue in validation_plan.get("issues", [])
+            if issue.get("github_issue") is not None
+        }
+        synthetic_number = 900_000_000
+        for issue in validation_plan.get("issues", []):
+            if issue.get("destination") != "github_to_linear" or issue.get("github_issue") is not None:
+                continue
+            repository = issue.get("repository_full_name")
+            while f"{repository}#{synthetic_number}" in used_references:
+                synthetic_number += 1
+            issue["github_issue"] = f"{repository}#{synthetic_number}"
+            used_references.add(issue["github_issue"])
+            synthetic_number += 1
+        violations = validate_plan(validation_plan)
         if violations:
             rendered = "; ".join(violation.render() for violation in violations)
             raise PlanningFailure("invalid_plan", rendered)
@@ -310,34 +327,54 @@ class PlanningRuntime:
             )
         canonical: dict[str, LinearIssue] = {}
         for match in matches:
-            if match.team != expected_team:
-                raise PlanningFailure(
-                    "wrong_team",
-                    f"synced Linear issue {match.id} belongs to {match.team}, not {expected_team}",
-                )
-            if (
-                match.repository_full_name != github_issue.repository_full_name
-                or match.github_url != github_issue.url
-            ):
-                raise PlanningFailure(
-                    "wrong_repository",
-                    f"synced Linear issue {match.id} does not match the approved GitHub URL/repository",
-                )
+            self._assert_linear_sync_identity(
+                match, github_issue, expected_team, allow_duplicate=True
+            )
             canonical_id = match.duplicate_of or match.id
-            canonical[canonical_id] = (
+            resolved = (
                 self._linear.get_issue(canonical_id)
                 if match.duplicate_of is not None
                 else match
             )
+            self._assert_linear_sync_identity(
+                resolved, github_issue, expected_team, allow_duplicate=False
+            )
+            canonical[canonical_id] = resolved
         if len(canonical) != 1:
             raise PlanningFailure(
                 "multiple_sync_matches",
                 f"GitHub issue {github_issue.url} maps to multiple canonical Linear issues",
             )
-        selected = next(iter(canonical.values()))
-        if selected.duplicate_of is not None:
+        return next(iter(canonical.values()))
+
+    @staticmethod
+    def _assert_linear_sync_identity(
+        issue: LinearIssue,
+        github_issue: GitHubIssue,
+        expected_team: str,
+        *,
+        allow_duplicate: bool,
+    ) -> None:
+        if issue.team != expected_team:
+            raise PlanningFailure(
+                "wrong_team",
+                f"synced Linear issue {issue.id} belongs to {issue.team}, not {expected_team}",
+            )
+        if (
+            issue.repository_full_name != github_issue.repository_full_name
+            or issue.github_url != github_issue.url
+        ):
+            raise PlanningFailure(
+                "wrong_repository",
+                f"synced Linear issue {issue.id} does not match the approved GitHub URL/repository",
+            )
+        if issue.proposal_key not in {None, github_issue.proposal_key}:
+            raise PlanningFailure(
+                "proposal_key_mismatch",
+                f"synced Linear issue {issue.id} belongs to a different approved proposal",
+            )
+        if not allow_duplicate and issue.duplicate_of is not None:
             raise PlanningFailure(
                 "duplicate_target_invalid",
-                f"canonical duplicate target {selected.id} is itself a duplicate",
+                f"canonical duplicate target {issue.id} is itself a duplicate",
             )
-        return selected

@@ -22,6 +22,7 @@ Treat those files and `linear_workflow/shared/runtime` as the only workflow stat
 
 1. Require an explicit Batch ID. A Project ID is context, not Delivery authorization.
 2. Read the Project, Approved PRD, Batch, every included Issue and relation, blocker completion, repository, base branch, and current Linear evidence through Linear MCP. Run `linear-workflow batch-check --input <normalized-batch.json>` using the installed shared runtime before implementation.
+   Fail closed if Linear or GitHub authentication/readiness cannot be established; an install-time doctor warning is not authorization to infer external facts.
 3. Fetch the declared repository and resolve a full base SHA from the latest base branch. Inspect repository instructions and preserve all existing worktrees and user changes. Create or resume the Batch branch recorded in Linear/GitHub; recover from durable Linear, Git, GitHub, and repository evidence rather than private chat history.
 4. Stop and mark the Batch Blocked on a contract conflict, undeclared repository, scope expansion, permission boundary, or irreversible operation. Do not revise the approved Planning contract during Delivery.
 

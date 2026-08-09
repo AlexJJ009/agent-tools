@@ -4,6 +4,8 @@ param(
   [string]$CodexHome = (Join-Path $env:USERPROFILE ".codex"),
   [string]$CcSwitchDb = (Join-Path $env:USERPROFILE ".cc-switch\cc-switch.db"),
   [switch]$NoGoalPlan,
+  [switch]$LinearWorkflow,
+  [switch]$NoLinearWorkflow,
   [switch]$NoCodexManualRemoteConnect,
   [string]$ManualRemoteConnectScript = "C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1",
   [switch]$NoCodexConfig,
@@ -51,6 +53,26 @@ function Invoke-AgentToolsPython {
   if ($LASTEXITCODE -ne 0) {
     throw "Python helper failed ($LASTEXITCODE): $Script"
   }
+}
+
+function Assert-CodexTargetGuard {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$TargetUserHome,
+    [Parameter(Mandatory = $true)][string]$TargetCodexHome,
+    [Parameter(Mandatory = $true)][string]$TargetCcSwitchDb
+  )
+  $normalizedUserHome = [IO.Path]::GetFullPath($TargetUserHome).TrimEnd('\')
+  $codexProfile = [IO.Path]::GetFullPath((Split-Path -Parent $TargetCodexHome)).TrimEnd('\')
+  $ccSwitchProfile = [IO.Path]::GetFullPath((Split-Path -Parent (Split-Path -Parent $TargetCcSwitchDb))).TrimEnd('\')
+  if (-not $normalizedUserHome.Equals($codexProfile, [StringComparison]::OrdinalIgnoreCase) -or
+      -not $normalizedUserHome.Equals($ccSwitchProfile, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "UserHome, CodexHome, and CcSwitchDb must belong to the same native Win11 profile"
+  }
+  Invoke-AgentToolsPython (Join-Path $RepoRoot "scripts\codex_target_guard.py") `
+    --platform win11 --codex-home $TargetCodexHome --cc-switch-db $TargetCcSwitchDb `
+    --expected-user $env:USERNAME --path-only --allow-missing-config `
+    --allow-missing-cc-switch --skip-cc-switch-read-check
 }
 
 function Copy-Managed {
@@ -154,35 +176,22 @@ function Install-GoalPlan {
     throw "goal-plan tools not installed: missing $sourceRoot"
   }
 
-  Copy-Managed (Join-Path $sourceRoot "claude\skills\goal-plan") (Join-Path $TargetHome ".claude\skills\goal-plan")
-  Copy-Managed (Join-Path $sourceRoot "claude\commands\goal-plan.md") (Join-Path $TargetHome ".claude\commands\goal-plan.md")
-  Copy-Managed (Join-Path $sourceRoot "claude\agents\goal-plan-reviewer.md") (Join-Path $TargetHome ".claude\agents\goal-plan-reviewer.md")
-
-  Copy-Managed (Join-Path $sourceRoot "codex\skills\goal-plan") (Join-Path $TargetHome ".codex\skills\goal-plan")
-  Copy-Managed (Join-Path $sourceRoot "codex\plugins\goal-plan") (Join-Path $TargetHome "plugins\goal-plan")
-  Copy-Managed (Join-Path $sourceRoot "codex\plugins\goal-plan") (Join-Path $TargetHome ".codex\plugins\cache\personal\goal-plan\0.2.0")
-  Copy-Managed (Join-Path $sourceRoot "codex\plugins\goal-plan\commands\goal-plan.md") (Join-Path $TargetHome ".codex\prompts\goal-plan.md")
-  Install-PersonalMarketplace -TargetHome $TargetHome
-
-  $uv = Get-Command uv -ErrorAction SilentlyContinue
-  if (-not $uv) {
-    throw "goal-plan runtime requires uv on PATH; install uv and rerun install-win11.ps1"
-  }
-  $runtimeSource = Join-Path $sourceRoot "runtime"
-  $runtimeHome = Join-Path $TargetHome ".local\share\goal-plan\runtime"
-  $runtimeBin = Join-Path $TargetHome ".local\bin"
-  New-Item -ItemType Directory -Force -Path $runtimeHome, $runtimeBin | Out-Null
-  & $uv.Source venv --clear --python 3.12 (Join-Path $runtimeHome ".venv") | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "failed to create goal-plan uv environment" }
-  & $uv.Source pip install --python (Join-Path $runtimeHome ".venv\Scripts\python.exe") $runtimeSource | Out-Null
-  if ($LASTEXITCODE -ne 0) { throw "failed to install goal-plan runtime" }
-  $launcher = @"
-@echo off
-"$runtimeHome\.venv\Scripts\goal-plan-runtime.exe" %*
-"@
-  Set-Content -LiteralPath (Join-Path $runtimeBin "goal-plan-runtime.cmd") -Value $launcher -Encoding ASCII
+  $helper = Join-Path $RepoRoot "scripts\managed_package_installer.py"
+  $descriptor = Join-Path $RepoRoot "config\managed-packages\goal-plan.json"
+  Invoke-AgentToolsPython $helper install --descriptor $descriptor --repo-root $RepoRoot --home $TargetHome --platform win11
 
   Write-Host "goal-plan installed for Win11 user: $TargetHome"
+}
+
+function Install-LinearWorkflow {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$TargetHome
+  )
+  $helper = Join-Path $RepoRoot "scripts\managed_package_installer.py"
+  $descriptor = Join-Path $RepoRoot "config\managed-packages\linear-workflow.json"
+  Invoke-AgentToolsPython $helper install --descriptor $descriptor --repo-root $RepoRoot --home $TargetHome --platform win11
+  Write-Host "Linear Workflow installed for native Win11 user: $TargetHome"
 }
 
 function Install-CodexManualRemoteConnect {
@@ -272,10 +281,20 @@ function Invoke-CodexProviderBucketMigration {
   Invoke-AgentToolsPython $script @args
 }
 
+Assert-CodexTargetGuard -RepoRoot $Root -TargetUserHome $UserHome -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
+
 if (-not $NoGoalPlan) {
   Install-GoalPlan -RepoRoot $Root -TargetHome $UserHome
 } else {
   Write-Host "goal-plan tools not installed (-NoGoalPlan)."
+}
+
+$installLinearWorkflow = -not $NoLinearWorkflow
+if ($LinearWorkflow) { $installLinearWorkflow = $true }
+if ($installLinearWorkflow) {
+  Install-LinearWorkflow -RepoRoot $Root -TargetHome $UserHome
+} else {
+  Write-Host "Linear Workflow not installed (-NoLinearWorkflow)."
 }
 
 if (-not $NoCodexManualRemoteConnect) {

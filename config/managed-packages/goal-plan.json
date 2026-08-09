@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "name": "goal-plan",
+  "version": "0.2.0",
+  "runtime": {
+    "source": "goal_plan/runtime",
+    "module": "goal_plan_runtime",
+    "entrypoint": "goal-plan-runtime"
+  },
+  "codex_targets": [
+    {"source": "goal_plan/codex/skills/goal-plan", "destination": ".codex/skills/goal-plan"},
+    {"source": "goal_plan/codex/plugins/goal-plan", "destination": "plugins/goal-plan"},
+    {"source": "goal_plan/codex/plugins/goal-plan", "destination": ".codex/plugins/cache/personal/goal-plan/{version}"},
+    {"source": "goal_plan/codex/plugins/goal-plan/commands/goal-plan.md", "destination": ".codex/prompts/goal-plan.md"}
+  ],
+  "claude_targets": [
+    {"source": "goal_plan/claude/skills/goal-plan", "destination": ".claude/skills/goal-plan"},
+    {"source": "goal_plan/claude/commands/goal-plan.md", "destination": ".claude/commands/goal-plan.md"},
+    {"source": "goal_plan/claude/agents/goal-plan-reviewer.md", "destination": ".claude/agents/goal-plan-reviewer.md"}
+  ],
+  "shared_targets": [],
+  "plugin_registration": {
+    "name": "goal-plan",
+    "path": "./plugins/goal-plan",
+    "category": "Developer Tools"
+  },
+  "launcher": {
+    "name": "goal-plan-runtime",
+    "windows_name": "goal-plan-runtime.cmd"
+  },
+  "legacy_policy": "preserve-default-entry-and-runtime"
+}

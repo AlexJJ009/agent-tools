@@ -1,6 +1,6 @@
 {
   "name": "linear-workflow",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Plan and deliver Linear-first software batches with shared deterministic contracts.",
   "author": {
     "name": "Local developer"

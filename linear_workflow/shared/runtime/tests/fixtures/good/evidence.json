@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "workflow_version": "0.3.0",
+  "workflow_version": "0.4.0",
   "linear_batch": "DRAGAI-62",
   "linear_issues": ["DRAGAI-67", "DRAGAI-68", "DRAGAI-69"],
   "batch_members": ["DRAGAI-67", "DRAGAI-68", "DRAGAI-69"],

@@ -1,0 +1,9 @@
+schema_version: 1
+workflow_version: 0.3.0
+repository_full_name: AlexJJ009/agent-tools
+base_branch: main
+required_check: linear-workflow-runtime
+pr_check_action: ./.github/actions/linear-workflow-pr-check
+reviewer_brief: linear_workflow/shared/references/reviewer-brief.md
+gate_policy: linear_workflow/shared/gate-policy.json
+merge_authority: human

@@ -1,3 +1,3 @@
-"""Linear Workflow deterministic runtime and Planning orchestration."""
+"""Linear Workflow deterministic Planning, Delivery, and gate runtime."""
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

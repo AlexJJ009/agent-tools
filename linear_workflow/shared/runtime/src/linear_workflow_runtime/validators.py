@@ -41,6 +41,9 @@ PR_BLOCKING_RULES = {
     "LW-PR-009",  # reviewer context candidate
     "LW-PR-010",  # base policy authority
     "LW-PR-011",  # protected path risk lane
+    "LW-PR-012",  # Batch / Issue identity
+    "LW-PR-013",  # evidence DAG
+    "LW-PR-014",  # gate self-test binding
 }
 
 COMMIT_SUBJECT = re.compile(
@@ -238,6 +241,27 @@ def validate_pr(evidence: dict[str, Any]) -> list[Violation]:
     policy = load_gate_policy()
     candidate = evidence["candidate_sha"]
     pull_request = evidence["pull_request"]
+    members = evidence["batch_members"]
+    dag_records = evidence["issue_dag"]
+    dag_ids = [item["id"] for item in dag_records]
+    if (
+        set(evidence["linear_issues"]) != set(members)
+        or len(members) != len(set(members))
+        or set(dag_ids) != set(members)
+        or len(dag_ids) != len(set(dag_ids))
+    ):
+        errors.append(_violation(evidence, "linear_issues", "LW-PR-012", "PR evidence contains an unknown, missing, or duplicate Batch member", "use the exact unique Issue membership read from the Linear Batch"))
+    dag = {item["id"]: item for item in dag_records}
+    unknown_dependencies = sorted(
+        {
+            dependency
+            for item in dag_records
+            for dependency in item["dependencies"]
+            if dependency not in dag
+        }
+    )
+    if unknown_dependencies or (dag and _has_cycle(dag)):
+        errors.append(_violation(evidence, "issue_dag", "LW-PR-013", f"evidence DAG has unknown dependencies or a cycle: {unknown_dependencies!r}", "provide the exact acyclic included-Issue DAG"))
     identity_mismatches = []
     if pull_request["repository_full_name"] != evidence["repository_full_name"]:
         identity_mismatches.append("repository")
@@ -341,4 +365,9 @@ def validate_pr(evidence: dict[str, Any]) -> list[Violation]:
     protected = [path for path in evidence["changed_paths"] if _path_matches_prefix(path, policy["review_required_paths"])]
     if protected and evidence["risk_profile"] != "high":
         errors.append(_violation(evidence, "risk_profile", "LW-PR-011", f"gate-owned paths require High-risk review: {protected!r}", "use the High-risk review lane or remove the gate change"))
+    self_test = evidence["gate_self_test"]
+    if protected and (
+        self_test["status"] != "success" or self_test["sha"] != candidate
+    ):
+        errors.append(_violation(evidence, "gate_self_test", "LW-PR-014", "gate-owned paths changed without a successful gate self-test on the current candidate", "run the gate canaries on the current candidate"))
     return errors

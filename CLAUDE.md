@@ -27,6 +27,11 @@ The section below is copied verbatim from `AGENTS.md`.
 
 # Project Constraints
 
+- Linear Workflow Delivery uses the shared contract under `linear_workflow/shared/`.
+  Only an explicitly dispatched Ready Batch authorizes implementation; Project
+  context does not expand scope. Follow `.linear-workflow.yml` and the
+  repo-resident reviewer brief, and retain human merge authority.
+
 - Linux and WSL2 machine bootstrap must persist tmux mouse mode for the Unix
   user running the tools. The durable config is a managed block in
   `${HOME}/.tmux.conf` containing `set -g mouse on`. Do not replace this with

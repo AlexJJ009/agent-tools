@@ -2899,7 +2899,6 @@ configure_local_bin_path
 configure_fail2ban_hardening
 configure_claude_desktop_ssh
 update_cc_switch_cli
-run_codex_target_guard before
 if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then
   install_codex_here
 fi
@@ -2919,7 +2918,6 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   fi
   configure_codex_proxy_wrapper
   start_codex_remote_control
-  run_codex_target_guard after
 fi
 if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
   verify_agent_core_entries

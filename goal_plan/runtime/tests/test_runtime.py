@@ -102,6 +102,11 @@ class RuntimeTests(unittest.TestCase):
             "required_check.sha must match merged_main_sha",
             validate_pilot_evidence(mutated),
         )
+        known_bad = Path(__file__).parent / "fixtures" / "bad" / "pilot-incomplete.json"
+        self.assertIn(
+            "linear_issue_status must equal 'Done'",
+            validate_pilot_evidence(json.loads(known_bad.read_text(encoding="utf-8"))),
+        )
 
     def write_runtime(self, goal: Path, records: list[dict[str, object]]) -> None:
         (goal / "runtime.jsonl").write_text(

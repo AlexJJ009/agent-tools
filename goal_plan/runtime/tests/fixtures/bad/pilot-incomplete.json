@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "linear_issue": "DRAGAI-61",
+  "linear_issue_status": "In Review",
+  "pilot_batch": "DRAGAI-80",
+  "pilot_batch_status": "Done",
+  "repository_full_name": "AlexJJ009/agent-tools",
+  "merged_main_sha": "04e6ddbc7d4d81615abc67d8bc6ab644481cc36e",
+  "required_check": {
+    "name": "linear-workflow-runtime",
+    "status": "success",
+    "sha": "04e6ddbc7d4d81615abc67d8bc6ab644481cc36e",
+    "run_url": "https://github.com/AlexJJ009/agent-tools/actions/runs/31358589890/job/93362804512"
+  },
+  "ruleset": {
+    "id": 20623617,
+    "enforcement": "active",
+    "bypass_actors": []
+  },
+  "claude_code_runtime_validation": "deferred",
+  "native_win11_runtime_validation": "deferred"
+}

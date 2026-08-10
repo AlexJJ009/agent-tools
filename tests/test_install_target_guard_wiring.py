@@ -16,9 +16,11 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
 
     def test_linux_installer_runs_guard_before_skill_or_config_writes(self):
         text = (ROOT / "install.sh").read_text(encoding="utf-8")
-        shared_guard = text.index("update_cc_switch_cli\nrun_codex_target_guard before")
+        shared_guard = text.rindex("run_codex_target_guard")
+        policy = text.index("configure_goal_plan_install_policy", shared_guard)
         config_write = text.index("if [[ \"$INSTALL_CODEX_CONFIG\" -eq 1 ]]; then")
         skill_write = text.rindex("install_codex_patch_safety_skill")
+        self.assertLess(shared_guard, policy)
         self.assertLess(shared_guard, config_write)
         self.assertLess(shared_guard, skill_write)
         self.assertIn(

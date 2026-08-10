@@ -21,7 +21,9 @@ FAIL2BAN_SSHD_FILTER="${FAIL2BAN_SSHD_FILTER:-sshd[mode=aggressive]}"
 FAIL2BAN_SSHD_BANACTION="${FAIL2BAN_SSHD_BANACTION:-iptables-multiport[blocktype=DROP]}"
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
-INSTALL_GOAL_PLAN=1
+INSTALL_GOAL_PLAN=0
+GOAL_PLAN_INSTALL_MODE="${GOAL_PLAN_INSTALL_MODE:-auto}"
+GOAL_PLAN_REGISTER_PLUGIN=0
 GOAL_PLAN_INCLUDE_WSL_WINDOWS="${GOAL_PLAN_INCLUDE_WSL_WINDOWS:-never}"
 INSTALL_LINEAR_WORKFLOW=1
 LINEAR_WORKFLOW_ONLY=0
@@ -2113,7 +2115,8 @@ install_codex_goal_plan_prompt() {
 install_goal_plan_for_windows_home() {
   local win_home="$1"
   local source_root="$2"
-  local plugin_version="0.2.0"
+  local register_plugin="${3:-0}"
+  local plugin_version="0.3.0"
 
   backup_and_copy_managed "$source_root/claude/skills/goal-plan" "$win_home/.claude/skills/goal-plan"
   backup_and_copy_managed "$source_root/claude/commands/goal-plan.md" "$win_home/.claude/commands/goal-plan.md"
@@ -2123,7 +2126,9 @@ install_goal_plan_for_windows_home() {
   backup_and_copy_managed "$source_root/codex/plugins/goal-plan" "$win_home/plugins/goal-plan"
   backup_and_copy_managed "$source_root/codex/plugins/goal-plan" "$win_home/.codex/plugins/cache/personal/goal-plan/$plugin_version"
   install_codex_goal_plan_prompt "$source_root" "$win_home/.codex"
-  install_codex_personal_marketplace_goal_plan "$win_home"
+  if [[ "$register_plugin" -eq 1 ]]; then
+    install_codex_personal_marketplace_goal_plan "$win_home"
+  fi
 }
 
 install_goal_plan_for_wsl_windows_homes() {
@@ -2163,7 +2168,7 @@ install_goal_plan_for_wsl_windows_homes() {
       continue
     fi
     if [[ -d "$user_home/.codex" || -d "$user_home/.claude" ]]; then
-      install_goal_plan_for_windows_home "$user_home" "$source_root"
+      install_goal_plan_for_windows_home "$user_home" "$source_root" "$GOAL_PLAN_REGISTER_PLUGIN"
       echo "goal-plan Win11 user install: $user_home"
       installed=1
     fi
@@ -2182,7 +2187,7 @@ install_goal_plan_for_wsl_windows_homes() {
 goal_plan_managed_pairs() {
   local source_root="$1"
   local codex_home="${CODEX_HOME:-$HOME/.codex}"
-  local plugin_version="0.2.0"
+  local plugin_version="0.3.0"
   printf '%s\t%s\n' \
     "$source_root/claude/skills/goal-plan" "$HOME/.claude/skills/goal-plan" \
     "$source_root/claude/commands/goal-plan.md" "$HOME/.claude/commands/goal-plan.md" \
@@ -2230,7 +2235,7 @@ install_goal_plan_tools() {
 
   local source_root="$INSTALL_REAL/goal_plan"
   local codex_home="${CODEX_HOME:-$HOME/.codex}"
-  local plugin_version="0.2.0"
+  local plugin_version="0.3.0"
   if [[ ! -d "$source_root" ]]; then
     GOAL_PLAN_STATUS="absent: no $source_root"
     echo "goal-plan tools not installed: missing $source_root" >&2
@@ -2238,12 +2243,20 @@ install_goal_plan_tools() {
   fi
 
   select_python_bin
-  "$PYTHON_BIN" "$INSTALL_REAL/scripts/managed_package_installer.py" install \
-    --descriptor "$INSTALL_REAL/config/managed-packages/goal-plan.json" \
+  local installer_args=(
+    install
+    --descriptor "$INSTALL_REAL/config/managed-packages/goal-plan.json"
     --repo-root "$INSTALL_REAL" --home "$HOME" --platform unix
+  )
+  if [[ "$GOAL_PLAN_REGISTER_PLUGIN" -ne 1 ]]; then
+    installer_args+=(--skip-plugin-registration)
+  fi
+  "$PYTHON_BIN" "$INSTALL_REAL/scripts/managed_package_installer.py" "${installer_args[@]}"
   install_goal_plan_for_wsl_windows_homes "$source_root"
 
-  if command -v codex >/dev/null 2>&1; then
+  if [[ "$GOAL_PLAN_REGISTER_PLUGIN" -ne 1 ]]; then
+    GOAL_PLAN_STATUS="compatibility updated: existing managed skills/commands/runtime preserved; deprecated plugin not re-registered"
+  elif command -v codex >/dev/null 2>&1; then
     if codex plugin add goal-plan@personal >/dev/null 2>&1; then
       GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin/prompt + isolated uv runtime; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
     else
@@ -2254,6 +2267,41 @@ install_goal_plan_tools() {
     GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin/prompt; codex not on PATH; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
     echo "goal-plan Codex plugin cache installed; codex is not on PATH, so plugin add was skipped." >&2
   fi
+}
+
+configure_goal_plan_install_policy() {
+  local helper="$SOURCE_DIR/scripts/managed_package_installer.py"
+  local descriptor="$SOURCE_DIR/config/managed-packages/goal-plan.json"
+  select_python_bin
+  case "$GOAL_PLAN_INSTALL_MODE" in
+    always)
+      INSTALL_GOAL_PLAN=1
+      GOAL_PLAN_REGISTER_PLUGIN=1
+      ;;
+    never)
+      INSTALL_GOAL_PLAN=0
+      GOAL_PLAN_REGISTER_PLUGIN=0
+      ;;
+    auto)
+      if ! "$PYTHON_BIN" "$helper" deprecation-check \
+        --descriptor "$descriptor" --repo-root "$SOURCE_DIR" --home "$HOME" --platform unix; then
+        echo "WARNING: goal-plan deprecation gate is not satisfied; preserving the prior default install behavior." >&2
+        INSTALL_GOAL_PLAN=1
+        GOAL_PLAN_REGISTER_PLUGIN=1
+      elif "$PYTHON_BIN" "$helper" managed-status \
+        --descriptor "$descriptor" --repo-root "$SOURCE_DIR" --home "$HOME" --platform unix >/dev/null; then
+        INSTALL_GOAL_PLAN=1
+        GOAL_PLAN_REGISTER_PLUGIN=0
+      else
+        INSTALL_GOAL_PLAN=0
+        GOAL_PLAN_REGISTER_PLUGIN=0
+      fi
+      ;;
+    *)
+      echo "invalid GOAL_PLAN_INSTALL_MODE: $GOAL_PLAN_INSTALL_MODE (expected auto|always|never)" >&2
+      exit 2
+      ;;
+  esac
 }
 
 install_goal_plan_only() {
@@ -2438,6 +2486,7 @@ Options:
   --no-codex-here          Do not install ~/.local/bin/codex-here.
   --no-goal-plan           Do not install user-level goal-plan tools
                            (Claude /goal-plan + reviewer, Codex skill/plugin/prompt).
+  --legacy-goal-plan       Explicitly install/register deprecated goal-plan compatibility tools.
   --goal-plan-only         Install only the user-level goal-plan copies and
                            isolated runtime, then exit. Do not configure other tools.
   --goal-plan-wsl-windows MODE
@@ -2529,6 +2578,11 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --goal-plan-only)
       GOAL_PLAN_ONLY=1
+      GOAL_PLAN_INSTALL_MODE="always"
+      shift
+      ;;
+    --legacy-goal-plan)
+      GOAL_PLAN_INSTALL_MODE="always"
       shift
       ;;
     --linear-workflow)
@@ -2592,7 +2646,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --no-goal-plan)
-      INSTALL_GOAL_PLAN=0
+      GOAL_PLAN_INSTALL_MODE="never"
       shift
       ;;
     --goal-plan-wsl-windows)
@@ -2730,6 +2784,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 run_codex_target_guard
+configure_goal_plan_install_policy
 
 if [[ "$LINEAR_WORKFLOW_ONLY" -eq 1 ]]; then
   install_linear_workflow_only
@@ -2749,10 +2804,14 @@ if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
   SOURCE_REAL="$(cd "$SOURCE_DIR" && pwd -P)"
   goal_status=0
   linear_status=0
-  if ! check_goal_plan_drift "$SOURCE_REAL/goal_plan"; then
-    goal_status=1
-  fi
   select_python_bin
+  if "$PYTHON_BIN" "$SOURCE_REAL/scripts/managed_package_installer.py" managed-status \
+    --descriptor "$SOURCE_REAL/config/managed-packages/goal-plan.json" \
+    --repo-root "$SOURCE_REAL" --home "$HOME" --platform unix >/dev/null; then
+    if ! check_goal_plan_drift "$SOURCE_REAL/goal_plan"; then
+      goal_status=1
+    fi
+  fi
   if ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/managed_package_installer.py" check \
     --descriptor "$SOURCE_REAL/config/managed-packages/linear-workflow.json" \
     --repo-root "$SOURCE_REAL" --home "$HOME" --platform unix; then

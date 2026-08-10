@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "name": "goal-plan",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "runtime": {
     "source": "goal_plan/runtime",
     "module": "goal_plan_runtime",
@@ -28,5 +28,9 @@
     "name": "goal-plan-runtime",
     "windows_name": "goal-plan-runtime.cmd"
   },
-  "legacy_policy": "preserve-default-entry-and-runtime"
+  "legacy_policy": "preserve-managed-compatibility-new-install-opt-in",
+  "deprecation_gate": {
+    "evidence": "goal_plan/runtime/src/goal_plan_runtime/pilot-evidence.json",
+    "required_linear_issue": "DRAGAI-61"
+  }
 }

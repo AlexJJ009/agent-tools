@@ -1,12 +1,13 @@
 ---
-description: Prepare or govern a reviewed long-horizon Goal with isolated runtime validation, without automatically starting execution.
+description: DEPRECATED compatibility command for existing goal-plan Goals; use linear-plan/linear-deliver for new software work.
 ---
 
 # /goal-plan
 
 Load the `$goal-plan` skill and use the isolated `goal-plan-runtime` launcher.
 
-- New Goal: initialize one Goal directory, author and validate `plan.md`, obtain an independent Plan Review, and assemble the launch prompt.
+- Ordinary new work: stop and direct the user to `linear-plan` or `linear-deliver`.
+- Explicit legacy Goal: initialize only after a specific user request, using `goal-plan-runtime init ... --legacy-override`.
 - Existing Goal: validate the Plan and append-only ledgers, then perform only the requested lifecycle action: amendment, reviewer prompt construction, convergence review, or final acceptance.
 - Do not create/start a Codex Goal unless the user explicitly asks.
 - Do not rewrite `runtime.jsonl` or `findings.jsonl`; append correction events.

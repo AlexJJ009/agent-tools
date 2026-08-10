@@ -725,6 +725,22 @@ def runtime_template_dir() -> Path:
 
 
 def init_goal(args: argparse.Namespace) -> int:
+    from .deprecation import deprecation_enabled
+
+    if deprecation_enabled() and not getattr(args, "legacy_override", False):
+        print(
+            "ERROR: goal-plan is deprecated for new work; use linear-plan for Planning "
+            "and linear-deliver for an approved Ready Batch. To maintain a specifically "
+            "requested legacy Goal, rerun init with --legacy-override.",
+            file=sys.stderr,
+        )
+        return 2
+    if getattr(args, "legacy_override", False):
+        print(
+            "WARNING: creating a legacy Goal by explicit override; this does not migrate "
+            "authorization into Linear Workflow.",
+            file=sys.stderr,
+        )
     goal_dir = Path(args.goal_dir).resolve()
     if goal_dir.exists() and any(goal_dir.iterdir()):
         raise ValueError(f"goal directory is not empty: {goal_dir}")
@@ -875,6 +891,11 @@ def parser() -> argparse.ArgumentParser:
     init.add_argument("goal_dir")
     init.add_argument("--title", required=True)
     init.add_argument("--actor", default="main-agent")
+    init.add_argument(
+        "--legacy-override",
+        action="store_true",
+        help="explicitly create a legacy Goal despite the Linear Workflow default",
+    )
     init.set_defaults(func=init_goal)
     plan = commands.add_parser("validate-plan")
     plan.add_argument("goal_dir")

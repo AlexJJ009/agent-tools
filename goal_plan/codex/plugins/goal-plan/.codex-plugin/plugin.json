@@ -1,15 +1,15 @@
 {
   "name": "goal-plan",
-  "version": "0.2.0",
-  "description": "Prepare and govern reviewed long-horizon goals with append-only runtime validation and independent acceptance.",
+  "version": "0.3.0",
+  "description": "DEPRECATED compatibility for reading, validating, reviewing, and migrating existing goal-plan Goals.",
   "author": {
     "name": "Local developer"
   },
   "skills": "./skills/",
   "interface": {
-    "displayName": "Goal Plan",
-    "shortDescription": "Plan and govern long-running Codex goals.",
-    "longDescription": "Goal Plan prepares verifiable long-horizon plans, maintains append-only runtime and finding ledgers, builds independent reviewer prompts, validates lifecycle transitions, and requires reviewer-owned acceptance evidence before completion.",
+    "displayName": "Goal Plan (Legacy)",
+    "shortDescription": "Maintain or migrate existing legacy Goals.",
+    "longDescription": "Deprecated for new work. Goal Plan remains available to read, validate, review, migrate, or explicitly maintain existing append-only Goal artifacts; use Linear Workflow for new Planning and Delivery.",
     "developerName": "Local developer",
     "category": "Developer Tools",
     "capabilities": [
@@ -18,7 +18,7 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Use /goal-plan to prepare or govern a reviewed long-running implementation goal."
+      "Use /goal-plan only to maintain or migrate an existing legacy Goal; use /linear-plan or /linear-deliver for new work."
     ]
   }
 }

@@ -1,4 +1,4 @@
 interface:
-  display_name: "Goal Plan"
-  short_description: "Plan and govern long-running goals"
-  default_prompt: "Use $goal-plan to prepare or govern a reviewed Goal with append-only runtime validation."
+  display_name: "Goal Plan (Legacy)"
+  short_description: "Maintain or migrate existing legacy Goals"
+  default_prompt: "Use $goal-plan only to read, validate, migrate, or explicitly maintain existing legacy Goal artifacts."

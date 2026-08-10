@@ -23,3 +23,18 @@ The existing human-readable workflow-version command remains available as
 ```bash
 linear-workflow --version
 ```
+
+## Legacy Goal migration preview
+
+`goal-plan` is deprecated for new work. Existing Goal artifacts remain readable
+and validatable. Generate a deterministic, read-only migration proposal with:
+
+```bash
+linear-workflow migrate goal-plan docs/goals/<goal-id> --dry-run
+```
+
+The JSON preview contains a Draft Project/PRD, only still-active Issue
+proposals, an acyclic DAG, Delivery Batch proposals, archive references, and
+warnings/clarifications for facts that require human answers. It never copies
+the full ledgers, reviewer prompts, or legacy authorization into the proposal.
+The v1 command has no apply/write mode and stops at human review.

@@ -6,6 +6,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from goal_plan_runtime.cli import (
@@ -18,6 +19,7 @@ from goal_plan_runtime.cli import (
     setup_identity,
     validate_plan,
 )
+from goal_plan_runtime.deprecation import load_pilot_evidence, validate_pilot_evidence
 
 
 LEGACY_EVENT = "TOKENROUTER_LOCAL_REPLACEMENT_AUTHORIZATION_CONSUMED"
@@ -46,8 +48,60 @@ class RuntimeTests(unittest.TestCase):
     def create_goal(self) -> Path:
         self.goal_count += 1
         goal = self.root / ("goal-one" if self.goal_count == 1 else f"goal-{self.goal_count}")
-        init_goal(argparse.Namespace(goal_dir=str(goal), title="Goal One", actor="main"))
+        result = init_goal(argparse.Namespace(
+            goal_dir=str(goal),
+            title="Goal One",
+            actor="main",
+            legacy_override=True,
+        ))
+        self.assertEqual(result, 0)
         return goal
+
+    def test_default_init_rejects_new_goal_and_points_to_linear_workflow(self) -> None:
+        goal = self.root / "rejected-goal"
+        result = init_goal(argparse.Namespace(
+            goal_dir=str(goal),
+            title="Rejected Goal",
+            actor="main",
+            legacy_override=False,
+        ))
+        self.assertEqual(result, 2)
+        self.assertFalse(goal.exists())
+
+    def test_legacy_override_is_explicit_and_creates_goal(self) -> None:
+        goal = self.root / "legacy-override"
+        result = init_goal(argparse.Namespace(
+            goal_dir=str(goal),
+            title="Legacy Goal",
+            actor="main",
+            legacy_override=True,
+        ))
+        self.assertEqual(result, 0)
+        self.assertTrue((goal / "plan.md").is_file())
+
+    def test_missing_pilot_evidence_keeps_pre_deprecation_init_behavior(self) -> None:
+        goal = self.root / "missing-pilot"
+        missing = self.root / "missing-evidence.json"
+        with mock.patch.dict(os.environ, {"GOAL_PLAN_PILOT_EVIDENCE": str(missing)}):
+            result = init_goal(argparse.Namespace(
+                goal_dir=str(goal),
+                title="Pre-gate Goal",
+                actor="main",
+                legacy_override=False,
+            ))
+        self.assertEqual(result, 0)
+        self.assertTrue((goal / "runtime.jsonl").is_file())
+
+    def test_pilot_evidence_binds_done_pilot_check_and_ruleset(self) -> None:
+        evidence, errors = load_pilot_evidence()
+        self.assertEqual(errors, [])
+        self.assertIsNotNone(evidence)
+        mutated = json.loads(json.dumps(evidence))
+        mutated["required_check"]["sha"] = "f" * 40
+        self.assertIn(
+            "required_check.sha must match merged_main_sha",
+            validate_pilot_evidence(mutated),
+        )
 
     def write_runtime(self, goal: Path, records: list[dict[str, object]]) -> None:
         (goal / "runtime.jsonl").write_text(
@@ -1096,7 +1150,9 @@ class SetupIdentityTests(unittest.TestCase):
 
     def test_goal_dir_declaration_makes_guard_drift_a_validation_error(self) -> None:
         goal = Path(self.temp_dir.name) / "goal"
-        init_goal(argparse.Namespace(goal_dir=str(goal), title="Guarded Goal", actor="main"))
+        init_goal(argparse.Namespace(
+            goal_dir=str(goal), title="Guarded Goal", actor="main", legacy_override=True
+        ))
         self.run_setup("claude", goal_dir=str(goal))
         _, errors = replay_runtime(goal)
         self.assertEqual(errors, [])
@@ -1106,7 +1162,9 @@ class SetupIdentityTests(unittest.TestCase):
 
     def test_undeclared_goal_is_not_checked_for_guard(self) -> None:
         goal = Path(self.temp_dir.name) / "goal"
-        init_goal(argparse.Namespace(goal_dir=str(goal), title="Plain Goal", actor="main"))
+        init_goal(argparse.Namespace(
+            goal_dir=str(goal), title="Plain Goal", actor="main", legacy_override=True
+        ))
         _, errors = replay_runtime(goal)
         self.assertEqual(errors, [])
 

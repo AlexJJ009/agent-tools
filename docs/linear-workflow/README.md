@@ -11,3 +11,15 @@ installation logic, and runbooks. It does not keep an editable PRD copy.
 Batch A establishes `linear_workflow/shared/`. Later Batches add live gateways,
 client adapters, CI adoption, installation, and goal-plan compatibility without
 moving product decisions out of Linear.
+
+Installed clients can read both compatibility versions without external writes:
+
+```bash
+linear-workflow version --json
+```
+
+The existing human-readable workflow-version command remains available as
+
+```bash
+linear-workflow --version
+```

@@ -1,11 +1,15 @@
 ---
 name: goal-plan
-description: Prepare, review, and govern long-horizon Codex or Claude goals with a frozen outcome contract, isolated append-only runtime ledgers, lifecycle validators, reviewer prompt templates, and independent acceptance. Use when the user invokes $goal-plan or /goal-plan, asks to prepare or revise a goal plan, needs a launch prompt, wants runtime supervision of implementer/reviewer behavior, or needs independent acceptance. Do not create or start a Goal unless the user explicitly asks.
+description: DEPRECATED compatibility workflow for reading, validating, reviewing, migrating, or explicitly maintaining existing goal-plan Goal artifacts. Use only when the user explicitly names $goal-plan or /goal-plan, supplies an existing Goal directory, or requests legacy Goal maintenance/migration. Use linear-plan for new software planning and linear-deliver for an approved Ready Batch. New Goal init requires an explicit legacy override.
 ---
 
 # Goal Plan
 
-Turn a long-running task into one independently verifiable outcome and keep that outcome stable through implementation and acceptance. The skill establishes the protocol and tools; the generated Goal artifacts and validators govern runtime behavior. Do not keep reloading the full skill during ordinary implementation.
+> **DEPRECATED for new work.** Use `linear-plan` for new Planning and
+> `linear-deliver` for an approved Ready Batch. This skill remains available to
+> read, validate, review, migrate, or explicitly maintain existing Goal artifacts.
+
+Keep a legacy Goal's independently verifiable outcome stable through maintenance and acceptance. The generated Goal artifacts and validators continue to govern legacy runtime behavior. Do not keep reloading the full skill during ordinary implementation.
 
 ## Runtime Prerequisite
 
@@ -31,8 +35,12 @@ Use the repository's existing goal/plan location when one is already established
 Initialize with:
 
 ```bash
-goal-plan-runtime init <goal-dir> --title "<goal title>" --actor "<implementer identity>"
+goal-plan-runtime init <goal-dir> --title "<goal title>" --actor "<implementer identity>" --legacy-override
 ```
+
+Initialization without `--legacy-override` fails after the verified Linear
+Workflow pilot. Use the override only when the user explicitly requests a new
+legacy Goal; it does not migrate old authorization into Linear Workflow.
 
 `runtime.jsonl` and `findings.jsonl` are append-only audit ledgers. Correct mistakes by appending correction events; never rewrite prior lines. `acceptance.md` is completed only by the independent final reviewer.
 

@@ -39,7 +39,55 @@ class ManagedPackageInstallerTests(unittest.TestCase):
             ".codex/prompts/goal-plan.md",
         })
         self.assertEqual(descriptor["launcher"]["name"], "goal-plan-runtime")
-        self.assertEqual(descriptor["legacy_policy"], "preserve-default-entry-and-runtime")
+        self.assertEqual(
+            descriptor["legacy_policy"],
+            "preserve-managed-compatibility-new-install-opt-in",
+        )
+
+    def test_goal_plan_deprecation_gate_requires_exact_pilot_evidence(self):
+        descriptor = self.descriptor("goal-plan")
+        self.assertEqual(MODULE.validate_deprecation_evidence(descriptor, ROOT), [])
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            evidence = json.loads((ROOT / descriptor["deprecation_gate"]["evidence"]).read_text())
+            evidence["linear_issue_status"] = "In Review"
+            source = root / descriptor["deprecation_gate"]["evidence"]
+            source.parent.mkdir(parents=True)
+            source.write_text(json.dumps(evidence), encoding="utf-8")
+            runtime_module = (
+                root / descriptor["runtime"]["source"] / "src" / "goal_plan_runtime"
+            )
+            runtime_module.mkdir(parents=True, exist_ok=True)
+            (runtime_module / "deprecation.py").write_text(
+                (ROOT / descriptor["runtime"]["source"] / "src" / "goal_plan_runtime" / "deprecation.py").read_text(),
+                encoding="utf-8",
+            )
+            self.assertTrue(MODULE.validate_deprecation_evidence(descriptor, root))
+
+    def test_managed_status_distinguishes_fresh_and_managed_homes(self):
+        descriptor = self.descriptor("goal-plan")
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            self.assertFalse(MODULE.managed_install_exists(descriptor, ROOT, home, "unix"))
+            source, target = MODULE.target_pairs(descriptor, ROOT, home)[0]
+            MODULE.copy_managed(source, target)
+            self.assertTrue(MODULE.managed_install_exists(descriptor, ROOT, home, "unix"))
+
+    def test_compat_install_can_skip_marketplace_registration(self):
+        descriptor = self.descriptor("goal-plan")
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            MODULE.install(
+                descriptor,
+                ROOT,
+                home,
+                "unix",
+                "uv",
+                skip_runtime=True,
+                skip_plugin_registration=True,
+            )
+            self.assertFalse((home / ".agents" / "plugins" / "marketplace.json").exists())
+            self.assertTrue((home / ".codex" / "skills" / "goal-plan" / "SKILL.md").is_file())
 
     def test_managed_reinstall_is_idempotent(self):
         with tempfile.TemporaryDirectory() as tmp:

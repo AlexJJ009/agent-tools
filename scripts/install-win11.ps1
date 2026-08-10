@@ -4,6 +4,7 @@ param(
   [string]$CodexHome = (Join-Path $env:USERPROFILE ".codex"),
   [string]$CcSwitchDb = (Join-Path $env:USERPROFILE ".cc-switch\cc-switch.db"),
   [switch]$NoGoalPlan,
+  [switch]$LegacyGoalPlan,
   [switch]$LinearWorkflow,
   [switch]$NoLinearWorkflow,
   [switch]$NoCodexManualRemoteConnect,
@@ -168,7 +169,8 @@ function Install-PersonalMarketplace {
 function Install-GoalPlan {
   param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
-    [Parameter(Mandatory = $true)][string]$TargetHome
+    [Parameter(Mandatory = $true)][string]$TargetHome,
+    [switch]$RegisterPlugin
   )
 
   $sourceRoot = Join-Path $RepoRoot "goal_plan"
@@ -178,9 +180,31 @@ function Install-GoalPlan {
 
   $helper = Join-Path $RepoRoot "scripts\managed_package_installer.py"
   $descriptor = Join-Path $RepoRoot "config\managed-packages\goal-plan.json"
-  Invoke-AgentToolsPython $helper install --descriptor $descriptor --repo-root $RepoRoot --home $TargetHome --platform win11
+  $installerArgs = @("install", "--descriptor", $descriptor, "--repo-root", $RepoRoot, "--home", $TargetHome, "--platform", "win11")
+  if (-not $RegisterPlugin) {
+    $installerArgs += "--skip-plugin-registration"
+  }
+  Invoke-AgentToolsPython $helper @installerArgs
 
   Write-Host "goal-plan installed for Win11 user: $TargetHome"
+}
+
+function Test-GoalPlanPackageState {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$TargetHome,
+    [Parameter(Mandatory = $true)][ValidateSet("deprecation-check", "managed-status")][string]$Command
+  )
+  $python = Get-PythonCommand
+  $helper = Join-Path $RepoRoot "scripts\managed_package_installer.py"
+  $descriptor = Join-Path $RepoRoot "config\managed-packages\goal-plan.json"
+  $probeArgs = @($helper, $Command, "--descriptor", $descriptor, "--repo-root", $RepoRoot, "--home", $TargetHome, "--platform", "win11")
+  if ((Split-Path -Leaf $python) -ieq "py.exe") {
+    & $python -3 @probeArgs | Out-Null
+  } else {
+    & $python @probeArgs | Out-Null
+  }
+  return $LASTEXITCODE -eq 0
 }
 
 function Install-LinearWorkflow {
@@ -283,10 +307,30 @@ function Invoke-CodexProviderBucketMigration {
 
 Assert-CodexTargetGuard -RepoRoot $Root -TargetUserHome $UserHome -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
 
-if (-not $NoGoalPlan) {
-  Install-GoalPlan -RepoRoot $Root -TargetHome $UserHome
-} else {
+if ($NoGoalPlan -and $LegacyGoalPlan) {
+  throw "-NoGoalPlan and -LegacyGoalPlan cannot be combined"
+}
+$installGoalPlan = $false
+$registerGoalPlan = $false
+if ($LegacyGoalPlan) {
+  $installGoalPlan = $true
+  $registerGoalPlan = $true
+} elseif (-not $NoGoalPlan) {
+  if (-not (Test-GoalPlanPackageState -RepoRoot $Root -TargetHome $UserHome -Command "deprecation-check")) {
+    Write-Warning "goal-plan deprecation gate is not satisfied; preserving the prior default install behavior."
+    $installGoalPlan = $true
+    $registerGoalPlan = $true
+  } elseif (Test-GoalPlanPackageState -RepoRoot $Root -TargetHome $UserHome -Command "managed-status") {
+    $installGoalPlan = $true
+  }
+}
+
+if ($installGoalPlan) {
+  Install-GoalPlan -RepoRoot $Root -TargetHome $UserHome -RegisterPlugin:$registerGoalPlan
+} elseif ($NoGoalPlan) {
   Write-Host "goal-plan tools not installed (-NoGoalPlan)."
+} else {
+  Write-Host "goal-plan compatibility tools not installed for this new environment; use -LegacyGoalPlan for explicit opt-in."
 }
 
 $installLinearWorkflow = -not $NoLinearWorkflow

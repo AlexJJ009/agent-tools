@@ -21,7 +21,8 @@ The recommended deployment model is one central tool directory per machine, not 
   migration that forces every non-target Codex provider bucket into `custom`.
 - `install.sh` — portable installer for a new Linux/WSL2 machine.
 - `scripts/install-win11.ps1` — native Win11 installer for the current Windows
-  user. It installs goal-plan, configures Codex App to use the subscription
+  user. It installs Linear Workflow, preserves an existing managed goal-plan
+  compatibility runtime, configures Codex App to use the subscription
   backed `custom` history bucket, enables the SQLite log guard, and migrates
   existing Codex history into that bucket.
 - `scripts/configure_codex_win11_subscription.py` — Win11-specific Codex App
@@ -47,8 +48,8 @@ The recommended deployment model is one central tool directory per machine, not 
   request was really billed as Fast/priority.
 - `experiment_registry/` — canonical SQLite experiment registry tooling,
   schema, queries, validation scripts, and the `experiment-registry` skill.
-- `goal_plan/` — canonical Claude Code and Codex App/CLI goal-planning skill,
-  slash command, reviewer agent, and Codex personal plugin assets.
+- `goal_plan/` — deprecated compatibility runtime and client assets for reading,
+  validating, migrating, or explicitly maintaining existing Goals.
 - `AGENTS.md` — project constraints for future agent changes.
 - `docs/CODEX_AUTOREVIEW_DEFAULT.md` — runbook for Codex defaults, including
   AutoReview without Full Access and stream timeout/retry defaults.
@@ -195,7 +196,15 @@ so reinstalling never drops a peer you had already whitelisted. Use
 system SSH protection, or set `INSTALL_FAIL2BAN_HARDENING=always` when a
 non-standard server should be forced through the same check.
 
-By default it also installs the user-level goal-plan tools from `goal_plan/`:
+`goal-plan` is deprecated for new work. Ordinary new software development uses
+`linear-plan` for Planning and `linear-deliver` for an approved Ready Batch.
+Fresh installs do not install or register `goal-plan` by default after the
+verified DRAGAI-61 pilot gate. Existing managed installations still receive the
+compatibility runtime and legacy Skill/command updates without re-registering
+the deprecated plugin as a recommended entry. Use `--legacy-goal-plan` (Unix)
+or `-LegacyGoalPlan` (native Win11) for an explicit compatibility opt-in.
+
+The retained compatibility package contains:
 
 - Claude Code: `~/.claude/skills/goal-plan`, `~/.claude/commands/goal-plan.md`,
   and `~/.claude/agents/goal-plan-reviewer.md`.
@@ -215,7 +224,8 @@ locations are separate:
 - Linux, WSL, and server installs use `install.sh` and install into the current
   Unix user. If the server default user is `root`, this means `/root/.claude`,
   `/root/.codex`, `/root/plugins/goal-plan`, and `/root/.agents`.
-- WSL installs also copy goal-plan into detected Win11 user homes by default:
+- WSL installs only copy goal-plan into detected Win11 user homes when the
+  compatibility install is active and cross-profile mode is explicitly enabled:
   `C:\Users\<User>\.claude`, `C:\Users\<User>\.codex`,
   `C:\Users\<User>\plugins\goal-plan`, and the Codex personal plugin cache.
   Use `--goal-plan-wsl-windows never` to skip this, or
@@ -238,9 +248,11 @@ locations are separate:
   `-AllowRunningCodexProviderBucketMigration` when running from inside an
   active Codex conversation.
 
-This creates the explicit `/goal-plan` planning command and Codex plugin command.
-It intentionally does not redirect, wrap, or replace `/goal`; `/goal` remains the
-execution loop. Use `--no-goal-plan` to skip this installation.
+The explicit `/goal-plan` command remains only for existing Goal maintenance and
+migration. `goal-plan-runtime init` rejects new Goals by default and points to
+Linear Workflow; `--legacy-override` is the explicit, warning-emitting bypass.
+Existing `plan.md`, append-only ledgers, findings, acceptance, `validate-plan`,
+and `validate-runtime` remain compatible. No installer deletes Goal artifacts.
 
 ## Win11 Codex Remote Connections
 

@@ -27,6 +27,15 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--repo-config", type=Path)
     version = subparsers.add_parser("version")
     version.add_argument("--json", action="store_true", required=True)
+    migrate = subparsers.add_parser("migrate")
+    migration_sources = migrate.add_subparsers(dest="migration_source", required=True)
+    goal_plan = migration_sources.add_parser("goal-plan")
+    goal_plan.add_argument("goal_dir", type=Path)
+    goal_plan.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="render the read-only proposal (the only supported v1 mode)",
+    )
     return parser
 
 
@@ -44,6 +53,16 @@ def main(argv: list[str] | None = None) -> int:
         from .metadata import version_metadata
 
         print(json.dumps(version_metadata(), separators=(",", ":")))
+        return 0
+    if args.command == "migrate":
+        from .migration import MigrationError, build_goal_plan_migration
+
+        try:
+            proposal = build_goal_plan_migration(args.goal_dir)
+        except (OSError, MigrationError, UnicodeError) as exc:
+            print(f"migration: {exc}", file=sys.stderr)
+            return 2
+        print(json.dumps(proposal, sort_keys=True, separators=(",", ":")))
         return 0
     try:
         value = load_json(args.input)

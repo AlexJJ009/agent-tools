@@ -27,6 +27,21 @@ TARGET = {
 
 
 class CodexFleetGuardTests(unittest.TestCase):
+    def test_path_only_is_forwarded_for_skill_scoped_preflight(self):
+        target = {
+            "id": "server",
+            "platform": "linux",
+            "transport": "ssh",
+            "ssh_alias": "server",
+            "expected_user": "root",
+            "codex_home": "/root/.codex",
+            "cc_switch_db": "/root/.cc-switch/cc-switch.db",
+        }
+        args = MODULE.guard_args(target, None, path_only=True)
+        self.assertIn("--path-only", args)
+        self.assertIn("--allow-missing-config", args)
+        self.assertIn("--skip-cc-switch-read-check", args)
+
     def test_ssh_transport_is_batch_only_without_tty(self):
         command = MODULE.ssh_base(TARGET)
         self.assertIn("BatchMode=yes", command)

@@ -1,8 +1,10 @@
 import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 
@@ -41,6 +43,24 @@ class CodexFleetGuardTests(unittest.TestCase):
         self.assertIn("--path-only", args)
         self.assertIn("--allow-missing-config", args)
         self.assertIn("--skip-cc-switch-read-check", args)
+
+    def test_remote_guard_uses_manifest_python_without_shell_interpolation(self):
+        target = {
+            "id": "legacy-host",
+            "platform": "linux",
+            "transport": "ssh",
+            "ssh_alias": "legacy-host",
+            "expected_user": "root",
+            "codex_home": "/root/.codex",
+            "cc_switch_db": "/root/.cc-switch/cc-switch.db",
+            "python_bin": "/root/.local/share/uv/python/cpython-3.12/bin/python3.12",
+        }
+        with mock.patch.object(MODULE, "run") as run:
+            run.return_value = subprocess.CompletedProcess([], 0, "{}", "")
+            MODULE.run_guard(target, None, path_only=True)
+        remote_command = run.call_args.args[0][-1]
+        self.assertIn("exec /root/.local/share/uv/python/cpython-3.12/bin/python3.12", remote_command)
+        self.assertNotIn("exec python3", remote_command)
 
     def test_ssh_transport_is_batch_only_without_tty(self):
         command = MODULE.ssh_base(TARGET)

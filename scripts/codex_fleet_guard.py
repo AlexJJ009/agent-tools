@@ -64,6 +64,9 @@ def load_manifest(path: Path) -> list[dict[str, Any]]:
             raise FleetFailure(f"target {target['id']}: ssh_alias is required and must be safe")
         if target["platform"] not in {"linux", "wsl", "win11"}:
             raise FleetFailure(f"target {target['id']}: unsupported platform {target['platform']!r}")
+        python_bin = target.get("python_bin", "python3")
+        if not isinstance(python_bin, str) or not python_bin or any(ch in python_bin for ch in "\r\n\0"):
+            raise FleetFailure(f"target {target['id']}: python_bin must be a non-empty command path")
     return targets
 
 
@@ -177,7 +180,8 @@ def run_guard(
         return run([sys.executable, str(REMOTE_HELPER), *args], check=False)
     if target["platform"] == "win11":
         raise FleetFailure(f"target {target['id']}: run the native Win11 helper, never Linux SSH")
-    remote_command = 'exec python3 "$HOME/' + remote_helper_relative_path() + '" ' + shlex.join(args)
+    python_bin = shlex.quote(target.get("python_bin", "python3"))
+    remote_command = f'exec {python_bin} "$HOME/' + remote_helper_relative_path() + '" ' + shlex.join(args)
     return run([*ssh_base(target), remote_command], check=False)
 
 

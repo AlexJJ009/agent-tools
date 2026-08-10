@@ -36,6 +36,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
+from scripts.codex_target_guard import GateFailure, validate_write_target
+
 
 DEFAULT_TARGET = "custom"
 DEFAULT_CODEX_DIR = Path(os.environ.get("CODEX_HOME", "~/.codex")).expanduser()
@@ -1668,6 +1670,12 @@ def main() -> None:
         die("--kill-running-codex conflicts with --allow-running-codex")
     if args.repair_resume_index and args.skip_history:
         die("--repair-resume-index conflicts with --skip-history")
+
+    if args.apply:
+        try:
+            validate_write_target(args.codex_dir, args.cc_switch_db)
+        except GateFailure as exc:
+            die(f"CODEX_TARGET_GUARD=RED: {exc}", code=2)
 
     running = running_codex_processes()
     if running and args.apply and args.kill_running_codex:

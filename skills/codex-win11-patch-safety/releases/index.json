@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "releases": [
+    {
+      "releaseId": "openai-codex-26.707.8168.0-75f9ed95794c",
+      "packageVersion": "26.707.8168.0",
+      "sourceAsarSha256": "75f9ed95794cb5fd37f5278789d323f2e7cd7ba4e279157ab040cd3ea6efd329",
+      "status": "candidate",
+      "recipe": "26.707.8168.0/recipe.json"
+    },
+    {
+      "releaseId": "openai-codex-26.721.4979.0-44884f86d619",
+      "packageVersion": "26.721.4979.0",
+      "sourceAsarSha256": "44884f86d619a12c3c0af1b8c65945005bda4379775b03270674c666226ff4b7",
+      "status": "candidate",
+      "recipe": "26.721.4979.0/recipe.json"
+    }
+  ]
+}

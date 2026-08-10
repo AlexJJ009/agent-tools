@@ -64,6 +64,9 @@ def load_manifest(path: Path) -> list[dict[str, Any]]:
             raise FleetFailure(f"target {target['id']}: ssh_alias is required and must be safe")
         if target["platform"] not in {"linux", "wsl", "win11"}:
             raise FleetFailure(f"target {target['id']}: unsupported platform {target['platform']!r}")
+        python_bin = target.get("python_bin", "python3")
+        if not isinstance(python_bin, str) or not python_bin or any(ch in python_bin for ch in "\r\n\0"):
+            raise FleetFailure(f"target {target['id']}: python_bin must be a non-empty command path")
     return targets
 
 
@@ -138,7 +141,13 @@ def sync_target(target: dict[str, Any]) -> dict[str, str]:
     return {"id": target["id"], "status": "synced", "sha256": local_hash}
 
 
-def guard_args(target: dict[str, Any], expected_base_url: str | None, requested_platform: str | None = None) -> list[str]:
+def guard_args(
+    target: dict[str, Any],
+    expected_base_url: str | None,
+    requested_platform: str | None = None,
+    *,
+    path_only: bool = False,
+) -> list[str]:
     args = [
         "--platform",
         requested_platform or target["platform"],
@@ -154,16 +163,25 @@ def guard_args(target: dict[str, Any], expected_base_url: str | None, requested_
     ]
     if expected_base_url:
         args.extend(["--expect-base-url", expected_base_url])
+    if path_only:
+        args.extend(["--path-only", "--allow-missing-config", "--allow-missing-cc-switch", "--skip-cc-switch-read-check"])
     return args
 
 
-def run_guard(target: dict[str, Any], expected_base_url: str | None, requested_platform: str | None = None) -> subprocess.CompletedProcess[str]:
-    args = guard_args(target, expected_base_url, requested_platform)
+def run_guard(
+    target: dict[str, Any],
+    expected_base_url: str | None,
+    requested_platform: str | None = None,
+    *,
+    path_only: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    args = guard_args(target, expected_base_url, requested_platform, path_only=path_only)
     if target["transport"] == "local":
         return run([sys.executable, str(REMOTE_HELPER), *args], check=False)
     if target["platform"] == "win11":
         raise FleetFailure(f"target {target['id']}: run the native Win11 helper, never Linux SSH")
-    remote_command = 'exec python3 "$HOME/' + remote_helper_relative_path() + '" ' + shlex.join(args)
+    python_bin = shlex.quote(target.get("python_bin", "python3"))
+    remote_command = f'exec {python_bin} "$HOME/' + remote_helper_relative_path() + '" ' + shlex.join(args)
     return run([*ssh_base(target), remote_command], check=False)
 
 
@@ -192,6 +210,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--target", action="append", default=[])
     parser.add_argument("--expect-base-url")
     parser.add_argument(
+        "--path-only",
+        action="store_true",
+        help="Validate only platform, user, and profile paths for scoped Skill-only writes.",
+    )
+    parser.add_argument(
         "--canary-reject",
         action="store_true",
         help="Also prove that each selected target rejects a deliberately wrong platform before any write.",
@@ -206,10 +229,18 @@ def main() -> int:
         if args.command == "sync":
             reports = [sync_target(target) for target in targets]
         else:
-            reports = [require_pass(target, run_guard(target, args.expect_base_url)) for target in targets]
+            reports = [
+                require_pass(target, run_guard(target, args.expect_base_url, path_only=args.path_only))
+                for target in targets
+            ]
             if args.canary_reject:
                 for target in targets:
-                    negative = run_guard(target, args.expect_base_url, opposite_platform(target["platform"]))
+                    negative = run_guard(
+                        target,
+                        args.expect_base_url,
+                        opposite_platform(target["platform"]),
+                        path_only=args.path_only,
+                    )
                     if negative.returncode == 0:
                         raise FleetFailure(f"target {target['id']}: wrong-platform canary unexpectedly passed")
                 for report in reports:

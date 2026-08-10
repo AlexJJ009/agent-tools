@@ -10,8 +10,16 @@ import argparse
 import os
 import platform
 import sqlite3
+import sys
 from pathlib import Path
 from typing import List, Optional, Set
+
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from codex_target_guard import GateFailure, validate_write_target
 
 
 TRIGGER_NAME = "agent_tools_block_codex_log_inserts"
@@ -195,7 +203,7 @@ def parse_args():  # type: () -> argparse.Namespace
     parser.add_argument(
         "--include-wsl-windows",
         action="store_true",
-        help="When running under WSL, also patch Windows users' /mnt/c/Users/*/.codex homes.",
+        help="Legacy option; a WSL process now rejects mounted Windows profiles.",
     )
     parser.add_argument(
         "--vacuum",
@@ -211,6 +219,15 @@ def main():  # type: () -> int
     if not targets:
         print("No Codex log databases found.")
         return 0
+
+    # Check all homes first, including status-only runs.  A Linux/WSL helper
+    # must never even open a mounted Windows Codex SQLite database.
+    for path in targets:
+        try:
+            validate_write_target(path.parent)
+        except GateFailure as exc:
+            print(f"CODEX_TARGET_GUARD=RED: {exc}", file=sys.stderr)
+            return 2
 
     failed = False
     non_error = False

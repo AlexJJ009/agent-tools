@@ -1,45 +1,57 @@
-# Linear Issue template: 需求收集｜Discovery / Triage
+# Linear Issue Template：需求收集（Discovery / Triage）
 
-- **Type**: Standard issue template
-- **Default status**: `Backlog`
-- **Default team**: `DragAI`
-- **Use for**: an idea or problem that still needs product or repository decisions
-- **Do not use for**: an executable code task; create that in its explicit GitHub repository and reuse the synced Linear Issue
+## 在 Linear 中的模板设置
 
-Discovery is not Delivery authorization. Replace or remove every prompt before
-the item leaves discovery.
+- **Template name**：`需求收集｜Discovery / Triage`
+- **Template type**：Standard issue template
+- **建议默认状态**：Triage
+- **适用范围**：尚未确认是否立项、尚未明确修改哪个仓库，或仍需要补充产品判断的想法、问题和机会
+- **不适用**：已经有明确 repository、scope 和 acceptance criteria 的代码任务；这类任务应先在目标 GitHub repository 创建 Issue，再同步到 Linear
+- **建议默认属性**：Team=`DragAI`；不预设 Project、Assignee、Priority
 
-## Template body
+> 将下方“模板正文”复制到 Linear。方括号中的文字是填写提示；完成 Triage 前必须替换或删除。Discovery Issue 不是开发授权。
+
+---
+
+## 模板正文
 
 ### Initial idea
 
-{Describe the desired observable change in one to three sentences.}
+[用一到三句话描述你希望改变什么。允许不完整，但不要直接指定大规模实现方案。]
 
 ### Observed problem
 
-- **Current behavior**: {What happens now?}
-- **Affected actor**: {Who or what is affected?}
-- **Impact**: {What consequence follows?}
-- **Evidence**: {Logs, data, feedback, reproduction, or how to obtain evidence.}
+- **Current behavior**：[现在真实发生了什么]
+- **Affected user / operator / system**：[谁或哪个系统受到影响]
+- **Impact**：[造成了什么业务、用户、运维或工程后果]
+- **Evidence**：[日志、截图、数据、用户反馈、复现步骤或相关链接；暂时没有时说明需要怎样取得]
 
 ### Expected outcome
 
-{Describe the observable successful result.}
+[描述成功后可以观察到的结果。不要把“重构系统”“建设平台”本身当成结果。]
 
 ### Known constraints
 
-- **Time / urgency**: {deadline or None}
-- **Security / privacy / money**: {constraints or None}
-- **Compatibility / operations**: {constraints or None}
-- **Possible systems or repositories**: {canonical owner/repository values or Unknown}
+- **Time / urgency**：[有明确期限时填写；没有则写 None]
+- **Security / privacy / money**：[涉及权限、敏感数据、支付或余额时填写；没有则写 None]
+- **Compatibility / operations**：[必须保留的兼容行为、部署条件或人工流程；没有则写 None]
+- **Possible systems or repositories**：[只列目前已知候选；不确定时写 Unknown]
+
+### Existing context
+
+- **Related Project / PRD**：[已有则链接；没有则写 None]
+- **Related GitHub Issue / incident / discussion**：[已有则链接；没有则写 None]
+- **Prior attempts or decisions**：[已有结论时摘要并链接证据；没有则写 None]
 
 ### Questions to resolve
 
-- {Question required for product, scope, or destination decisions.}
+- [为了决定是否立项、确定产品行为或拆分工作，还必须回答的问题]
 
 ### Triage decision
 
-- **Decision**: Promote to Project / Convert to GitHub Issue / Keep in Backlog / Reject / Duplicate
-- **Reason**: {Evidence-based reason.}
-- **Resulting object**: {Project, PRD, full GitHub Issue reference, or None.}
-- **Owner**: {Next owner.}
+> 本节由 Product Owner 或 Planning Agent 调研后填写。
+
+- **Decision**：Promote to Project / Convert to GitHub Issue / Keep in Backlog / Reject / Duplicate
+- **Reason**：[基于证据说明决定]
+- **Resulting Project / PRD / GitHub Issue**：[填写创建或关联的对象；不适用则写 None]
+- **Owner**：[下一步负责人]

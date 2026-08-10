@@ -25,6 +25,8 @@ def build_parser() -> argparse.ArgumentParser:
     doctor.add_argument("--local-only", action="store_true")
     doctor.add_argument("--home", type=Path, default=Path.home())
     doctor.add_argument("--repo-config", type=Path)
+    version = subparsers.add_parser("version")
+    version.add_argument("--json", action="store_true", required=True)
     return parser
 
 
@@ -38,6 +40,11 @@ def main(argv: list[str] | None = None) -> int:
         from .doctor import render, run_doctor
 
         return render(run_doctor(args.home, args.repo_config, args.local_only))
+    if args.command == "version":
+        from .metadata import version_metadata
+
+        print(json.dumps(version_metadata(), separators=(",", ":")))
+        return 0
     try:
         value = load_json(args.input)
         if args.command == "plan-check":

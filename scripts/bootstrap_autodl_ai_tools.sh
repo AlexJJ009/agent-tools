@@ -437,6 +437,20 @@ run_agent_tools_install() {
     --no-cc-switch-update)
 }
 
+run_codex_target_guard() {
+  local script="$AGENT_TOOLS_DIR/scripts/codex_target_guard.py"
+  [[ -f "$script" ]] || die "Codex target guard missing after agent-tools installation: $script"
+  python3 "$script" \
+    --platform auto \
+    --codex-home "$HOME/.codex" \
+    --cc-switch-db "$HOME/.cc-switch/cc-switch.db" \
+    --expected-user "$(id -un)" \
+    --path-only \
+    --allow-missing-config \
+    --allow-missing-cc-switch \
+    --skip-cc-switch-read-check
+}
+
 clean_codex_strict_config() {
   python3 - <<'PY'
 from pathlib import Path
@@ -853,6 +867,7 @@ main() {
   install_codex
   install_claude
   run_agent_tools_install
+  run_codex_target_guard
   configure_codex_from_transfer || configure_codex_from_json
   import_codex_resume_history
   validate_install

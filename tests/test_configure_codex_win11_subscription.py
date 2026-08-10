@@ -58,13 +58,14 @@ class ConfigureCodexWin11SubscriptionTests(unittest.TestCase):
                 Path("/home/alex_mercer/.cc-switch/cc-switch.db"),
             )
 
-    def test_posix_accepts_matching_drvfs_profile(self):
+    def test_posix_rejects_drvfs_profile_for_win11_script(self):
         if MODULE.os.name == "nt":
             self.skipTest("POSIX boundary test")
-        MODULE.validate_win11_target_paths(
-            Path("/mnt/c/Users/Alex Mercer/.codex"),
-            Path("/mnt/c/Users/Alex Mercer/.cc-switch/cc-switch.db"),
-        )
+        with self.assertRaises(SystemExit):
+            MODULE.validate_win11_target_paths(
+                Path("/mnt/c/Users/Alex Mercer/.codex"),
+                Path("/mnt/c/Users/Alex Mercer/.cc-switch/cc-switch.db"),
+            )
 
     def test_rejects_mismatched_windows_profiles(self):
         if MODULE.os.name == "nt":

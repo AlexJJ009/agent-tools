@@ -15,9 +15,17 @@ import json
 import os
 import re
 import sqlite3
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from codex_target_guard import GateFailure, validate_write_target
 
 
 DEFAULT_PROVIDER = "custom"
@@ -315,52 +323,17 @@ def default_cc_switch_db() -> Path:
 
 
 def validate_win11_target_paths(codex_home: Path, cc_switch_db: Path) -> None:
-    """Fail closed before a Win11-only write can land in a Linux profile."""
+    """Require native Win11 before this bearer-token helper can write."""
 
-    codex_home = codex_home.expanduser()
-    cc_switch_db = cc_switch_db.expanduser()
-    if codex_home.name.lower() != ".codex":
-        raise SystemExit(f"Win11 Codex home must end in .codex: {codex_home}")
-    if cc_switch_db.name.lower() != "cc-switch.db" or cc_switch_db.parent.name.lower() != ".cc-switch":
-        raise SystemExit(f"Win11 CC Switch DB must end in .cc-switch/cc-switch.db: {cc_switch_db}")
-
-    if os.name == "nt":
-        profile_root = codex_home.parent
-        db_profile_root = cc_switch_db.parent.parent
-    else:
-        # Running the Win11 installer from WSL is supported only for an
-        # explicit DrvFS target. A normal /home/... target is always the WSL
-        # profile and must never receive the Windows common config.
-        home_parts = codex_home.parts
-        db_parts = cc_switch_db.parts
-        if (
-            len(home_parts) < 6
-            or home_parts[1].lower() != "mnt"
-            or len(home_parts[2]) != 1
-            or home_parts[3].lower() != "users"
-        ):
-            raise SystemExit(
-                "Win11 configuration from POSIX requires an explicit "
-                "/mnt/<drive>/Users/<user>/.codex target; refusing Linux/WSL profile"
-            )
-        if (
-            len(db_parts) < 7
-            or db_parts[1].lower() != "mnt"
-            or len(db_parts[2]) != 1
-            or db_parts[3].lower() != "users"
-        ):
-            raise SystemExit(
-                "Win11 CC Switch DB from POSIX must be under the same "
-                "/mnt/<drive>/Users/<user> profile"
-            )
-        profile_root = codex_home.parent
-        db_profile_root = cc_switch_db.parent.parent
-
-    if profile_root != db_profile_root:
-        raise SystemExit(
-            "Win11 Codex home and CC Switch DB resolve to different user profiles: "
-            f"{profile_root} != {db_profile_root}"
+    try:
+        validate_write_target(
+            codex_home.expanduser(),
+            cc_switch_db.expanduser(),
+            requested_platform="win11",
         )
+    except GateFailure as exc:
+        print(f"CODEX_TARGET_GUARD=RED: {exc}", file=sys.stderr)
+        raise SystemExit(2) from exc
 
 
 def table_columns(conn: sqlite3.Connection, table: str) -> set[str]:

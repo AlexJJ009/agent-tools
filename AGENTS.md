@@ -45,6 +45,16 @@
   for this path. Never run the Win11 configurator against a Linux/WSL
   `~/.codex`; Win11 `CODEX_HOME`, `USERPROFILE`, and the CC Switch DB must all
   resolve to the same native Windows profile.
+- Before any Agent Tools installer, Skill deployment, or Codex/CC Switch
+  configuration helper writes state, run `scripts/codex_target_guard.py` on
+  the target platform. It binds `.codex` and `.cc-switch/cc-switch.db` to one
+  profile and rejects Windows paths in Linux/WSL config and WSL paths in native
+  Win11 config. Fleet dispatch must use `scripts/codex_fleet_guard.py` with a
+  checked manifest and batch SSH only (`BatchMode=yes`, `RequestTTY=no`): never
+  use a Linux/WSL `cc-switch` binary to mutate a Windows profile or emulate an
+  interactive CC Switch form through SSH. WSL install defaults must not copy
+  Skills/plugins or mutate Codex config under `/mnt/c`; run
+  `scripts/install-win11.ps1` natively for Win11 state.
 - Linux server installs must check `fail2ban` for SSH protection. If `fail2ban`
   is missing and a supported package manager is available, install it. The
   managed sshd jail should be strict by default: aggressive sshd filter,

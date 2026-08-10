@@ -43,6 +43,13 @@ The manifest and report may contain hashes, key names, safe provider/base-URL va
 
 ## Allowed Writes
 
+Before any allowed write, execute the native `scripts/codex_target_guard.py`
+for the exact Codex home and CC Switch DB. A guard failure is a hard failure:
+do not substitute a WSL/Linux binary plus overridden `HOME` for a native Win11
+execution context. Fleet validation and helper deployment use
+`scripts/codex_fleet_guard.py` with batch SSH only; no PTY, cursor automation,
+or interactive CC Switch form is permitted.
+
 Limit patch writes to:
 
 - `%USERPROFILE%\Downloads\Report\CodexPatched`

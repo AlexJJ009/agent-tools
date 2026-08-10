@@ -10,7 +10,15 @@ import argparse
 import json
 import os
 import platform
+import sys
 from pathlib import Path
+
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from codex_target_guard import GateFailure, validate_write_target
 
 
 def split_key(line):
@@ -151,7 +159,7 @@ def parse_args():
     parser.add_argument(
         "--include-wsl-windows",
         action="store_true",
-        help="When running under WSL, also patch the detected Windows Codex App home.",
+        help="Legacy option; a WSL process now rejects mounted Windows profiles.",
     )
     parser.add_argument(
         "--service-tier",
@@ -176,6 +184,7 @@ def main():
             homes.append(win_home)
 
     seen = set()
+    targets = []
     for home in homes:
         home = home.expanduser()
         try:
@@ -185,6 +194,17 @@ def main():
         if home in seen:
             continue
         seen.add(home)
+        try:
+            validate_write_target(home)
+        except GateFailure as exc:
+            print(f"CODEX_TARGET_GUARD=RED: {exc}", file=sys.stderr)
+            return 2
+        targets.append(home)
+
+    # Validate every requested target before touching any one of them.  This
+    # keeps a mixed WSL/Windows invocation from partially updating the Unix
+    # profile before rejecting the mounted Windows profile.
+    for home in targets:
         config = home / "config.toml"
         changed = patch_config(config, args.service_tier, args.fast_mode)
         state = "updated" if changed else "already current"

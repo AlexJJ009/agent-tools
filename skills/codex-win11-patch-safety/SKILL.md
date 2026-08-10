@@ -11,6 +11,14 @@ Read [SAFETY_CONTRACT.md](references/SAFETY_CONTRACT.md) before any patch, backu
 
 ## Route The Task
 
+Before an installer, Skill deployment, or Codex/CC Switch configuration helper
+writes state, run `scripts/codex_target_guard.py` on the target platform. A
+native Win11 target must execute it through Windows Python/PowerShell with its
+`USERPROFILE` Codex home and CC Switch DB. A WSL/Linux process must never point
+a Linux CC Switch binary at a mounted Windows profile, even if `HOME` is
+overridden. For a fleet, use `scripts/codex_fleet_guard.py`; it is batch SSH
+only and deliberately has no PTY/expect path.
+
 - **Detect/audit:** run only read-only detection, CC Switch audit, and low-volatility checkpoint commands from [OPERATIONS.md](references/OPERATIONS.md). Do not patch or launch.
 - **Patch a known build:** select an exact release by `packageVersion + sourceAsarSha256`. Follow the gated patch run in [OPERATIONS.md](references/OPERATIONS.md).
 - **Handle a new build:** follow [RELEASE_LIFECYCLE.md](references/RELEASE_LIFECYCLE.md). Unknown builds become candidates; never reuse the nearest release.

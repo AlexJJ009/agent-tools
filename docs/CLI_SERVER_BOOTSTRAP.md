@@ -442,6 +442,12 @@ codex exec --strict-config \
 
 ## Existing History Migration
 
+The migration script performs a read-only target guard before every `--apply`:
+the Codex home and CC Switch database must belong to the current Unix user.
+For a remote host, run it through the host's own Agent Tools checkout or the
+batch-only fleet preflight; never point a local/WSL process at another
+machine's or Windows profile's state.
+
 If the machine already used Codex before the stable `custom` bucket convention,
 run the local migration script once after closing Codex:
 

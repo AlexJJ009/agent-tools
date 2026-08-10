@@ -53,6 +53,25 @@ function Invoke-AgentToolsPython {
   }
 }
 
+function Assert-CodexTargetGuard {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$TargetCodexHome,
+    [Parameter(Mandatory = $true)][string]$TargetCcSwitchDb
+  )
+
+  $script = Join-Path $RepoRoot "scripts\codex_target_guard.py"
+  Invoke-AgentToolsPython $script `
+    --platform win11 `
+    --codex-home $TargetCodexHome `
+    --cc-switch-db $TargetCcSwitchDb `
+    --expected-user $env:USERNAME `
+    --path-only `
+    --allow-missing-config `
+    --allow-missing-cc-switch `
+    --skip-cc-switch-read-check
+}
+
 function Copy-Managed {
   param(
     [Parameter(Mandatory = $true)][string]$Source,
@@ -285,6 +304,8 @@ function Invoke-CodexProviderBucketMigration {
 
   Invoke-AgentToolsPython $script @args
 }
+
+Assert-CodexTargetGuard -RepoRoot $Root -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
 
 if (-not $NoGoalPlan) {
   Install-GoalPlan -RepoRoot $Root -TargetHome $UserHome

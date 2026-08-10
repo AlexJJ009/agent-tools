@@ -22,7 +22,9 @@ FAIL2BAN_SSHD_BANACTION="${FAIL2BAN_SSHD_BANACTION:-iptables-multiport[blocktype
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
 INSTALL_GOAL_PLAN=1
-GOAL_PLAN_INCLUDE_WSL_WINDOWS="${GOAL_PLAN_INCLUDE_WSL_WINDOWS:-auto}"
+# Native Win11 state is installed only through install-win11.ps1.  A WSL
+# installer must not copy Skills/plugins or mutate config beneath /mnt/c.
+GOAL_PLAN_INCLUDE_WSL_WINDOWS="${GOAL_PLAN_INCLUDE_WSL_WINDOWS:-never}"
 INSTALL_CC_SWITCH_CLI_UPDATE="${INSTALL_CC_SWITCH_CLI_UPDATE:-1}"
 CC_SWITCH_UPDATE_PROXY_MODE="${CC_SWITCH_UPDATE_PROXY_MODE:-auto}"
 CC_SWITCH_UPDATE_CONNECT_TIMEOUT="${CC_SWITCH_UPDATE_CONNECT_TIMEOUT:-10}"
@@ -46,10 +48,10 @@ CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE="${CODEX_DESKTOP_CONNECTION_FA
 CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME="${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME:-Codex Fast Connections}"
 INSTALL_CODEX_SQLITE_LOG_GUARD="${INSTALL_CODEX_SQLITE_LOG_GUARD:-1}"
 CODEX_SQLITE_LOG_GUARD_MODE="${CODEX_SQLITE_LOG_GUARD_MODE:-enable}"
-CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS="${CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS:-auto}"
+CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS="${CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS:-never}"
 CODEX_SQLITE_LOG_GUARD_VACUUM="${CODEX_SQLITE_LOG_GUARD_VACUUM:-0}"
 INSTALL_CLAUDE_DESKTOP_SSH="${INSTALL_CLAUDE_DESKTOP_SSH:-1}"
-CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS:-auto}"
+CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS:-never}"
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-1800000}"
 CODEX_STREAM_MAX_RETRIES="${CODEX_STREAM_MAX_RETRIES:-20}"
 CODEX_MODEL_PROVIDER_ID="${CODEX_MODEL_PROVIDER_ID:-custom}"
@@ -81,6 +83,7 @@ CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS=""
 CLAUDE_DESKTOP_SSH_STATUS=""
 CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS=""
 CODEX_SQLITE_LOG_GUARD_STATUS=""
+CODEX_TARGET_GUARD_STATUS=""
 FAIL2BAN_HARDENING_STATUS=""
 SCAN_ROOTS=()
 PYTHON_BIN="${PYTHON_BIN:-}"
@@ -112,6 +115,36 @@ PY
 
   PYTHON_BIN="python"
   echo "WARNING: no Python executable found on PATH before selecting fallback: $PYTHON_BIN." >&2
+}
+
+run_codex_target_guard() {
+  local phase="$1"
+  local script="$INSTALL_REAL/scripts/codex_target_guard.py"
+  local codex_home="${CODEX_HOME:-$HOME/.codex}"
+  local cc_switch_db="${CC_SWITCH_DB_PATH:-$HOME/.cc-switch/cc-switch.db}"
+  local -a args=(
+    --platform auto
+    --codex-home "$codex_home"
+    --cc-switch-db "$cc_switch_db"
+    --expected-user "$(id -un)"
+    --path-only
+    --skip-cc-switch-read-check
+    --allow-missing-cc-switch
+  )
+
+  if [[ "$phase" == "before" ]]; then
+    args+=(--allow-missing-config --allow-missing-cc-switch)
+  fi
+  if [[ ! -f "$script" && -f "$SOURCE_DIR/scripts/codex_target_guard.py" ]]; then
+    script="$SOURCE_DIR/scripts/codex_target_guard.py"
+  fi
+  if [[ ! -f "$script" ]]; then
+    echo "missing Codex target guard: $script" >&2
+    return 1
+  fi
+  select_python_bin
+  "$PYTHON_BIN" "$script" "${args[@]}"
+  CODEX_TARGET_GUARD_STATUS="${phase}: PASS (${codex_home})"
 }
 
 configure_tmux_mouse_mode() {
@@ -1105,12 +1138,12 @@ configure_codex_app_fast_mode() {
 
   case "$CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS" in
     auto)
-      if grep -qi microsoft /proc/version 2>/dev/null && [[ -d /mnt/c/Users ]]; then
-        args+=(--include-wsl-windows)
-      fi
       ;;
     always)
-      args+=(--include-wsl-windows)
+      if grep -qi microsoft /proc/version 2>/dev/null; then
+        echo "refusing WSL-to-Win11 config writes; run scripts/install-win11.ps1 from native Windows instead" >&2
+        return 2
+      fi
       ;;
     never)
       ;;
@@ -1155,12 +1188,12 @@ configure_codex_sqlite_log_guard() {
 
   case "$CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS" in
     auto)
-      if grep -qi microsoft /proc/version 2>/dev/null && [[ -d /mnt/c/Users ]]; then
-        args+=(--include-wsl-windows)
-      fi
       ;;
     always)
-      args+=(--include-wsl-windows)
+      if grep -qi microsoft /proc/version 2>/dev/null; then
+        echo "refusing WSL-to-Win11 SQLite writes; run scripts/install-win11.ps1 from native Windows instead" >&2
+        return 2
+      fi
       ;;
     never)
       ;;
@@ -1453,6 +1486,7 @@ rest = filtered_rest
 def _force_websockets(lines):
     updated = []
     in_model_provider = False
+    in_target_provider = False
     target_found = False
     setting_found = False
 
@@ -2148,11 +2182,13 @@ install_goal_plan_for_wsl_windows_homes() {
 
   case "$GOAL_PLAN_INCLUDE_WSL_WINDOWS" in
     auto)
-      if ! grep -qi microsoft /proc/version 2>/dev/null || [[ ! -d "$users_dir" ]]; then
-        return 0
-      fi
+      return 0
       ;;
     always)
+      if grep -qi microsoft /proc/version 2>/dev/null; then
+        echo "refusing WSL-to-Win11 Skill installation; run scripts/install-win11.ps1 from native Windows instead" >&2
+        return 2
+      fi
       if [[ ! -d "$users_dir" ]]; then
         echo "goal-plan Win11 install skipped: $users_dir not found" >&2
         return 1
@@ -2338,6 +2374,7 @@ install_goal_plan_only() {
   fi
   configure_local_bin_path
   INSTALL_REAL="$install_real"
+  run_codex_target_guard before
   install_goal_plan_tools
   printf '%s\n' "$GOAL_PLAN_STATUS"
 }
@@ -2467,7 +2504,7 @@ Options:
                            isolated runtime, then exit. Do not configure other tools.
   --goal-plan-wsl-windows MODE
                            Also install goal-plan into Win11 Codex/Claude homes
-                           when running from WSL: auto|always|never. Default: auto.
+                           when running from WSL: auto|always|never. Default: never.
   --no-cc-switch-update    Do not update cc-switch-cli from the latest GitHub
                            release before Codex provider migration.
   --cc-switch-update-proxy MODE
@@ -2503,7 +2540,7 @@ Options:
                            config.toml.
   --codex-app-fast-wsl-windows MODE
                            Also patch the Windows Codex App home when running
-                           from WSL: auto|always|never. Default: auto.
+                           from WSL: auto|always|never. Default: never. WSL writes are refused.
   --codex-desktop-connection-fast-mode MODE
                            Version-route Codex Desktop WSL/SSH Connection
                            Fast repair and prepare the local bundle:
@@ -2531,7 +2568,7 @@ Options:
                            Use after OpenAI fixes the logging issue.
   --codex-sqlite-log-guard-wsl-windows MODE
                            Also patch Windows Codex homes when running from
-                           WSL: auto|always|never. Default: auto.
+                           WSL: auto|always|never. Default: never. WSL writes are refused.
   --codex-sqlite-log-guard-vacuum
                            Checkpoint WAL and VACUUM after guard changes.
                            Use only after stopping Codex processes.
@@ -2792,6 +2829,7 @@ configure_local_bin_path
 configure_fail2ban_hardening
 configure_claude_desktop_ssh
 update_cc_switch_cli
+run_codex_target_guard before
 if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then
   install_codex_here
 fi
@@ -2811,6 +2849,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   fi
   configure_codex_proxy_wrapper
   start_codex_remote_control
+  run_codex_target_guard after
 fi
 if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
   verify_agent_core_entries
@@ -2892,6 +2931,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex Desktop Connection Fast mode: mode=${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE}, status=${CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS}"
   echo "Codex Desktop Fast shortcut: scope=${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE}, name=${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME}"
   echo "Codex SQLite log guard: ${CODEX_SQLITE_LOG_GUARD_STATUS}"
+  echo "Codex target guard: ${CODEX_TARGET_GUARD_STATUS}"
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
     echo "Codex provider bucket migration: target=${CODEX_MODEL_PROVIDER_ID}, apply=${APPLY_CODEX_PROVIDER_BUCKET_MIGRATION}, all_non_target=${CODEX_PROVIDER_BUCKET_ALL_NON_TARGET}"
   else

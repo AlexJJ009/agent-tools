@@ -1,5 +1,6 @@
 .codex
 agent_context_sync.config.json
+config/codex-fleet.targets.json
 logs/
 __pycache__/
 *.py[cod]

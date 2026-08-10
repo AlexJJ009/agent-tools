@@ -1,6 +1,6 @@
 [project]
 name = "goal-plan-runtime"
-version = "0.3.0"
+version = "0.2.1"
 description = "Project-language-independent runtime contracts and validators for goal-plan"
 requires-python = ">=3.11"
 dependencies = []

@@ -22,7 +22,7 @@ class ManagedPackageInstallerTests(unittest.TestCase):
     def test_descriptors_cover_both_products_without_product_specific_helper(self):
         goal = self.descriptor("goal-plan")
         linear = self.descriptor("linear-workflow")
-        self.assertEqual(goal["resolved_version"], "0.3.0")
+        self.assertEqual(goal["resolved_version"], "0.2.0")
         self.assertEqual(linear["resolved_version"], (ROOT / "linear_workflow" / "VERSION").read_text().strip())
         self.assertNotEqual(goal["runtime"]["entrypoint"], linear["runtime"]["entrypoint"])
 

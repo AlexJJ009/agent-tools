@@ -1,6 +1,6 @@
 {
   "name": "goal-plan",
-  "version": "0.3.0",
+  "version": "0.2.0",
   "description": "DEPRECATED compatibility for reading, validating, reviewing, and migrating existing goal-plan Goals.",
   "author": {
     "name": "Local developer"

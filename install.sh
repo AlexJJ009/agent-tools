@@ -2116,7 +2116,7 @@ install_goal_plan_for_windows_home() {
   local win_home="$1"
   local source_root="$2"
   local register_plugin="${3:-0}"
-  local plugin_version="0.3.0"
+  local plugin_version="0.2.0"
 
   backup_and_copy_managed "$source_root/claude/skills/goal-plan" "$win_home/.claude/skills/goal-plan"
   backup_and_copy_managed "$source_root/claude/commands/goal-plan.md" "$win_home/.claude/commands/goal-plan.md"
@@ -2187,7 +2187,7 @@ install_goal_plan_for_wsl_windows_homes() {
 goal_plan_managed_pairs() {
   local source_root="$1"
   local codex_home="${CODEX_HOME:-$HOME/.codex}"
-  local plugin_version="0.3.0"
+  local plugin_version="0.2.0"
   printf '%s\t%s\n' \
     "$source_root/claude/skills/goal-plan" "$HOME/.claude/skills/goal-plan" \
     "$source_root/claude/commands/goal-plan.md" "$HOME/.claude/commands/goal-plan.md" \
@@ -2235,7 +2235,7 @@ install_goal_plan_tools() {
 
   local source_root="$INSTALL_REAL/goal_plan"
   local codex_home="${CODEX_HOME:-$HOME/.codex}"
-  local plugin_version="0.3.0"
+  local plugin_version="0.2.0"
   if [[ ! -d "$source_root" ]]; then
     GOAL_PLAN_STATUS="absent: no $source_root"
     echo "goal-plan tools not installed: missing $source_root" >&2

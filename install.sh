@@ -2530,8 +2530,8 @@ Options:
                            matching, 3 failures within 1 hour, permanent ban,
                            DROP, and loopback-only ignoreip.
   --no-codex-here          Do not install ~/.local/bin/codex-here.
-  --no-agent-wt            Do not install the agent-wt launcher or
-                           manage-worktrees Skill for Codex and Claude.
+  --no-agent-wt            Do not install the agent-wt launcher or the
+                           current-scope Codex manage-worktrees Skill.
   --no-goal-plan           Do not install user-level goal-plan tools
                            (Claude /goal-plan + reviewer, Codex skill/plugin/prompt).
   --legacy-goal-plan       Explicitly install/register deprecated goal-plan compatibility tools.

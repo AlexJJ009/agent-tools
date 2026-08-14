@@ -795,6 +795,12 @@ def create_plan(args: argparse.Namespace, repo: RepoInfo) -> dict[str, Any]:
         raise AgentWtError(f"refusing worktree inside repository: {target}", "target_inside_repository")
     if target.exists():
         raise AgentWtError(f"target already exists: {target}", "target_exists")
+    artifact_root = roots["artifact_root"].resolve()
+    if artifact_root.exists() and not artifact_root.is_dir():
+        raise AgentWtError(
+            f"artifact root exists and is not a directory: {artifact_root}",
+            "artifact_path_collision",
+        )
     checked_out = checked_out_path(repo, args.branch)
     if checked_out:
         raise AgentWtError(f"branch is already checked out at: {checked_out}", "branch_checked_out")
@@ -840,7 +846,7 @@ def create_plan(args: argparse.Namespace, repo: RepoInfo) -> dict[str, Any]:
         "worktree_path": str(target),
         "workspace_root": str(roots["workspace_root"]),
         "path_policy_source": roots["policy_source"],
-        "artifact_root": str(roots["artifact_root"]),
+        "artifact_root": str(artifact_root),
         "cache_root": str(roots["cache_root"]),
         "filesystem": {"repo": repo_fs, "target": target_fs},
         "project": project,
@@ -868,13 +874,16 @@ def cmd_create(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         save_registry(registry)
 
         target = Path(plan["worktree_path"])
-        target.parent.mkdir(parents=True, exist_ok=True)
-        git(repo.root, *plan["commands"][0][1:])
         artifact_root = Path(plan["artifact_root"])
-        artifact_root.mkdir(parents=True, exist_ok=True)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            artifact_root.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise AgentWtError(
+                f"cannot prepare worktree or artifact parent: {exc}",
+                "workspace_path_unwritable",
+            ) from exc
 
-        # Re-detect in the checked-out branch because its lockfiles can differ from the base checkout.
-        plan["project"] = detect_project(target)
         setup_results = [
             {**item, "status": "planned" if item.get("argv") else "manual"}
             for item in plan["project"]["setup"]
@@ -896,8 +905,35 @@ def cmd_create(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "project_types": plan["project"]["detected"],
             "lock_hash": plan["project"]["lock_hash"],
             "setup": setup_results,
+            "state": "creating",
         }
+        # Journal the intended target before Git mutation.  If any later step
+        # fails, list --all still exposes a recoverable `creating` entry rather
+        # than leaving an invisible worktree outside the registry contract.
         registry_path = register_unlocked(entry, registry)
+
+        try:
+            git(repo.root, *plan["commands"][0][1:])
+            # Re-detect in the checked-out branch because its lockfiles can differ from the base checkout.
+            plan["project"] = detect_project(target)
+            setup_results = [
+                {**item, "status": "planned" if item.get("argv") else "manual"}
+                for item in plan["project"]["setup"]
+            ]
+            entry.update({
+                "project_types": plan["project"]["detected"],
+                "lock_hash": plan["project"]["lock_hash"],
+                "setup": setup_results,
+                "state": "ready",
+            })
+            registry_path = register_unlocked(entry, registry)
+        except AgentWtError:
+            raise
+        except OSError as exc:
+            raise AgentWtError(
+                f"worktree creation stopped after journaling the target: {exc}",
+                "create_incomplete",
+            ) from exc
     plan.update(
         {
             "created_at": created_at,
@@ -943,6 +979,8 @@ def cmd_doctor(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         warnings.append("linked worktree is not recorded in the agent-wt registry")
     if entry and entry.get("branch") != repo.branch:
         errors.append("registry branch does not match the branch currently checked out")
+    if entry and entry.get("state", "ready") != "ready":
+        errors.append("registry entry records an incomplete worktree creation")
     if (repo.root / ".gitmodules").is_file() and linked:
         warnings.append("Git documents incomplete submodule support with multiple worktrees")
     if repo.dirty:

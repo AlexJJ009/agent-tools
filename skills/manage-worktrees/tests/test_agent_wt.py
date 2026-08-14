@@ -214,6 +214,40 @@ class AgentWtTests(unittest.TestCase):
         self.assertEqual(after, before)
         self.assertFalse((self.repo.parent / "_worktrees" / "demo" / "codex-lock-failure").exists())
 
+    def test_create_artifact_collision_precedes_git_mutation(self):
+        artifact = self.repo.parent / "_artifacts" / "demo" / "codex-artifact-collision"
+        artifact.parent.mkdir(parents=True)
+        artifact.write_text("not a directory\n", encoding="utf-8")
+        before = run(["git", "worktree", "list", "--porcelain"], self.repo).stdout
+        completed, payload = self.cli(
+            "create", "codex/artifact-collision", "--min-free-gib", "0", "--json", check=False
+        )
+        after = run(["git", "worktree", "list", "--porcelain"], self.repo).stdout
+        self.assertEqual(completed.returncode, 2)
+        self.assertEqual(payload["error_code"], "artifact_path_collision")
+        self.assertEqual(after, before)
+        self.assertFalse((self.repo.parent / "_worktrees" / "demo" / "codex-artifact-collision").exists())
+
+    def test_create_journals_target_before_git_failure(self):
+        parser = agent_wt.build_parser()
+        args = parser.parse_args([
+            "-C", str(self.repo), "create", "codex/git-failure",
+            "--min-free-gib", "0", "--json",
+        ])
+        original_git = agent_wt.git
+
+        def fail_worktree_add(cwd, *git_args, **kwargs):
+            if git_args[:2] == ("worktree", "add"):
+                raise agent_wt.AgentWtError("synthetic Git failure", "command_failed")
+            return original_git(cwd, *git_args, **kwargs)
+
+        with mock.patch.object(agent_wt, "git", side_effect=fail_worktree_add):
+            with self.assertRaises(agent_wt.AgentWtError):
+                agent_wt.cmd_create(args)
+        registry = agent_wt.load_registry()
+        self.assertEqual(registry["worktrees"][0]["state"], "creating")
+        self.assertEqual(registry["worktrees"][0]["branch"], "codex/git-failure")
+
     def test_create_refuses_target_inside_repository(self):
         completed, payload = self.cli(
             "create",

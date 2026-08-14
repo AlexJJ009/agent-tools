@@ -169,7 +169,11 @@ def canonical_git_path(repo_root: Path, raw: str) -> Path:
 def parse_worktrees(raw: str) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     current: dict[str, Any] = {}
-    for token in raw.split("\0"):
+    # Git 2.35 added ``git worktree list -z``.  Older supported Git releases
+    # emit newline-delimited porcelain records instead, with a blank line
+    # between worktrees.  Normalize both formats into the same token stream.
+    tokens = raw.split("\0") if "\0" in raw else raw.splitlines()
+    for token in tokens:
         if not token:
             if current:
                 records.append(current)
@@ -192,6 +196,21 @@ def parse_worktrees(raw: str) -> list[dict[str, Any]]:
     return records
 
 
+def list_worktrees(root: Path) -> list[dict[str, Any]]:
+    nul_result = git(root, "worktree", "list", "--porcelain", "-z", check=False)
+    if nul_result.returncode == 0:
+        return parse_worktrees(nul_result.stdout)
+
+    legacy_result = git(root, "worktree", "list", "--porcelain", check=False)
+    if legacy_result.returncode != 0:
+        detail = legacy_result.stderr.strip() or legacy_result.stdout.strip()
+        raise AgentWtError(
+            f"command failed ({legacy_result.returncode}): git worktree list --porcelain\n{detail}",
+            "command_failed",
+        )
+    return parse_worktrees(legacy_result.stdout)
+
+
 def get_repo(cwd: Path) -> RepoInfo:
     probe = git(cwd, "rev-parse", "--show-toplevel", check=False)
     if probe.returncode != 0:
@@ -205,7 +224,6 @@ def get_repo(cwd: Path) -> RepoInfo:
     dirty = bool(git(root, "status", "--porcelain=v1", "--untracked-files=normal").stdout)
     remote_result = git(root, "config", "--get", "remote.origin.url", check=False)
     remote = remote_result.stdout.strip() or None
-    wt_raw = git(root, "worktree", "list", "--porcelain", "-z").stdout
     return RepoInfo(
         root=root,
         git_dir=git_dir,
@@ -214,7 +232,7 @@ def get_repo(cwd: Path) -> RepoInfo:
         head=head,
         dirty=dirty,
         remote=remote,
-        worktrees=parse_worktrees(wt_raw),
+        worktrees=list_worktrees(root),
     )
 
 

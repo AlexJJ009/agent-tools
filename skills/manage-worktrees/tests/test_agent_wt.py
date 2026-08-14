@@ -67,6 +67,42 @@ class AgentWtTests(unittest.TestCase):
         self.assertEqual(payload["schema_version"], 1)
         self.assertEqual(payload["command"], command)
 
+    def test_parse_worktrees_accepts_legacy_newline_porcelain(self):
+        raw = (
+            "worktree /srv/code\n"
+            "HEAD 0123456789abcdef\n"
+            "branch refs/heads/main\n"
+            "\n"
+            "worktree /srv/review tree\n"
+            "HEAD fedcba9876543210\n"
+            "detached\n"
+        )
+        self.assertEqual(
+            agent_wt.parse_worktrees(raw),
+            [
+                {
+                    "path": "/srv/code",
+                    "head": "0123456789abcdef",
+                    "branch_ref": "refs/heads/main",
+                    "branch": "main",
+                },
+                {
+                    "path": "/srv/review tree",
+                    "head": "fedcba9876543210",
+                    "detached": True,
+                },
+            ],
+        )
+
+    def test_list_worktrees_falls_back_when_git_lacks_z(self):
+        legacy = "worktree /srv/code\nHEAD abcdef\nbranch refs/heads/main\n\n"
+        unsupported = SimpleNamespace(returncode=129, stdout="", stderr="unknown switch `z'")
+        supported = SimpleNamespace(returncode=0, stdout=legacy, stderr="")
+        with mock.patch.object(agent_wt, "git", side_effect=[unsupported, supported]) as git_mock:
+            records = agent_wt.list_worktrees(Path("/srv/code"))
+        self.assertEqual(records[0]["branch"], "main")
+        self.assertEqual(git_mock.call_count, 2)
+
     def test_decide_defaults_to_branch_for_clean_single_task(self):
         _completed, payload = self.cli("decide", "--json")
         self.assert_contract(payload, "decide")

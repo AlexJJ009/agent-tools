@@ -592,11 +592,15 @@ def register(entry: dict[str, Any]) -> Path:
     directory = registry_dir()
     with registry_lock(directory):
         data = load_registry()
-        target = entry["worktree_path"]
-        data["worktrees"] = [item for item in data["worktrees"] if item.get("worktree_path") != target]
-        data["worktrees"].append(entry)
-        data["worktrees"].sort(key=lambda item: item.get("created_at", ""))
-        return save_registry(data)
+        return register_unlocked(entry, data)
+
+
+def register_unlocked(entry: dict[str, Any], data: dict[str, Any]) -> Path:
+    target = entry["worktree_path"]
+    data["worktrees"] = [item for item in data["worktrees"] if item.get("worktree_path") != target]
+    data["worktrees"].append(entry)
+    data["worktrees"].sort(key=lambda item: item.get("created_at", ""))
+    return save_registry(data)
 
 
 def registry_entry(path: Path) -> dict[str, Any] | None:
@@ -854,37 +858,46 @@ def cmd_create(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     if args.dry_run:
         return plan, 0
 
-    target = Path(plan["worktree_path"])
-    target.parent.mkdir(parents=True, exist_ok=True)
-    git(repo.root, *plan["commands"][0][1:])
-    artifact_root = Path(plan["artifact_root"])
-    artifact_root.mkdir(parents=True, exist_ok=True)
+    # Acquire, validate, and atomically write the registry before any Git or
+    # artifact mutation.  Keeping the same lock through creation prevents two
+    # creators from racing and makes stale locks or unreadable/unwritable state
+    # fail without leaving an unregistered worktree behind.
+    directory = registry_dir()
+    with registry_lock(directory):
+        registry = load_registry()
+        save_registry(registry)
 
-    # Re-detect in the checked-out branch because its lockfiles can differ from the base checkout.
-    plan["project"] = detect_project(target)
-    setup_results = [
-        {**item, "status": "planned" if item.get("argv") else "manual"}
-        for item in plan["project"]["setup"]
-    ]
-    created_at = dt.datetime.now(dt.timezone.utc).isoformat()
-    entry = {
-        "repo_name": repo_name(repo),
-        "repo_root": str(repo.root),
-        "git_common_dir": str(repo.common_dir),
-        "remote": repo.remote,
-        "branch": args.branch,
-        "base_sha": plan["base_sha"],
-        "worktree_path": str(target),
-        "artifact_root": str(artifact_root),
-        "cache_root": plan["cache_root"],
-        "created_at": created_at,
-        "owner": os.environ.get("USER") or os.environ.get("USERNAME") or "unknown",
-        "task": args.task,
-        "project_types": plan["project"]["detected"],
-        "lock_hash": plan["project"]["lock_hash"],
-        "setup": setup_results,
-    }
-    registry_path = register(entry)
+        target = Path(plan["worktree_path"])
+        target.parent.mkdir(parents=True, exist_ok=True)
+        git(repo.root, *plan["commands"][0][1:])
+        artifact_root = Path(plan["artifact_root"])
+        artifact_root.mkdir(parents=True, exist_ok=True)
+
+        # Re-detect in the checked-out branch because its lockfiles can differ from the base checkout.
+        plan["project"] = detect_project(target)
+        setup_results = [
+            {**item, "status": "planned" if item.get("argv") else "manual"}
+            for item in plan["project"]["setup"]
+        ]
+        created_at = dt.datetime.now(dt.timezone.utc).isoformat()
+        entry = {
+            "repo_name": repo_name(repo),
+            "repo_root": str(repo.root),
+            "git_common_dir": str(repo.common_dir),
+            "remote": repo.remote,
+            "branch": args.branch,
+            "base_sha": plan["base_sha"],
+            "worktree_path": str(target),
+            "artifact_root": str(artifact_root),
+            "cache_root": plan["cache_root"],
+            "created_at": created_at,
+            "owner": os.environ.get("USER") or os.environ.get("USERNAME") or "unknown",
+            "task": args.task,
+            "project_types": plan["project"]["detected"],
+            "lock_hash": plan["project"]["lock_hash"],
+            "setup": setup_results,
+        }
+        registry_path = register_unlocked(entry, registry)
     plan.update(
         {
             "created_at": created_at,

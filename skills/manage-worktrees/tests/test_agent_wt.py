@@ -195,6 +195,25 @@ class AgentWtTests(unittest.TestCase):
         self.assertEqual(doctor["status"], "healthy")
         self.assertTrue(doctor["repo"]["linked_worktree"])
 
+    def test_create_registry_lock_failure_precedes_git_mutation(self):
+        before = run(["git", "worktree", "list", "--porcelain"], self.repo).stdout
+        parser = agent_wt.build_parser()
+        args = parser.parse_args([
+            "-C", str(self.repo), "create", "codex/lock-failure",
+            "--min-free-gib", "0", "--json",
+        ])
+        with mock.patch.object(
+            agent_wt,
+            "registry_lock",
+            side_effect=agent_wt.AgentWtError("synthetic lock failure", "registry_lock_timeout"),
+        ):
+            with self.assertRaises(agent_wt.AgentWtError) as raised:
+                agent_wt.cmd_create(args)
+        after = run(["git", "worktree", "list", "--porcelain"], self.repo).stdout
+        self.assertEqual(raised.exception.code, "registry_lock_timeout")
+        self.assertEqual(after, before)
+        self.assertFalse((self.repo.parent / "_worktrees" / "demo" / "codex-lock-failure").exists())
+
     def test_create_refuses_target_inside_repository(self):
         completed, payload = self.cli(
             "create",

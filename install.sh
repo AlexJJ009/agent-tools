@@ -2009,8 +2009,9 @@ install_agent_wt() {
   local launcher_source="$INSTALL_REAL/bin/agent-wt"
   local skill_source="$INSTALL_REAL/skills/manage-worktrees"
   local launcher_target="${AGENT_WT_PATH:-$HOME/.local/bin/agent-wt}"
-  local codex_skill_target="${CODEX_HOME:-$HOME/.codex}/skills/manage-worktrees"
-  local claude_skill_target="$HOME/.claude/skills/manage-worktrees"
+  local codex_skill_target="$HOME/.agents/skills/manage-worktrees"
+  local legacy_codex_skill_target="${CODEX_HOME:-$HOME/.codex}/skills/manage-worktrees"
+  local current_source=""
 
   if [[ ! -x "$launcher_source" ]]; then
     AGENT_WT_STATUS="failed: missing executable $launcher_source"
@@ -2023,10 +2024,28 @@ install_agent_wt() {
     return 1
   fi
 
+  if [[ -e "$legacy_codex_skill_target" || -L "$legacy_codex_skill_target" ]]; then
+    AGENT_WT_STATUS="failed: duplicate legacy Skill at $legacy_codex_skill_target"
+    echo "duplicate manage-worktrees Skill location detected at $legacy_codex_skill_target; remove or migrate it before install" >&2
+    return 1
+  fi
+  if [[ -e "$codex_skill_target" || -L "$codex_skill_target" ]]; then
+    if [[ ! -L "$codex_skill_target" ]]; then
+      AGENT_WT_STATUS="failed: unmanaged Skill at $codex_skill_target"
+      echo "refusing to replace unmanaged manage-worktrees Skill at $codex_skill_target" >&2
+      return 1
+    fi
+    current_source="$(readlink -f -- "$codex_skill_target" 2>/dev/null || true)"
+    if [[ "$current_source" != "$(readlink -f -- "$skill_source")" ]]; then
+      AGENT_WT_STATUS="failed: conflicting Skill symlink at $codex_skill_target"
+      echo "refusing conflicting manage-worktrees Skill symlink: $codex_skill_target -> $current_source" >&2
+      return 1
+    fi
+  fi
+
   backup_and_link "$launcher_source" "$launcher_target"
   backup_and_link "$skill_source" "$codex_skill_target"
-  backup_and_link "$skill_source" "$claude_skill_target"
-  AGENT_WT_STATUS="$launcher_target; Codex=$codex_skill_target; Claude=$claude_skill_target"
+  AGENT_WT_STATUS="$launcher_target; Codex=$codex_skill_target"
 }
 backup_and_copy_managed() {
   local source="$1"
@@ -2872,6 +2891,7 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   [[ -d "$SOURCE_DIR/experiment_registry" ]] && cp -R "$SOURCE_DIR/experiment_registry" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/goal_plan" ]] && cp -R "$SOURCE_DIR/goal_plan" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/linear_workflow" ]] && cp -R "$SOURCE_DIR/linear_workflow" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/skills" ]] && cp -R "$SOURCE_DIR/skills" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/agent_context_sync.config.example.json" ]] && cp "$SOURCE_DIR/agent_context_sync.config.example.json" "$INSTALL_REAL/"
 fi
 

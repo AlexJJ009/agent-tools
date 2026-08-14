@@ -5,6 +5,7 @@ param(
   [string]$CcSwitchDb = (Join-Path $env:USERPROFILE ".cc-switch\cc-switch.db"),
   [switch]$NoGoalPlan,
   [switch]$LegacyGoalPlan,
+  [switch]$NoAgentWt,
   [switch]$LinearWorkflow,
   [switch]$NoLinearWorkflow,
   [switch]$NoCodexManualRemoteConnect,
@@ -218,6 +219,36 @@ function Install-LinearWorkflow {
   Write-Host "Linear Workflow installed for native Win11 user: $TargetHome"
 }
 
+function Install-AgentWt {
+  param(
+    [Parameter(Mandatory = $true)][string]$RepoRoot,
+    [Parameter(Mandatory = $true)][string]$TargetHome,
+    [Parameter(Mandatory = $true)][string]$TargetCodexHome
+  )
+
+  $sourceSkill = Join-Path $RepoRoot "skills\manage-worktrees"
+  $sourceLauncher = Join-Path $RepoRoot "bin\agent-wt.ps1"
+  $targetSkill = Join-Path $TargetHome ".agents\skills\manage-worktrees"
+  $legacySkill = Join-Path $TargetCodexHome "skills\manage-worktrees"
+  $targetLauncher = Join-Path $TargetHome ".local\bin\agent-wt.ps1"
+
+  if (-not (Test-Path -LiteralPath (Join-Path $sourceSkill "SKILL.md")) -or
+      -not (Test-Path -LiteralPath $sourceLauncher)) {
+    throw "manage-worktrees source is incomplete under $RepoRoot"
+  }
+  if (Test-Path -LiteralPath $legacySkill) {
+    throw "duplicate manage-worktrees Skill location detected at $legacySkill; remove or migrate the legacy copy before install"
+  }
+  if ((Test-Path -LiteralPath $targetSkill) -and
+      -not (Test-Path -LiteralPath (Join-Path $targetSkill ".agent-tools-managed"))) {
+    throw "refusing to replace unmanaged manage-worktrees Skill at $targetSkill"
+  }
+
+  Copy-Managed $sourceSkill $targetSkill
+  Copy-Managed $sourceLauncher $targetLauncher
+  Write-Host "agent-wt installed: launcher=$targetLauncher; Codex Skill=$targetSkill"
+}
+
 function Install-CodexManualRemoteConnect {
   param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
@@ -306,6 +337,12 @@ function Invoke-CodexProviderBucketMigration {
 }
 
 Assert-CodexTargetGuard -RepoRoot $Root -TargetUserHome $UserHome -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
+
+if (-not $NoAgentWt) {
+  Install-AgentWt -RepoRoot $Root -TargetHome $UserHome -TargetCodexHome $CodexHome
+} else {
+  Write-Host "agent-wt not installed (-NoAgentWt)."
+}
 
 if ($NoGoalPlan -and $LegacyGoalPlan) {
   throw "-NoGoalPlan and -LegacyGoalPlan cannot be combined"

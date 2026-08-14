@@ -10,7 +10,7 @@
 | Long test, service, build, or training run must keep its checkout | worktree | `git switch` would change files under the process |
 | Local PR review or urgent hotfix during active work | worktree | Keep both candidates available |
 | Different trusted users share one Unix account and Git repository | worktree | Directory isolation helps, but is not a security boundary |
-| Untrusted users or different Unix ownership domains | separate clone | Worktrees share Git metadata, refs, config, and hooks |
+| Untrusted users or different Unix ownership domains | unsupported guidance | v1 does not create clones; worktrees share Git metadata, refs, config, and hooks |
 
 ## Mental Model
 
@@ -23,7 +23,16 @@ state. Do not use them as a ritual for every feature branch.
 
 ## Default Layout
 
-Unless `--root` or `AGENT_WT_ROOT` overrides it, use:
+Path precedence is:
+
+1. explicit `--root`;
+2. repository `.agent-wt.json` `worktree_root`;
+3. user/machine config (`$XDG_CONFIG_HOME/agent-wt/config.json` on Unix or
+   `%LOCALAPPDATA%/agent-wt/config.json` on Win11);
+4. `AGENT_WT_ROOT` environment policy;
+5. the external sibling default below.
+
+The default layout is:
 
 ```text
 <repo-parent>/_worktrees/<repo>/<branch-slug>
@@ -49,5 +58,6 @@ The CLI does not provide:
 - protection from shared Git ref/config mutations;
 - proof that two dependency trees are byte-identical.
 
-Use separate clones for untrusted users, containers for runtime isolation, and
-lockfile-aware package managers for dependency reproducibility.
+For untrusted users, stop with unsupported guidance; a human may provision
+separately owned clones outside this v1 tool. Use containers for runtime
+isolation and lockfile-aware package managers for dependency reproducibility.

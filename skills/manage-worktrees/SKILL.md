@@ -1,6 +1,6 @@
 ---
 name: manage-worktrees
-description: Decide whether a coding task should use the current checkout, a branch, a managed Git worktree, or a separate clone; then inspect, create, list, and diagnose agent-safe server development workspaces with consistent paths, cache plans, artifact roots, and registry records. Use when Codex or another coding agent is about to start isolated or parallel repository work, mentions Git worktrees, needs a hotfix/review workspace, shares a development server, or needs to audit whether an existing worktree follows dependency and artifact hygiene.
+description: Decide whether a coding task should use the current checkout, a branch, or a managed Git worktree; return unsupported guidance for permission boundaries; then inspect, create, list, and diagnose agent-safe workspaces with consistent paths, cache plans, artifact roots, and registry records. Use when Codex is about to start isolated or parallel repository work, mentions Git worktrees, needs a hotfix/review workspace, or needs to audit dependency and artifact hygiene.
 ---
 
 # Manage Worktrees
@@ -22,9 +22,12 @@ the agent and mutations in the CLI.
 2. Run `agent-wt inspect --json` before choosing an isolation mode.
 3. Read [policies.md](references/policies.md), classify the task, and run
    `agent-wt decide` with the applicable intent flags.
+   Ask only when a missing fact would change the recommendation, base, branch,
+   or target path. Do not require confirmation for a clear request.
 4. If the result is `branch`, use `git switch -c <branch> <base>` in the current
    clean checkout. Do not create a worktree merely because a branch is new.
-5. If the result is `separate-clone`, stop. A worktree is not a security or
+5. If the result is `unsupported`, stop and relay its separate-clone guidance.
+   v1 does not create or migrate a clone, and a worktree is not a security or
    permission boundary between untrusted Unix users.
 6. If the result is `worktree`, preview the operation:
 
@@ -33,10 +36,9 @@ the agent and mutations in the CLI.
    ```
 
    Review the selected path, filesystem, free-space gate, detected adapters,
-   setup plan, and artifact root. Then rerun without `--dry-run`.
-7. Do not pass `--setup` until the repository and lockfile are trusted. The flag
-   may execute package lifecycle scripts. Without it, `create` only reports the
-   reproducible setup command.
+   dependency guidance, and artifact root. Then rerun without `--dry-run`.
+7. Never execute dependency installation through this workflow. v1 reports
+   reproducible commands and cache guidance only.
 8. Run `agent-wt doctor <created-path> --json`. Treat errors as blocking. Explain
    warnings before development starts.
 
@@ -55,6 +57,8 @@ the agent and mutations in the CLI.
   Unix ownership when users are not mutually trusted.
 - Do not remove, prune, merge, push, or delete branches with this skill. Those
   lifecycle operations are intentionally outside the current CLI.
+- When `agent-wt` is available, never hand-build a worktree with ad hoc Git or
+  filesystem commands.
 
 ## Output Contract
 
@@ -69,3 +73,7 @@ Prefer `--json` when another agent consumes the output. Preserve and report:
 
 Do not claim dependency reuse merely because a cache path exists. `doctor`
 reports configuration evidence, not byte-level deduplication.
+
+Verified harness support is Codex only. Claude Code and other Agent Skills
+harnesses are portability targets until their own installation and execution
+evidence exists.

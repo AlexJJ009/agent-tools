@@ -18,8 +18,8 @@ immutability contract proves they are safe to share.
 | `go.mod` | no install step | `GOMODCACHE`, build cache | source/build outputs |
 | `Cargo.toml` | no install step | Cargo registry/git cache | `target` unless explicitly configured |
 
-`--setup` only executes the built-in frozen Node or uv commands. It never runs a
-repository-provided hook or arbitrary configuration command.
+The CLI reports these commands as guidance only. v1 never executes dependency
+installation, package lifecycle scripts, repository hooks, or arbitrary setup.
 
 ## Artifact Policy
 

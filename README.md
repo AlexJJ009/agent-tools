@@ -113,6 +113,15 @@ cd ~/agent-tools
 ./install.sh --root ~/projects --root /data-1 --max-depth 3
 ```
 
+The guarded installer also installs `agent-wt` and exactly one Codex-visible
+`manage-worktrees` Skill at `~/.agents/skills/manage-worktrees`. A legacy
+`~/.codex/skills/manage-worktrees` copy is rejected to prevent duplicate Skill
+discovery. Use `--no-agent-wt` to skip this component. Native Win11 uses
+`scripts\install-win11.ps1` and installs the PowerShell launcher plus the same
+single current-scope Skill after the native target guard passes. Codex is the
+validated harness; Claude Code and other Agent Skills consumers remain
+portability targets without a verified-support claim.
+
 If the machine only has one root:
 
 ```bash

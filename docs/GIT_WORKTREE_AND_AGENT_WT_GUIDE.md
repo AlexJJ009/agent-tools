@@ -2,7 +2,7 @@
 
 > [!note] 学完后你应该能做到
 > - 解释 branch、working tree、linked worktree 和 clone 分别隔离了什么。
-> - 判断一个 Coding Agent 任务应使用当前 branch、worktree 还是独立 clone。
+> - 判断一个 Coding Agent 任务应使用当前 branch、worktree，还是停止并给出独立 clone 指引。
 > - 设计不会重复堆积依赖、构建缓存和训练产物的服务器目录。
 > - 使用 `agent-wt` v0.1.0 预览、创建和检查 managed worktree。
 
@@ -83,7 +83,7 @@ Git 还明确提醒：submodule 对 multiple checkout 的支持不完整。因�
 ```mermaid
 flowchart TD
     A["开始一个新开发任务"] --> B{"涉及不同 Unix 用户或不可信权限域?"}
-    B -->|Yes| C["独立 clone"]
+    B -->|Yes| C["unsupported：停止并给出独立 clone 指引"]
     B -->|No| D{"是否必须保留另一个 checkout 的现场?"}
     D -->|No| E["当前 checkout 中创建或切换 branch"]
     D -->|Yes| F{"原因是并行 agent、dirty state、长任务、review 或 hotfix?"}
@@ -112,7 +112,7 @@ flowchart TD
 - main/dev checkout 需要保持稳定；
 - 同一可信 Unix 账号下有多个开发任务。
 
-### 3.3 使用独立 clone
+### 3.3 返回 unsupported guidance
 
 这些场景不要把 worktree 当成解决方案：
 
@@ -218,8 +218,11 @@ Hugging Face Hub cache 已经使用 blobs + snapshots + symlinks 在 revision �
 `agent-wt` v0.1.0 使用以下顺序：
 
 1. 命令行 `--root`；
-2. 环境变量 `AGENT_WT_ROOT`；
-3. `<repo-parent>/_worktrees`。
+2. repository `.agent-wt.json`；
+3. Unix `$XDG_CONFIG_HOME/agent-wt/config.json` 或 Win11
+   `%LOCALAPPDATA%/agent-wt/config.json`；
+4. 环境变量 `AGENT_WT_ROOT`；
+5. `<repo-parent>/_worktrees`。
 
 工具检查目标是否位于 repo 内、目标是否已存在、branch 是否已在别处 checkout、目标 mount 的可用空间，以及 repo 与目标是否跨 filesystem。默认少于 2 GiB 可用空间时拒绝创建；不会静默 fallback 到 `/tmp`。
 
@@ -236,17 +239,17 @@ sequenceDiagram
     S->>C: inspect --json
     C-->>S: repo/project/filesystem facts
     S->>C: decide + intent flags
-    C-->>S: branch/worktree/separate-clone
+    C-->>S: branch/worktree/unsupported
     alt branch
         S->>G: git switch -c
     else worktree
         S->>C: create --dry-run --json
-        C-->>S: path/setup/artifact plan
+        C-->>S: path/dependency guidance/artifact plan
         S->>C: create
         C->>G: git worktree add
         C->>R: write manifest
         S->>C: doctor
-    else separate clone
+    else unsupported
         S-->>U: 停止，说明权限边界
     end
 ```
@@ -289,7 +292,7 @@ remove  prune  merge  push  delete-branch  arbitrary project hooks
 --shared-working-directory
 ```
 
-`--untrusted-users` 返回 `separate-clone`。如果当前 checkout dirty，开始另一个任务时也推荐 worktree。
+`--untrusted-users` 返回 `unsupported`，并说明独立 clone 应由本工具之外的权限管理流程提供。如果当前 checkout dirty，开始另一个任务时推荐 worktree。
 
 ### 8.3 `inspect`
 
@@ -310,13 +313,10 @@ repo/common-dir/remote
 branch/base SHA/worktree path
 artifact root/cache root
 owner/task/created_at
-project types/lock hash/setup result
+project types/lock hash/dependency guidance
 ```
 
-默认不执行 dependency install。`--setup` 只允许内置的 frozen command：pnpm、npm、Yarn、Bun、uv。它不会执行 repository config 中的任意 hook。
-
-> [!warning] `--setup` 仍然需要信任仓库
-> `npm ci`、`pnpm install` 等命令可能执行 package lifecycle scripts。`--setup` 是显式授权，不是把第三方仓库变成可信代码。
+v1 只报告 dependency command 和 cache guidance，绝不执行 dependency install、package lifecycle script、repository hook 或任意 setup command。
 
 ### 8.5 `doctor`
 
@@ -341,7 +341,7 @@ Worktrunk 已经提供成熟的 worktree lifecycle UX：`switch/list/remove`、�
 |---|---:|---:|
 | 快速 switch / shell integration | 强 | 不做 |
 | merge / remove lifecycle | 强 | 故意不做 |
-| hooks 和 approvals | 强 | 只允许内置 setup |
+| hooks 和 approvals | 强 | 不执行任何 hook/setup |
 | branch vs worktree admission | 部分依赖用户 | 核心功能 |
 | mount/free-space server policy | 通用路径配置 | 核心功能 |
 | dependency/cache adapter | hook 可扩展 | 内置检测和 plan |
@@ -395,7 +395,7 @@ agent-wt doctor /path/from/create --json
 
 ```bash
 agent-wt decide --untrusted-users --json
-# recommendation: separate-clone
+# recommendation: unsupported
 ```
 
 这一步不是失败，而是工具拒绝把目录隔离冒充权限隔离。
@@ -443,12 +443,12 @@ agent-wt decide --untrusted-users --json
 </details>
 
 > [!question] 练习 5：CLI 设计
-> 为什么 `agent-wt create` 默认不自动运行项目自定义 setup hook？
+> 为什么 `agent-wt create` 不运行项目自定义 setup hook？
 
 <details>
 <summary>参考答案</summary>
 
-因为 repository config 是代码输入，hook 可以执行任意命令、访问凭据或修改系统。默认执行会把“创建目录”的低风险动作扩大成未审查代码执行。v0.1.0 只输出 setup plan；显式 `--setup` 也只执行内置 frozen install，且调用者仍必须先信任仓库。
+因为 repository config 是代码输入，hook 可以执行任意命令、访问凭据或修改系统。自动执行会把“创建目录”的低风险动作扩大成未审查代码执行。v0.1.0 只输出 dependency guidance，安装依赖由独立、明确授权的流程完成。
 
 </details>
 
@@ -474,4 +474,32 @@ agent-wt decide --untrusted-users --json
 | HF snapshots 复用 blobs | [HF docs](https://huggingface.co/docs/huggingface_hub/main/guides/manage-cache) | 应用指定 `local_dir` 时行为不同 |
 | L40S 3.91 GB 严格重复 | 2026-08-11 远端 ≥1 MiB SHA-256 扫描 | 未 hash 小文件；真实重复只会更高 |
 | bwg 7–8 GB 保守估算 | 2026-08-11 定向 `du` 与依赖目录盘点 | 根盘满，未执行全量 hash |
-| `agent-wt` 行为 | `skills/manage-worktrees/scripts/agent_wt.py` 与 tests | v0.1.0 尚不处理删除和 Win11 安装 |
+| `agent-wt` 行为 | `skills/manage-worktrees/scripts/agent_wt.py` 与 tests | v0.1.0 不处理删除、clone 创建或 dependency install |
+
+## 15. DRAGAI-88 Prototype challenge matrix
+
+The source snapshot is intentionally unreviewed: commit
+`de3db92171366f3fbe88e588559116f3adb09a78`, tree
+`2f9f6e4f643abef52344b6f747f8ed11b46dadc7`, captured from
+`codex/agent-wt@d59e3e681edcb1b514a1ba4c8788804b87d6db98`. The Delivery
+branch was created from `main@243acb2411db37bdc107f49210e110f37357387c`;
+the prototype branch was not merged.
+
+| Prototype input | Disposition | Challenge result |
+|---|---|---|
+| `README.md` | revise | Keep the discoverability entry, but describe only the approved five commands and Codex support boundary. |
+| `bin/agent-wt` | revise | Keep a thin Unix launcher; make interpreter discovery and errors deterministic. |
+| `docs/GIT_WORKTREE_AND_AGENT_WT_GUIDE.md` | revise | Keep the teaching-first structure and server audit, but remove dependency-execution and verified-portability claims that exceed v1. |
+| `install.sh` | revise | Keep guarded launcher/Skill wiring; install exactly one Codex user Skill at `.agents/skills/manage-worktrees`, and reject unmanaged duplicate legacy installs. Do not install a Claude copy. |
+| `skills/manage-worktrees/SKILL.md` | revise | Keep intent interpretation; return unsupported clone guidance at permission boundaries and never run dependency setup. |
+| `skills/manage-worktrees/agents/openai.yaml` | retain | The display metadata and default prompt match the approved Skill boundary. |
+| `skills/manage-worktrees/references/policies.md` | revise | Keep the decision matrix; rename clone as guidance rather than a v1 execution mode and document all path-policy layers. |
+| `skills/manage-worktrees/references/adapters.md` | revise | Keep shared-cache/local-environment guidance; remove every path that could execute dependency installation. |
+| `skills/manage-worktrees/scripts/agent_wt.py` | revise | Keep the standard-library core and five commands. Replace `--setup`, silent Win11 locking, Unix-only allocated-size use, unversioned JSON, incomplete error codes, and incomplete path policy. |
+| `skills/manage-worktrees/tests/test_agent_wt.py` | replace | Expand from happy-path smoke tests to contract, collision, policy precedence, no-mutation, scan-bound, Win11 path/state/locking, and subprocess-quoting tests. |
+| `tests/test_install_target_guard_wiring.py` | revise | Restore it on the approved base, then assert guard-before-write and duplicate-free current/legacy Skill locations on Unix and Win11. |
+| Prototype-only Codex patch-safety hunks mixed into `install.sh` | remove | They are outside DRAGAI-94 and already have independent ownership; the immutable snapshot preserves them for audit, but the Delivery import does not reintroduce them. |
+
+No prototype line receives completion credit from this table alone. The later
+Issue sections bind each retained behavior to targeted tests, candidate CI, and
+independent review.

@@ -13,6 +13,7 @@ import dataclasses
 import datetime as dt
 import hashlib
 import json
+import ntpath
 import os
 import re
 import shlex
@@ -26,6 +27,7 @@ from typing import Any, Iterator, Sequence
 
 
 VERSION = "0.1.0"
+OUTPUT_SCHEMA_VERSION = 1
 DEFAULT_MIN_FREE_GIB = 2.0
 DEFAULT_SCAN_SECONDS = 8.0
 DEFAULT_SCAN_FILES = 200_000
@@ -96,6 +98,10 @@ MARKERS = {
 class AgentWtError(RuntimeError):
     """Expected user-facing failure."""
 
+    def __init__(self, message: str, code: str = "agent_wt_error") -> None:
+        super().__init__(message)
+        self.code = code
+
 
 @dataclasses.dataclass(frozen=True)
 class RepoInfo:
@@ -142,7 +148,10 @@ def run(
     )
     if check and completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip()
-        raise AgentWtError(f"command failed ({completed.returncode}): {shlex.join(argv)}\n{detail}")
+        raise AgentWtError(
+            f"command failed ({completed.returncode}): {shlex.join(argv)}\n{detail}",
+            "command_failed",
+        )
     return completed
 
 
@@ -186,7 +195,7 @@ def parse_worktrees(raw: str) -> list[dict[str, Any]]:
 def get_repo(cwd: Path) -> RepoInfo:
     probe = git(cwd, "rev-parse", "--show-toplevel", check=False)
     if probe.returncode != 0:
-        raise AgentWtError(f"not inside a non-bare Git working tree: {cwd}")
+        raise AgentWtError(f"not inside a non-bare Git working tree: {cwd}", "not_git_repository")
     root = Path(probe.stdout.strip()).resolve()
     git_dir = canonical_git_path(root, git(root, "rev-parse", "--git-dir").stdout.strip())
     common_dir = canonical_git_path(root, git(root, "rev-parse", "--git-common-dir").stdout.strip())
@@ -304,7 +313,7 @@ def slugify(value: str) -> str:
     slug = re.sub(r"[^A-Za-z0-9._-]+", "-", slug)
     slug = re.sub(r"[-_.]{2,}", "-", slug).strip("-._")
     if not slug:
-        raise AgentWtError("branch name does not produce a usable path")
+        raise AgentWtError("branch name does not produce a usable path", "invalid_branch")
     if len(slug) > 96:
         suffix = hashlib.sha256(value.encode("utf-8")).hexdigest()[:8]
         slug = f"{slug[:87]}-{suffix}"
@@ -322,36 +331,80 @@ def repo_name(repo: RepoInfo) -> str:
     return slugify(repo.root.name)
 
 
-def default_roots(repo: RepoInfo, branch: str, root_override: Path | None) -> dict[str, Path]:
+def read_json_object(path: Path, *, code: str) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise AgentWtError(f"cannot read policy {path}: {exc}", code) from exc
+    if not isinstance(value, dict):
+        raise AgentWtError(f"policy must contain a JSON object: {path}", code)
+    return value
+
+
+def user_policy_path() -> Path:
+    override = os.environ.get("AGENT_WT_CONFIG")
+    if override:
+        return Path(override).expanduser().resolve()
+    if os.name == "nt":
+        root = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+    else:
+        root = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+    return root / "agent-wt" / "config.json"
+
+
+def path_policy(repo: RepoInfo, root_override: Path | None) -> tuple[Path, str]:
+    if root_override is not None:
+        return root_override.expanduser().resolve(), "cli"
+
+    repository_policy = repo.root / ".agent-wt.json"
+    if repository_policy.is_file():
+        value = read_json_object(repository_policy, code="repository_policy_invalid")
+        configured = value.get("worktree_root")
+        if configured:
+            candidate = Path(str(configured)).expanduser()
+            if not candidate.is_absolute():
+                candidate = repo.root / candidate
+            return candidate.resolve(), "repository"
+
+    user_policy = user_policy_path()
+    if user_policy.is_file():
+        value = read_json_object(user_policy, code="user_policy_invalid")
+        configured = value.get("worktree_root")
+        if configured:
+            candidate = Path(str(configured)).expanduser()
+            if not candidate.is_absolute():
+                raise AgentWtError(
+                    f"user policy worktree_root must be absolute: {user_policy}",
+                    "user_policy_invalid",
+                )
+            return candidate.resolve(), "user_or_machine"
+
+    configured = os.environ.get("AGENT_WT_ROOT")
+    if configured:
+        return Path(configured).expanduser().resolve(), "environment"
+    return repo.root.parent / "_worktrees", "external_sibling_default"
+
+
+def default_roots(repo: RepoInfo, branch: str, root_override: Path | None) -> dict[str, Any]:
     name = repo_name(repo)
     slug = slugify(branch)
-    if root_override:
-        worktree_base = root_override.expanduser().resolve()
-        parent = worktree_base.parent
-        base_name = worktree_base.name
-        if base_name in {"_worktrees", "worktrees"}:
-            workspace_root = worktree_base
-            shared_parent = parent
-        else:
-            workspace_root = worktree_base
-            shared_parent = worktree_base.parent
-    else:
-        configured = os.environ.get("AGENT_WT_ROOT")
-        if configured:
-            workspace_root = Path(configured).expanduser().resolve()
-            shared_parent = workspace_root.parent
-        else:
-            shared_parent = repo.root.parent
-            workspace_root = shared_parent / "_worktrees"
+    workspace_root, policy_source = path_policy(repo, root_override)
+    shared_parent = workspace_root.parent
     return {
         "workspace_root": workspace_root,
         "worktree": workspace_root / name / slug,
         "artifact_root": shared_parent / "_artifacts" / name / slug,
         "cache_root": shared_parent / "_cache",
+        "policy_source": policy_source,
     }
 
 
-def is_within(path: Path, parent: Path) -> bool:
+def is_within(path: Path, parent: Path, *, platform_name: str | None = None) -> bool:
+    if (platform_name or os.name) == "nt":
+        try:
+            return ntpath.commonpath((ntpath.normcase(str(path)), ntpath.normcase(str(parent)))) == ntpath.normcase(str(parent))
+        except ValueError:
+            return False
     try:
         path.resolve().relative_to(parent.resolve())
         return True
@@ -395,48 +448,101 @@ def checked_out_path(repo: RepoInfo, branch: str) -> str | None:
 def validate_branch(repo: RepoInfo, branch: str) -> None:
     result = git(repo.root, "check-ref-format", "--branch", branch, check=False)
     if result.returncode != 0:
-        raise AgentWtError(f"invalid branch name: {branch}")
+        raise AgentWtError(f"invalid branch name: {branch}", "invalid_branch")
 
 
 def cache_environment(cache_root: Path, artifact_root: Path, repo: RepoInfo, branch: str) -> dict[str, str]:
     namespace = f"{repo_name(repo)}-{slugify(branch)}"
     return {
         "AGENT_WT_ARTIFACT_ROOT": str(artifact_root),
+        "CARGO_HOME": str(cache_root / "cargo"),
         "COMPOSE_PROJECT_NAME": namespace[:63].lower(),
+        "CONDA_PKGS_DIRS": str(cache_root / "conda-pkgs"),
+        "GOCACHE": str(cache_root / "go-build"),
+        "GOMODCACHE": str(cache_root / "go-mod"),
         "HF_HOME": str(cache_root / "huggingface"),
+        "NPM_CONFIG_CACHE": str(cache_root / "npm"),
         "PIP_CACHE_DIR": str(cache_root / "pip"),
+        "PNPM_STORE_DIR": str(cache_root / "pnpm-store"),
         "UV_CACHE_DIR": str(cache_root / "uv"),
+        "YARN_CACHE_FOLDER": str(cache_root / "yarn"),
     }
+
+
+def adapter_guidance(project: dict[str, Any]) -> list[dict[str, str]]:
+    guidance: list[dict[str, str]] = []
+    mapping = {
+        "node": ("package-manager download/content store", "worktree-local node_modules and install state"),
+        "pnpm": ("pnpm content-addressed store", "worktree-local node_modules graph"),
+        "npm": ("npm download cache", "worktree-local node_modules"),
+        "yarn": ("Yarn cache", "worktree-local install state"),
+        "bun": ("Bun download cache", "worktree-local installed dependency graph"),
+        "python": ("pip/uv wheel and source caches", "worktree-local virtual environment"),
+        "uv": ("uv cache", "worktree-local .venv"),
+        "requirements": ("pip cache", "worktree-local virtual environment"),
+        "conda": ("Conda package cache", "isolated named or prefix environment"),
+        "go": ("module and build caches", "worktree-local source and generated outputs"),
+        "rust": ("Cargo registry and Git cache", "worktree-local target directory"),
+        "docker": ("daemon image/layer cache", "branch-specific Compose project, ports, volumes, and databases"),
+        "huggingface": ("HF Hub blobs/snapshots cache", "branch-specific writable training and evaluation artifacts"),
+    }
+    for adapter in project["detected"]:
+        shared, isolated = mapping[adapter]
+        guidance.append({"adapter": adapter, "shared": shared, "isolated": isolated})
+    guidance.append({
+        "adapter": "ml_artifacts",
+        "shared": "immutable model/dataset caches only",
+        "isolated": "logs, W&B runs, checkpoints, metrics, validation, and generated datasets",
+    })
+    return guidance
+
+
+def default_state_home(
+    *,
+    platform_name: str | None = None,
+    environ: dict[str, str] | None = None,
+    home: Path | None = None,
+) -> Path:
+    platform_name = platform_name or os.name
+    environ = environ or os.environ
+    home = home or Path.home()
+    if platform_name == "nt":
+        return Path(environ.get("LOCALAPPDATA", home / "AppData" / "Local")) / "agent-wt" / "state"
+    return Path(environ.get("XDG_STATE_HOME", home / ".local" / "state")) / "agent-wt"
 
 
 def registry_dir() -> Path:
     override = os.environ.get("AGENT_WT_STATE_HOME")
     if override:
         return Path(override).expanduser().resolve()
-    state_home = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
-    return state_home / "agent-wt"
+    return default_state_home().expanduser().resolve()
 
 
 @contextlib.contextmanager
-def registry_lock(directory: Path) -> Iterator[None]:
+def registry_lock(directory: Path, *, timeout_seconds: float = 10.0) -> Iterator[None]:
     directory.mkdir(parents=True, exist_ok=True)
     lock_path = directory / "registry.lock"
-    with lock_path.open("a+", encoding="utf-8") as handle:
+    deadline = time.monotonic() + timeout_seconds
+    descriptor: int | None = None
+    while descriptor is None:
         try:
-            import fcntl
-
-            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        except (ImportError, OSError):
+            descriptor = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            if time.monotonic() >= deadline:
+                raise AgentWtError(f"timed out waiting for registry lock: {lock_path}", "registry_lock_timeout")
+            time.sleep(0.05)
+    try:
+        os.write(descriptor, f"pid={os.getpid()} created={time.time()}\n".encode("ascii"))
+        os.close(descriptor)
+        descriptor = None
+        yield
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
             pass
-        try:
-            yield
-        finally:
-            try:
-                import fcntl
-
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-            except (ImportError, OSError):
-                pass
 
 
 def load_registry() -> dict[str, Any]:
@@ -446,9 +552,9 @@ def load_registry() -> dict[str, Any]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
-        raise AgentWtError(f"cannot read registry {path}: {exc}") from exc
+        raise AgentWtError(f"cannot read registry {path}: {exc}", "registry_unreadable") from exc
     if data.get("version") != REGISTRY_VERSION or not isinstance(data.get("worktrees"), list):
-        raise AgentWtError(f"unsupported registry format: {path}")
+        raise AgentWtError(f"unsupported registry format: {path}", "registry_version_unsupported")
     return data
 
 
@@ -495,8 +601,16 @@ def human_bytes(value: int) -> str:
     return f"{size:.1f} TiB"
 
 
-def directory_allocated_size(path: Path, budget: ScanBudget) -> int:
+def stat_allocated_bytes(stat_result: os.stat_result) -> tuple[int, str]:
+    blocks = getattr(stat_result, "st_blocks", None)
+    if blocks is None:
+        return stat_result.st_size, "apparent_fallback"
+    return blocks * 512, "allocated"
+
+
+def directory_allocated_size(path: Path, budget: ScanBudget) -> tuple[int, str]:
     total = 0
+    kind = "allocated"
     try:
         stack = [path]
         while stack:
@@ -507,7 +621,10 @@ def directory_allocated_size(path: Path, budget: ScanBudget) -> int:
                 stat = current.lstat()
             except OSError:
                 continue
-            total += stat.st_blocks * 512
+            value, current_kind = stat_allocated_bytes(stat)
+            total += value
+            if current_kind == "apparent_fallback":
+                kind = current_kind
             if current.is_dir() and not current.is_symlink():
                 try:
                     stack.extend(current.iterdir())
@@ -515,7 +632,7 @@ def directory_allocated_size(path: Path, budget: ScanBudget) -> int:
                     continue
     except OSError:
         pass
-    return total
+    return total, kind
 
 
 def find_named_dirs(root: Path, names: set[str], max_depth: int = 3) -> list[Path]:
@@ -536,8 +653,27 @@ def find_named_dirs(root: Path, names: set[str], max_depth: int = 3) -> list[Pat
     return sorted(set(results))
 
 
-def scan_workspace_dirs(root: Path) -> dict[str, Any]:
-    budget = ScanBudget(time.monotonic() + DEFAULT_SCAN_SECONDS, DEFAULT_SCAN_FILES)
+def find_conda_env_links(root: Path, max_depth: int = 3) -> list[Path]:
+    results: list[Path] = []
+    for current, dirs, _files in os.walk(root):
+        current_path = Path(current)
+        depth = len(current_path.relative_to(root).parts)
+        for name in list(dirs):
+            candidate = current_path / name
+            if candidate.is_symlink() and (candidate / "conda-meta").is_dir():
+                results.append(candidate)
+        if depth >= max_depth:
+            dirs[:] = []
+    return results
+
+
+def scan_workspace_dirs(
+    root: Path,
+    *,
+    max_seconds: float = DEFAULT_SCAN_SECONDS,
+    max_files: int = DEFAULT_SCAN_FILES,
+) -> dict[str, Any]:
+    budget = ScanBudget(time.monotonic() + max_seconds, max_files)
     entries: list[dict[str, Any]] = []
     kinds = (("dependency", DEPENDENCY_NAMES), ("cache_or_build", CACHE_NAMES), ("artifact", ARTIFACT_NAMES))
     seen: set[Path] = set()
@@ -546,13 +682,14 @@ def scan_workspace_dirs(root: Path) -> dict[str, Any]:
             if path in seen:
                 continue
             seen.add(path)
-            allocated = directory_allocated_size(path, budget)
+            allocated, size_kind = directory_allocated_size(path, budget)
             entries.append(
                 {
                     "kind": kind,
                     "path": str(path.relative_to(root)),
                     "allocated_bytes": allocated,
                     "allocated": human_bytes(allocated),
+                    "size_kind": size_kind,
                     "symlink": path.is_symlink(),
                 }
             )
@@ -561,7 +698,13 @@ def scan_workspace_dirs(root: Path) -> dict[str, Any]:
         if budget.truncated:
             break
     entries.sort(key=lambda item: item["allocated_bytes"], reverse=True)
-    return {"entries": entries, "truncated": budget.truncated, "files_scanned": budget.files}
+    return {
+        "entries": entries,
+        "truncated": budget.truncated,
+        "files_scanned": budget.files,
+        "size_semantics": "reported directory sizes are lower bounds when truncated and never prove byte-level deduplication",
+        "conda_environment_symlinks": [str(path.relative_to(root)) for path in find_conda_env_links(root)],
+    }
 
 
 def repo_payload(repo: RepoInfo) -> dict[str, Any]:
@@ -593,8 +736,9 @@ def cmd_decide(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     repo = get_repo(args.cwd)
     if args.untrusted_users:
         return {
-            "recommendation": "separate-clone",
+            "recommendation": "unsupported",
             "reasons": ["worktrees share Git metadata/config and are not an untrusted-user boundary"],
+            "guidance": "Use a separately owned clone outside agent-wt; v1 does not create or migrate clones.",
             "repo": repo_payload(repo),
         }, 0
 
@@ -626,19 +770,23 @@ def create_plan(args: argparse.Namespace, repo: RepoInfo) -> dict[str, Any]:
     roots = default_roots(repo, args.branch, args.root)
     target = roots["worktree"].resolve()
     if is_within(target, repo.root):
-        raise AgentWtError(f"refusing worktree inside repository: {target}")
+        raise AgentWtError(f"refusing worktree inside repository: {target}", "target_inside_repository")
     if target.exists():
-        raise AgentWtError(f"target already exists: {target}")
+        raise AgentWtError(f"target already exists: {target}", "target_exists")
     checked_out = checked_out_path(repo, args.branch)
     if checked_out:
-        raise AgentWtError(f"branch is already checked out at: {checked_out}")
-    base_sha = git(repo.root, "rev-parse", "--verify", f"{args.base}^{{commit}}").stdout.strip()
+        raise AgentWtError(f"branch is already checked out at: {checked_out}", "branch_checked_out")
+    base_result = git(repo.root, "rev-parse", "--verify", f"{args.base}^{{commit}}", check=False)
+    if base_result.returncode != 0:
+        raise AgentWtError(f"base does not resolve to a commit: {args.base}", "base_not_found")
+    base_sha = base_result.stdout.strip()
     exists = branch_exists(repo, args.branch)
     if exists:
         branch_head = git(repo.root, "rev-parse", f"refs/heads/{args.branch}").stdout.strip()
-        if args.base != "HEAD" and branch_head != base_sha:
+        if branch_head != base_sha:
             raise AgentWtError(
-                f"existing branch {args.branch} is {branch_head[:12]}, not requested base {base_sha[:12]}"
+                f"existing branch {args.branch} is {branch_head[:12]}, not requested base {base_sha[:12]}",
+                "branch_base_mismatch",
             )
     repo_fs = filesystem_info(repo.root)
     target_fs = filesystem_info(target)
@@ -649,7 +797,8 @@ def create_plan(args: argparse.Namespace, repo: RepoInfo) -> dict[str, Any]:
     if target_fs["free_bytes"] < min_free_bytes and not args.allow_low_space:
         raise AgentWtError(
             f"target filesystem has only {target_fs['free_gib']} GiB free; "
-            f"requires {args.min_free_gib} GiB (override with --allow-low-space)"
+            f"requires {args.min_free_gib} GiB (override with --allow-low-space)",
+            "insufficient_space",
         )
     project = detect_project(repo.root)
     env = cache_environment(roots["cache_root"], roots["artifact_root"], repo, args.branch)
@@ -668,49 +817,17 @@ def create_plan(args: argparse.Namespace, repo: RepoInfo) -> dict[str, Any]:
         "base_sha": base_sha,
         "worktree_path": str(target),
         "workspace_root": str(roots["workspace_root"]),
+        "path_policy_source": roots["policy_source"],
         "artifact_root": str(roots["artifact_root"]),
         "cache_root": str(roots["cache_root"]),
         "filesystem": {"repo": repo_fs, "target": target_fs},
         "project": project,
         "environment": env,
+        "adapter_guidance": adapter_guidance(project),
         "commands": commands,
         "warnings": warnings,
         "dry_run": bool(args.dry_run),
     }
-
-
-def run_setup(plan: dict[str, Any]) -> list[dict[str, Any]]:
-    results: list[dict[str, Any]] = []
-    worktree = Path(plan["worktree_path"])
-    cache_root = Path(plan["cache_root"])
-    cache_root.mkdir(parents=True, exist_ok=True)
-    base_env = os.environ.copy()
-    base_env.update(plan["environment"])
-    for item in plan["project"]["setup"]:
-        argv = item.get("argv")
-        if not argv:
-            results.append({**item, "status": "manual"})
-            continue
-        executable = shutil.which(argv[0])
-        if not executable:
-            results.append({**item, "status": "missing-executable"})
-            continue
-        command = list(argv)
-        if item["adapter"] == "pnpm":
-            command.extend(["--store-dir", str(cache_root / "pnpm-store")])
-        elif item["adapter"] == "npm":
-            command.extend(["--cache", str(cache_root / "npm")])
-        completed = run(command, cwd=worktree, env=base_env, check=False)
-        results.append(
-            {
-                **item,
-                "argv": command,
-                "status": "passed" if completed.returncode == 0 else "failed",
-                "returncode": completed.returncode,
-                "stderr_tail": completed.stderr[-2000:] if completed.returncode else "",
-            }
-        )
-    return results
 
 
 def cmd_create(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
@@ -727,7 +844,7 @@ def cmd_create(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
 
     # Re-detect in the checked-out branch because its lockfiles can differ from the base checkout.
     plan["project"] = detect_project(target)
-    setup_results = run_setup(plan) if args.setup else [
+    setup_results = [
         {**item, "status": "planned" if item.get("argv") else "manual"}
         for item in plan["project"]["setup"]
     ]
@@ -758,10 +875,7 @@ def cmd_create(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "dry_run": False,
         }
     )
-    failed = any(item.get("status") in {"failed", "missing-executable"} for item in setup_results)
-    if failed:
-        plan["warnings"].append("worktree was created, but one or more requested setup steps did not pass")
-    return plan, 1 if failed else 0
+    return plan, 0
 
 
 def cmd_list(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
@@ -783,7 +897,11 @@ def cmd_doctor(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     target = args.path.resolve() if args.path else args.cwd
     repo = get_repo(target)
     project = detect_project(repo.root)
-    scan = scan_workspace_dirs(repo.root)
+    scan = scan_workspace_dirs(
+        repo.root,
+        max_seconds=args.scan_seconds,
+        max_files=args.scan_files,
+    )
     errors: list[str] = []
     warnings: list[str] = []
     notes: list[str] = []
@@ -811,6 +929,8 @@ def cmd_doctor(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             warnings.append(f"large artifact directory remains inside source checkout: {item['path']} ({item['allocated']})")
         if item["kind"] == "cache_or_build" and allocated >= args.build_warning_mib * 1024**2:
             warnings.append(f"large generated cache/build directory: {item['path']} ({item['allocated']})")
+    for path in scan["conda_environment_symlinks"]:
+        warnings.append(f"whole mutable Conda environment is symlinked: {path}")
     if scan["truncated"]:
         warnings.append("directory size scan hit its time/file budget; reported sizes are lower bounds")
 
@@ -872,7 +992,7 @@ def print_human(command: str, payload: dict[str, Any]) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agent-wt",
-        description="Decide, create, inspect, list, and diagnose agent-safe Git worktrees.",
+        description="Inspect, decide, create, list, and diagnose managed Git worktrees.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {VERSION}")
     parser.add_argument("-C", "--cwd", type=Path, default=Path.cwd(), help="repository working directory")
@@ -882,7 +1002,7 @@ def build_parser() -> argparse.ArgumentParser:
     inspect_parser.add_argument("--json", action="store_true")
     inspect_parser.set_defaults(handler=cmd_inspect)
 
-    decide_parser = subparsers.add_parser("decide", help="recommend branch, worktree, or separate clone")
+    decide_parser = subparsers.add_parser("decide", help="recommend branch, worktree, or unsupported guidance")
     decide_parser.add_argument("--parallel", action="store_true")
     decide_parser.add_argument("--preserve-current", action="store_true")
     decide_parser.add_argument("--long-running", action="store_true")
@@ -898,7 +1018,6 @@ def build_parser() -> argparse.ArgumentParser:
     create_parser.add_argument("--base", default="HEAD")
     create_parser.add_argument("--root", type=Path, help="managed worktree root")
     create_parser.add_argument("--task", default="manual")
-    create_parser.add_argument("--setup", action="store_true", help="run trusted built-in frozen dependency setup")
     create_parser.add_argument("--dry-run", action="store_true")
     create_parser.add_argument("--allow-low-space", action="store_true")
     create_parser.add_argument("--min-free-gib", type=float, default=DEFAULT_MIN_FREE_GIB)
@@ -915,6 +1034,8 @@ def build_parser() -> argparse.ArgumentParser:
     doctor_parser.add_argument("--min-free-gib", type=float, default=DEFAULT_MIN_FREE_GIB)
     doctor_parser.add_argument("--artifact-warning-mib", type=int, default=100)
     doctor_parser.add_argument("--build-warning-mib", type=int, default=500)
+    doctor_parser.add_argument("--scan-seconds", type=float, default=DEFAULT_SCAN_SECONDS)
+    doctor_parser.add_argument("--scan-files", type=int, default=DEFAULT_SCAN_FILES)
     doctor_parser.add_argument("--json", action="store_true")
     doctor_parser.set_defaults(handler=cmd_doctor)
     return parser
@@ -928,10 +1049,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         payload, exit_code = args.handler(args)
     except AgentWtError as exc:
         if getattr(args, "json", False):
-            print(json.dumps({"status": "error", "error": str(exc)}, indent=2))
+            print(json.dumps({
+                "schema_version": OUTPUT_SCHEMA_VERSION,
+                "command": args.command,
+                "status": "error",
+                "error_code": exc.code,
+                "error": str(exc),
+            }, indent=2, sort_keys=True))
         else:
-            print(f"agent-wt: {exc}", file=sys.stderr)
+            print(f"agent-wt: [{exc.code}] {exc}", file=sys.stderr)
         return 2
+    payload = {"schema_version": OUTPUT_SCHEMA_VERSION, "command": args.command, **payload}
     if getattr(args, "json", False):
         print(json.dumps(payload, indent=2, sort_keys=True))
     else:

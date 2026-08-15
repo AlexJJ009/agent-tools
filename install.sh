@@ -21,9 +21,12 @@ FAIL2BAN_SSHD_FILTER="${FAIL2BAN_SSHD_FILTER:-sshd[mode=aggressive]}"
 FAIL2BAN_SSHD_BANACTION="${FAIL2BAN_SSHD_BANACTION:-iptables-multiport[blocktype=DROP]}"
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
+INSTALL_AGENT_WT=1
 INSTALL_GOAL_PLAN=0
 GOAL_PLAN_INSTALL_MODE="${GOAL_PLAN_INSTALL_MODE:-auto}"
 GOAL_PLAN_REGISTER_PLUGIN=0
+# Native Win11 state is installed only through install-win11.ps1.  A WSL
+# installer must not copy Skills/plugins or mutate config beneath /mnt/c.
 GOAL_PLAN_INCLUDE_WSL_WINDOWS="${GOAL_PLAN_INCLUDE_WSL_WINDOWS:-never}"
 INSTALL_LINEAR_WORKFLOW=1
 LINEAR_WORKFLOW_ONLY=0
@@ -79,6 +82,7 @@ INSTALL_AGENT_CORE_ENTRIES=1
 GOAL_PLAN_ONLY=0
 AGENT_CORE_ENTRIES_STATUS=""
 GOAL_PLAN_STATUS=""
+AGENT_WT_STATUS=""
 LOCAL_BIN_PATH_STATUS=""
 CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS=""
 CLAUDE_DESKTOP_SSH_STATUS=""
@@ -1995,12 +1999,54 @@ backup_and_link() {
       backup="${target}.backup-${timestamp}"
     fi
     mv "$target" "$backup"
-    echo "Backed up existing goal-plan target: $backup"
+    echo "Backed up existing managed target: $backup"
   fi
 
   ln -s "$source" "$target"
 }
 
+install_agent_wt() {
+  local launcher_source="$INSTALL_REAL/bin/agent-wt"
+  local skill_source="$INSTALL_REAL/skills/manage-worktrees"
+  local launcher_target="${AGENT_WT_PATH:-$HOME/.local/bin/agent-wt}"
+  local codex_skill_target="$HOME/.agents/skills/manage-worktrees"
+  local legacy_codex_skill_target="${CODEX_HOME:-$HOME/.codex}/skills/manage-worktrees"
+  local current_source=""
+
+  if [[ ! -x "$launcher_source" ]]; then
+    AGENT_WT_STATUS="failed: missing executable $launcher_source"
+    echo "agent-wt not installed: missing executable $launcher_source" >&2
+    return 1
+  fi
+  if [[ ! -f "$skill_source/SKILL.md" || ! -x "$skill_source/scripts/agent_wt.py" ]]; then
+    AGENT_WT_STATUS="failed: incomplete Skill at $skill_source"
+    echo "agent-wt not installed: incomplete Skill at $skill_source" >&2
+    return 1
+  fi
+
+  if [[ -e "$legacy_codex_skill_target" || -L "$legacy_codex_skill_target" ]]; then
+    AGENT_WT_STATUS="failed: duplicate legacy Skill at $legacy_codex_skill_target"
+    echo "duplicate manage-worktrees Skill location detected at $legacy_codex_skill_target; remove or migrate it before install" >&2
+    return 1
+  fi
+  if [[ -e "$codex_skill_target" || -L "$codex_skill_target" ]]; then
+    if [[ ! -L "$codex_skill_target" ]]; then
+      AGENT_WT_STATUS="failed: unmanaged Skill at $codex_skill_target"
+      echo "refusing to replace unmanaged manage-worktrees Skill at $codex_skill_target" >&2
+      return 1
+    fi
+    current_source="$(readlink -f -- "$codex_skill_target" 2>/dev/null || true)"
+    if [[ "$current_source" != "$(readlink -f -- "$skill_source")" ]]; then
+      AGENT_WT_STATUS="failed: conflicting Skill symlink at $codex_skill_target"
+      echo "refusing conflicting manage-worktrees Skill symlink: $codex_skill_target -> $current_source" >&2
+      return 1
+    fi
+  fi
+
+  backup_and_link "$launcher_source" "$launcher_target"
+  backup_and_link "$skill_source" "$codex_skill_target"
+  AGENT_WT_STATUS="$launcher_target; Codex=$codex_skill_target"
+}
 backup_and_copy_managed() {
   local source="$1"
   local target="$2"
@@ -2484,6 +2530,8 @@ Options:
                            matching, 3 failures within 1 hour, permanent ban,
                            DROP, and loopback-only ignoreip.
   --no-codex-here          Do not install ~/.local/bin/codex-here.
+  --no-agent-wt            Do not install the agent-wt launcher or the
+                           current-scope Codex manage-worktrees Skill.
   --no-goal-plan           Do not install user-level goal-plan tools
                            (Claude /goal-plan + reviewer, Codex skill/plugin/prompt).
   --legacy-goal-plan       Explicitly install/register deprecated goal-plan compatibility tools.
@@ -2643,6 +2691,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-codex-here)
       INSTALL_CODEX_HERE=0
+      shift
+      ;;
+    --no-agent-wt)
+      INSTALL_AGENT_WT=0
       shift
       ;;
     --no-goal-plan)
@@ -2839,6 +2891,7 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   [[ -d "$SOURCE_DIR/experiment_registry" ]] && cp -R "$SOURCE_DIR/experiment_registry" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/goal_plan" ]] && cp -R "$SOURCE_DIR/goal_plan" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/linear_workflow" ]] && cp -R "$SOURCE_DIR/linear_workflow" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/skills" ]] && cp -R "$SOURCE_DIR/skills" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/agent_context_sync.config.example.json" ]] && cp "$SOURCE_DIR/agent_context_sync.config.example.json" "$INSTALL_REAL/"
 fi
 
@@ -2880,6 +2933,9 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
 fi
 if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
   verify_agent_core_entries
+fi
+if [[ "$INSTALL_AGENT_WT" -eq 1 ]]; then
+  install_agent_wt
 fi
 if [[ "$INSTALL_GOAL_PLAN" -eq 1 ]]; then
   install_goal_plan_tools
@@ -2982,6 +3038,11 @@ if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then
   echo "codex-here: ${CODEX_HERE_PATH:-$HOME/.local/bin/codex-here}"
 else
   echo "codex-here not installed (--no-codex-here)."
+fi
+if [[ "$INSTALL_AGENT_WT" -eq 1 ]]; then
+  echo "agent-wt: $AGENT_WT_STATUS"
+else
+  echo "agent-wt not installed (--no-agent-wt)."
 fi
 if [[ "$INSTALL_CRON" -eq 1 ]]; then
   echo "Cron: $SCHEDULE $INSTALL_REAL/sync_agent_context_cron.sh"

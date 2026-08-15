@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manage Worktrees"
+  short_description: "Create and audit agent-safe Git workspaces"
+  default_prompt: "Use $manage-worktrees to decide whether this task needs a branch or managed worktree, then create or inspect it safely."

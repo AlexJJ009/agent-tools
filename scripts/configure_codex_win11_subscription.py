@@ -135,6 +135,9 @@ def patch_config(
     service_tier: str,
     stream_idle_timeout_ms: int,
     stream_max_retries: int,
+    model_context_window: int,
+    model_auto_compact_token_limit: int,
+    model_auto_compact_token_limit_scope: str,
     approval_policy: str,
     sandbox_mode: str,
     approvals_reviewer: str,
@@ -154,6 +157,9 @@ def patch_config(
         "service_tier": quote(service_tier),
         "model_provider": quote(provider_id),
         "experimental_bearer_token": quote(bearer_token),
+        "model_context_window": str(model_context_window),
+        "model_auto_compact_token_limit": str(model_auto_compact_token_limit),
+        "model_auto_compact_token_limit_scope": quote(model_auto_compact_token_limit_scope),
     }
     # Current standalone Codex rejects stream timeout/retry keys at the top
     # level under --strict-config. Keep them provider-scoped and remove stale
@@ -351,11 +357,22 @@ def current_codex_providers(conn: sqlite3.Connection) -> list[str]:
     ]
 
 
-def cc_switch_provider_config(provider_id: str, name: str, base_url: str, bearer_token: str) -> str:
+def cc_switch_provider_config(
+    provider_id: str,
+    name: str,
+    base_url: str,
+    bearer_token: str,
+    model_context_window: int,
+    model_auto_compact_token_limit: int,
+    model_auto_compact_token_limit_scope: str,
+) -> str:
     display_name = name or provider_id
     return "\n".join(
         [
             'model_provider = "custom"',
+            f"model_context_window = {model_context_window}",
+            f"model_auto_compact_token_limit = {model_auto_compact_token_limit}",
+            quote_assignment("model_auto_compact_token_limit_scope", model_auto_compact_token_limit_scope),
             "",
             "[model_providers.custom]",
             quote_assignment("name", display_name),
@@ -372,7 +389,13 @@ def cc_switch_provider_config(provider_id: str, name: str, base_url: str, bearer
 
 
 def enforce_cc_switch_custom_bearer(
-    db_path: Path, provider_id: str, base_url: str, bearer_token: str
+    db_path: Path,
+    provider_id: str,
+    base_url: str,
+    bearer_token: str,
+    model_context_window: int,
+    model_auto_compact_token_limit: int,
+    model_auto_compact_token_limit_scope: str,
 ) -> CcSwitchResult:
     if not db_path.exists():
         return CcSwitchResult(db_path, "skipped: cc-switch DB missing", [], [])
@@ -395,7 +418,15 @@ def enforce_cc_switch_custom_bearer(
                 "OPENAI_API_KEY": None,
                 "tokens": PLACEHOLDER_TOKENS.copy(),
             },
-            "config": cc_switch_provider_config(provider_id, name, base_url, bearer_token),
+            "config": cc_switch_provider_config(
+                provider_id,
+                name,
+                base_url,
+                bearer_token,
+                model_context_window,
+                model_auto_compact_token_limit,
+                model_auto_compact_token_limit_scope,
+            ),
         }
         has_updated_at = "updated_at" in columns
         if row:
@@ -489,6 +520,20 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=int(os.environ.get("CODEX_STREAM_MAX_RETRIES", "20")),
     )
+    parser.add_argument(
+        "--model-context-window",
+        type=int,
+        default=int(os.environ.get("CODEX_MODEL_CONTEXT_WINDOW", "500000")),
+    )
+    parser.add_argument(
+        "--model-auto-compact-token-limit",
+        type=int,
+        default=int(os.environ.get("CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT", "430000")),
+    )
+    parser.add_argument(
+        "--model-auto-compact-token-limit-scope",
+        default=os.environ.get("CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE", "total"),
+    )
     parser.add_argument("--approval-policy", default=os.environ.get("CODEX_APPROVAL_POLICY", "on-request"))
     parser.add_argument("--sandbox-mode", default=os.environ.get("CODEX_SANDBOX_MODE", "workspace-write"))
     parser.add_argument("--approvals-reviewer", default=os.environ.get("CODEX_APPROVALS_REVIEWER", "guardian_subagent"))
@@ -508,6 +553,12 @@ def main() -> int:
         raise SystemExit("--stream-idle-timeout-ms must be positive")
     if args.stream_max_retries <= 0:
         raise SystemExit("--stream-max-retries must be positive")
+    if args.model_context_window <= 0:
+        raise SystemExit("--model-context-window must be positive")
+    if not 0 < args.model_auto_compact_token_limit < args.model_context_window:
+        raise SystemExit("--model-auto-compact-token-limit must be positive and below the context window")
+    if args.model_auto_compact_token_limit_scope not in {"total", "body_after_prefix"}:
+        raise SystemExit("--model-auto-compact-token-limit-scope must be total or body_after_prefix")
 
     codex_home = args.codex_home.expanduser()
     cc_switch_db = args.cc_switch_db.expanduser()
@@ -523,6 +574,9 @@ def main() -> int:
         service_tier=args.service_tier,
         stream_idle_timeout_ms=args.stream_idle_timeout_ms,
         stream_max_retries=args.stream_max_retries,
+        model_context_window=args.model_context_window,
+        model_auto_compact_token_limit=args.model_auto_compact_token_limit,
+        model_auto_compact_token_limit_scope=args.model_auto_compact_token_limit_scope,
         approval_policy=args.approval_policy,
         sandbox_mode=args.sandbox_mode,
         approvals_reviewer=args.approvals_reviewer,
@@ -539,7 +593,13 @@ def main() -> int:
 
     if not args.skip_cc_switch_custom:
         result = enforce_cc_switch_custom_bearer(
-            cc_switch_db, args.provider_id, args.base_url, bearer_token
+            cc_switch_db,
+            args.provider_id,
+            args.base_url,
+            bearer_token,
+            args.model_context_window,
+            args.model_auto_compact_token_limit,
+            args.model_auto_compact_token_limit_scope,
         )
         print(f"cc-switch Codex custom provider: {result.status}: {result.path}")
         print(f"  current before: {result.current_before or 'none'}")

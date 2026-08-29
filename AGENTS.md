@@ -21,6 +21,10 @@
   approval reviewer; do not overwrite an existing `approvals_reviewer` value
   unless the user explicitly asks for approval-mode changes. See
   `docs/CODEX_AUTOREVIEW_DEFAULT.md`.
+- Generated Codex and cc-switch provider configurations should default to
+  `model_context_window = 500000`, `model_auto_compact_token_limit = 430000`,
+  and `model_auto_compact_token_limit_scope = "total"` so provider switching
+  cannot silently restore the smaller upstream context default.
 - For repeat Linux server deployment of Codex CLI, Claude Code, GitHub CLI,
   `cc-switch-cli`, `ripgrep`, and Codex API providers, use
   `docs/CLI_SERVER_BOOTSTRAP.md`. Never store real GitHub PATs or provider API

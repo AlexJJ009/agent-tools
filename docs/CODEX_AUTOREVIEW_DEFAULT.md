@@ -140,6 +140,9 @@ env var before running:
 | service tier | `CODEX_SERVICE_TIER` | `priority` |
 | stream idle timeout (ms) | `CODEX_STREAM_IDLE_TIMEOUT_MS` | `1800000` |
 | stream max retries | `CODEX_STREAM_MAX_RETRIES` | `20` |
+| model context window | `CODEX_MODEL_CONTEXT_WINDOW` | `500000` |
+| automatic compact token limit | `CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT` | `430000` |
+| automatic compact limit scope | `CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE` | `total` |
 | model provider id | `CODEX_MODEL_PROVIDER_ID` | `custom` |
 | `[features].fast_mode` | `CODEX_FEATURE_FAST_MODE` | `true` |
 | `[features].hooks` | `CODEX_FEATURE_HOOKS` | `true` |
@@ -332,6 +335,8 @@ To deviate from the defaults, set the matching env var before running
 `CODEX_APPROVAL_POLICY`, `CODEX_SANDBOX_MODE`, `CODEX_APPROVALS_REVIEWER`,
 `CODEX_MODEL`, `CODEX_MODEL_REASONING_EFFORT`, `CODEX_SERVICE_TIER`,
 `CODEX_STREAM_IDLE_TIMEOUT_MS`, `CODEX_STREAM_MAX_RETRIES`,
+`CODEX_MODEL_CONTEXT_WINDOW`, `CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT`,
+`CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE`,
 `CODEX_MODEL_PROVIDER_ID`, `CODEX_FEATURE_FAST_MODE`, `CODEX_FEATURE_HOOKS`,
 `CODEX_FEATURE_MEMORIES`, `CODEX_FEATURE_GOALS`,
 `CODEX_FEATURE_TERMINAL_RESIZE_REFLOW`, `CODEX_FEATURE_REMOTE_CONTROL`. Use

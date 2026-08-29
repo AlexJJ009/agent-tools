@@ -38,6 +38,9 @@ class ConfigureCodexWin11SubscriptionTests(unittest.TestCase):
                 service_tier="priority",
                 stream_idle_timeout_ms=1800000,
                 stream_max_retries=20,
+                model_context_window=500000,
+                model_auto_compact_token_limit=430000,
+                model_auto_compact_token_limit_scope="total",
                 approval_policy="on-request",
                 sandbox_mode="workspace-write",
                 approvals_reviewer="guardian_subagent",
@@ -48,6 +51,17 @@ class ConfigureCodexWin11SubscriptionTests(unittest.TestCase):
             self.assertNotIn("stream_max_retries", preamble)
             self.assertIn("stream_idle_timeout_ms = 1800000", provider)
             self.assertIn("stream_max_retries = 20", provider)
+            self.assertIn("model_context_window = 500000", preamble)
+            self.assertIn("model_auto_compact_token_limit = 430000", preamble)
+            self.assertIn('model_auto_compact_token_limit_scope = "total"', preamble)
+
+    def test_cc_switch_provider_config_preserves_context_defaults(self):
+        text = MODULE.cc_switch_provider_config(
+            "custom", "custom", MODULE.DEFAULT_BASE_URL, "secret", 500000, 430000, "total"
+        )
+        self.assertIn("model_context_window = 500000", text)
+        self.assertIn("model_auto_compact_token_limit = 430000", text)
+        self.assertIn('model_auto_compact_token_limit_scope = "total"', text)
 
     def test_posix_rejects_wsl_profile_for_win11_script(self):
         if MODULE.os.name == "nt":

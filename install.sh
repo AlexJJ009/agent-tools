@@ -54,6 +54,9 @@ INSTALL_CLAUDE_DESKTOP_SSH="${INSTALL_CLAUDE_DESKTOP_SSH:-1}"
 CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS:-never}"
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-1800000}"
 CODEX_STREAM_MAX_RETRIES="${CODEX_STREAM_MAX_RETRIES:-20}"
+CODEX_MODEL_CONTEXT_WINDOW="${CODEX_MODEL_CONTEXT_WINDOW:-500000}"
+CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT="${CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT:-430000}"
+CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE="${CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE:-total}"
 CODEX_MODEL_PROVIDER_ID="${CODEX_MODEL_PROVIDER_ID:-custom}"
 CODEX_APPROVAL_POLICY="${CODEX_APPROVAL_POLICY:-on-request}"
 CODEX_SANDBOX_MODE="${CODEX_SANDBOX_MODE:-workspace-write}"
@@ -930,7 +933,7 @@ normalize_cc_switch_codex_provider_templates() {
   fi
 
   select_python_bin
-  "$PYTHON_BIN" - "$db_path" "$CODEX_MODEL_PROVIDER_ID" <<'PY'
+  "$PYTHON_BIN" - "$db_path" "$CODEX_MODEL_PROVIDER_ID" "$CODEX_MODEL_CONTEXT_WINDOW" "$CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT" "$CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" <<'PY'
 import json
 import re
 import sqlite3
@@ -940,8 +943,23 @@ from pathlib import Path
 
 db_path = Path(sys.argv[1]).expanduser()
 target = sys.argv[2]
+context_window = sys.argv[3]
+compact_limit = sys.argv[4]
+compact_scope = sys.argv[5]
+timeout = sys.argv[6]
+retries = sys.argv[7]
 if not target or not re.fullmatch(r"[A-Za-z0-9_.-]+", target):
     raise SystemExit(f"invalid CODEX_MODEL_PROVIDER_ID: {target}")
+if not context_window.isdigit() or int(context_window) <= 0:
+    raise SystemExit(f"invalid CODEX_MODEL_CONTEXT_WINDOW: {context_window}")
+if not compact_limit.isdigit() or not 0 < int(compact_limit) < int(context_window):
+    raise SystemExit(f"invalid CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT: {compact_limit}")
+if compact_scope not in {"total", "body_after_prefix"}:
+    raise SystemExit(f"invalid CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE: {compact_scope}")
+if not timeout.isdigit() or int(timeout) <= 0:
+    raise SystemExit(f"invalid CODEX_STREAM_IDLE_TIMEOUT_MS: {timeout}")
+if not retries.isdigit() or int(retries) <= 0:
+    raise SystemExit(f"invalid CODEX_STREAM_MAX_RETRIES: {retries}")
 
 def section_path(line):
     stripped = line.strip()
@@ -956,6 +974,27 @@ def normalize_config(text):
     in_target_provider = False
     inserted_auth = False
     inserted_websockets = False
+    inserted_wire_api = False
+    inserted_timeout = False
+    inserted_retries = False
+    has_any_model_provider = False
+    managed_top = {
+        "model_context_window": f"model_context_window = {context_window}",
+        "model_auto_compact_token_limit": f"model_auto_compact_token_limit = {compact_limit}",
+        "model_auto_compact_token_limit_scope": f'model_auto_compact_token_limit_scope = "{compact_scope}"',
+    }
+
+    first_table = next((i for i, line in enumerate(lines) if section_path(line) is not None), len(lines))
+    preamble = []
+    for line in lines[:first_table]:
+        key = line.split("=", 1)[0].strip() if "=" in line and not line.strip().startswith("#") else None
+        if key not in managed_top:
+            preamble.append(line)
+    while preamble and not preamble[-1].strip():
+        preamble.pop()
+    preamble.extend(managed_top.values())
+    preamble.append("")
+    lines = preamble + lines[first_table:]
 
     def insert_auth():
         nonlocal inserted_auth
@@ -971,11 +1010,38 @@ def normalize_config(text):
         out.append("supports_websockets = true")
         inserted_websockets = True
 
+    def insert_wire_api():
+        nonlocal inserted_wire_api
+        while out and not out[-1].strip():
+            out.pop()
+        out.append('wire_api = "responses"')
+        inserted_wire_api = True
+
+    def insert_timeout():
+        nonlocal inserted_timeout
+        while out and not out[-1].strip():
+            out.pop()
+        out.append(f"stream_idle_timeout_ms = {timeout}")
+        inserted_timeout = True
+
+    def insert_retries():
+        nonlocal inserted_retries
+        while out and not out[-1].strip():
+            out.pop()
+        out.append(f"stream_max_retries = {retries}")
+        inserted_retries = True
+
     def insert_provider_defaults():
         if in_target_provider and not inserted_auth:
             insert_auth()
         if not inserted_websockets:
             insert_websockets()
+        if in_target_provider and not inserted_wire_api:
+            insert_wire_api()
+        if in_target_provider and not inserted_timeout:
+            insert_timeout()
+        if in_target_provider and not inserted_retries:
+            insert_retries()
 
     for line in lines:
         path_parts = section_path(line)
@@ -984,8 +1050,12 @@ def normalize_config(text):
                 insert_provider_defaults()
             in_model_provider = len(path_parts) == 2 and path_parts[0] == "model_providers"
             in_target_provider = in_model_provider and path_parts[1] == target
+            has_any_model_provider = has_any_model_provider or in_model_provider
             inserted_auth = False
             inserted_websockets = False
+            inserted_wire_api = False
+            inserted_timeout = False
+            inserted_retries = False
             out.append(line)
             continue
 
@@ -1001,11 +1071,37 @@ def normalize_config(text):
                 if not inserted_websockets:
                     insert_websockets()
                 continue
+            if in_target_provider and key == "wire_api":
+                if not inserted_wire_api:
+                    insert_wire_api()
+                continue
+            if in_target_provider and key == "stream_idle_timeout_ms":
+                if not inserted_timeout:
+                    insert_timeout()
+                continue
+            if in_target_provider and key == "stream_max_retries":
+                if not inserted_retries:
+                    insert_retries()
+                continue
 
         out.append(line)
 
     if in_model_provider:
         insert_provider_defaults()
+    if not has_any_model_provider:
+        while out and not out[-1].strip():
+            out.pop()
+        out.extend([
+            "",
+            f"[model_providers.{target}]",
+            'name = "OpenAI ChatGPT subscription custom bucket"',
+            'base_url = "https://chatgpt.com/backend-api/codex"',
+            'wire_api = "responses"',
+            "requires_openai_auth = true",
+            "supports_websockets = true",
+            f"stream_idle_timeout_ms = {timeout}",
+            f"stream_max_retries = {retries}",
+        ])
 
     cleaned = []
     previous_blank = False
@@ -1338,7 +1434,7 @@ configure_codex_defaults() {
   local codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
 
   select_python_bin
-  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" "$CODEX_MODEL_PROVIDER_ID" "$CODEX_APPROVAL_POLICY" "$CODEX_SANDBOX_MODE" "$CODEX_APPROVALS_REVIEWER" "$CODEX_MODEL" "$CODEX_MODEL_REASONING_EFFORT" "$CODEX_SERVICE_TIER" <<'PY'
+  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" "$CODEX_MODEL_PROVIDER_ID" "$CODEX_APPROVAL_POLICY" "$CODEX_SANDBOX_MODE" "$CODEX_APPROVALS_REVIEWER" "$CODEX_MODEL" "$CODEX_MODEL_REASONING_EFFORT" "$CODEX_SERVICE_TIER" "$CODEX_MODEL_CONTEXT_WINDOW" "$CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT" "$CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE" <<'PY'
 from pathlib import Path
 import sys
 
@@ -1352,10 +1448,19 @@ approvals_reviewer = sys.argv[7]
 model = sys.argv[8]
 model_reasoning_effort = sys.argv[9]
 service_tier = sys.argv[10]
+context_window = sys.argv[11]
+compact_limit = sys.argv[12]
+compact_scope = sys.argv[13]
 if not timeout.isdigit() or int(timeout) <= 0:
     raise SystemExit(f"invalid CODEX_STREAM_IDLE_TIMEOUT_MS: {timeout}")
 if not retries.isdigit() or int(retries) <= 0:
     raise SystemExit(f"invalid CODEX_STREAM_MAX_RETRIES: {retries}")
+if not context_window.isdigit() or int(context_window) <= 0:
+    raise SystemExit(f"invalid CODEX_MODEL_CONTEXT_WINDOW: {context_window}")
+if not compact_limit.isdigit() or not 0 < int(compact_limit) < int(context_window):
+    raise SystemExit(f"invalid CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT: {compact_limit}")
+if compact_scope not in {"total", "body_after_prefix"}:
+    raise SystemExit(f"invalid CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE: {compact_scope}")
 if not provider_id or not all(c.isalnum() or c in "-_." for c in provider_id):
     raise SystemExit(f"invalid CODEX_MODEL_PROVIDER_ID: {provider_id}")
 ALLOWED_APPROVAL_POLICIES = {"on-request", "on-failure", "untrusted", "never"}
@@ -1395,6 +1500,9 @@ managed_top_level = {
     "model",
     "model_reasoning_effort",
     "service_tier",
+    "model_context_window",
+    "model_auto_compact_token_limit",
+    "model_auto_compact_token_limit_scope",
 }
 
 kept = []
@@ -1413,8 +1521,9 @@ kept.append(f'approvals_reviewer = "{approvals_reviewer}"')
 kept.append(f'model = "{model}"')
 kept.append(f'model_reasoning_effort = "{model_reasoning_effort}"')
 kept.append(f'service_tier = "{service_tier}"')
-kept.append(f"stream_idle_timeout_ms = {timeout}")
-kept.append(f"stream_max_retries = {retries}")
+kept.append(f"model_context_window = {context_window}")
+kept.append(f"model_auto_compact_token_limit = {compact_limit}")
+kept.append(f'model_auto_compact_token_limit_scope = "{compact_scope}"')
 kept.append(f'model_provider = "{provider_id}"')
 
 provider_header = f"[model_providers.{provider_id}]"
@@ -1483,24 +1592,42 @@ while i < len(rest):
     i += 1
 rest = filtered_rest
 
-def _force_websockets(lines):
+def _force_provider_defaults(lines):
     updated = []
     in_model_provider = False
     in_target_provider = False
     target_found = False
     setting_found = False
+    wire_api_found = False
+    timeout_found = False
+    retries_found = False
+
+    def append_missing_target_defaults():
+        if not in_target_provider:
+            return
+        if not wire_api_found:
+            updated.append('wire_api = "responses"')
+        if not timeout_found:
+            updated.append(f"stream_idle_timeout_ms = {timeout}")
+        if not retries_found:
+            updated.append(f"stream_max_retries = {retries}")
 
     for line in lines:
         path = _toml_section_path(line)
         if path:
+            append_missing_target_defaults()
             if in_model_provider and not setting_found:
                 updated.append("supports_websockets = true")
             parts = path.split(".")
             in_model_provider = len(parts) == 2 and parts[0] == "model_providers"
+            in_target_provider = in_model_provider and parts[1] == provider_id
             if in_model_provider:
-                if parts[1] == provider_id:
+                if in_target_provider:
                     target_found = True
                 setting_found = False
+                wire_api_found = False
+                timeout_found = False
+                retries_found = False
 
         if in_model_provider:
             stripped = line.strip()
@@ -1508,15 +1635,25 @@ def _force_websockets(lines):
             if key == "supports_websockets":
                 line = "supports_websockets = true"
                 setting_found = True
+            elif in_target_provider and key == "wire_api":
+                line = 'wire_api = "responses"'
+                wire_api_found = True
+            elif in_target_provider and key == "stream_idle_timeout_ms":
+                line = f"stream_idle_timeout_ms = {timeout}"
+                timeout_found = True
+            elif in_target_provider and key == "stream_max_retries":
+                line = f"stream_max_retries = {retries}"
+                retries_found = True
 
         updated.append(line)
 
+    append_missing_target_defaults()
     if in_model_provider and not setting_found:
         updated.append("supports_websockets = true")
 
     return updated, target_found
 
-rest, has_target_model_provider = _force_websockets(rest)
+rest, has_target_model_provider = _force_provider_defaults(rest)
 
 if rest:
     kept.append("")
@@ -2923,6 +3060,8 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex approvals reviewer: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_APPROVALS_REVIEWER}"
   echo "Codex model: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL} (reasoning: ${CODEX_MODEL_REASONING_EFFORT})"
   echo "Codex service tier: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_SERVICE_TIER}"
+  echo "Codex context window: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_CONTEXT_WINDOW} tokens"
+  echo "Codex auto compact: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT} tokens (scope: ${CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE})"
   echo "Codex stream idle timeout: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_IDLE_TIMEOUT_MS} ms"
   echo "Codex stream max retries: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_MAX_RETRIES}"
   echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (WebSocket enabled)"

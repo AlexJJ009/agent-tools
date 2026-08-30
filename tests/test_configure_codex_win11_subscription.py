@@ -1,4 +1,6 @@
 import importlib.util
+import json
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -14,8 +16,9 @@ SPEC.loader.exec_module(MODULE)
 
 
 class ConfigureCodexWin11SubscriptionTests(unittest.TestCase):
-    def test_default_base_url_uses_current_relay(self):
-        self.assertEqual(MODULE.DEFAULT_BASE_URL, "http://15.204.46.107:8080")
+    def test_default_base_url_uses_official_chatgpt_backend(self):
+        self.assertEqual(MODULE.DEFAULT_BASE_URL, "https://chatgpt.com/backend-api/codex")
+        self.assertEqual(MODULE.DEFAULT_CC_SWITCH_PROVIDER, "codex-official")
 
     def test_patch_config_removes_top_level_stream_keys(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -32,7 +35,6 @@ class ConfigureCodexWin11SubscriptionTests(unittest.TestCase):
                 codex_home=codex_home,
                 provider_id="custom",
                 base_url=MODULE.DEFAULT_BASE_URL,
-                bearer_token="secret",
                 model="gpt-5.5",
                 reasoning_effort="high",
                 service_tier="priority",
@@ -54,14 +56,63 @@ class ConfigureCodexWin11SubscriptionTests(unittest.TestCase):
             self.assertIn("model_context_window = 500000", preamble)
             self.assertIn("model_auto_compact_token_limit = 430000", preamble)
             self.assertIn('model_auto_compact_token_limit_scope = "total"', preamble)
+            self.assertNotIn("experimental_bearer_token", text)
+            self.assertIn('base_url = "https://chatgpt.com/backend-api/codex"', provider)
 
     def test_cc_switch_provider_config_preserves_context_defaults(self):
         text = MODULE.cc_switch_provider_config(
-            "custom", "custom", MODULE.DEFAULT_BASE_URL, "secret", 500000, 430000, "total"
+            "custom", "OpenAI Official", MODULE.DEFAULT_BASE_URL, 500000, 430000, "total"
         )
         self.assertIn("model_context_window = 500000", text)
         self.assertIn("model_auto_compact_token_limit = 430000", text)
         self.assertIn('model_auto_compact_token_limit_scope = "total"', text)
+        self.assertNotIn("experimental_bearer_token", text)
+
+    def test_load_chatgpt_auth_rejects_placeholder_token(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            codex_home = Path(tmp) / ".codex"
+            codex_home.mkdir()
+            (codex_home / "auth.json").write_text(
+                '{"auth_mode":"chatgpt","OPENAI_API_KEY":null,"tokens":{"access_token":"placeholder"}}',
+                encoding="utf-8",
+            )
+            with self.assertRaises(SystemExit):
+                MODULE.load_chatgpt_auth(codex_home)
+
+    def test_enforce_cc_switch_makes_official_provider_current(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db = Path(tmp) / "cc-switch.db"
+            conn = sqlite3.connect(db)
+            conn.execute(
+                "CREATE TABLE providers (id TEXT, app_type TEXT, name TEXT, category TEXT, "
+                "is_current INTEGER, settings_config TEXT, updated_at INTEGER)"
+            )
+            conn.execute(
+                "INSERT INTO providers VALUES ('codex-official','codex','OpenAI Official','custom',0,'{}',0)"
+            )
+            conn.execute(
+                "INSERT INTO providers VALUES ('custom','codex','relay','custom',1,'{}',0)"
+            )
+            conn.commit()
+            conn.close()
+            auth = {
+                "auth_mode": "chatgpt",
+                "OPENAI_API_KEY": None,
+                "tokens": {"access_token": "real-token", "account_id": "account"},
+            }
+            MODULE.enforce_cc_switch_official_chatgpt(
+                db, "codex-official", "custom", MODULE.DEFAULT_BASE_URL, auth, 500000, 430000, "total"
+            )
+            conn = sqlite3.connect(db)
+            rows = conn.execute(
+                "SELECT id,is_current,settings_config FROM providers WHERE app_type='codex' ORDER BY id"
+            ).fetchall()
+            conn.close()
+            self.assertEqual([(row[0], row[1]) for row in rows], [("codex-official", 1), ("custom", 0)])
+            settings = json.loads(rows[0][2])
+            self.assertEqual(settings["auth"]["tokens"]["access_token"], "real-token")
+            self.assertIn(MODULE.DEFAULT_BASE_URL, settings["config"])
+            self.assertNotIn("experimental_bearer_token", settings["config"])
 
     def test_posix_rejects_wsl_profile_for_win11_script(self):
         if MODULE.os.name == "nt":

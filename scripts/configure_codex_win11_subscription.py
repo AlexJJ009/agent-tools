@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Configure native Win11 Codex App for the custom Codex bearer-token mode.
+"""Configure native Win11 Codex App for official ChatGPT token authentication.
 
 Win11 Codex App should use the stable ``custom`` history bucket while routing
-requests through the operator-managed Codex backend.  This path is distinct
-from Linux/WSL API-key providers: auth.json keeps a ChatGPT token placeholder,
-OPENAI_API_KEY stays null, and the live credential is stored as
-experimental_bearer_token in config.toml and cc-switch's Codex provider.
+requests through OpenAI's ChatGPT subscription backend.  A real ChatGPT login
+in auth.json is required; relay bearer tokens are neither read nor written.
 """
 
 from __future__ import annotations
@@ -29,14 +27,8 @@ from codex_target_guard import GateFailure, validate_write_target
 
 
 DEFAULT_PROVIDER = "custom"
-DEFAULT_BASE_URL = "http://15.204.46.107:8080"
-DEFAULT_BEARER_TOKEN_FILE = "win11-custom-bearer-token"
-PLACEHOLDER_TOKENS = {
-    "id_token": "placeholder",
-    "access_token": "placeholder",
-    "refresh_token": "placeholder",
-    "account_id": "placeholder",
-}
+DEFAULT_CC_SWITCH_PROVIDER = "codex-official"
+DEFAULT_BASE_URL = "https://chatgpt.com/backend-api/codex"
 
 
 @dataclass
@@ -129,7 +121,6 @@ def patch_config(
     codex_home: Path,
     provider_id: str,
     base_url: str,
-    bearer_token: str,
     model: str,
     reasoning_effort: str,
     service_tier: str,
@@ -156,7 +147,6 @@ def patch_config(
         "model_reasoning_effort": quote(reasoning_effort),
         "service_tier": quote(service_tier),
         "model_provider": quote(provider_id),
-        "experimental_bearer_token": quote(bearer_token),
         "model_context_window": str(model_context_window),
         "model_auto_compact_token_limit": str(model_auto_compact_token_limit),
         "model_auto_compact_token_limit_scope": quote(model_auto_compact_token_limit_scope),
@@ -165,6 +155,7 @@ def patch_config(
     # level under --strict-config. Keep them provider-scoped and remove stale
     # top-level copies left by older agent-tools releases.
     managed_top_keys = set(managed_top) | {
+        "experimental_bearer_token",
         "stream_idle_timeout_ms",
         "stream_max_retries",
     }
@@ -201,7 +192,6 @@ def patch_config(
         f"stream_idle_timeout_ms = {stream_idle_timeout_ms}",
         f"stream_max_retries = {stream_max_retries}",
         'wire_api = "responses"',
-        quote_assignment("experimental_bearer_token", bearer_token),
     ]
 
     new_lines = compact_blank_lines(preamble + [""] + rest)
@@ -219,97 +209,26 @@ def patch_config(
     return False
 
 
-def patch_auth(codex_home: Path) -> bool:
+def load_chatgpt_auth(codex_home: Path) -> dict[str, object]:
     auth_path = codex_home / "auth.json"
-    auth_path.parent.mkdir(parents=True, exist_ok=True)
-    original = auth_path.read_text(encoding="utf-8") if auth_path.exists() else ""
-    data = {}
-    if original.strip():
-        try:
-            data = json.loads(original)
-        except Exception:
-            data = {}
-    data["auth_mode"] = "chatgpt"
+    if not auth_path.exists():
+        raise SystemExit("missing Win11 auth.json; sign in with ChatGPT before running this helper")
+    try:
+        data = json.loads(auth_path.read_text(encoding="utf-8-sig"))
+    except Exception as exc:
+        raise SystemExit(f"invalid Win11 auth.json: {type(exc).__name__}") from exc
+    tokens = data.get("tokens")
+    if data.get("auth_mode") != "chatgpt" or not isinstance(tokens, dict):
+        raise SystemExit("Win11 auth.json is not a ChatGPT login")
+    access_token = tokens.get("access_token")
+    if not access_token or access_token == "placeholder":
+        raise SystemExit("Win11 ChatGPT access token is missing or placeholder; sign in again")
     data["OPENAI_API_KEY"] = None
-    data["tokens"] = data.get("tokens") if isinstance(data.get("tokens"), dict) else PLACEHOLDER_TOKENS.copy()
-    for key, value in PLACEHOLDER_TOKENS.items():
-        data["tokens"].setdefault(key, value)
-    new_text = json.dumps(data, ensure_ascii=False, indent=2) + "\n"
-    if new_text != original:
-        backup = auth_path.with_name(auth_path.name + ".win11-bearer-mode-backup")
-        if auth_path.exists() and not backup.exists():
-            backup.write_text(original, encoding="utf-8")
-        auth_path.write_text(new_text, encoding="utf-8")
-        return True
-    return False
+    return data
 
 
 def quote_assignment(key: str, value: str) -> str:
     return f"{key} = {quote(value)}"
-
-
-def bearer_token_from_config(codex_home: Path) -> str | None:
-    config_path = codex_home / "config.toml"
-    if not config_path.exists():
-        return None
-    text = config_path.read_text(encoding="utf-8")
-    match = re.search(r'(?m)^experimental_bearer_token\s*=\s*["\']([^"\']+)["\']', text)
-    return match.group(1) if match else None
-
-
-def bearer_token_from_cc_switch(db_path: Path) -> str | None:
-    if not db_path.exists():
-        return None
-    conn = sqlite3.connect(str(db_path))
-    try:
-        columns = table_columns(conn, "providers")
-        if not {"app_type", "is_current", "settings_config"}.issubset(columns):
-            return None
-        rows = conn.execute(
-            """
-            SELECT settings_config
-            FROM providers
-            WHERE app_type='codex'
-            ORDER BY is_current DESC
-            """
-        ).fetchall()
-        for (raw,) in rows:
-            try:
-                settings = json.loads(raw or "{}")
-            except Exception:
-                continue
-            config = str(settings.get("config") or "")
-            match = re.search(r'(?m)^experimental_bearer_token\s*=\s*["\']([^"\']+)["\']', config)
-            if match:
-                return match.group(1)
-    finally:
-        conn.close()
-    return None
-
-
-def resolve_bearer_token(codex_home: Path, cc_switch_db: Path, arg_value: str | None) -> str:
-    candidates = [
-        arg_value,
-        os.environ.get("CODEX_EXPERIMENTAL_BEARER_TOKEN"),
-        bearer_token_from_config(codex_home),
-        bearer_token_from_cc_switch(cc_switch_db),
-    ]
-    token_file = codex_home / DEFAULT_BEARER_TOKEN_FILE
-    if token_file.exists():
-        candidates.append(token_file.read_text(encoding="utf-8").strip())
-    for candidate in candidates:
-        if candidate:
-            token_file.parent.mkdir(parents=True, exist_ok=True)
-            token_file.write_text(candidate.strip() + "\n", encoding="utf-8")
-            try:
-                token_file.chmod(0o600)
-            except OSError:
-                pass
-            return candidate.strip()
-    raise SystemExit(
-        "missing Win11 bearer token; set CODEX_EXPERIMENTAL_BEARER_TOKEN once "
-        f"or write it to {token_file}"
-    )
 
 
 def default_codex_home() -> Path:
@@ -329,7 +248,7 @@ def default_cc_switch_db() -> Path:
 
 
 def validate_win11_target_paths(codex_home: Path, cc_switch_db: Path) -> None:
-    """Require native Win11 before this bearer-token helper can write."""
+    """Require native Win11 before this ChatGPT-token helper can write."""
 
     try:
         validate_write_target(
@@ -361,7 +280,6 @@ def cc_switch_provider_config(
     provider_id: str,
     name: str,
     base_url: str,
-    bearer_token: str,
     model_context_window: int,
     model_auto_compact_token_limit: int,
     model_auto_compact_token_limit_scope: str,
@@ -382,17 +300,17 @@ def cc_switch_provider_config(
             "stream_idle_timeout_ms = 1800000",
             "stream_max_retries = 20",
             'wire_api = "responses"',
-            quote_assignment("experimental_bearer_token", bearer_token),
             "",
         ]
     )
 
 
-def enforce_cc_switch_custom_bearer(
+def enforce_cc_switch_official_chatgpt(
     db_path: Path,
-    provider_id: str,
+    cc_switch_provider_id: str,
+    model_provider_id: str,
     base_url: str,
-    bearer_token: str,
+    chatgpt_auth: dict[str, object],
     model_context_window: int,
     model_auto_compact_token_limit: int,
     model_auto_compact_token_limit_scope: str,
@@ -409,20 +327,15 @@ def enforce_cc_switch_custom_bearer(
         before = current_codex_providers(conn)
         row = conn.execute(
             "SELECT name FROM providers WHERE app_type='codex' AND id=?",
-            (provider_id,),
+            (cc_switch_provider_id,),
         ).fetchone()
-        name = str(row[0]) if row else "dragtokens"
+        name = str(row[0]) if row else "OpenAI Official"
         settings = {
-            "auth": {
-                "auth_mode": "chatgpt",
-                "OPENAI_API_KEY": None,
-                "tokens": PLACEHOLDER_TOKENS.copy(),
-            },
+            "auth": chatgpt_auth,
             "config": cc_switch_provider_config(
-                provider_id,
+                model_provider_id,
                 name,
                 base_url,
-                bearer_token,
                 model_context_window,
                 model_auto_compact_token_limit,
                 model_auto_compact_token_limit_scope,
@@ -437,7 +350,7 @@ def enforce_cc_switch_custom_bearer(
                     SET name=?, category='custom', settings_config=?, is_current=1, updated_at=?
                     WHERE app_type='codex' AND id=?
                     """,
-                    (name, json.dumps(settings, ensure_ascii=False), int(time.time() * 1000), provider_id),
+                    (name, json.dumps(settings, ensure_ascii=False), int(time.time() * 1000), cc_switch_provider_id),
                 )
             else:
                 conn.execute(
@@ -446,12 +359,12 @@ def enforce_cc_switch_custom_bearer(
                     SET name=?, category='custom', settings_config=?, is_current=1
                     WHERE app_type='codex' AND id=?
                     """,
-                    (name, json.dumps(settings, ensure_ascii=False), provider_id),
+                    (name, json.dumps(settings, ensure_ascii=False), cc_switch_provider_id),
                 )
         else:
             cols = table_columns(conn, "providers")
             values = {
-                "id": provider_id,
+                "id": cc_switch_provider_id,
                 "app_type": "codex",
                 "name": name,
                 "settings_config": json.dumps(settings, ensure_ascii=False),
@@ -475,7 +388,10 @@ def enforce_cc_switch_custom_bearer(
                 f"INSERT INTO providers ({','.join(insert_cols)}) VALUES ({','.join('?' for _ in insert_cols)})",
                 [values[col] for col in insert_cols],
             )
-        conn.execute("UPDATE providers SET is_current=0 WHERE app_type='codex' AND id<>?", (provider_id,))
+        conn.execute(
+            "UPDATE providers SET is_current=0 WHERE app_type='codex' AND id<>?",
+            (cc_switch_provider_id,),
+        )
         conn.commit()
         after = current_codex_providers(conn)
         status = "updated" if before != after else "already current"
@@ -500,13 +416,16 @@ def auth_summary(codex_home: Path) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Configure native Win11 Codex App for custom bearer-token usage."
+        description="Configure native Win11 Codex App for official ChatGPT token usage."
     )
     parser.add_argument("--codex-home", type=Path, default=default_codex_home())
     parser.add_argument("--cc-switch-db", type=Path, default=default_cc_switch_db())
     parser.add_argument("--provider-id", default=os.environ.get("CODEX_MODEL_PROVIDER_ID", DEFAULT_PROVIDER))
-    parser.add_argument("--base-url", default=os.environ.get("CODEX_CUSTOM_BASE_URL", DEFAULT_BASE_URL))
-    parser.add_argument("--bearer-token", default=None)
+    parser.add_argument(
+        "--cc-switch-provider-id",
+        default=os.environ.get("CODEX_CC_SWITCH_OFFICIAL_PROVIDER_ID", DEFAULT_CC_SWITCH_PROVIDER),
+    )
+    parser.add_argument("--base-url", default=os.environ.get("CODEX_CHATGPT_BASE_URL", DEFAULT_BASE_URL))
     parser.add_argument("--model", default=os.environ.get("CODEX_MODEL", "gpt-5.5"))
     parser.add_argument("--model-reasoning-effort", default=os.environ.get("CODEX_MODEL_REASONING_EFFORT", "high"))
     parser.add_argument("--service-tier", default=os.environ.get("CODEX_SERVICE_TIER", "priority"))
@@ -538,9 +457,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sandbox-mode", default=os.environ.get("CODEX_SANDBOX_MODE", "workspace-write"))
     parser.add_argument("--approvals-reviewer", default=os.environ.get("CODEX_APPROVALS_REVIEWER", "guardian_subagent"))
     parser.add_argument(
-        "--skip-cc-switch-custom",
+        "--skip-cc-switch-official",
         action="store_true",
-        help="Do not force cc-switch Codex current provider to the custom bearer-token provider.",
+        help="Do not make the official ChatGPT-token provider current in cc-switch.",
     )
     return parser.parse_args()
 
@@ -549,6 +468,8 @@ def main() -> int:
     args = parse_args()
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", args.provider_id):
         raise SystemExit(f"invalid provider id: {args.provider_id}")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", args.cc_switch_provider_id):
+        raise SystemExit(f"invalid cc-switch provider id: {args.cc_switch_provider_id}")
     if args.stream_idle_timeout_ms <= 0:
         raise SystemExit("--stream-idle-timeout-ms must be positive")
     if args.stream_max_retries <= 0:
@@ -563,12 +484,11 @@ def main() -> int:
     codex_home = args.codex_home.expanduser()
     cc_switch_db = args.cc_switch_db.expanduser()
     validate_win11_target_paths(codex_home, cc_switch_db)
-    bearer_token = resolve_bearer_token(codex_home, cc_switch_db, args.bearer_token)
+    chatgpt_auth = load_chatgpt_auth(codex_home)
     changed = patch_config(
         codex_home=codex_home,
         provider_id=args.provider_id,
         base_url=args.base_url,
-        bearer_token=bearer_token,
         model=args.model,
         reasoning_effort=args.model_reasoning_effort,
         service_tier=args.service_tier,
@@ -581,27 +501,26 @@ def main() -> int:
         sandbox_mode=args.sandbox_mode,
         approvals_reviewer=args.approvals_reviewer,
     )
-    auth_changed = patch_auth(codex_home)
     state = "updated" if changed else "already current"
-    auth_state = "updated" if auth_changed else "already current"
-    print(f"Win11 Codex bearer-token config {state}: {codex_home / 'config.toml'}")
+    print(f"Win11 Codex ChatGPT-token config {state}: {codex_home / 'config.toml'}")
     print(f"  provider bucket: {args.provider_id}")
     print(f"  base_url: {args.base_url}")
-    print("  experimental_bearer_token: configured")
-    print(f"Win11 Codex auth placeholder {auth_state}: {codex_home / 'auth.json'}")
+    print("  experimental_bearer_token: removed")
+    print(f"Win11 Codex auth preserved: {codex_home / 'auth.json'}")
     print(f"  {auth_summary(codex_home)}")
 
-    if not args.skip_cc_switch_custom:
-        result = enforce_cc_switch_custom_bearer(
+    if not args.skip_cc_switch_official:
+        result = enforce_cc_switch_official_chatgpt(
             cc_switch_db,
+            args.cc_switch_provider_id,
             args.provider_id,
             args.base_url,
-            bearer_token,
+            chatgpt_auth,
             args.model_context_window,
             args.model_auto_compact_token_limit,
             args.model_auto_compact_token_limit_scope,
         )
-        print(f"cc-switch Codex custom provider: {result.status}: {result.path}")
+        print(f"cc-switch Codex official provider: {result.status}: {result.path}")
         print(f"  current before: {result.current_before or 'none'}")
         print(f"  current after: {result.current_after or 'none'}")
     return 0

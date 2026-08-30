@@ -35,17 +35,15 @@
   switching does not fragment Codex resume history. Keep stream timeout/retry
   keys inside `[model_providers.custom]`; do not add them as top-level keys if
   the current standalone Codex CLI rejects them under `--strict-config`.
-- Native Win11 Codex App installs use the local custom bearer-token mode, not
-  the Linux/WSL `auth.OPENAI_API_KEY` provider mode and not the official
-  subscription backend. Keep history in the stable `custom` bucket. Write
-  `OPENAI_API_KEY = null` and `auth_mode = "chatgpt"` plus placeholder tokens in
-  `auth.json`; write the live credential as `experimental_bearer_token` in both
-  top-level `config.toml` and `[model_providers.custom]`; set
-  `base_url = "http://15.204.46.107:8080"`, `requires_openai_auth = true`,
-  `supports_websockets = true`, and `wire_api = "responses"`. Keep cc-switch's
-  current Codex provider on this same custom bearer-token provider so
-  reinstalling agent-tools or CC Switch cannot overwrite the working Win11
-  config with an unusable official/empty provider. Use `scripts/install-win11.ps1`
+- Native Win11 Codex App installs use the official ChatGPT subscription backend
+  with the real ChatGPT tokens already stored by Codex login. Keep history in
+  the stable `custom` bucket, keep `OPENAI_API_KEY = null` and
+  `auth_mode = "chatgpt"`, and never replace real tokens with placeholders.
+  Remove relay-only `experimental_bearer_token` settings; set
+  `base_url = "https://chatgpt.com/backend-api/codex"`,
+  `requires_openai_auth = true`, `supports_websockets = true`, and
+  `wire_api = "responses"`. Keep cc-switch's `codex-official` provider current
+  while retaining relay providers only as inactive alternatives. Use `scripts/install-win11.ps1`
   for this path. Never run the Win11 configurator against a Linux/WSL
   `~/.codex`; Win11 `CODEX_HOME`, `USERPROFILE`, and the CC Switch DB must all
   resolve to the same native Windows profile.

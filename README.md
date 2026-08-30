@@ -225,14 +225,15 @@ locations are separate:
   It also installs
   `C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1` and
   disables Codex App remote auto-connect by default for that Windows user.
-  Unlike Linux/WSL provider bootstraps, native Win11 Codex App uses a custom
-  bearer-token mode: `auth.json` keeps `auth_mode = "chatgpt"`,
-  `OPENAI_API_KEY = null`, and placeholder tokens; `config.toml` keeps
-  `model_provider = "custom"`, `base_url = "http://15.204.46.107:8080"`,
+  Native Win11 Codex App uses the official ChatGPT subscription backend:
+  `auth.json` must contain a real ChatGPT login with `auth_mode = "chatgpt"`
+  and `OPENAI_API_KEY = null`; `config.toml` keeps
+  `model_provider = "custom"`, `base_url = "https://chatgpt.com/backend-api/codex"`,
   `requires_openai_auth = true`, `supports_websockets = true`,
-  `wire_api = "responses"`, and the live credential in
-  `experimental_bearer_token`. The installer also keeps cc-switch's current
-  Codex provider on this same custom bearer-token provider. Use
+  and `wire_api = "responses"`, with no relay-only
+  `experimental_bearer_token`. The installer keeps cc-switch's
+  `codex-official` provider current and preserves other providers as inactive
+  alternatives. Use
   `-DryRunCodexProviderBucketMigration` to inspect history first, or
   `-AllowRunningCodexProviderBucketMigration` when running from inside an
   active Codex conversation.
@@ -249,7 +250,7 @@ read-only: it verifies the platform, Unix/Windows profile boundary, Codex
 provider shape, CC Switch database validation, and current provider without
 printing secrets.
 
-The standalone Fast-mode, SQLite-log, Win11 bearer-token, and provider-bucket
+The standalone Fast-mode, SQLite-log, Win11 ChatGPT-token, and provider-bucket
 scripts call the same guard themselves before writes. The guard therefore
 remains effective when a script is invoked outside `install.sh`; it is not a
 convention that callers may skip.

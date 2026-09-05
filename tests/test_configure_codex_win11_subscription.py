@@ -36,6 +36,9 @@ class ConfigureCodexWin11SubscriptionTests(unittest.TestCase):
                 model="gpt-5.5",
                 reasoning_effort="high",
                 service_tier="priority",
+                model_context_window=500000,
+                model_auto_compact_token_limit=430000,
+                model_auto_compact_token_limit_scope="total",
                 stream_idle_timeout_ms=1800000,
                 stream_max_retries=20,
                 approval_policy="on-request",
@@ -46,8 +49,25 @@ class ConfigureCodexWin11SubscriptionTests(unittest.TestCase):
             preamble, provider = text.split("[model_providers.custom]", 1)
             self.assertNotIn("stream_idle_timeout_ms", preamble)
             self.assertNotIn("stream_max_retries", preamble)
+            self.assertIn("model_context_window = 500000", preamble)
+            self.assertIn("model_auto_compact_token_limit = 430000", preamble)
+            self.assertIn('model_auto_compact_token_limit_scope = "total"', preamble)
             self.assertIn("stream_idle_timeout_ms = 1800000", provider)
             self.assertIn("stream_max_retries = 20", provider)
+
+    def test_cc_switch_provider_config_includes_context_defaults(self):
+        text = MODULE.cc_switch_provider_config(
+            "custom",
+            "Custom",
+            MODULE.DEFAULT_BASE_URL,
+            "secret",
+        )
+        self.assertIn("model_context_window = 500000", text)
+        self.assertIn("model_auto_compact_token_limit = 430000", text)
+        self.assertIn('model_auto_compact_token_limit_scope = "total"', text)
+        preamble, provider = text.split("[model_providers.custom]", 1)
+        self.assertIn("model_context_window", preamble)
+        self.assertNotIn("model_context_window", provider)
 
     def test_posix_rejects_wsl_profile_for_win11_script(self):
         if MODULE.os.name == "nt":

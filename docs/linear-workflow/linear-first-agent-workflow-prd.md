@@ -6,7 +6,7 @@
 - **产品负责人**：GongxunLi
 - **实现仓库**：`agent-tools`
 - **拟议产品名**：Linear Workflow
-- **替代对象**：`goal-plan`（进入 deprecated 兼容期）
+- **替代对象**：已移除的长任务规划流程
 
 ## 1. Executive summary
 
@@ -24,7 +24,7 @@
 
 ## 2. Problem statement
 
-现有 `goal-plan` 试图在一次长会话中同时解决目标冻结、任务规划、授权、实现、runtime ledger、review 和最终验收。实践中暴露出四类问题：
+旧长任务规划流程试图在一次长会话中同时解决目标冻结、任务规划、授权、实现、runtime ledger、review 和最终验收。实践中暴露出四类问题：
 
 1. **计划和执行没有真正分离**：同一个 Agent 可以解释目标、扩大实现范围、增加脚手架，再用自己生成的验证材料证明完成。
 2. **验证频率与交付单位错配**：每个叶子 Issue 都可能触发独立 commit、merge、完整 CI 和 review，多个紧密相关任务被拆成高成本串行流程。
@@ -60,11 +60,11 @@
 - 客户端只保留薄适配层：Skill、slash command、agent prompt 和安装目标路径。
 - Linux、WSL2 和 native Win11 使用同一发布版本，并通过安装后检查发现漂移。
 
-### G5. 平滑替代 `goal-plan`
+### G5. 不继承旧长任务流程
 
-- 新任务不再进入旧 Goal 生命周期。
-- 已经运行的 Goal 仍可读取和验证，不破坏历史记录。
-- 用户明确选择后，迁移工具将旧 Plan 映射成 Linear Project/Document/Issues；原 ledger 只归档和链接，不复制到新 PRD。
+- 新任务只从 Linear Workflow 的 Planning 或 Delivery 入口进入。
+- 已有历史记录只作为审计材料保留，不作为新任务的事实源。
+- 本产品不提供旧流程兼容入口、迁移向导或生命周期扩展。
 
 ## 4. Non-goals
 
@@ -352,7 +352,7 @@ test(relay): cover missing request ID propagation
 - 需要独立 cherry-pick 或 repo policy 要求 commit-level traceability 时，加入 `Linear-Batch: DRAGAI-120` 或 `Linear-Issue: DRAGAI-123` trailer。
 - 默认使用 squash merge，让一个 Batch 在每个 repo 的 main 历史中形成一个可追踪提交。只有 repo 的 `CONTRIBUTING.md` 明确要求保留完整 commit graph 时才覆盖该默认值。
 - 禁止用缺少 PR 的 direct-to-main commit 规避 Linear/CI gate。
-- 普通工作区继续使用开发者的人类 Git identity；Agent 作为协作者写入 `Co-Authored-By: Codex <noreply@openai.com>` 或 `Co-Authored-By: Claude <noreply@anthropic.com>`。本工作流不继承旧 `goal-plan` 的 agent-authored identity exception。
+- 普通工作区继续使用开发者的人类 Git identity；Agent 作为协作者写入 `Co-Authored-By: Codex <noreply@openai.com>` 或 `Co-Authored-By: Claude <noreply@anthropic.com>`。
 
 ### 7.5 Validation and review
 
@@ -532,7 +532,7 @@ linear-workflow doctor
 
 Python package、Unix console script 和 Windows launcher 统一使用 `linear-workflow`；子命令固定为 `plan-check`、`batch-check`、`pr-check`、`migrate` 和 `doctor`。
 
-实现前先把现有硬编码 `goal-plan` 的安装逻辑抽成 managed-package helper。helper 的输入至少包括 package name、version、runtime source、Codex targets、Claude targets、plugin registration 和 legacy policy；Linear Workflow 不复制第二套产品专用的备份、copy、marketplace、runtime 和 drift-check 函数。
+安装器应直接围绕当前受管组件实现复制、注册和 drift check。不要为了已经移除的旧流程保留兼容 helper、runtime 安装路径或 marketplace 注册分支。
 
 安装流程必须：
 
@@ -778,35 +778,29 @@ Agent 创建 GitHub Issues 并等待 sync 后，在 Linear App 中检查：
 
 这些文件由 Agent 产出并走正常 PR，不要求用户手工为十几个 repos 复制粘贴。用户必须人工决定 repo 是否正式采用该 gate，以及从哪一个 PR/日期开始 required。
 
-## 14. `goal-plan` deprecation and migration
+## 14. Removed Workflow Boundary
 
-### 14.1 Deprecation policy
+### 14.1 Removal policy
 
-- `goal-plan` 的 Skill description、slash command 和文档显示 `DEPRECATED`，并指向 `linear-plan` / `linear-deliver`。
-- 安装器默认不再为新环境安装 `goal-plan`；已有环境升级时保留兼容 runtime，除非用户显式清理。
-- 旧 Skill 不再因“长任务”“需要规划”等通用描述自动触发；只有用户明确要求维护或迁移既有 Goal 时才可调用。
-- `goal-plan-runtime validate-*` 保留只读兼容能力；不再新增通用 lifecycle feature。
-- 旧 Goal 目录和 ledger 不批量删除、不重写、不自动导入 Linear。
+- 仓库不发布旧长任务规划 skill、slash command、reviewer agent、runtime、plugin 或 CI。
+- 安装器不注册旧 marketplace/plugin，不复制旧 skill，不创建旧 runtime launcher。
+- 新文档不得把旧流程作为当前工作流、兼容层或迁移前置条件。
+- 历史审计材料保留在仓库外归档；active docs 只描述当前支持的流程。
 
-安装器用 managed marker 和既有 runtime 路径区分新安装与升级：
+安装器可以清理自身曾经管理的旧文件，但必须通过明确的 uninstall/cleanup 子命令和 managed marker 限定范围，不能删除未确认归属的用户文件。
 
-- 新环境默认安装 Linear Workflow，不注册 `goal-plan` marketplace/plugin；需要 legacy 工具时显式 opt in。
-- 已存在受管 `goal-plan` 的环境继续更新兼容 runtime 和原文件，但不把 deprecated plugin 重新注册为推荐入口。
-- `goal-plan-runtime init` 在兼容期默认拒绝创建新 Goal，并指向 `linear-plan`；只有显式 legacy override 才允许创建，且输出弃用警告。
-- 卸载 Linear Workflow 不删除旧 Goal artifacts、Linear 数据、MCP credential 或任何 repo 文件。
+卸载 Linear Workflow 不删除 Linear 数据、MCP credential 或任何 repo 文件。
 
-### 14.2 Migration mapping
+### 14.2 Historical records
 
-| Old artifact | New destination |
+| Historical artifact | Treatment |
 |---|---|
-| `plan.md` outcome/scope/AC | Linear PRD draft，经用户 review 后批准 |
-| milestones | Linear Issues、真实 dependencies 和 Batches |
-| runtime events | 原位置归档；Linear 只链接归档和迁移结论 |
-| findings | 未完成且仍有效的项转为 Linear Issue；其余保留历史 |
-| acceptance.md | 作为历史证据链接；新交付使用 PR/CI/review evidence |
-| reviewer prompt | 不迁移；由新 workflow 根据 PRD、Batch 和 candidate 生成 |
+| 旧计划文档 | 只读参考；新 PRD 从当前需求重新起草 |
+| 旧 runtime events | 仓库外归档；active workflow 不读取 |
+| 旧 findings | 人工判断仍有效后再创建新的 Linear Issue |
+| 旧 acceptance/reviews | 只作为历史证据；不自动转换成当前验收 |
 
-迁移命令必须默认 dry-run，输出对象映射和丢失信息；只有用户批准后才写 Linear。迁移不会把旧 `AUTO_ADVANCE` 授权带入新 Batch。
+cleanup 命令必须默认 dry-run，输出将删除的受管路径和保留的历史路径；只有用户批准后才写本机状态。
 
 ## 15. Rollout plan and implementation DAG
 
@@ -846,16 +840,16 @@ Agent 创建 GitHub Issues 并等待 sync 后，在 Linear App 中检查：
    - 输出：多个 Issues、一个 repo PR、一次 full CI、独立 review、Linear Done 状态。
    - 依赖：LW-7、LW-8。
 
-### Batch D — Distribution and deprecation
+### Batch D — Distribution and Cleanup
 
 10. **LW-10：接入 Linux/WSL/Win11 installer 与 drift check**
     - 输出：安装开关、target guard、isolated runtime、doctor、uninstall/upgrade tests。
     - 依赖：LW-4、LW-5、LW-7、LW-8。
-11. **LW-11：标记 `goal-plan` deprecated 并实现兼容安装策略**
-    - 输出：显式警告、默认安装变化、旧 runtime 保留策略、迁移说明。
+11. **LW-11：移除旧长任务规划发布路径**
+    - 输出：安装器不再复制旧 skill/plugin/runtime；active docs 不再引用旧流程；历史材料已归档。
     - 依赖：LW-9、LW-10。
-12. **LW-12：实现可选 migration dry-run**
-    - 输出：旧 artifacts → Linear object proposal，不自动写入。
+12. **LW-12：实现可选 cleanup dry-run**
+    - 输出：列出受管旧文件的本机清理计划，不自动删除。
     - 依赖：LW-11。
 
 依赖关系：
@@ -936,11 +930,11 @@ flowchart LR
 - When 安装或升级 Linear Workflow，
 - Then target guard 拒绝错误 profile，managed files 版本一致，credential 保持在目标机已有 secret storage，安装包和 repo 中不存在 live token。
 
-### AC-10：旧 Goal 可读但不再承接新任务
+### AC-10：旧流程不再承接新任务
 
-- Given 一台机器存在旧 `goal-plan` 和未完成 Goal，
+- Given 一台机器可能存在历史工作材料，
 - When 升级到新版本，
-- Then 旧 artifacts 与只读 validator 仍可用；创建新任务时客户端推荐 `linear-plan` / `linear-deliver`，不会静默进入旧 Goal lifecycle。
+- Then 安装器不会注册旧入口；创建新任务时客户端只推荐 `linear-plan` / `linear-deliver`；历史材料只作为只读审计输入。
 
 ### AC-11：`/goal` 默认关闭
 
@@ -1010,11 +1004,11 @@ flowchart LR
 | API/MCP 功能差异 | `LinearGateway` 归一化；contract tests 对相同 fixture 产生相同对象模型 |
 | 大 Project 再次变成长会话 | Delivery 每次只领取一个 Batch；完整 Project 只提供 context，不等于无限修改授权 |
 | Validator 越做越像平台 | v1 只提供 CLI/library/GitHub Action；无数据库、daemon、调度 UI |
-| 旧 Goal 被突然破坏 | deprecation 先警告后改默认；compat runtime 和原始 artifacts 保留 |
+| 历史材料被突然破坏 | cleanup 只作用于受管旧文件；未确认归属的历史材料只读保留 |
 
 ## 20. Release gates for this product
 
-Linear Workflow v1 只有在以下条件全部满足后才能替代默认 `goal-plan` 安装：
+Linear Workflow v1 只有在以下条件全部满足后才能成为默认安装：
 
 - 共享 schemas 与 validator fixtures 已版本化；
 - Codex 和 Claude Planning forward-test 均能写出等价 Linear 对象；
@@ -1031,4 +1025,4 @@ Linear Workflow v1 只有在以下条件全部满足后才能替代默认 `goal-
 - [Linear issue templates](https://linear.app/docs/issue-templates)
 - [Linear GitHub integration](https://linear.app/docs/github)
 - Existing local templates: `docs/linear-templates/`
-- Prior audit: `docs/long-horizon-audit/retrospective-and-prd.md`
+- Archived historical audit package: `/home/alex_mercer/projects/_artifacts/agent-tools/codex-remove-retired-workflow/history/retired-workflow-history-20260904.tar.gz`

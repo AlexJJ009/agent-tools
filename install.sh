@@ -21,10 +21,7 @@ FAIL2BAN_SSHD_FILTER="${FAIL2BAN_SSHD_FILTER:-sshd[mode=aggressive]}"
 FAIL2BAN_SSHD_BANACTION="${FAIL2BAN_SSHD_BANACTION:-iptables-multiport[blocktype=DROP]}"
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
-INSTALL_GOAL_PLAN=1
-# Native Win11 state is installed only through install-win11.ps1.  A WSL
-# installer must not copy Skills/plugins or mutate config beneath /mnt/c.
-GOAL_PLAN_INCLUDE_WSL_WINDOWS="${GOAL_PLAN_INCLUDE_WSL_WINDOWS:-never}"
+INSTALL_AGENT_WT=1
 INSTALL_CC_SWITCH_CLI_UPDATE="${INSTALL_CC_SWITCH_CLI_UPDATE:-1}"
 CC_SWITCH_UPDATE_PROXY_MODE="${CC_SWITCH_UPDATE_PROXY_MODE:-auto}"
 CC_SWITCH_UPDATE_CONNECT_TIMEOUT="${CC_SWITCH_UPDATE_CONNECT_TIMEOUT:-10}"
@@ -54,6 +51,9 @@ INSTALL_CLAUDE_DESKTOP_SSH="${INSTALL_CLAUDE_DESKTOP_SSH:-1}"
 CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS:-never}"
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-1800000}"
 CODEX_STREAM_MAX_RETRIES="${CODEX_STREAM_MAX_RETRIES:-20}"
+CODEX_MODEL_CONTEXT_WINDOW="${CODEX_MODEL_CONTEXT_WINDOW:-500000}"
+CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT="${CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT:-430000}"
+CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE="${CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE:-total}"
 CODEX_MODEL_PROVIDER_ID="${CODEX_MODEL_PROVIDER_ID:-custom}"
 CODEX_APPROVAL_POLICY="${CODEX_APPROVAL_POLICY:-on-request}"
 CODEX_SANDBOX_MODE="${CODEX_SANDBOX_MODE:-workspace-write}"
@@ -74,10 +74,9 @@ CODEX_PROXY_CONNECT_TIMEOUT="${CODEX_PROXY_CONNECT_TIMEOUT:-2}"
 CODEX_PROXY_MAX_TIME="${CODEX_PROXY_MAX_TIME:-6}"
 AGENT_CORE_DIR="${AGENT_CORE_HOME:-$HOME/agent-core}"
 INSTALL_AGENT_CORE_ENTRIES=1
-GOAL_PLAN_ONLY=0
 AGENT_CORE_ENTRIES_STATUS=""
-GOAL_PLAN_STATUS=""
 CODEX_PATCH_SAFETY_SKILL_STATUS=""
+AGENT_WT_STATUS=""
 LOCAL_BIN_PATH_STATUS=""
 CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS=""
 CLAUDE_DESKTOP_SSH_STATUS=""
@@ -930,7 +929,7 @@ normalize_cc_switch_codex_provider_templates() {
   fi
 
   select_python_bin
-  "$PYTHON_BIN" - "$db_path" "$CODEX_MODEL_PROVIDER_ID" <<'PY'
+  "$PYTHON_BIN" - "$db_path" "$CODEX_MODEL_PROVIDER_ID" "$CODEX_SERVICE_TIER" "$CODEX_MODEL_CONTEXT_WINDOW" "$CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT" "$CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE" <<'PY'
 import json
 import re
 import sqlite3
@@ -940,8 +939,22 @@ from pathlib import Path
 
 db_path = Path(sys.argv[1]).expanduser()
 target = sys.argv[2]
+service_tier = sys.argv[3]
+context_window = sys.argv[4]
+auto_compact_limit = sys.argv[5]
+auto_compact_scope = sys.argv[6]
 if not target or not re.fullmatch(r"[A-Za-z0-9_.-]+", target):
     raise SystemExit(f"invalid CODEX_MODEL_PROVIDER_ID: {target}")
+if service_tier not in {"auto", "default", "fast", "priority"}:
+    raise SystemExit(f"invalid CODEX_SERVICE_TIER: {service_tier}")
+if not context_window.isdigit() or int(context_window) <= 0:
+    raise SystemExit(f"invalid CODEX_MODEL_CONTEXT_WINDOW: {context_window}")
+if not auto_compact_limit.isdigit() or int(auto_compact_limit) <= 0:
+    raise SystemExit(f"invalid CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT: {auto_compact_limit}")
+if int(auto_compact_limit) >= int(context_window):
+    raise SystemExit("CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT must be lower than CODEX_MODEL_CONTEXT_WINDOW")
+if auto_compact_scope not in {"total", "body_after_prefix"}:
+    raise SystemExit(f"invalid CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE: {auto_compact_scope}")
 
 def section_path(line):
     stripped = line.strip()
@@ -951,6 +964,29 @@ def section_path(line):
 
 def normalize_config(text):
     lines = text.splitlines()
+    first_table = next(
+        (i for i, line in enumerate(lines) if section_path(line) is not None),
+        len(lines),
+    )
+    managed_top = {
+        "service_tier": f'"{service_tier}"',
+        "model_context_window": context_window,
+        "model_auto_compact_token_limit": auto_compact_limit,
+        "model_auto_compact_token_limit_scope": f'"{auto_compact_scope}"',
+    }
+    preamble = []
+    for line in lines[:first_table]:
+        if "=" in line and not line.strip().startswith("#"):
+            key = line.split("=", 1)[0].strip()
+            if key in managed_top:
+                continue
+        preamble.append(line)
+    while preamble and not preamble[-1].strip():
+        preamble.pop()
+    preamble.extend(f"{key} = {value}" for key, value in managed_top.items())
+    if first_table < len(lines):
+        preamble.append("")
+    lines = preamble + lines[first_table:]
     out = []
     in_model_provider = False
     in_target_provider = False
@@ -1338,24 +1374,37 @@ configure_codex_defaults() {
   local codex_config="${CODEX_HOME:-$HOME/.codex}/config.toml"
 
   select_python_bin
-  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" "$CODEX_MODEL_PROVIDER_ID" "$CODEX_APPROVAL_POLICY" "$CODEX_SANDBOX_MODE" "$CODEX_APPROVALS_REVIEWER" "$CODEX_MODEL" "$CODEX_MODEL_REASONING_EFFORT" "$CODEX_SERVICE_TIER" <<'PY'
+  "$PYTHON_BIN" - "$codex_config" "$CODEX_STREAM_IDLE_TIMEOUT_MS" "$CODEX_STREAM_MAX_RETRIES" "$CODEX_MODEL_CONTEXT_WINDOW" "$CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT" "$CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE" "$CODEX_MODEL_PROVIDER_ID" "$CODEX_APPROVAL_POLICY" "$CODEX_SANDBOX_MODE" "$CODEX_APPROVALS_REVIEWER" "$CODEX_MODEL" "$CODEX_MODEL_REASONING_EFFORT" "$CODEX_SERVICE_TIER" <<'PY'
 from pathlib import Path
 import sys
 
 path = Path(sys.argv[1]).expanduser()
 timeout = sys.argv[2]
 retries = sys.argv[3]
-provider_id = sys.argv[4]
-approval_policy = sys.argv[5]
-sandbox_mode = sys.argv[6]
-approvals_reviewer = sys.argv[7]
-model = sys.argv[8]
-model_reasoning_effort = sys.argv[9]
-service_tier = sys.argv[10]
+context_window = sys.argv[4]
+auto_compact_limit = sys.argv[5]
+auto_compact_scope = sys.argv[6]
+provider_id = sys.argv[7]
+approval_policy = sys.argv[8]
+sandbox_mode = sys.argv[9]
+approvals_reviewer = sys.argv[10]
+model = sys.argv[11]
+model_reasoning_effort = sys.argv[12]
+service_tier = sys.argv[13]
 if not timeout.isdigit() or int(timeout) <= 0:
     raise SystemExit(f"invalid CODEX_STREAM_IDLE_TIMEOUT_MS: {timeout}")
 if not retries.isdigit() or int(retries) <= 0:
     raise SystemExit(f"invalid CODEX_STREAM_MAX_RETRIES: {retries}")
+if not context_window.isdigit() or int(context_window) <= 0:
+    raise SystemExit(f"invalid CODEX_MODEL_CONTEXT_WINDOW: {context_window}")
+if not auto_compact_limit.isdigit() or int(auto_compact_limit) <= 0:
+    raise SystemExit(f"invalid CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT: {auto_compact_limit}")
+if int(auto_compact_limit) >= int(context_window):
+    raise SystemExit(
+        "CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT must be lower than CODEX_MODEL_CONTEXT_WINDOW"
+    )
+if auto_compact_scope not in {"total", "body_after_prefix"}:
+    raise SystemExit(f"invalid CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE: {auto_compact_scope}")
 if not provider_id or not all(c.isalnum() or c in "-_." for c in provider_id):
     raise SystemExit(f"invalid CODEX_MODEL_PROVIDER_ID: {provider_id}")
 ALLOWED_APPROVAL_POLICIES = {"on-request", "on-failure", "untrusted", "never"}
@@ -1388,6 +1437,9 @@ managed_top_level = {
     "disable_response_storage",
     "stream_idle_timeout_ms",
     "stream_max_retries",
+    "model_context_window",
+    "model_auto_compact_token_limit",
+    "model_auto_compact_token_limit_scope",
     "model_provider",
     "approval_policy",
     "sandbox_mode",
@@ -1413,8 +1465,9 @@ kept.append(f'approvals_reviewer = "{approvals_reviewer}"')
 kept.append(f'model = "{model}"')
 kept.append(f'model_reasoning_effort = "{model_reasoning_effort}"')
 kept.append(f'service_tier = "{service_tier}"')
-kept.append(f"stream_idle_timeout_ms = {timeout}")
-kept.append(f"stream_max_retries = {retries}")
+kept.append(f"model_context_window = {context_window}")
+kept.append(f"model_auto_compact_token_limit = {auto_compact_limit}")
+kept.append(f'model_auto_compact_token_limit_scope = "{auto_compact_scope}"')
 kept.append(f'model_provider = "{provider_id}"')
 
 provider_header = f"[model_providers.{provider_id}]"
@@ -1483,40 +1536,62 @@ while i < len(rest):
     i += 1
 rest = filtered_rest
 
-def _force_websockets(lines):
+def _force_target_provider_defaults(lines):
     updated = []
-    in_model_provider = False
     in_target_provider = False
     target_found = False
-    setting_found = False
+    seen = set()
+    provider_defaults = [
+        ("name", '"OpenAI WebSocket"'),
+        ("base_url", '"https://chatgpt.com/backend-api/codex"'),
+        ("requires_openai_auth", "true"),
+        ("supports_websockets", "true"),
+        ("wire_api", '"responses"'),
+        ("stream_idle_timeout_ms", timeout),
+        ("stream_max_retries", retries),
+    ]
+    managed_provider_keys = {key for key, _ in provider_defaults}
+
+    def append_missing_defaults():
+        if not in_target_provider:
+            return
+        while updated and not updated[-1].strip():
+            updated.pop()
+        for key, value in provider_defaults:
+            if key not in seen:
+                updated.append(f"{key} = {value}")
 
     for line in lines:
         path = _toml_section_path(line)
         if path:
-            if in_model_provider and not setting_found:
-                updated.append("supports_websockets = true")
+            append_missing_defaults()
             parts = path.split(".")
-            in_model_provider = len(parts) == 2 and parts[0] == "model_providers"
-            if in_model_provider:
-                if parts[1] == provider_id:
-                    target_found = True
-                setting_found = False
+            in_target_provider = (
+                len(parts) == 2
+                and parts[0] == "model_providers"
+                and parts[1] == provider_id
+            )
+            if in_target_provider:
+                target_found = True
+                seen = set()
 
-        if in_model_provider:
+        if in_target_provider:
             stripped = line.strip()
             key = stripped.split("=", 1)[0].strip() if "=" in stripped else None
-            if key == "supports_websockets":
-                line = "supports_websockets = true"
-                setting_found = True
+            if key in managed_provider_keys:
+                if key not in seen:
+                    value = dict(provider_defaults)[key]
+                    updated.append(f"{key} = {value}")
+                    seen.add(key)
+                continue
 
         updated.append(line)
 
-    if in_model_provider and not setting_found:
-        updated.append("supports_websockets = true")
+    append_missing_defaults()
 
     return updated, target_found
 
-rest, has_target_model_provider = _force_websockets(rest)
+rest, has_target_model_provider = _force_target_provider_defaults(rest)
 
 if rest:
     kept.append("")
@@ -1531,6 +1606,7 @@ if not has_target_model_provider and not has_third_party_model_provider:
         'base_url = "https://chatgpt.com/backend-api/codex"',
         "requires_openai_auth = true",
         "supports_websockets = true",
+        'wire_api = "responses"',
         f"stream_idle_timeout_ms = {timeout}",
         f"stream_max_retries = {retries}",
     ])
@@ -2016,10 +2092,34 @@ backup_and_link() {
       backup="${target}.backup-${timestamp}"
     fi
     mv "$target" "$backup"
-    echo "Backed up existing goal-plan target: $backup"
+    echo "Backed up existing managed target: $backup"
   fi
 
   ln -s "$source" "$target"
+}
+
+install_agent_wt() {
+  local launcher_source="$INSTALL_REAL/bin/agent-wt"
+  local skill_source="$INSTALL_REAL/skills/manage-worktrees"
+  local launcher_target="${AGENT_WT_PATH:-$HOME/.local/bin/agent-wt}"
+  local codex_skill_target="${CODEX_HOME:-$HOME/.codex}/skills/manage-worktrees"
+  local claude_skill_target="$HOME/.claude/skills/manage-worktrees"
+
+  if [[ ! -x "$launcher_source" ]]; then
+    AGENT_WT_STATUS="failed: missing executable $launcher_source"
+    echo "agent-wt not installed: missing executable $launcher_source" >&2
+    return 1
+  fi
+  if [[ ! -f "$skill_source/SKILL.md" || ! -x "$skill_source/scripts/agent_wt.py" ]]; then
+    AGENT_WT_STATUS="failed: incomplete Skill at $skill_source"
+    echo "agent-wt not installed: incomplete Skill at $skill_source" >&2
+    return 1
+  fi
+
+  backup_and_link "$launcher_source" "$launcher_target"
+  backup_and_link "$skill_source" "$codex_skill_target"
+  backup_and_link "$skill_source" "$claude_skill_target"
+  AGENT_WT_STATUS="$launcher_target; Codex=$codex_skill_target; Claude=$claude_skill_target"
 }
 
 install_codex_patch_safety_skill() {
@@ -2071,7 +2171,7 @@ backup_and_copy_managed() {
         timestamp="$(date +%Y%m%d-%H%M%S)"
         backup="${target}.backup-${timestamp}"
         mv "$target" "$backup"
-        echo "Backed up existing goal-plan target: $backup"
+        echo "Backed up existing managed target: $backup"
       fi
     fi
     cp -R "$source" "$target"
@@ -2087,296 +2187,12 @@ backup_and_copy_managed() {
         timestamp="$(date +%Y%m%d-%H%M%S)"
         backup="${target}.backup-${timestamp}"
         mv "$target" "$backup"
-        echo "Backed up existing goal-plan target: $backup"
+        echo "Backed up existing managed target: $backup"
       fi
     fi
     cp "$source" "$target"
     printf 'managed by agent-tools install.sh\n' > "$marker"
   fi
-}
-
-install_codex_personal_marketplace_goal_plan() {
-  local home_dir="${1:-$HOME}"
-  local marketplace="$home_dir/.agents/plugins/marketplace.json"
-  local plugin_path="./plugins/goal-plan"
-
-  mkdir -p "$(dirname "$marketplace")"
-  select_python_bin
-  "$PYTHON_BIN" - "$marketplace" "$plugin_path" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-path = Path(sys.argv[1]).expanduser()
-plugin_path = sys.argv[2]
-
-data = {}
-if path.exists():
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        backup = path.with_name(path.name + ".invalid-backup")
-        backup.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
-        data = {}
-
-data.setdefault("name", "personal")
-data.setdefault("interface", {}).setdefault("displayName", "Personal")
-plugins = data.setdefault("plugins", [])
-plugins = [plugin for plugin in plugins if plugin.get("name") != "goal-plan"]
-plugins.append({
-    "name": "goal-plan",
-    "source": {
-        "source": "local",
-        "path": plugin_path,
-    },
-    "policy": {
-        "installation": "AVAILABLE",
-        "authentication": "ON_INSTALL",
-    },
-    "category": "Developer Tools",
-})
-data["plugins"] = plugins
-
-path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
-path.chmod(0o600)
-PY
-}
-
-install_codex_goal_plan_prompt() {
-  local source_root="$1"
-  local codex_home="${2:-${CODEX_HOME:-$HOME/.codex}}"
-  local source="$source_root/codex/plugins/goal-plan/commands/goal-plan.md"
-  local target="$codex_home/prompts/goal-plan.md"
-
-  if [[ ! -f "$source" ]]; then
-    echo "goal-plan Codex prompt not installed: missing $source" >&2
-    return 1
-  fi
-
-  # Codex CLI custom slash commands are loaded from ~/.codex/prompts/*.md.
-  # Plugin commands are available to app/plugin surfaces, but CLI 0.142.x does
-  # not expose plugin commands as top-level slash commands.
-  backup_and_copy_managed "$source" "$target"
-}
-
-install_goal_plan_for_windows_home() {
-  local win_home="$1"
-  local source_root="$2"
-  local plugin_version="0.2.0"
-
-  backup_and_copy_managed "$source_root/claude/skills/goal-plan" "$win_home/.claude/skills/goal-plan"
-  backup_and_copy_managed "$source_root/claude/commands/goal-plan.md" "$win_home/.claude/commands/goal-plan.md"
-  backup_and_copy_managed "$source_root/claude/agents/goal-plan-reviewer.md" "$win_home/.claude/agents/goal-plan-reviewer.md"
-
-  backup_and_copy_managed "$source_root/codex/skills/goal-plan" "$win_home/.codex/skills/goal-plan"
-  backup_and_copy_managed "$source_root/codex/plugins/goal-plan" "$win_home/plugins/goal-plan"
-  backup_and_copy_managed "$source_root/codex/plugins/goal-plan" "$win_home/.codex/plugins/cache/personal/goal-plan/$plugin_version"
-  install_codex_goal_plan_prompt "$source_root" "$win_home/.codex"
-  install_codex_personal_marketplace_goal_plan "$win_home"
-}
-
-install_goal_plan_for_wsl_windows_homes() {
-  local source_root="$1"
-  local users_dir="/mnt/c/Users"
-  local user_home installed=0
-
-  case "$GOAL_PLAN_INCLUDE_WSL_WINDOWS" in
-    auto)
-      return 0
-      ;;
-    always)
-      if grep -qi microsoft /proc/version 2>/dev/null; then
-        echo "refusing WSL-to-Win11 Skill installation; run scripts/install-win11.ps1 from native Windows instead" >&2
-        return 2
-      fi
-      if [[ ! -d "$users_dir" ]]; then
-        echo "goal-plan Win11 install skipped: $users_dir not found" >&2
-        return 1
-      fi
-      ;;
-    never)
-      return 0
-      ;;
-    *)
-      echo "invalid goal-plan WSL-Windows mode: $GOAL_PLAN_INCLUDE_WSL_WINDOWS (expected auto|always|never)" >&2
-      exit 2
-      ;;
-  esac
-
-  shopt -s nullglob
-  for user_home in "$users_dir"/*; do
-    case "$(basename "$user_home")" in
-      "All Users"|"CodexSandboxOffline"|"Default"|"Default User"|"Public"|"desktop.ini")
-        continue
-        ;;
-    esac
-    if [[ ! -w "$user_home" ]]; then
-      continue
-    fi
-    if [[ -d "$user_home/.codex" || -d "$user_home/.claude" ]]; then
-      install_goal_plan_for_windows_home "$user_home" "$source_root"
-      echo "goal-plan Win11 user install: $user_home"
-      installed=1
-    fi
-  done
-  shopt -u nullglob
-
-  if [[ "$installed" -eq 0 && "$GOAL_PLAN_INCLUDE_WSL_WINDOWS" == "always" ]]; then
-    echo "goal-plan Win11 install skipped: no Windows user with .codex or .claude found" >&2
-    return 1
-  fi
-}
-
-# Single source of truth for the goal-plan managed copies. Both the installer
-# and --check iterate this list, so a new copy target cannot be added to one
-# without the other seeing it.
-goal_plan_managed_pairs() {
-  local source_root="$1"
-  local codex_home="${CODEX_HOME:-$HOME/.codex}"
-  local plugin_version="0.2.0"
-  printf '%s\t%s\n' \
-    "$source_root/claude/skills/goal-plan" "$HOME/.claude/skills/goal-plan" \
-    "$source_root/claude/commands/goal-plan.md" "$HOME/.claude/commands/goal-plan.md" \
-    "$source_root/claude/agents/goal-plan-reviewer.md" "$HOME/.claude/agents/goal-plan-reviewer.md" \
-    "$source_root/codex/skills/goal-plan" "$codex_home/skills/goal-plan" \
-    "$source_root/codex/plugins/goal-plan" "$HOME/plugins/goal-plan" \
-    "$source_root/codex/plugins/goal-plan" "$codex_home/plugins/cache/personal/goal-plan/$plugin_version" \
-    "$source_root/codex/plugins/goal-plan/commands/goal-plan.md" "${CODEX_HOME:-$HOME/.codex}/prompts/goal-plan.md"
-}
-
-# uv on native Windows (Git Bash/MSYS, not WSL) lays out venvs as
-# Scripts/*.exe + Lib/site-packages instead of POSIX bin/* + lib/pythonX/
-# site-packages. Sets GOAL_PLAN_VENV_BINDIR, GOAL_PLAN_VENV_EXE,
-# GOAL_PLAN_VENV_SITE_GLOB so the runtime install and drift check use the
-# right paths on every platform.
-_goal_plan_venv_paths() {
-  case "$(uname -s 2>/dev/null || true)" in
-    MINGW*|MSYS*|CYGWIN*)
-      GOAL_PLAN_VENV_BINDIR="Scripts"
-      GOAL_PLAN_VENV_EXE=".exe"
-      GOAL_PLAN_VENV_SITE_GLOB="Lib/site-packages"
-      ;;
-    *)
-      GOAL_PLAN_VENV_BINDIR="bin"
-      GOAL_PLAN_VENV_EXE=""
-      GOAL_PLAN_VENV_SITE_GLOB="lib/python*/site-packages"
-      ;;
-  esac
-}
-
-# Byte-compare every managed goal-plan copy (and the runtime venv's installed
-# cli.py) against the source tree. Exit 0 only when everything is in sync.
-check_goal_plan_drift() {
-  local source_root="$1"
-  local drift=0 src dst
-  if [[ ! -d "$source_root" ]]; then
-    echo "CHECK: missing source tree $source_root" >&2
-    return 1
-  fi
-  while IFS=$'\t' read -r src dst; do
-    if [[ ! -e "$dst" ]]; then
-      echo "DRIFT: $dst is missing (source: $src)"
-      drift=1
-    elif [[ -d "$src" ]]; then
-      if ! diff -r -q -x '.agent-tools-managed' -x 'migrated-command-skills' "$src" "$dst" >/dev/null; then
-        echo "DRIFT: $dst differs from $src"
-        drift=1
-      fi
-    elif ! cmp -s "$src" "$dst"; then
-      echo "DRIFT: $dst differs from $src"
-      drift=1
-    fi
-  done < <(goal_plan_managed_pairs "$source_root")
-  local runtime_home="${GOAL_PLAN_RUNTIME_HOME:-$HOME/.local/share/goal-plan/runtime}"
-  _goal_plan_venv_paths
-  local installed_cli
-  installed_cli="$(compgen -G "$runtime_home/.venv/$GOAL_PLAN_VENV_SITE_GLOB/goal_plan_runtime/cli.py" | head -1 || true)"
-  if [[ -z "$installed_cli" ]]; then
-    echo "DRIFT: runtime venv has no installed goal_plan_runtime/cli.py under $runtime_home"
-    drift=1
-  elif ! cmp -s "$source_root/runtime/src/goal_plan_runtime/cli.py" "$installed_cli"; then
-    echo "DRIFT: runtime venv cli.py differs from source (source edited without reinstall, or vice versa)"
-    drift=1
-  fi
-  if [[ "$drift" -eq 0 ]]; then
-    echo "goal-plan managed copies: in sync"
-  fi
-  return "$drift"
-}
-
-install_goal_plan_tools() {
-  GOAL_PLAN_STATUS="skipped"
-
-  local source_root="$INSTALL_REAL/goal_plan"
-  local codex_home="${CODEX_HOME:-$HOME/.codex}"
-  local plugin_version="0.2.0"
-  if [[ ! -d "$source_root" ]]; then
-    GOAL_PLAN_STATUS="absent: no $source_root"
-    echo "goal-plan tools not installed: missing $source_root" >&2
-    return 0
-  fi
-
-  # The Codex CLI prompt copy is included in the pair list (CLI 0.142.x loads
-  # slash commands from ~/.codex/prompts/*.md, not from plugin commands).
-  local src dst
-  while IFS=$'\t' read -r src dst; do
-    backup_and_copy_managed "$src" "$dst"
-  done < <(goal_plan_managed_pairs "$source_root")
-  install_codex_personal_marketplace_goal_plan "$HOME"
-  install_goal_plan_for_wsl_windows_homes "$source_root"
-
-  local runtime_source="$source_root/runtime"
-  local runtime_home="${GOAL_PLAN_RUNTIME_HOME:-$HOME/.local/share/goal-plan/runtime}"
-  local runtime_bin="${GOAL_PLAN_RUNTIME_BIN:-$HOME/.local/bin/goal-plan-runtime}"
-  if [[ ! -f "$runtime_source/pyproject.toml" ]]; then
-    echo "goal-plan runtime not installed: missing $runtime_source/pyproject.toml" >&2
-    return 1
-  fi
-  if ! command -v uv >/dev/null 2>&1; then
-    echo "goal-plan runtime requires uv on PATH; install uv and rerun install.sh" >&2
-    return 1
-  fi
-  mkdir -p "$runtime_home" "$(dirname "$runtime_bin")"
-  _goal_plan_venv_paths
-  uv venv --clear --python 3.12 "$runtime_home/.venv" >/dev/null
-  uv pip install --python "$runtime_home/.venv/$GOAL_PLAN_VENV_BINDIR/python$GOAL_PLAN_VENV_EXE" "$runtime_source" >/dev/null
-  cat >"$runtime_bin" <<EOF
-#!/usr/bin/env bash
-exec "$runtime_home/.venv/$GOAL_PLAN_VENV_BINDIR/goal-plan-runtime$GOAL_PLAN_VENV_EXE" "\$@"
-EOF
-  chmod 0755 "$runtime_bin"
-
-  if command -v codex >/dev/null 2>&1; then
-    if codex plugin add goal-plan@personal >/dev/null 2>&1; then
-      GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin/prompt + isolated uv runtime; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
-    else
-      GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin/prompt; codex plugin add failed; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
-      echo "goal-plan Codex plugin cache installed, but 'codex plugin add goal-plan@personal' failed." >&2
-    fi
-  else
-    GOAL_PLAN_STATUS="installed: Claude /goal-plan + Codex skill/plugin/prompt; codex not on PATH; wsl_windows=${GOAL_PLAN_INCLUDE_WSL_WINDOWS}"
-    echo "goal-plan Codex plugin cache installed; codex is not on PATH, so plugin add was skipped." >&2
-  fi
-}
-
-install_goal_plan_only() {
-  local source_real install_real
-  source_real="$(cd -- "$SOURCE_DIR" && pwd -P)"
-  mkdir -p "$INSTALL_DIR"
-  install_real="$(cd -- "$INSTALL_DIR" && pwd -P)"
-  if [[ "$source_real" != "$install_real" ]]; then
-    if [[ -e "$install_real/goal_plan" ]]; then
-      echo "goal-plan-only refuses to replace existing target: $install_real/goal_plan" >&2
-      echo "Use the default source install or move the target aside explicitly." >&2
-      return 1
-    fi
-    cp -R "$SOURCE_DIR/goal_plan" "$install_real/goal_plan"
-  fi
-  configure_local_bin_path
-  INSTALL_REAL="$install_real"
-  run_codex_target_guard before
-  install_goal_plan_tools
-  printf '%s\n' "$GOAL_PLAN_STATUS"
 }
 
 start_codex_remote_control() {
@@ -2477,7 +2293,6 @@ usage() {
   cat <<'EOF'
 Usage:
   install.sh [options]
-  install.sh --goal-plan-only
 
 Options:
   --install-dir PATH       Install/copy tools to PATH. Default: this directory.
@@ -2490,21 +2305,16 @@ Options:
   --mode VALUE             symlink|copy. Default: symlink.
   --no-codex-config        Do not patch Codex default config (approval policy,
                            sandbox mode, approvals reviewer, model + reasoning
-                           effort, stream timeout/retry, model provider,
-                           [features] block).
+                           effort, context window / auto compact threshold,
+                           stream timeout/retry, model provider, [features] block).
   --no-fail2ban-hardening  Do not install or harden fail2ban sshd protection.
                            Auto mode runs on ordinary Linux sshd hosts, installs
                            fail2ban when missing, and sets sshd to aggressive
                            matching, 3 failures within 1 hour, permanent ban,
                            DROP, and loopback-only ignoreip.
   --no-codex-here          Do not install ~/.local/bin/codex-here.
-  --no-goal-plan           Do not install user-level goal-plan tools
-                           (Claude /goal-plan + reviewer, Codex skill/plugin/prompt).
-  --goal-plan-only         Install only the user-level goal-plan copies and
-                           isolated runtime, then exit. Do not configure other tools.
-  --goal-plan-wsl-windows MODE
-                           Also install goal-plan into Win11 Codex/Claude homes
-                           when running from WSL: auto|always|never. Default: never.
+  --no-agent-wt            Do not install the agent-wt launcher or
+                           manage-worktrees Skill for Codex and Claude.
   --no-cc-switch-update    Do not update cc-switch-cli from the latest GitHub
                            release before Codex provider migration.
   --cc-switch-update-proxy MODE
@@ -2578,19 +2388,14 @@ Options:
   --registry-init-db       Initialize the local registry DB if missing.
   --no-cron                Write config but do not install crontab entry.
   --no-agent-core          Do not auto-verify or run ~/agent-core/scripts/install.sh.
-  --check                  Install nothing. Byte-compare the goal-plan managed
-                           copies (and the runtime venv cli.py) against the
-                           source tree; exit 1 on any drift.
+  --check                  Install nothing. Byte-compare managed skill copies
+                           against the source tree; exit 1 on any drift.
   -h, --help               Show this help.
 EOF
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --goal-plan-only)
-      GOAL_PLAN_ONLY=1
-      shift
-      ;;
     --install-dir)
       INSTALL_DIR="$2"
       shift 2
@@ -2639,13 +2444,9 @@ while [[ $# -gt 0 ]]; do
       INSTALL_CODEX_HERE=0
       shift
       ;;
-    --no-goal-plan)
-      INSTALL_GOAL_PLAN=0
+    --no-agent-wt)
+      INSTALL_AGENT_WT=0
       shift
-      ;;
-    --goal-plan-wsl-windows)
-      GOAL_PLAN_INCLUDE_WSL_WINDOWS="$2"
-      shift 2
       ;;
     --no-cc-switch-update)
       INSTALL_CC_SWITCH_CLI_UPDATE=0
@@ -2777,18 +2578,12 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$GOAL_PLAN_ONLY" -eq 1 ]]; then
-  install_goal_plan_only
-  exit 0
-fi
-
 if [[ ${#SCAN_ROOTS[@]} -eq 0 ]]; then
   SCAN_ROOTS+=("$(pwd)")
 fi
 
 if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
   SOURCE_REAL="$(cd "$SOURCE_DIR" && pwd -P)"
-  check_goal_plan_drift "$SOURCE_REAL/goal_plan"
   check_codex_patch_safety_skill_drift "$SOURCE_REAL"
   exit "$?"
 fi
@@ -2808,7 +2603,6 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   [[ -f "$SOURCE_DIR/README.md" ]] && cp "$SOURCE_DIR/README.md" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/docs" ]] && cp -R "$SOURCE_DIR/docs" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/experiment_registry" ]] && cp -R "$SOURCE_DIR/experiment_registry" "$INSTALL_REAL/"
-  [[ -d "$SOURCE_DIR/goal_plan" ]] && cp -R "$SOURCE_DIR/goal_plan" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/skills" ]] && cp -R "$SOURCE_DIR/skills" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/agent_context_sync.config.example.json" ]] && cp "$SOURCE_DIR/agent_context_sync.config.example.json" "$INSTALL_REAL/"
 fi
@@ -2838,6 +2632,12 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   normalize_cc_switch_codex_provider_templates
   sync_codex_config_from_cc_switch_current
   normalize_codex_provider_auth
+  # cc-switch provider switch may overwrite config.toml with a provider
+  # template that predates current Agent Tools defaults. Re-apply Codex
+  # defaults after the sync so the final file always contains the managed
+  # context, provider, stream, and feature settings.
+  configure_codex_defaults
+  normalize_codex_provider_auth
   configure_codex_features
   configure_codex_app_fast_mode
   check_codex_fast_mode
@@ -2855,10 +2655,9 @@ if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
   verify_agent_core_entries
 fi
 install_codex_patch_safety_skill
-if [[ "$INSTALL_GOAL_PLAN" -eq 1 ]]; then
-  install_goal_plan_tools
+if [[ "$INSTALL_AGENT_WT" -eq 1 ]]; then
+  install_agent_wt
 fi
-
 select_python_bin
 
 "$PYTHON_BIN" - "$INSTALL_REAL/agent_context_sync.config.json" "$MAX_DEPTH" "$SCOPE" "$DIRECTION" "$PREFER" "$MODE" "${SCAN_ROOTS[@]}" <<'PY'
@@ -2923,6 +2722,8 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex approvals reviewer: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_APPROVALS_REVIEWER}"
   echo "Codex model: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL} (reasoning: ${CODEX_MODEL_REASONING_EFFORT})"
   echo "Codex service tier: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_SERVICE_TIER}"
+  echo "Codex context window: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_CONTEXT_WINDOW}"
+  echo "Codex auto compact token limit: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT} (${CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE})"
   echo "Codex stream idle timeout: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_IDLE_TIMEOUT_MS} ms"
   echo "Codex stream max retries: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_MAX_RETRIES}"
   echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (WebSocket enabled)"
@@ -2955,6 +2756,11 @@ if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then
 else
   echo "codex-here not installed (--no-codex-here)."
 fi
+if [[ "$INSTALL_AGENT_WT" -eq 1 ]]; then
+  echo "agent-wt: $AGENT_WT_STATUS"
+else
+  echo "agent-wt not installed (--no-agent-wt)."
+fi
 if [[ "$INSTALL_CRON" -eq 1 ]]; then
   echo "Cron: $SCHEDULE $INSTALL_REAL/sync_agent_context_cron.sh"
 else
@@ -2969,10 +2775,5 @@ if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
   echo "agent-core entries ($AGENT_CORE_DIR): ${AGENT_CORE_ENTRIES_STATUS}"
 else
   echo "agent-core entries not checked (--no-agent-core)."
-fi
-if [[ "$INSTALL_GOAL_PLAN" -eq 1 ]]; then
-  echo "goal-plan tools: ${GOAL_PLAN_STATUS}"
-else
-  echo "goal-plan tools not installed (--no-goal-plan)."
 fi
 echo "Codex Win11 patch safety skill: ${CODEX_PATCH_SAFETY_SKILL_STATUS}"

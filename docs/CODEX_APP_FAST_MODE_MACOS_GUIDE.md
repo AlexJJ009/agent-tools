@@ -140,7 +140,6 @@ Use a narrower install if only the Fast config should be patched:
 ./install.sh --root "$HOME" --max-depth 1 \
   --no-codex-config \
   --no-codex-here \
-  --no-goal-plan \
   --no-cc-switch-update \
   --no-codex-remote-control \
   --no-registry \

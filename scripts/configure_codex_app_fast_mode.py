@@ -20,6 +20,10 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from codex_target_guard import GateFailure, validate_write_target
 
+DEFAULT_MODEL_CONTEXT_WINDOW = 500000
+DEFAULT_MODEL_AUTO_COMPACT_TOKEN_LIMIT = 430000
+DEFAULT_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE = "total"
+
 
 def split_key(line):
     stripped = line.strip()
@@ -52,23 +56,36 @@ def compact_blank_lines(lines):
     return out
 
 
-def patch_config(path, service_tier, fast_mode):
+def patch_config(
+    path,
+    service_tier,
+    fast_mode,
+    model_context_window=DEFAULT_MODEL_CONTEXT_WINDOW,
+    model_auto_compact_token_limit=DEFAULT_MODEL_AUTO_COMPACT_TOKEN_LIMIT,
+    model_auto_compact_token_limit_scope=DEFAULT_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE,
+):
     path = path.expanduser()
     path.parent.mkdir(parents=True, exist_ok=True)
     text = path.read_text(encoding="utf-8") if path.exists() else ""
     lines = text.splitlines()
 
     first_table = next((i for i, line in enumerate(lines) if is_table(line)), len(lines))
-    preamble = [line for line in lines[:first_table] if split_key(line) != "service_tier"]
+    managed_top = {
+        "service_tier": quote_value(service_tier),
+        "model_context_window": str(model_context_window),
+        "model_auto_compact_token_limit": str(model_auto_compact_token_limit),
+        "model_auto_compact_token_limit_scope": quote_value(model_auto_compact_token_limit_scope),
+    }
+    preamble = [
+        line for line in lines[:first_table] if split_key(line) not in set(managed_top)
+    ]
 
     insert_at = len(preamble)
     while insert_at > 0 and not preamble[insert_at - 1].strip():
         insert_at -= 1
-    preamble = (
-        preamble[:insert_at]
-        + [f"service_tier = {quote_value(service_tier)}"]
-        + preamble[insert_at:]
-    )
+    preamble = preamble[:insert_at] + [
+        f"{key} = {value}" for key, value in managed_top.items()
+    ] + preamble[insert_at:]
 
     out = preamble + lines[first_table:]
     features_idx = None
@@ -171,11 +188,46 @@ def parse_args():
         default=os.environ.get("CODEX_FEATURE_FAST_MODE", "true"),
         choices=["true", "false"],
     )
+    parser.add_argument(
+        "--model-context-window",
+        type=int,
+        default=int(os.environ.get("CODEX_MODEL_CONTEXT_WINDOW", str(DEFAULT_MODEL_CONTEXT_WINDOW))),
+    )
+    parser.add_argument(
+        "--model-auto-compact-token-limit",
+        type=int,
+        default=int(
+            os.environ.get(
+                "CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT",
+                str(DEFAULT_MODEL_AUTO_COMPACT_TOKEN_LIMIT),
+            )
+        ),
+    )
+    parser.add_argument(
+        "--model-auto-compact-token-limit-scope",
+        default=os.environ.get(
+            "CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE",
+            DEFAULT_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE,
+        ),
+        choices=["total", "body_after_prefix"],
+    )
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
+    if args.model_context_window <= 0:
+        print("CODEX_TARGET_GUARD=RED: --model-context-window must be positive", file=sys.stderr)
+        return 2
+    if args.model_auto_compact_token_limit <= 0:
+        print("CODEX_TARGET_GUARD=RED: --model-auto-compact-token-limit must be positive", file=sys.stderr)
+        return 2
+    if args.model_auto_compact_token_limit >= args.model_context_window:
+        print(
+            "CODEX_TARGET_GUARD=RED: --model-auto-compact-token-limit must be lower than --model-context-window",
+            file=sys.stderr,
+        )
+        return 2
     homes = list(args.codex_home) if args.codex_home else [default_codex_home()]
 
     if args.include_wsl_windows:
@@ -206,7 +258,14 @@ def main():
     # profile before rejecting the mounted Windows profile.
     for home in targets:
         config = home / "config.toml"
-        changed = patch_config(config, args.service_tier, args.fast_mode)
+        changed = patch_config(
+            config,
+            args.service_tier,
+            args.fast_mode,
+            args.model_context_window,
+            args.model_auto_compact_token_limit,
+            args.model_auto_compact_token_limit_scope,
+        )
         state = "updated" if changed else "already current"
         print(f"Codex App/CLI Fast config {state}: {config}")
         print(f"  {auth_summary(home)}")

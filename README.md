@@ -17,16 +17,22 @@ The recommended deployment model is one central tool directory per machine, not 
   can import Claude Code auto memory.
 - `bin/codex-here` — portable launcher that starts Codex with the current shell
   directory pinned via `codex -C "$PWD"`.
+- `bin/agent-wt` — standard-library CLI for deciding between a branch,
+  managed worktree, or separate clone and for creating/auditing agent-safe
+  server workspaces.
 - `migrate_codex_provider_bucket.py` — Codex history and cc-switch template
   migration that forces every non-target Codex provider bucket into `custom`.
 - `skills/codex-win11-patch-safety/` — discoverable, versioned Win11 ChatGPT
   Codex patch workflow with protected-state snapshots, external config
   dependency checks, exact release selection, and human activation gates.
+- `skills/manage-worktrees/` — Coding Agent workflow plus the `agent-wt` CLI
+  for worktree admission, mount-aware layout, cache/artifact planning,
+  registry records, and doctor checks.
 - `install.sh` — portable installer for a new Linux/WSL2 machine.
 - `scripts/install-win11.ps1` — native Win11 installer for the current Windows
-  user. It installs goal-plan, configures Codex App to use the subscription
-  backed `custom` history bucket, enables the SQLite log guard, and migrates
-  existing Codex history into that bucket.
+  user. It configures Codex App to use the subscription backed `custom`
+  history bucket, enables the SQLite log guard, and migrates existing Codex
+  history into that bucket.
 - `scripts/configure_codex_win11_subscription.py` — Win11-specific Codex App
   config patch that keeps `model_provider = "custom"` while routing through
   the official ChatGPT/Codex backend instead of relay providers.
@@ -50,8 +56,6 @@ The recommended deployment model is one central tool directory per machine, not 
   request was really billed as Fast/priority.
 - `experiment_registry/` — canonical SQLite experiment registry tooling,
   schema, queries, validation scripts, and the `experiment-registry` skill.
-- `goal_plan/` — canonical Claude Code and Codex App/CLI goal-planning skill,
-  slash command, reviewer agent, and Codex personal plugin assets.
 - `AGENTS.md` — project constraints for future agent changes.
 - `docs/CODEX_AUTOREVIEW_DEFAULT.md` — runbook for Codex defaults, including
   AutoReview without Full Access and stream timeout/retry defaults.
@@ -196,33 +200,14 @@ so reinstalling never drops a peer you had already whitelisted. Use
 system SSH protection, or set `INSTALL_FAIL2BAN_HARDENING=always` when a
 non-standard server should be forced through the same check.
 
-By default it also installs the user-level goal-plan tools from `goal_plan/`:
-
-- Claude Code: `~/.claude/skills/goal-plan`, `~/.claude/commands/goal-plan.md`,
-  and `~/.claude/agents/goal-plan-reviewer.md`.
-- Codex App/CLI: `~/.codex/skills/goal-plan`, `~/plugins/goal-plan`, a personal
-  marketplace entry, and `codex plugin add goal-plan@personal` when `codex` is
-  available on `PATH`.
-- Runtime tools: an isolated uv environment at
-  `~/.local/share/goal-plan/runtime/.venv` and the launcher
-  `~/.local/bin/goal-plan-runtime`. The runtime never imports the target
-  project's Python environment, so Goals can govern repositories written in any
-  language. `uv` must already be available on `PATH`; installation does not
-  silently download it from the network.
-
-`goal_plan/` is the source of truth inside this repo. The installed user-level
-locations are separate:
+Installed user-level locations are separate:
 
 - Linux, WSL, and server installs use `install.sh` and install into the current
   Unix user. If the server default user is `root`, this means `/root/.claude`,
-  `/root/.codex`, `/root/plugins/goal-plan`, and `/root/.agents`.
+  `/root/.codex`, and `/root/.agents`.
 - WSL installs never copy Skills or plugins into a mounted Win11 profile.
-  Native Win11 clones run `scripts\install-win11.ps1`, which installs the same
-  files under the active Windows user. `--goal-plan-wsl-windows always` is
-  rejected on WSL.
 - Native Win11 clones should run `scripts\install-win11.ps1`. That installs the
-  same Claude Code and Codex App user-level files for the current Windows user.
-  It also installs
+  Codex App user-level files for the current Windows user. It also installs
   `C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1` and
   disables Codex App remote auto-connect by default for that Windows user.
   Unlike Linux/WSL provider bootstraps, native Win11 Codex App uses a custom
@@ -236,10 +221,6 @@ locations are separate:
   `-DryRunCodexProviderBucketMigration` to inspect history first, or
   `-AllowRunningCodexProviderBucketMigration` when running from inside an
   active Codex conversation.
-
-This creates the explicit `/goal-plan` planning command and Codex plugin command.
-It intentionally does not redirect, wrap, or replace `/goal`; `/goal` remains the
-execution loop. Use `--no-goal-plan` to skip this installation.
 
 ## Codex Fleet Target Guard
 

@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+launcher_source="$(readlink -f -- "${BASH_SOURCE[0]}")"
+repo_root="$(cd -- "$(dirname -- "$launcher_source")/.." && pwd -P)"
+exec python3 "$repo_root/skills/manage-worktrees/scripts/agent_wt.py" "$@"

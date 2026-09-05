@@ -1541,23 +1541,20 @@ def _force_target_provider_defaults(lines):
     in_target_provider = False
     target_found = False
     seen = set()
-    provider_defaults = [
-        ("name", '"OpenAI WebSocket"'),
-        ("base_url", '"https://chatgpt.com/backend-api/codex"'),
-        ("requires_openai_auth", "true"),
+    transport_defaults = [
         ("supports_websockets", "true"),
         ("wire_api", '"responses"'),
         ("stream_idle_timeout_ms", timeout),
         ("stream_max_retries", retries),
     ]
-    managed_provider_keys = {key for key, _ in provider_defaults}
+    managed_provider_keys = {key for key, _ in transport_defaults}
 
     def append_missing_defaults():
         if not in_target_provider:
             return
         while updated and not updated[-1].strip():
             updated.pop()
-        for key, value in provider_defaults:
+        for key, value in transport_defaults:
             if key not in seen:
                 updated.append(f"{key} = {value}")
 
@@ -1580,7 +1577,7 @@ def _force_target_provider_defaults(lines):
             key = stripped.split("=", 1)[0].strip() if "=" in stripped else None
             if key in managed_provider_keys:
                 if key not in seen:
-                    value = dict(provider_defaults)[key]
+                    value = dict(transport_defaults)[key]
                     updated.append(f"{key} = {value}")
                     seen.add(key)
                 continue

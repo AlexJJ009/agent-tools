@@ -1,0 +1,41 @@
+version: 1.0.0
+minimum_visuals: 1
+placeholders: [TODO, 待填写, 填写]
+sections:
+  - id: goal
+    title: 目标与边界
+    aliases: [目标与范围]
+  - id: progress
+    title: 本轮进展
+    aliases: [进展与变化]
+  - id: decisions
+    title: 关键决策与问题处理
+    aliases: [决策与问题处理]
+  - id: evidence
+    title: 验证结果
+    aliases: [验证与证据]
+  - id: scope
+    title: 风险阻塞与范围偏离
+    aliases: [风险、阻塞与范围偏离]
+  - id: next_steps
+    title: 下一步与需决策事项
+    aliases: [下一步与需要决策的事项]
+criteria:
+  - id: goal
+    allow_na: false
+    standard: 回答用户原始要求及后续修订中的关切，解释当前状态，不擅自改写目标或验收条件。
+  - id: evidence
+    allow_na: false
+    standard: 区分完成、进行中、失败和未验证；重要结论有可追溯依据。诚实披露业务证据缺失可以满足报告透明度，不能把文件存在或脚本成功说成业务验收通过。
+  - id: decisions
+    allow_na: true
+    standard: 说明重要选择的背景、理由、代价及失败尝试；没有重要决定时如实说明，不编造经历或事后理由。
+  - id: scope
+    allow_na: false
+    standard: 对照原要求与必要实现步骤，披露阻塞、未知、额外扩展和过度设计。已如实披露漂移并给出止损建议的报告可以通过，不要求先修复全部业务问题。
+  - id: next_steps
+    allow_na: false
+    standard: 下一步与需人决策事项明确、可判断且不超出授权；无待决策项时明确说明，不擅自回滚或追加功能。
+  - id: readability
+    allow_na: false
+    standard: Markdown 简洁，表格或图示承载实际信息；用户约五分钟能恢复上下文，不靠篇幅、技术复杂度或装饰凑质量。

@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -40,10 +41,16 @@ class ReportCase:
 class ReportToolTests(unittest.TestCase):
     maxDiff = 4000
 
+    def isolated_git_env(self):
+        # TMPDIR may itself live inside a developer's Git checkout. Fixture
+        # repositories remain discoverable, but their ancestors must not be.
+        return {**os.environ, "GIT_CEILING_DIRECTORIES": str(Path(tempfile.gettempdir()).resolve())}
+
     def run_cli(self, *args, tool=DEFAULT_TOOL, cwd=None):
         return subprocess.run(
             [sys.executable, str(tool), *map(str, args)],
             cwd=str(cwd or REPO_ROOT),
+            env=self.isolated_git_env(),
             text=True,
             capture_output=True,
             check=False,
@@ -75,6 +82,7 @@ class ReportToolTests(unittest.TestCase):
         proc = subprocess.run(
             ["git", *args],
             cwd=str(repo),
+            env=self.isolated_git_env(),
             text=True,
             capture_output=True,
             check=False,

@@ -94,3 +94,17 @@ PHAI 安装在实际用户 HOME 对应的 `.agents/skills/work-report`，没有�
 安装与进程保护证据：[本地验收产物目录](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-v2/phai-install)。这些机器证据不随 clone 保存。
 
 最后一次临时 CLI 的 `protected_configuration_unchanged=false`，不能把它写成保护检查通过。只读追查发现 `config.toml` 的修改时间位于本轮，当前含 `tui.model_availability_nux.gpt-6-astra=1`；这与原生界面的新模型提示一致，但因探针没有保存逐项前置摘要/内容，无法严格证明唯一变化就是该提示状态。auth 与 CC Switch 文件修改时间均早于本轮。未猜测回滚配置，未再启动验收客户端；原有三个进程仍通过身份读回。
+
+## 2026-09-06 PHAI cron 安装与 hook 激活复核
+
+此节是用户授权安装 cron、并在原生界面信任 hook 之后的最新验收，更新前节的待办状态。
+
+- 原生新客户端 `/hooks` 已读回 PostToolUse、SessionStart、UserPromptSubmit、Stop、Interrupt 五项均为 Installed=1、Active=1；核查没有修改信任记录、没有使用跳过信任参数。
+- Ubuntu cron 3.0pl1-184ubuntu2 已安装。APT 同时安装/更新了其系统依赖，没有升级 Codex。该容器 PID 1 是 Supervisor，包安装阶段没有自动启动 cron；在现有 Supervisor 配置中新增 `agent-tools-cron`，仅 update 这个组，`/usr/sbin/cron -f` 已为 RUNNING，设置 autostart/autorestart。没有重启 Supervisor 或其他服务。
+- 使用真实用户 crontab 登记临时每分钟测试项；daemon 于 `2026-09-06T11:56:01Z` 写入标记。测试项已删除，原 crontab 内容保持一致，没有创建业务汇报周期。
+- 本轮开始时四个既有 Codex 相关进程均保持相同 PID 和启动标识；只关闭本轮新建的临时核查客户端。`auth.json`、CC Switch 数据库前后 SHA-256 一致。
+- 临时原生客户端仍会改写 config 的 TUI 状态；当前 `tui.model_availability_nux.gpt-6-astra=3`。config 全文摘要变化，不声称其字节完全不变，也未猜测回滚用户配置。
+
+当前可以按具体任务约定注册远端周期。此次证明了 cron 实际执行与原生 hook 激活，没有再次在 PHAI 跑完整的模型生成报告/Judge 链路，也未通过容器重建测试证明配置跨平台重建保留。此前本机的完整链路验收仍单独列示。
+
+证据：[最终结果](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-v2/phai-cron/result.json)、[原生 hook 读回](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-v2/phai-cron/hooks-readonly-ui.log)。

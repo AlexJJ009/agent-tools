@@ -488,7 +488,8 @@ def cmd_init(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     }
     parse_iso(context["window_start"], "window_start")
     context_path = report_dir / "context.json"
-    report_path = report_dir / "report.md"
+    record_only = getattr(args, "record_only", False)
+    report_path = report_dir / ("draft.md" if record_only else "report.md")
     atomic_write_json(context_path, context)
     report_path.write_text(render_report_template(context, rubric, script_path), encoding="utf-8")
     artifacts = [report_path, context_path]
@@ -499,7 +500,7 @@ def cmd_init(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "status": "pass",
         "task_id": task_id,
         "report_id": report_id,
-        "report": str(report_path),
+        ("draft" if record_only else "report"): str(report_path),
         "context": str(context_path),
         "state": str(state_path),
         "warnings": warnings,
@@ -771,7 +772,7 @@ def digest_manifest(report: Path, cited_files: list[Path]) -> tuple[str, list[di
             continue
         seen.add(resolved)
         name = resolved.name
-        if name in {"checks.json", "review.json"}:
+        if name in {"checks.json", "review.json", "delivery.json"}:
             continue
         digest = sha256_file(resolved)
         evidence.append({"path": str(resolved), "sha256": digest})
@@ -924,6 +925,25 @@ def cmd_finalize(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "warnings": warnings,
         "evidence": evidence,
     }
+    if not issues and not getattr(args, "verify_only", False):
+        receipt_path = report.parent / "delivery.json"
+        reject_symlinks(receipt_path, include_leaf=receipt_path.exists())
+        previous = load_json_strict(receipt_path) if receipt_path.exists() else {}
+        delivered_at = iso_now()
+        if isinstance(previous, dict) and previous.get("artifact_digest") == digest:
+            delivered_at = previous.get("delivered_at", delivered_at)
+        receipt = {
+            "schema_version": "work-report.delivery/1", "status": "pass",
+            "task_id": context["task_id"], "report_id": context["report_id"],
+            "report": str(report), "artifact_digest": digest,
+            "delivered_at": delivered_at, "generated_at": context["generated_at"],
+            "kind": context["kind"], "request_sha256": context["request"]["sha256"],
+            "review_origin": "not_independently_verified_by_script",
+        }
+        ensure_git_policy(workspace, Path(context["output_root"]), configure=False,
+                          artifacts=[receipt_path])
+        atomic_write_json(receipt_path, receipt)
+        obj["delivery"] = str(receipt_path)
     return (0 if not issues else 1), obj
 
 
@@ -940,6 +960,8 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--kind", choices=["progress", "final"], default="progress")
     init.add_argument("--window-start")
     init.add_argument("--window-end")
+    init.add_argument("--record-only", action="store_true",
+                      help="start process recording with draft.md, not a deliverable report.md")
     init.set_defaults(func=cmd_init)
     check = sub.add_parser("check")
     check.add_argument("--report", required=True)
@@ -950,6 +972,8 @@ def build_parser() -> argparse.ArgumentParser:
     final.add_argument("--report", required=True)
     final.add_argument("--task", required=True)
     final.add_argument("--workspace", required=True)
+    final.add_argument("--verify-only", action="store_true",
+                       help="revalidate an existing report without writing or refreshing delivery.json")
     final.set_defaults(func=cmd_finalize)
     return parser
 

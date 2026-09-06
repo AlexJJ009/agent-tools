@@ -49,7 +49,9 @@ def main(argv=None) -> int:
         if result.returncode:
             raise RuntimeError('target guard rejected installation: ' + result.stdout + result.stderr)
         for required in ['SKILL.md', 'references/rubric.yaml', 'references/judge.md',
-                         'assets/report.md', 'scripts/report_tool.py']:
+                         'references/runtime.md', 'references/intent-judge.md',
+                         'assets/report.md', 'scripts/report_tool.py',
+                         'scripts/report_runtime.py', 'scripts/report_scheduler.py']:
             if not (source / required).is_file():
                 raise RuntimeError('missing source: ' + required)
         if duplicate.exists() or duplicate.is_symlink():

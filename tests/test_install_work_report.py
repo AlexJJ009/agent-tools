@@ -24,7 +24,9 @@ class WorkReportInstallTests(unittest.TestCase):
         self.repo = self.base / 'repo'
         self.source = self.repo / 'skills/work-report'
         for rel in ['SKILL.md', 'references/rubric.yaml', 'references/judge.md',
-                    'assets/report.md', 'scripts/report_tool.py']:
+                    'references/runtime.md', 'references/intent-judge.md',
+                    'assets/report.md', 'scripts/report_tool.py',
+                    'scripts/report_runtime.py', 'scripts/report_scheduler.py']:
             p = self.source / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text('fixture source ' + rel)

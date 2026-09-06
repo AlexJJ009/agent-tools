@@ -1,3 +1,5 @@
+> v2 已补充结束检查、间隔 cron 与失败补偿，见 [v2 验收](WORK_REPORT_V2_ACCEPTANCE.md)。下文保留 v1 MVP 的原始设计边界。
+
 # 长任务 Agent 工作汇报：调研与最小工作流设计
 
 日期：2026-09-04（America/Los_Angeles）。本轮修订：项目内不跟踪的产物、统一命名、机器检查、独立 Judge 与范围漂移检查。实现状态：skill、检查器、独立 Judge、当前 WSL 安装与快速验收已完成，见 [验收记录](WORK_REPORT_ACCEPTANCE.md)。hook、定时器、外部发布仍未实现；数小时纵向任务验收另计。

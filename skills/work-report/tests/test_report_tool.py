@@ -282,7 +282,7 @@ class ReportToolTests(unittest.TestCase):
         review = {
             "schema_version": "work-report.review/1",
             "artifact_digest": digest,
-            "rubric_version": "1.0.0",
+            "rubric_version": str(self.load_rubric(case.skill_root)["version"]),
             "reviewer_id": "unit-test-judge",
             "verdict": verdict,
             "criteria": criteria,
@@ -313,6 +313,42 @@ class ReportToolTests(unittest.TestCase):
         self.write_report(case, body if body is not None else self.body_with_sections(case, visual=visual))
         self.assert_pass(self.check_report(case))
         return case
+
+    def test_record_only_does_not_publish_report(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = self.make_workspace(tmp)
+            request = workspace / "request.txt"
+            request.write_text("Record progress; report when finished.")
+            result = self.assert_pass(self.run_cli("init", "--workspace", workspace,
+                "--title", "record-only", "--request", request, "--record-only"))
+            self.assertNotIn("report", result)
+            self.assertTrue(Path(result["draft"]).is_file())
+            self.assertFalse((Path(result["context"]).parent / "report.md").exists())
+
+    def test_delivery_receipt_is_stable_and_revalidation_is_read_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = self.checked_case(tmp)
+            self.write_review(case)
+            self.assert_pass(self.finalize(case))
+            receipt = case.report.parent / "delivery.json"
+            original = receipt.read_bytes()
+            self.assert_pass(self.finalize(case))
+            self.assertEqual(original, receipt.read_bytes())
+            receipt.unlink()
+            self.assert_pass(self.run_cli("finalize", "--report", case.report,
+                "--task", case.task_id, "--workspace", case.workspace, "--verify-only"))
+            self.assertFalse(receipt.exists())
+
+    def test_changed_report_cannot_refresh_delivery_receipt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = self.checked_case(tmp)
+            self.write_review(case)
+            self.assert_pass(self.finalize(case))
+            receipt = case.report.parent / "delivery.json"
+            original = receipt.read_bytes()
+            case.report.write_text(case.report.read_text() + "\nChanged outcome.\n")
+            self.assert_fail(self.finalize(case))
+            self.assertEqual(original, receipt.read_bytes())
 
     def copy_skill(self, tmp):
         copied = Path(tmp) / "skill-copy"

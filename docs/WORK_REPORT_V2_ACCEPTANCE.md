@@ -54,7 +54,7 @@ python3 scripts/install_work_report_schedule.py --task-dir <任务目录> --chec
 | 周期状态修正版 | 真实cron生成的收据在修正版runtime回放通过 | 连续status保留satisfied，下一tick idle；这是回放，不冒充第二次完整模型运行 |
 | 本机安装 | 21个skill文件一致，五个hook原生界面Active=1 | 当前Linux/WSL用户；不是所有客户端/远端已认证 |
 
-本轮没有部署/激活 phai 的 v2 hooks/cron，也未验证 Claude hooks、固定钟点的日历cron、跨机器通知或多日稳定性。远端使用必须在对应profile另行安装、信任和实测，不把本机结果扩大到phai。
+开发验收阶段未部署 PHAI；后续安装结果见下节。仍未验证 Claude hooks、固定钟点的日历 cron、跨机器通知或多日稳定性，不把本机端到端结果扩大到 PHAI。
 
 ## 失败尝试与修正
 
@@ -74,3 +74,23 @@ python3 scripts/install_work_report_schedule.py --task-dir <任务目录> --chec
 - [独立代码审查](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-v2/independent-review.md)
 
 以上为本机产物链接，不随clone保存。源码可跟踪；工作报告、约定、收据和执行日志仍在项目内排除Git跟踪的位置。
+
+## 2026-09-06 本地与 PHAI 重新安装
+
+安装源码版本为 `ebac93c8d2532781cc601ee6192cabcdb4cd9022`。使用独立 Skill / hook 安装器，没有运行完整机器安装器。
+
+| 项目 | 本地 | PHAI |
+|---|---|---|
+| Skill 文件 | 21 个文件与发布源码一致 | 21 个文件与同一发布归档一致 |
+| Hook 定义 | 5 项检查通过；此前原生界面 Active=1 | 5 项检查通过；原生信任/激活尚未验收通过 |
+| 既有进程 | 未执行重启或终止操作 | 安装前 3 个 Codex 相关进程的 PID、启动标识读回一致 |
+| 配置保护 | 仅专用安装器 | 安装阶段 config/auth/CC Switch 哈希未变；最后一次临时 CLI 启动后 config 摘要变化，auth/CC Switch 修改时间仍早于本轮 |
+| 定时环境 | 此前真实 cron 验收通过；测试定时项已删除 | 没有 crontab 命令，未安装系统 cron 服务，也未创建业务定时项 |
+
+PHAI 安装在实际用户 HOME 对应的 `.agents/skills/work-report`，没有误写 `/root`。本轮只创建独立临时 CLI 检查原生 hook 界面，未向既有 Codex 进程发送信号。终端初始化和更新提示曾阻塞检查；临时关闭启动更新检查后进入信任界面，但未取得五项 Active=1 的可靠读回，不能声称远端结束补报已启用。没有手写信任状态，也没有升级 Codex。
+
+尚需在 PHAI 原生 `/hooks` 界面完成信任及 Active 读回；远端周期功能还需可用的 cron 或宿主调度器，并按具体任务约定登记。已有进程是否重新加载新版 Skill/hooks 未验证，不能从磁盘安装结果推断。
+
+安装与进程保护证据：[本地验收产物目录](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-v2/phai-install)。这些机器证据不随 clone 保存。
+
+最后一次临时 CLI 的 `protected_configuration_unchanged=false`，不能把它写成保护检查通过。只读追查发现 `config.toml` 的修改时间位于本轮，当前含 `tui.model_availability_nux.gpt-6-astra=1`；这与原生界面的新模型提示一致，但因探针没有保存逐项前置摘要/内容，无法严格证明唯一变化就是该提示状态。auth 与 CC Switch 文件修改时间均早于本轮。未猜测回滚配置，未再启动验收客户端；原有三个进程仍通过身份读回。

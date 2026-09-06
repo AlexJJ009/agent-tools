@@ -1,11 +1,11 @@
 # 结束与定时汇报运行时（v2）
 
-本页仅在用户约定未来汇报，或处理已注册任务的到期/结束检查时读取。立即汇报与报告后的问答不需要注册。
+本页用于未来汇报约定、中途抽检后续行，或已登记任务的到期/结束检查。独立立即汇报（无继续任务要求）与报告后的普通问答不需要注册。
 
 ## 注册约定
 
 1. 保存用户原始提示词到已排除跟踪的产物目录。若由 UserPromptSubmit 捕获，原文在 `<repo>/docs/work-reports/.pending/<session-id>.json` 的 `prompt`，准确复制其文本，不用模型目标改述代替。
-2. 用 `report_tool.py init --record-only --workspace <repo> --title <slug> --request <request.txt>` 开始记录，已有任务传 `--task-dir`。结果 `draft.md` 不是正式报告。
+2. 用 `report_tool.py init --record-only --workspace <repo> --title <slug> --request <request.txt>` 开始记录，同一约定的已有任务传 `--task-dir`；已有不同的活动结束/周期约定时，为插入的中途汇报另建 task-dir，用 `--state` 引用原 working-state。结果 `draft.md` 不是正式报告。
 3. 使用宿主实际 SubAgent，传入原文路径和 [intent-judge.md](intent-judge.md) 的完整路径，要求先读规则再返回其中定义的 JSON。Judge 的作用是识别用户明确要求，不是为每条日常消息调用模型。将真实返回原样存入 task-dir 的 `intent.json`；若字段或格式错误，让同一 Judge 修正，不自行翻译、补字段或改判定。
 4. 调用（脚本均在 skill 的 scripts 目录）：
 
@@ -15,11 +15,23 @@ python3 report_runtime.py register --task-dir <task-dir> --workspace <repo> \
 python3 report_runtime.py status --task-dir <task-dir>
 ```
 
-`confirmed` 才登记结束/周期要求；`none` 清除误触候选，`needs_clarification` 先澄清，不宣称已经安排。周期必须来自原文，不擅自假定三小时。`reporting.json` 是本任务的约定与运行状态，不是另一套业务任务系统。
+`confirmed` 才登记结束/周期/中途续行要求；`none` 清除误触候选，`needs_clarification` 先澄清，不宣称已经安排。周期必须来自原文，不擅自假定三小时。`reporting.json` 是本次汇报约定的运行状态，不是另一套业务任务系统。活动 manifest 的不同约定重注册会返回 `manifest_conflict`，不得为消除这个错误取消原任务的结束/周期约定；中途抽检使用独立汇报目录并保留原状态引用。
 
 session-id 必须使用 hook 上下文或 pending JSON 中的真实 session UUID，不能写 `current-session` 等占位。运行时会拒绝占位或与待审原文不匹配的会话绑定。
 
 当前结束语义是注册后 Main 的下一次正常 Stop（本轮最终回复前）。Stop 不表示项目、训练或所有后台作业完成。长任务跨多轮的阶段终点须由用户明确约定；不能让一次“完成后汇报”无限作用于报告之后的问答。
+
+正式批次必须在 register 成功之后重新 init：前面的 `init --record-only` 只为登记提供上下文。即使先前已生成 report.md 占位，也不能复用其早于 registered_at 的快照；需同一 task-dir 新建 `--kind progress` 批次再写报告。脚本的新鲜度检查不因这是中途抽检而放宽。
+
+## 中途抽检与续行
+
+约定 Judge 输出 `resume_after_report=true` 时，登记独立的 `interim` 义务，使用一次 `progress` 报告；无结束/周期要求时 `on_end=false`、`interval_seconds=null`。旧版 intent 未提供这个字段时按 false 处理。中途报告不得关闭其他任务的结束或周期约定。
+
+Main 在报告前保存原任务目标、当前执行点和具体下一步。PostToolUse 首次核验中途交付收据后，会提示实际报告链接与立即交付动作；同一义务只提醒一次，不能把链接拖到原任务的最终回复。报告通过 check/Judge/finalize 后，在 commentary 交付链接，随后继续原任务，直到实际完成、需要用户输入或用户取消。只有后台进程仍在运行不算 Main 已续行。
+
+Stop 门禁核验新鲜的 progress 收据；没有收据时沿用最多两次补报。收据有效后，如果尚未观察到报告之外的后续工具活动，则阻止一次 Stop，要求恢复原任务，不重新生成报告。这是一次性的续行提醒，不是能够证明业务进展或保证长程运行的调度器。工具活动检测只是减少重复提醒，不能识别任意工具调用的业务价值；独立验收必须检查具体原任务动作。
+
+中途义务消费后不因后续问答或旧报告变化而重开。用户 Interrupt/cancel 仍然优先；真实阻塞应明确报告，不为了满足提醒制造无关动作。未加载/信任 hooks 的客户端只具备 Skill 流程约束，不能声称有 Stop 兜底。
 
 ## 结束前检查
 

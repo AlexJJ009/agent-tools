@@ -6,6 +6,9 @@
 
 ## 必查内容
 
+- 中途抽检的报告应保持 `progress` 语义，保留原任务目标、进行中事项和具体恢复点；不能把报告完成称为原任务完成。只审报告能说明什么，不能凭报告中的“继续执行”认定 Main 已续行，也不能要求先完成报告之后的工作才让这份快照通过。
+
+
 - 报告是独立完整的工作叙述，不是用户追问的逐题答复。检查目标、过程、机制、证据和已知缺口是否清楚；报告后的问题由 Main 另答，不能因未把这些问题塞入报告而拒绝它。
 - 先从原始任务和过程状态独立识别重要进展与缺口，再读报告，检查遗漏和单面采信。已知未解决的 PR review、失败验证和未实现边界不能被“CI通过”覆盖。按本轮工作范围检查，不强制重新审计整个业务项目。
 
@@ -24,7 +27,7 @@ JSON 中的 `artifact_digest` 原样使用当前 checks.json 的值，`rubric_ve
 {
   "schema_version": "work-report.review/1",
   "artifact_digest": "<from checks.json>",
-  "rubric_version": "2.0.0",
+  "rubric_version": "2.0.1",
   "reviewer_id": "<actual reviewer session or task id>",
   "verdict": "pass",
   "criteria": [

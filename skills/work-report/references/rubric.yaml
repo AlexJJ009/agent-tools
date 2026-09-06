@@ -1,4 +1,4 @@
-version: 2.0.0
+version: 2.0.1
 minimum_visuals: 1
 placeholders: [TODO, 待填写, 填写]
 sections:
@@ -35,7 +35,7 @@ criteria:
     standard: 对照原要求与必要实现步骤，披露阻塞、未知、额外扩展和过度设计。已如实披露漂移并给出止损建议的报告可以通过，不要求先修复全部业务问题。
   - id: next_steps
     allow_na: false
-    standard: 下一步与需人决策事项明确、可判断且不超出授权；无待决策项时明确说明，不擅自回滚或追加功能。
+    standard: 中途抽检保留原任务的具体恢复点，区分报告交付与任务结束；下一步与需人决策事项明确、可判断且不超出授权；无待决策项时明确说明，不擅自回滚或追加功能。
   - id: readability
     allow_na: false
     standard: Markdown 简洁，表格或图示承载实际信息；用户约五分钟能恢复上下文，不靠篇幅、技术复杂度或装饰凑质量。

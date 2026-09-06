@@ -70,6 +70,9 @@ class ReportRuntimeTests(unittest.TestCase):
                     ok = actual == expected
                 else:
                     ok = True
+                invalidate_if_exists = delivery.get("invalidate_if_exists")
+                if invalidate_if_exists and Path(invalidate_if_exists).exists():
+                    ok = False
                 status = "pass" if delivery.get("verify_ok", True) and ok else "fail"
                 artifact_digest = actual
                 task = rest[rest.index("--task") + 1]
@@ -151,6 +154,32 @@ class ReportRuntimeTests(unittest.TestCase):
         (report_dir / "context.json").write_text(json.dumps(context), encoding="utf-8")
         return repo.resolve(), task_dir.resolve(), request.resolve()
 
+    def make_additional_task(self, repo, request, request_text, *, task_id, report_id):
+        task_dir = repo / "docs" / "work-reports" / task_id
+        report_dir = task_dir / report_id
+        report_dir.mkdir(parents=True)
+        context = {
+            "schema_version": "work-report.context/1",
+            "task_id": task_dir.name,
+            "report_id": report_dir.name,
+            "kind": "progress",
+            "workspace": str(repo.resolve()),
+            "output_root": str((repo / "docs" / "work-reports").resolve()),
+            "generated_at": "2026-09-06T00:00:01Z",
+            "window_start": "2026-09-06T00:00:01Z",
+            "window_end": "2026-09-06T00:00:01Z",
+            "request": {
+                "path": str(request.resolve()),
+                "sha256": self.sha(request_text),
+                "text": request_text,
+            },
+            "state": {"path": str((task_dir / "working-state.md").resolve()), "sha256": self.sha("state"), "text": "state"},
+            "git": {"head": "", "status": ""},
+            "initial_work_inventory": {"status": "unavailable"},
+        }
+        (report_dir / "context.json").write_text(json.dumps(context), encoding="utf-8")
+        return task_dir.resolve()
+
     def sha(self, text):
         import hashlib
 
@@ -160,6 +189,45 @@ class ReportRuntimeTests(unittest.TestCase):
         import hashlib
 
         return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+    def write_delivery(
+        self,
+        task_dir,
+        request_text,
+        *,
+        kind="progress",
+        report_id="20260906T000008Z-progress-acdc01",
+        report_text="fresh progress report",
+        generated_at="2099-01-01T00:00:00Z",
+        delivered_at="2099-01-01T00:00:01Z",
+        extra_delivery=None,
+    ):
+        report_dir = task_dir / report_id
+        report_dir.mkdir()
+        report = report_dir / "report.md"
+        report.write_text(report_text, encoding="utf-8")
+        (report_dir / "context.json").write_text(
+            json.dumps({"schema_version": "work-report.context/1", "generated_at": generated_at}),
+            encoding="utf-8",
+        )
+        delivery = {
+            "schema_version": "work-report.delivery/1",
+            "status": "pass",
+            "task_id": task_dir.name,
+            "report_id": report_dir.name,
+            "report": str(report.resolve()),
+            "artifact_digest": self.file_sha(report),
+            "delivered_at": delivered_at,
+            "kind": kind,
+            "request_sha256": self.sha(request_text),
+        }
+        if extra_delivery:
+            delivery.update(extra_delivery)
+        (report_dir / "delivery.json").write_text(
+            json.dumps(delivery),
+            encoding="utf-8",
+        )
+        return report_dir
 
     def decision(self, path, request_text, **overrides):
         data = {
@@ -214,6 +282,43 @@ class ReportRuntimeTests(unittest.TestCase):
         self.assertEqual(self.data(self.register(repo, task_dir, request, bad))["issues"][0]["code"], "decision_quote_missing")
         bad = self.decision(self.root / "bad3.json", text, on_end=False, interval_seconds=None)
         self.assertEqual(self.data(self.register(repo, task_dir, request, bad))["issues"][0]["code"], "decision_trigger_missing")
+
+    def test_register_accepts_standalone_interim_resume_intent(self):
+        text = "Please make an interim report, then continue the task."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        decision = self.decision(
+            self.root / "decision.json",
+            text,
+            on_end=False,
+            interval_seconds=None,
+            resume_after_report=True,
+            evidence_quotes=["interim report", "continue"],
+        )
+        result = self.data(self.register(repo, task_dir, request, decision))
+        self.assertEqual(result["status"], "registered")
+        self.assertIn("new progress report batch", result["next_step"])
+        manifest = json.loads((task_dir / "reporting.json").read_text())
+        self.assertTrue(manifest["resume_after_report"])
+        self.assertIsNone(manifest["final"])
+        self.assertIsNone(manifest["periodic"])
+        self.assertIsNotNone(manifest["interim"])
+        self.assertEqual(manifest["interim"]["kind"], "progress")
+
+    def test_resume_after_report_must_be_boolean(self):
+        text = "Please make an interim report, then continue the task."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        decision = self.decision(
+            self.root / "decision.json",
+            text,
+            on_end=False,
+            interval_seconds=None,
+            resume_after_report="yes",
+            evidence_quotes=["interim report", "continue"],
+        )
+        self.assertEqual(
+            self.data(self.register(repo, task_dir, request, decision))["issues"][0]["code"],
+            "decision_resume_after_report_invalid",
+        )
 
     def test_register_rejects_placeholder_session_id(self):
         text = "Please send an end report."
@@ -424,6 +529,432 @@ class ReportRuntimeTests(unittest.TestCase):
         stop = self.data(self.run_cli("hook", input=json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id}), cwd=repo))
         self.assertEqual(stop, {})
 
+    def test_interim_resume_blocks_until_report_then_nudges_once(self):
+        text = "Please make an interim report, then continue the task."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        decision = self.decision(
+            self.root / "decision.json",
+            text,
+            on_end=False,
+            interval_seconds=None,
+            resume_after_report=True,
+            evidence_quotes=["interim report", "continue"],
+        )
+        self.register(repo, task_dir, request, decision)
+        stop_event = json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id})
+        missing = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
+        self.assertEqual(missing["decision"], "block")
+        self.assertIn("progress", missing["reason"])
+
+        self.write_delivery(
+            task_dir,
+            text,
+            report_id="20260906T000009Z-progress-acdc02",
+            generated_at="2020-01-01T00:00:00Z",
+            delivered_at="2020-01-01T00:00:01Z",
+        )
+        stale = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
+        self.assertEqual(stale["decision"], "block")
+        self.assertIn("work-report obligation is due", stale["reason"])
+
+        self.write_delivery(task_dir, text, report_id="20260906T000010Z-progress-acdc03")
+        nudge = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
+        self.assertEqual(nudge["decision"], "block")
+        self.assertIn("Continue the original task", nudge["reason"])
+        self.assertIn("one-shot", nudge["reason"])
+        manifest = json.loads((task_dir / "reporting.json").read_text())
+        self.assertIsNotNone(manifest["closed_at"])
+        self.assertIsNone(manifest["final"])
+        self.assertEqual(manifest["interim"]["state"], "complete")
+        self.assertEqual(manifest["resume_after_report_gate"]["state"], "issued")
+
+        report = Path(manifest["interim"]["last_ack"]["report"])
+        report.write_text("edited after consumed interim receipt", encoding="utf-8")
+        status = self.data(self.run_cli("status", "--task-dir", task_dir))["manifest"]
+        self.assertEqual(status["interim"]["state"], "complete")
+        self.assertEqual(self.data(self.run_cli("hook", input=stop_event, cwd=repo)), {})
+
+    def test_interim_resume_does_not_nudge_after_non_report_post_tool_use(self):
+        text = "Please make an interim report, then continue the task."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        decision = self.decision(
+            self.root / "decision.json",
+            text,
+            on_end=False,
+            interval_seconds=None,
+            resume_after_report=True,
+            evidence_quotes=["interim report", "continue"],
+        )
+        self.register(repo, task_dir, request, decision)
+        manifest = json.loads((task_dir / "reporting.json").read_text())
+        manifest["interim"]["cutoff"] = "2000-01-01T00:00:00Z"
+        (task_dir / "reporting.json").write_text(json.dumps(manifest), encoding="utf-8")
+        self.write_delivery(
+            task_dir,
+            text,
+            report_id="20260906T000011Z-progress-acdc04",
+            generated_at="2000-01-01T00:00:01Z",
+            delivered_at="2000-01-01T00:00:02Z",
+        )
+        self.assertIsNotNone(self.data(self.run_cli("status", "--task-dir", task_dir))["manifest"]["interim"]["last_ack"])
+        post_tool = json.dumps(
+            {
+                "hook_event_name": "PostToolUse",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "tool_name": "shell",
+                "tool_input": {"cmd": "touch actual-task-file"},
+            }
+        )
+        self.assertEqual(self.data(self.run_cli("hook", input=post_tool, cwd=repo)), {})
+        stop = self.data(
+            self.run_cli("hook", input=json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id}), cwd=repo)
+        )
+        self.assertEqual(stop, {})
+        manifest = json.loads((task_dir / "reporting.json").read_text())
+        self.assertEqual(manifest["resume_after_report_gate"]["state"], "observed")
+        self.assertEqual(manifest["interim"]["state"], "complete")
+        self.assertIsNotNone(manifest["closed_at"])
+
+    def test_cached_interim_ack_consumes_before_non_report_change_revalidation(self):
+        text = "Please make an interim report, then continue the task."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        decision = self.decision(
+            self.root / "decision.json",
+            text,
+            on_end=False,
+            interval_seconds=None,
+            resume_after_report=True,
+            evidence_quotes=["interim report", "continue"],
+        )
+        self.register(repo, task_dir, request, decision)
+        cited_file = repo / "calculator.py"
+        self.write_delivery(
+            task_dir,
+            text,
+            report_id="20260906T000015Z-progress-acdc10",
+            extra_delivery={"invalidate_if_exists": str(cited_file)},
+        )
+        status = self.data(self.run_cli("status", "--task-dir", task_dir))["manifest"]
+        self.assertIsNotNone(status["interim"]["last_ack"])
+        self.assertEqual(status["interim"]["state"], "pending")
+
+        cited_file.write_text("changed by resumed task action\n", encoding="utf-8")
+        post_tool = json.dumps(
+            {
+                "hook_event_name": "PostToolUse",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "tool_name": "shell",
+                "tool_input": {"cmd": "edit calculator.py"},
+            }
+        )
+        self.assertEqual(self.data(self.run_cli("hook", input=post_tool, cwd=repo)), {})
+        manifest = json.loads((task_dir / "reporting.json").read_text())
+        self.assertEqual(manifest["resume_after_report_gate"]["state"], "observed")
+        self.assertEqual(manifest["interim"]["state"], "complete")
+
+        stop = self.data(
+            self.run_cli("hook", input=json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id}), cwd=repo)
+        )
+        self.assertEqual(stop, {})
+        status_after_change = self.data(self.run_cli("status", "--task-dir", task_dir))["manifest"]
+        self.assertEqual(status_after_change["interim"]["state"], "complete")
+
+    def test_cached_interim_ack_is_not_consumed_after_report_tampering(self):
+        text = "Please make an interim report, then continue the task."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        decision = self.decision(
+            self.root / "decision.json",
+            text,
+            on_end=False,
+            interval_seconds=None,
+            resume_after_report=True,
+            evidence_quotes=["interim report", "continue"],
+        )
+        self.register(repo, task_dir, request, decision)
+        report_dir = self.write_delivery(task_dir, text, report_id="20260906T000017Z-progress-acdc12")
+        delivery_path = report_dir / "delivery.json"
+        delivery = json.loads(delivery_path.read_text())
+        delivery["expected_report_sha"] = delivery["artifact_digest"]
+        delivery_path.write_text(json.dumps(delivery), encoding="utf-8")
+        self.assertIsNotNone(self.data(self.run_cli("status", "--task-dir", task_dir))["manifest"]["interim"]["last_ack"])
+
+        (report_dir / "report.md").write_text("tampered report", encoding="utf-8")
+        post_tool = json.dumps(
+            {
+                "hook_event_name": "PostToolUse",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "tool_name": "shell",
+                "tool_input": {"cmd": "edit calculator.py"},
+            }
+        )
+        self.assertEqual(self.data(self.run_cli("hook", input=post_tool, cwd=repo)), {})
+        stop = self.data(
+            self.run_cli("hook", input=json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id}), cwd=repo)
+        )
+        self.assertEqual(stop["decision"], "block")
+        self.assertIn("work-report obligation is due", stop["reason"])
+        manifest = json.loads((task_dir / "reporting.json").read_text())
+        self.assertEqual(manifest["resume_after_report_gate"]["state"], "pending")
+        self.assertIsNone(manifest["interim"]["last_ack"])
+
+    def test_cached_interim_ack_is_not_consumed_after_delivery_tampering(self):
+        text = "Please make an interim report, then continue the task."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        decision = self.decision(
+            self.root / "decision.json",
+            text,
+            on_end=False,
+            interval_seconds=None,
+            resume_after_report=True,
+            evidence_quotes=["interim report", "continue"],
+        )
+        self.register(repo, task_dir, request, decision)
+        report_dir = self.write_delivery(task_dir, text, report_id="20260906T000018Z-progress-acdc13")
+        self.assertIsNotNone(self.data(self.run_cli("status", "--task-dir", task_dir))["manifest"]["interim"]["last_ack"])
+
+        delivery_path = report_dir / "delivery.json"
+        delivery = json.loads(delivery_path.read_text())
+        delivery["artifact_digest"] = "0" * 64
+        delivery_path.write_text(json.dumps(delivery), encoding="utf-8")
+        post_tool = json.dumps(
+            {
+                "hook_event_name": "PostToolUse",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "tool_name": "shell",
+                "tool_input": {"cmd": "edit calculator.py"},
+            }
+        )
+        self.assertEqual(self.data(self.run_cli("hook", input=post_tool, cwd=repo)), {})
+        stop = self.data(
+            self.run_cli("hook", input=json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id}), cwd=repo)
+        )
+        self.assertEqual(stop["decision"], "block")
+        self.assertIn("work-report obligation is due", stop["reason"])
+        manifest = json.loads((task_dir / "reporting.json").read_text())
+        self.assertEqual(manifest["resume_after_report_gate"]["state"], "pending")
+        self.assertIsNone(manifest["interim"]["last_ack"])
+
+    def test_unverified_stale_interim_receipt_is_not_consumed_by_non_report_tool_use(self):
+        text = "Please make an interim report, then continue the task."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        decision = self.decision(
+            self.root / "decision.json",
+            text,
+            on_end=False,
+            interval_seconds=None,
+            resume_after_report=True,
+            evidence_quotes=["interim report", "continue"],
+        )
+        self.register(repo, task_dir, request, decision)
+        self.write_delivery(
+            task_dir,
+            text,
+            report_id="20260906T000016Z-progress-acdc11",
+            generated_at="2020-01-01T00:00:00Z",
+            delivered_at="2020-01-01T00:00:01Z",
+        )
+        post_tool = json.dumps(
+            {
+                "hook_event_name": "PostToolUse",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "tool_name": "shell",
+                "tool_input": {"cmd": "edit calculator.py"},
+            }
+        )
+        self.assertEqual(self.data(self.run_cli("hook", input=post_tool, cwd=repo)), {})
+        stop = self.data(
+            self.run_cli("hook", input=json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id}), cwd=repo)
+        )
+        self.assertEqual(stop["decision"], "block")
+        self.assertIn("work-report obligation is due", stop["reason"])
+        manifest = json.loads((task_dir / "reporting.json").read_text())
+        self.assertEqual(manifest["resume_after_report_gate"]["state"], "pending")
+        self.assertIsNone(manifest["interim"]["last_ack"])
+
+    def test_report_related_post_tool_use_does_not_satisfy_interim_resume(self):
+        text = "Please make an interim report, then continue the task."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        decision = self.decision(
+            self.root / "decision.json",
+            text,
+            on_end=False,
+            interval_seconds=None,
+            resume_after_report=True,
+            evidence_quotes=["interim report", "continue"],
+        )
+        self.register(repo, task_dir, request, decision)
+        manifest = json.loads((task_dir / "reporting.json").read_text())
+        manifest["interim"]["cutoff"] = "2000-01-01T00:00:00Z"
+        (task_dir / "reporting.json").write_text(json.dumps(manifest), encoding="utf-8")
+        self.write_delivery(
+            task_dir,
+            text,
+            report_id="20260906T000012Z-progress-acdc05",
+            generated_at="2000-01-01T00:00:01Z",
+            delivered_at="2000-01-01T00:00:02Z",
+        )
+        report_tool = json.dumps(
+            {
+                "hook_event_name": "PostToolUse",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "tool_name": "shell",
+                "tool_input": {"cmd": "uv run --script skills/work-report/scripts/report_tool.py finalize"},
+            }
+        )
+        notice = self.data(self.run_cli("hook", input=report_tool, cwd=repo))
+        self.assertIn("hookSpecificOutput", notice)
+        stop = self.data(
+            self.run_cli("hook", input=json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id}), cwd=repo)
+        )
+        self.assertEqual(stop["decision"], "block")
+        self.assertIn("Continue the original task", stop["reason"])
+
+    def test_report_related_post_tool_use_emits_interim_delivery_notice_once(self):
+        text = "Please make an interim report, then continue the task."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        decision = self.decision(
+            self.root / "decision.json",
+            text,
+            on_end=False,
+            interval_seconds=None,
+            resume_after_report=True,
+            evidence_quotes=["interim report", "continue"],
+        )
+        self.register(repo, task_dir, request, decision)
+        report_dir = self.write_delivery(task_dir, text, report_id="20260906T000019Z-progress-acdc14")
+        report_tool = json.dumps(
+            {
+                "hook_event_name": "PostToolUse",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "tool_name": "shell",
+                "tool_input": {"cmd": "uv run --script skills/work-report/scripts/report_tool.py finalize"},
+            }
+        )
+        first = self.data(self.run_cli("hook", input=report_tool, cwd=repo))
+        notice = first["hookSpecificOutput"]["additionalContext"]
+        self.assertIn(str((report_dir / "report.md").resolve()), notice)
+        self.assertIn("share this report.md link before any non-report business action", notice)
+        self.assertIn("Do not defer the report path to the final reply", notice)
+        manifest = json.loads((task_dir / "reporting.json").read_text())
+        self.assertIsNotNone(manifest["resume_after_report_gate"]["delivery_notice_at"])
+
+        second = self.data(self.run_cli("hook", input=report_tool, cwd=repo))
+        self.assertEqual(second, {})
+
+    def test_report_related_post_tool_use_does_not_emit_notice_for_final_only(self):
+        text = "Please send an end report."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        self.register(repo, task_dir, request, self.decision(self.root / "decision.json", text))
+        self.write_delivery(
+            task_dir,
+            text,
+            kind="final",
+            report_id="20260906T000020Z-final-acdc15",
+            report_text="fresh final report",
+        )
+        report_tool = json.dumps(
+            {
+                "hook_event_name": "PostToolUse",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "tool_name": "shell",
+                "tool_input": {"cmd": "uv run --script skills/work-report/scripts/report_tool.py finalize"},
+            }
+        )
+        self.assertEqual(self.data(self.run_cli("hook", input=report_tool, cwd=repo)), {})
+
+    def test_stop_prioritizes_newer_interim_manifest_over_older_final_manifest(self):
+        final_text = "Please send an end report."
+        repo, final_task_dir, final_request = self.make_repo_task(request_text=final_text)
+        final_decision = self.decision(self.root / "final.json", final_text)
+        self.assertEqual(self.data(self.register(repo, final_task_dir, final_request, final_decision))["status"], "registered")
+
+        interim_text = "Please make an interim report, then continue the task."
+        interim_request = repo / "interim-request.md"
+        interim_request.write_text(interim_text, encoding="utf-8")
+        interim_task_dir = self.make_additional_task(
+            repo,
+            interim_request,
+            interim_text,
+            task_id="20260906T000100Z-runtime-87654321",
+            report_id="20260906T000101Z-progress-acdc08",
+        )
+        interim_decision = self.decision(
+            self.root / "interim.json",
+            interim_text,
+            on_end=False,
+            interval_seconds=None,
+            resume_after_report=True,
+            evidence_quotes=["interim report", "continue"],
+        )
+        self.assertEqual(self.data(self.register(repo, interim_task_dir, interim_request, interim_decision))["status"], "registered")
+
+        stop_event = json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id})
+        first = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
+        self.assertEqual(first["decision"], "block")
+        self.assertIn("progress", first["reason"])
+        self.assertIn(str(interim_task_dir), first["reason"])
+        self.assertNotIn(str(final_task_dir), first["reason"])
+        self.assertEqual(json.loads((final_task_dir / "reporting.json").read_text())["final"]["attempts"], 0)
+
+        self.write_delivery(
+            interim_task_dir,
+            interim_text,
+            report_id="20260906T000102Z-progress-acdc09",
+        )
+        second = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
+        self.assertEqual(second["decision"], "block")
+        self.assertIn("Continue the original task", second["reason"])
+        self.assertIn(str(interim_task_dir), second["reason"])
+        self.assertEqual(json.loads((final_task_dir / "reporting.json").read_text())["final"]["attempts"], 0)
+
+        third = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
+        self.assertEqual(third["decision"], "block")
+        self.assertIn("final", third["reason"])
+        self.assertIn(str(final_task_dir), third["reason"])
+        final_manifest = json.loads((final_task_dir / "reporting.json").read_text())
+        interim_manifest = json.loads((interim_task_dir / "reporting.json").read_text())
+        self.assertEqual(final_manifest["final"]["attempts"], 1)
+        self.assertEqual(interim_manifest["interim"]["state"], "complete")
+
+    def test_interrupt_cancels_interim_resume_obligation(self):
+        text = "Please make an interim report, then continue the task."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        decision = self.decision(
+            self.root / "decision.json",
+            text,
+            on_end=False,
+            interval_seconds=None,
+            resume_after_report=True,
+            evidence_quotes=["interim report", "continue"],
+        )
+        self.register(repo, task_dir, request, decision)
+        self.write_delivery(task_dir, text, report_id="20260906T000013Z-progress-acdc06")
+        interrupt = json.dumps({"hook_event_name": "Interrupt", "cwd": str(repo), "session_id": self.session_id})
+        self.assertEqual(self.data(self.run_cli("hook", input=interrupt, cwd=repo)), {})
+        stop = self.data(
+            self.run_cli("hook", input=json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id}), cwd=repo)
+        )
+        self.assertEqual(stop, {})
+        manifest = json.loads((task_dir / "reporting.json").read_text())
+        self.assertEqual(manifest["interim"]["state"], "cancelled")
+        self.assertEqual(manifest["resume_after_report_gate"]["state"], "cancelled")
+
     def test_prompt_candidate_blocks_stop_until_judge_decision_clears_it(self):
         text = "Please send an end report."
         repo, task_dir, request = self.make_repo_task(request_text=text)
@@ -446,6 +977,26 @@ class ReportRuntimeTests(unittest.TestCase):
         self.assertEqual(cleared["status"], "ignored")
         stop2 = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
         self.assertEqual(stop2, {})
+
+    def test_prompt_candidate_matches_interim_continue_terms(self):
+        repo, _, _ = self.make_repo_task(request_text="irrelevant")
+        examples = [
+            "Give me an interim work-report and continue afterwards.",
+            "临时汇报一下，之后继续做。",
+            "中途抽检报告一下，然后继续。",
+        ]
+        for idx, prompt in enumerate(examples):
+            event = json.dumps(
+                {
+                    "hook_event_name": "UserPromptSubmit",
+                    "cwd": str(repo),
+                    "session_id": f"11111111-2222-4333-8444-55555555555{idx}",
+                    "turn_id": f"t{idx}",
+                    "prompt": prompt,
+                }
+            )
+            output = self.data(self.run_cli("hook", input=event, cwd=repo))
+            self.assertIn("hookSpecificOutput", output, prompt)
 
     def test_prompt_candidate_caps_then_fails_open_visibly(self):
         repo, _, _ = self.make_repo_task(request_text="irrelevant")
@@ -588,6 +1139,36 @@ class ReportRuntimeTests(unittest.TestCase):
         self.assertEqual(first["status"], "registered")
         self.assertTrue(second["idempotent"])
         self.assertEqual(before, after)
+
+    def test_register_rejects_different_manifest_in_existing_task_dir(self):
+        text = "Please send an end report."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        final_decision = self.decision(self.root / "final.json", text)
+        self.assertEqual(self.data(self.register(repo, task_dir, request, final_decision))["status"], "registered")
+        before = json.loads((task_dir / "reporting.json").read_text())
+
+        interim_text = "Please make an interim report, then continue the task."
+        request.write_text(interim_text, encoding="utf-8")
+        report_dir = task_dir / "20260906T000014Z-progress-acdc07"
+        report_dir.mkdir()
+        context = json.loads(next(task_dir.glob("*/context.json")).read_text())
+        context["report_id"] = report_dir.name
+        context["request"]["sha256"] = self.sha(interim_text)
+        context["request"]["text"] = interim_text
+        (report_dir / "context.json").write_text(json.dumps(context), encoding="utf-8")
+        interim_decision = self.decision(
+            self.root / "interim.json",
+            interim_text,
+            on_end=False,
+            interval_seconds=None,
+            resume_after_report=True,
+            evidence_quotes=["interim report", "continue"],
+        )
+        conflict = self.data(self.register(repo, task_dir, request, interim_decision))
+        self.assertEqual(conflict["issues"][0]["code"], "manifest_conflict")
+        after = json.loads((task_dir / "reporting.json").read_text())
+        self.assertEqual(after["request_sha256"], before["request_sha256"])
+        self.assertIsNotNone(after["final"])
 
     def test_register_uses_context_matching_current_request(self):
         old_text = "Please send an end report."

@@ -28,12 +28,13 @@ RUNTIME_SCHEMA = "work-report.runtime/2"
 INTENT_SCHEMA = "work-report.intent/1"
 DELIVERY_SCHEMA = "work-report.delivery/1"
 CONTEXT_SCHEMA = "work-report.context/1"
+OBLIGATION_KEYS = ["final", "periodic", "interim"]
 MAX_ATTEMPTS = 2
 LEASE_SECONDS = 900
 VERIFY_TIMEOUT_SECONDS = 30
 PROMPT_REPORT_RE = re.compile(r"(work-report|report|汇报|报告)", re.IGNORECASE)
 PROMPT_TIMING_RE = re.compile(
-    r"(end|finish|complete|completion|after|every|periodic|cron|结束|完成|收尾|定时|每)",
+    r"(end|finish|complete|completion|after|every|periodic|cron|interim|continue|结束|完成|收尾|定时|每|临时|中途|继续|抽检)",
     re.IGNORECASE,
 )
 SAFE_ID_RE = re.compile(r"[^A-Za-z0-9_.-]+")
@@ -133,6 +134,14 @@ def sha256_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", *args], cwd=str(cwd), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -208,12 +217,16 @@ def validate_decision(decision: Any, request_text: str) -> dict[str, Any] | None
         raise RuntimeFailure("decision_interval_invalid", "interval_seconds must be null or at least 60")
     if not isinstance(decision.get("on_end"), bool):
         raise RuntimeFailure("decision_on_end_invalid", "on_end must be boolean")
+    resume_after_report = decision.get("resume_after_report", False)
+    if not isinstance(resume_after_report, bool):
+        raise RuntimeFailure("decision_resume_after_report_invalid", "resume_after_report must be boolean when provided")
+    decision["resume_after_report"] = resume_after_report
     if decision["verdict"] != "confirmed":
         return None
     if not quotes:
         raise RuntimeFailure("decision_quotes_invalid", "confirmed evidence_quotes must be nonempty")
-    if not decision["on_end"] and interval is None:
-        raise RuntimeFailure("decision_trigger_missing", "confirmed decisions must request end or periodic reporting")
+    if not decision["on_end"] and interval is None and not resume_after_report:
+        raise RuntimeFailure("decision_trigger_missing", "confirmed decisions must request end, periodic, or interim resume reporting")
     return decision
 
 
@@ -433,6 +446,7 @@ def valid_delivery_after(manifest: dict[str, Any], obligation: dict[str, Any], *
                 "report": str(report),
                 "report_id": delivery["report_id"],
                 "artifact_digest": delivery["artifact_digest"],
+                "artifact_fingerprint": report_artifact_fingerprint(report, path),
                 "delivered_at": delivery["delivered_at"],
                 "generated_at": context["generated_at"],
                 "mtime": path.stat().st_mtime,
@@ -451,7 +465,7 @@ def complete_obligation(manifest: dict[str, Any], obligation: dict[str, Any]) ->
         obligation["state"] = "complete"
         return
     obligation["state"] = "satisfied"
-    if prior != "satisfied":
+    if "due_at" in obligation and prior != "satisfied":
         advance_periodic_after_completion(manifest)
 
 
@@ -467,6 +481,8 @@ def ack_still_valid(manifest: dict[str, Any], obligation: dict[str, Any], ack: d
     try:
         delivery_path = safe_absolute(Path(ack["delivery"]))
         if not delivery_path.exists() or not is_relative_to(delivery_path, Path(manifest["task_dir"])):
+            return False
+        if "artifact_fingerprint" in ack and not cached_ack_artifacts_unchanged(ack):
             return False
         delivery = load_json(delivery_path)
         if not isinstance(delivery, dict) or not delivery_matches_manifest(delivery, manifest, obligation):
@@ -549,6 +565,54 @@ def verify_delivery_with_report_tool(
     )
 
 
+def report_artifact_fingerprint(report: Path, delivery_path: Path) -> dict[str, Any]:
+    report = safe_absolute(report)
+    delivery_path = safe_absolute(delivery_path)
+    report_dir = report.parent
+    candidates = [
+        report,
+        delivery_path,
+        report_dir / "context.json",
+        report_dir / "checks.json",
+        report_dir / "review.json",
+    ]
+    assets = report_dir / "assets"
+    if assets.exists():
+        for path in sorted(assets.rglob("*")):
+            if path.is_file():
+                candidates.append(path)
+    files = []
+    seen: set[str] = set()
+    for path in candidates:
+        if not path.exists() or not path.is_file():
+            continue
+        safe_path = safe_absolute(path)
+        if not is_relative_to(safe_path, report_dir):
+            raise RuntimeFailure("artifact_path_outside_report", "report artifact fingerprint path escaped report directory")
+        rel = safe_path.relative_to(report_dir).as_posix()
+        if rel in seen:
+            continue
+        seen.add(rel)
+        stat = safe_path.stat()
+        files.append({"path": rel, "sha256": sha256_file(safe_path), "size": stat.st_size})
+    payload = {"files": sorted(files, key=lambda item: item["path"])}
+    payload["sha256"] = sha256_text(json.dumps(payload["files"], sort_keys=True, separators=(",", ":")))
+    return payload
+
+
+def cached_ack_artifacts_unchanged(ack: dict[str, Any]) -> bool:
+    fingerprint = ack.get("artifact_fingerprint")
+    if not isinstance(fingerprint, dict) or not isinstance(fingerprint.get("sha256"), str):
+        return False
+    try:
+        delivery_path = safe_absolute(Path(ack["delivery"]))
+        report = safe_absolute(Path(ack["report"]))
+        current = report_artifact_fingerprint(report, delivery_path)
+    except (KeyError, RuntimeFailure, OSError):
+        return False
+    return current.get("sha256") == fingerprint.get("sha256")
+
+
 def ensure_periodic_obligation(manifest: dict[str, Any], now: dt.datetime) -> dict[str, Any] | None:
     final = manifest.get("final")
     if manifest.get("on_end") and isinstance(final, dict) and final.get("state") == "complete":
@@ -605,8 +669,264 @@ def due_additional_context(manifest: dict[str, Any], obligation: dict[str, Any])
     return (
         "A work-report obligation is due. Invoke the work-report skill with "
         f"--task-dir {manifest['task_dir']} and produce a {obligation['kind']} report. "
+        f"Initialize a fresh report batch after cutoff {obligation['cutoff']}; earlier report batches are stale for this obligation. "
         "Finalize it so delivery.json is written before the next Stop."
     )
+
+
+def report_related_post_tool_use(event: dict[str, Any]) -> bool:
+    relevant = {
+        key: event.get(key)
+        for key in [
+            "tool_name",
+            "name",
+            "tool_input",
+            "tool_response",
+            "tool_result",
+            "command",
+        ]
+        if key in event
+    }
+    try:
+        text = json.dumps(relevant, ensure_ascii=False, sort_keys=True).lower()
+    except Exception:
+        text = str(relevant).lower()
+    return any(
+        marker in text
+        for marker in [
+            "report_tool.py",
+            "report_runtime.py",
+            "work-report",
+            "work-reports",
+            "delivery.json",
+        ]
+    )
+
+
+def remember_non_report_post_tool_use(manifest: dict[str, Any], event: dict[str, Any]) -> bool:
+    if event.get("hook_event_name") != "PostToolUse" or report_related_post_tool_use(event):
+        return False
+    manifest["last_non_report_post_tool_use"] = {
+        "observed_at": iso_now(),
+        "turn_id": str(event.get("turn_id") or ""),
+        "tool_name": str(event.get("tool_name") or event.get("name") or ""),
+    }
+    return True
+
+
+def non_report_post_tool_after_ack(manifest: dict[str, Any], ack: dict[str, Any]) -> bool:
+    observed = manifest.get("last_non_report_post_tool_use")
+    if not isinstance(observed, dict):
+        return False
+    try:
+        ack_time = ack.get("verified_at") or ack.get("delivered_at", "")
+        return parse_iso(observed.get("observed_at", ""), "last_non_report_post_tool_use.observed_at") >= parse_iso(
+            ack_time, "ack.verified_at"
+        )
+    except RuntimeFailure:
+        return False
+
+
+def close_if_standalone_interim(manifest: dict[str, Any]) -> None:
+    if not manifest.get("on_end") and manifest.get("interval_seconds") is None:
+        manifest["closed_at"] = manifest.get("closed_at") or iso_now()
+
+
+def consume_interim_obligation(manifest: dict[str, Any], obligation: dict[str, Any]) -> None:
+    obligation["state"] = "complete"
+    obligation["lease"] = None
+    close_if_standalone_interim(manifest)
+
+
+def consume_cached_interim_ack_after_non_report_tool(manifest: dict[str, Any]) -> bool:
+    obligation = manifest.get("interim")
+    gate = manifest.get("resume_after_report_gate")
+    if (
+        not isinstance(obligation, dict)
+        or obligation.get("state") in {"complete", "cancelled"}
+        or not isinstance(gate, dict)
+        or gate.get("state") != "pending"
+    ):
+        return False
+    ack = obligation.get("last_ack")
+    if not isinstance(ack, dict) or not cached_ack_artifacts_unchanged(ack) or not non_report_post_tool_after_ack(manifest, ack):
+        return False
+    gate["state"] = "observed"
+    gate["observed_resume_at"] = manifest["last_non_report_post_tool_use"]["observed_at"]
+    gate["delivery"] = ack.get("delivery")
+    gate["note"] = (
+        "Consumed from a cached verified receipt before revalidating live evidence after a non-report tool boundary; "
+        "this suppresses duplicate interim reports but does not prove original task completion."
+    )
+    consume_interim_obligation(manifest, obligation)
+    return True
+
+
+def interim_delivery_notice(manifest: dict[str, Any], event: dict[str, Any]) -> str | None:
+    if (
+        event.get("hook_event_name") != "PostToolUse"
+        or not report_related_post_tool_use(event)
+        or not manifest.get("resume_after_report")
+    ):
+        return None
+    obligation = manifest.get("interim")
+    gate = manifest.get("resume_after_report_gate")
+    if (
+        not isinstance(obligation, dict)
+        or obligation.get("state") in {"complete", "cancelled"}
+        or not isinstance(gate, dict)
+        or gate.get("delivery_notice_at")
+    ):
+        return None
+    ack = obligation.get("last_ack")
+    if not isinstance(ack, dict) or not cached_ack_artifacts_unchanged(ack):
+        return None
+    gate["delivery_notice_at"] = iso_now()
+    gate["delivery"] = ack.get("delivery")
+    return (
+        "Interim work-report delivery is verified. In commentary now, share this report.md link before any non-report business action: "
+        f"{ack['report']}. Then continue the original task. Do not defer the report path to the final reply."
+    )
+
+
+def maybe_block_for_interim_resume(
+    manifest: dict[str, Any],
+    obligation: dict[str, Any],
+    ack: dict[str, Any],
+    session_id: Any,
+) -> dict[str, Any] | None:
+    if not manifest.get("resume_after_report"):
+        return None
+    gate = manifest.setdefault(
+        "resume_after_report_gate",
+        {
+            "state": "pending",
+            "issued_at": None,
+            "observed_resume_at": None,
+            "delivery": None,
+            "note": "One-shot continuation gate; it can require one more turn but cannot prove business work was completed.",
+        },
+    )
+    if gate.get("state") in {"issued", "observed", "cancelled"}:
+        consume_interim_obligation(manifest, obligation)
+        return None
+    if non_report_post_tool_after_ack(manifest, ack):
+        gate["state"] = "observed"
+        gate["observed_resume_at"] = manifest["last_non_report_post_tool_use"]["observed_at"]
+        gate["delivery"] = ack.get("delivery")
+        consume_interim_obligation(manifest, obligation)
+        return None
+    gate["state"] = "issued"
+    gate["issued_at"] = iso_now()
+    gate["delivery"] = ack.get("delivery")
+    consume_interim_obligation(manifest, obligation)
+    return {
+        "decision": "block",
+        "reason": (
+            "A fresh interim work-report delivery was verified. Continue the original task now with a concrete non-report action "
+            "before the final reply; do not regenerate the report or merely state that the task continues. "
+            "This is a one-shot continuation guarantee, not proof that the original business work is complete. "
+            f"Task dir: {manifest['task_dir']}. Session UUID: {session_id}."
+        ),
+    }
+
+
+def reporting_manifest_paths(root: Path) -> list[Path]:
+    return sorted((root / "docs" / "work-reports").glob("*/reporting.json"))
+
+
+def stop_manifest_pass(
+    *,
+    root: Path,
+    session_id: Any,
+    owner: str,
+    keys: list[str],
+    include_closed_failures: bool,
+) -> dict[str, Any] | None:
+    for path in reporting_manifest_paths(root):
+        task_dir = path.parent.resolve()
+        with locked_manifest(task_dir):
+            try:
+                manifest = load_manifest(task_dir)
+            except RuntimeFailure:
+                continue
+            if manifest.get("session_id") != session_id or manifest.get("cancelled_at"):
+                continue
+            if manifest.get("closed_at"):
+                if include_closed_failures:
+                    last_failure = manifest.pop("last_failure", None)
+                    save_manifest(task_dir, manifest)
+                    if last_failure:
+                        return {
+                            "hookSpecificOutput": {
+                                "hookEventName": "Stop",
+                                "systemMessage": last_failure.get("message", "A previous work-report obligation failed visibly."),
+                            }
+                        }
+                continue
+            now = utc_now()
+            ensure_periodic_obligation(manifest, now)
+            refresh_manifest(manifest)
+            for key in keys:
+                obligation = manifest.get(key)
+                if not isinstance(obligation, dict) or obligation.get("state") in {"complete", "cancelled"}:
+                    continue
+                if valid_delivery_after(manifest, obligation, complete=True):
+                    if key == "interim":
+                        resume_block = maybe_block_for_interim_resume(manifest, obligation, obligation["last_ack"], session_id)
+                        save_manifest(task_dir, manifest)
+                        if resume_block:
+                            return resume_block
+                        continue
+                    if obligation["kind"] == "final":
+                        manifest["closed_at"] = iso_now()
+                        manifest["interval_seconds"] = None
+                        manifest["next_due_at"] = None
+                        manifest["periodic"] = None
+                    obligation["lease"] = None
+                    save_manifest(task_dir, manifest)
+                    continue
+                if active_other_lease(obligation, owner, now):
+                    save_manifest(task_dir, manifest)
+                    continue
+                if obligation.get("state") == "failed":
+                    last_failure = manifest.get("last_failure")
+                    if isinstance(last_failure, dict) and not last_failure.get("notified_at"):
+                        last_failure["notified_at"] = iso_now()
+                        save_manifest(task_dir, manifest)
+                        return {
+                            "systemMessage": last_failure.get("message", "Work-report obligation failed visibly."),
+                        }
+                    save_manifest(task_dir, manifest)
+                    continue
+                if int(obligation.get("attempts", 0)) >= MAX_ATTEMPTS:
+                    obligation["state"] = "failed"
+                    failure = {
+                        "at": iso_now(),
+                        "reason": "maximum Stop continuations reached",
+                        "message": f"Work-report {obligation['kind']} obligation failed after two Stop continuations.",
+                        "notified_at": iso_now(),
+                    }
+                    obligation.setdefault("failures", []).append(failure)
+                    obligation["lease"] = None
+                    manifest["last_failure"] = failure
+                    atomic_write_json(task_dir / "reporting.failure.json", failure)
+                    save_manifest(task_dir, manifest)
+                    return {
+                        "systemMessage": failure["message"],
+                    }
+                obligation["attempts"] = int(obligation.get("attempts", 0)) + 1
+                set_lease(obligation, owner, now)
+                save_manifest(task_dir, manifest)
+                return {
+                    "decision": "block",
+                    "reason": (
+                        f"{due_additional_context(manifest, obligation)} "
+                        f"Task dir: {manifest['task_dir']}. Session UUID: {session_id}."
+                    ),
+                }
+            save_manifest(task_dir, manifest)
+    return None
 
 
 def cmd_register(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
@@ -636,10 +956,15 @@ def cmd_register(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 and existing.get("session_id") == args.session_id
                 and existing.get("on_end") == decision["on_end"]
                 and existing.get("interval_seconds") == decision.get("interval_seconds")
+                and existing.get("resume_after_report", False) == decision["resume_after_report"]
             )
             if same:
                 clear_pending_for_session(root, args.session_id)
                 return 0, {"status": "registered", "task_dir": str(task_dir), "manifest": str(existing_path), "idempotent": True}
+            raise RuntimeFailure(
+                "manifest_conflict",
+                "task-dir already has a different reporting manifest; use a separate reporting task-dir with references to the original task state, preserving existing obligations",
+            )
     manifest = {
         "schema_version": RUNTIME_SCHEMA,
         "task_dir": str(task_dir),
@@ -653,11 +978,24 @@ def cmd_register(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "reason": decision["reason"],
         "on_end": decision["on_end"],
         "interval_seconds": decision.get("interval_seconds"),
+        "resume_after_report": decision["resume_after_report"],
         "cancelled_at": None,
         "closed_at": None,
         "last_failure": None,
         "final": base_obligation("final", registered_at) if decision["on_end"] else None,
         "periodic": None,
+        "interim": base_obligation("progress", registered_at) if decision["resume_after_report"] else None,
+        "resume_after_report_gate": (
+            {
+                "state": "pending",
+                "issued_at": None,
+                "observed_resume_at": None,
+                "delivery": None,
+                "note": "One-shot continuation gate; it can require one more turn but cannot prove business work was completed.",
+            }
+            if decision["resume_after_report"]
+            else None
+        ),
         "next_due_at": (
             (parse_iso(registered_at, "registered_at") + dt.timedelta(seconds=decision["interval_seconds"]))
             .isoformat()
@@ -665,12 +1003,25 @@ def cmd_register(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             if isinstance(decision.get("interval_seconds"), int)
             else None
         ),
-        "notes": ["Final scope completion is the next main Stop after registration."],
+        "notes": [
+            note
+            for note in [
+                "Final scope completion is the next main Stop after registration." if decision["on_end"] else None,
+                "Interim resume uses one verified progress report plus one bounded continuation nudge." if decision["resume_after_report"] else None,
+            ]
+            if note
+        ],
     }
     with locked_manifest(task_dir):
         save_manifest(task_dir, manifest)
     clear_pending_for_session(root, args.session_id)
-    return 0, {"status": "registered", "task_dir": str(task_dir), "manifest": str(manifest_path(task_dir))}
+    result = {"status": "registered", "task_dir": str(task_dir), "manifest": str(manifest_path(task_dir))}
+    if decision["resume_after_report"]:
+        result["next_step"] = (
+            f"Initialize a new progress report batch with --task-dir {task_dir} after registered_at {registered_at}; "
+            "do not reuse a report batch generated before registration."
+        )
+    return 0, result
 
 
 def cmd_status(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
@@ -688,18 +1039,22 @@ def cmd_cancel(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     with locked_manifest(task_dir):
         manifest = load_manifest(task_dir)
         manifest["cancelled_at"] = iso_now()
-        for key in ["final", "periodic"]:
+        for key in OBLIGATION_KEYS:
             if isinstance(manifest.get(key), dict):
                 manifest[key]["state"] = "cancelled"
+        if isinstance(manifest.get("resume_after_report_gate"), dict):
+            manifest["resume_after_report_gate"]["state"] = "cancelled"
         save_manifest(task_dir, manifest)
     return 0, {"status": "cancelled", "task_dir": str(task_dir)}
 
 
 def refresh_manifest(manifest: dict[str, Any], *, complete_periodic: bool = False) -> bool:
     changed = False
-    for key in ["final", "periodic"]:
+    for key in OBLIGATION_KEYS:
         obligation = manifest.get(key)
         if key == "final" and manifest.get("closed_at"):
+            continue
+        if key == "interim" and isinstance(obligation, dict) and obligation.get("state") == "complete":
             continue
         if isinstance(obligation, dict) and obligation.get("state") != "cancelled":
             before = json.dumps(obligation, sort_keys=True)
@@ -760,8 +1115,27 @@ def cmd_hook(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                     f"Pending marker: {pending_path(root, session_id)}. Session UUID: {session_id}."
                 ),
             }
+        interim_output = stop_manifest_pass(
+            root=root,
+            session_id=session_id,
+            owner=owner,
+            keys=["interim"],
+            include_closed_failures=False,
+        )
+        if interim_output:
+            return 0, interim_output
+        final_output = stop_manifest_pass(
+            root=root,
+            session_id=session_id,
+            owner=owner,
+            keys=["final", "periodic"],
+            include_closed_failures=True,
+        )
+        if final_output:
+            return 0, final_output
+        return 0, {}
     outputs: list[str] = []
-    for path in sorted((root / "docs" / "work-reports").glob("*/reporting.json")):
+    for path in reporting_manifest_paths(root):
         task_dir = path.parent.resolve()
         with locked_manifest(task_dir):
             try:
@@ -782,68 +1156,21 @@ def cmd_hook(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                     }
                 continue
             now = utc_now()
+            changed_by_post_tool = remember_non_report_post_tool_use(manifest, event)
+            if changed_by_post_tool:
+                consume_cached_interim_ack_after_non_report_tool(manifest)
             ensure_periodic_obligation(manifest, now)
             refresh_manifest(manifest)
             if hook_event == "Interrupt":
                 manifest["cancelled_at"] = iso_now()
-                for key in ["final", "periodic"]:
+                for key in OBLIGATION_KEYS:
                     if isinstance(manifest.get(key), dict):
                         manifest[key]["state"] = "cancelled"
+                if isinstance(manifest.get("resume_after_report_gate"), dict):
+                    manifest["resume_after_report_gate"]["state"] = "cancelled"
                 save_manifest(task_dir, manifest)
                 continue
-            if hook_event == "Stop":
-                for obligation in [manifest.get("final"), manifest.get("periodic")]:
-                    if not isinstance(obligation, dict) or obligation.get("state") in {"complete", "cancelled"}:
-                        continue
-                    if valid_delivery_after(manifest, obligation, complete=True):
-                        if obligation["kind"] == "final":
-                            manifest["closed_at"] = iso_now()
-                            manifest["interval_seconds"] = None
-                            manifest["next_due_at"] = None
-                            manifest["periodic"] = None
-                        obligation["lease"] = None
-                        save_manifest(task_dir, manifest)
-                        continue
-                    if active_other_lease(obligation, owner, now):
-                        save_manifest(task_dir, manifest)
-                        continue
-                    if obligation.get("state") == "failed":
-                        last_failure = manifest.get("last_failure")
-                        if isinstance(last_failure, dict) and not last_failure.get("notified_at"):
-                            last_failure["notified_at"] = iso_now()
-                            save_manifest(task_dir, manifest)
-                            return 0, {
-                                "systemMessage": last_failure.get("message", "Work-report obligation failed visibly."),
-                            }
-                        save_manifest(task_dir, manifest)
-                        continue
-                    if int(obligation.get("attempts", 0)) >= MAX_ATTEMPTS:
-                        obligation["state"] = "failed"
-                        failure = {
-                            "at": iso_now(),
-                            "reason": "maximum Stop continuations reached",
-                            "message": f"Work-report {obligation['kind']} obligation failed after two Stop continuations.",
-                            "notified_at": iso_now(),
-                        }
-                        obligation.setdefault("failures", []).append(failure)
-                        obligation["lease"] = None
-                        manifest["last_failure"] = failure
-                        atomic_write_json(task_dir / "reporting.failure.json", failure)
-                        save_manifest(task_dir, manifest)
-                        return 0, {
-                            "systemMessage": failure["message"],
-                        }
-                    obligation["attempts"] = int(obligation.get("attempts", 0)) + 1
-                    set_lease(obligation, owner, now)
-                    save_manifest(task_dir, manifest)
-                    return 0, {
-                        "decision": "block",
-                        "reason": (
-                            f"{due_additional_context(manifest, obligation)} "
-                            f"Task dir: {manifest['task_dir']}. Session UUID: {session_id}."
-                        ),
-                    }
-            elif hook_event in {"PostToolUse", "SessionStart"}:
+            if hook_event in {"PostToolUse", "SessionStart"}:
                 periodic = manifest.get("periodic")
                 if isinstance(periodic, dict) and periodic.get("state") == "pending":
                     now = utc_now()
@@ -852,6 +1179,9 @@ def cmd_hook(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                         continue
                     set_lease(periodic, owner, now)
                     outputs.append(due_additional_context(manifest, periodic))
+                notice = interim_delivery_notice(manifest, event)
+                if notice:
+                    outputs.append(notice)
             save_manifest(task_dir, manifest)
     if outputs:
         return 0, {"hookSpecificOutput": {"hookEventName": hook_event, "additionalContext": "\n\n".join(outputs)}}

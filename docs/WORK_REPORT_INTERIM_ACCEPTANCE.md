@@ -45,3 +45,20 @@
 这是小任务流程验收，不证明多日稳定性，也不以任意工具调用代替业务结果。一次性 Stop 提醒仅在原生 hooks 实际加载且受信任时生效；无 hook 的宿主只有 Skill 文字流程约束。
 
 证据：[第三轮结果](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-interim/acceptance-v3/result.json)、[完整事件](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-interim/acceptance-v3/session.jsonl)、[原生 hook 事件](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-interim/acceptance-v3/hooks.jsonl)、[独立审查摘要](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-interim/independent-review.md)。第一、二轮分别保存在同级 acceptance / acceptance-v2；这些本地原始产物不随 clone 保存。
+
+
+## 部署验收
+
+修复源码版本：`f23de51773bf1bc5e6e60d4a9312b2febd5bf8eb`，已推送到 `codex/work-report-interim-resume`。
+
+| 目标 | 安装与保护检查 |
+|---|---|
+| 本机 | 专用安装器更新 `.agents/skills/work-report`；21 文件一致、5 hook 定义检查通过；3 个既有 Codex 相关进程身份保持 |
+| PHAI | 归档 SHA-256 验证后安装到实际 HOME 的 `.agents/skills/work-report`；21 文件一致、5 hook 定义检查通过；4 个既有 Codex 相关进程身份保持 |
+| 两端配置 | config.toml、auth.json、CC Switch DB、hooks.json 前后 SHA-256 全部一致，保留原 hook 信任；没有运行完整安装器或修改 cron |
+
+本机完整 provider 预检发现现有 supports_websockets 与仓库默认值不同；本次没有修改连接配置，使用专用 Skill 安装器既有的 profile/路径检查并核对配置哈希。PHAI fleet preflight 与错误平台 canary 均通过。
+
+本次没有重启既有 Codex 进程；已经加载到某条对话上下文中的旧 Skill 文字不会因文件安装而被重写。新调用应读取安装后的 Skill；hook 定义未变，后续调用的脚本已更新。本次远端为安装与保护验收，行为端到端测试发生在上述本地独立任务中。
+
+证据：[本机安装](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-interim/deploy/local-result.json)、[PHAI 安装](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-interim/deploy/remote-result.json)。

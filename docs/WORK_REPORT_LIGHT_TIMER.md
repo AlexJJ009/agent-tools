@@ -41,3 +41,10 @@
 手动探针 A 于 **2026-09-07 13:05:22 UTC** 作为本对话的新输入到达，对应新 turn `01a07bf9-2c96-71d3-b3bf-5906f05f4265`。这是上一轮最终回复之后，距离 12:25:29 入队约 39 分 53 秒；Main 已在 commentary 确认标识并继续验收记录工作。
 
 这次证明了该消息会回到原对话并在轮次结束后被处理，不能据此称为活动轮中的即时 steer。探针明确不要求正式报告，所以本次仍是消息传输与续行记录的验收。未新增定时器、未改动业务任务。证据：[probe-a-arrival.json](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-light-timer/probe-a-arrival.json)。
+
+
+## 后续实际到达：探针 B
+
+定时探针 B 于 **2026-09-07 13:08:06 UTC** 到达原对话，对应 turn `01a07bfb-aaaf-7ad2-b4ed-20b99d4cb2c1`，发生在探针 A 所在轮次的最终回复之后。距离 12:36:51 入队约 31 分 15 秒；Main 已在 commentary 确认标识。两条测试探针已从队列消费，开发已完成，本次只记录结果，没有创建新定时器或报告。
+
+两次到达均证实了当前本机客户端的跨轮队列处理；本测试没有观察到活动轮即时 steer。完整报告生成仍不是这两条传输探针的测试内容。证据：[probe-b-arrival.json](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-light-timer/probe-b-arrival.json)。

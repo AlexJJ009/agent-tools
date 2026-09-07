@@ -40,3 +40,14 @@ pending 捕获、错误记录、Stop 更新和按摘要清理使用同一 sessio
 这次是在本机直接调用真实 hook/runtime 入口回放，并使用真实 intent Judge；没有重跑 PHAI 实验，也没有把本机测试称为远端端到端验收。明确业务完成里程碑被保留，但没有自动调度或业务完成检测器。
 
 证据：[本机回放结果](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-pending-feedback/local-result.json)、[旧版 CRLF 反例](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-pending-feedback/crlf-baseline-failure.txt)。原始本机产物不随 clone 保存。
+
+
+## 本机安装
+
+源码修复提交 `d76f74b3e0b758076d28a9cb7ac621f3d2d653a2`，分支 `codex/work-report-pending-feedback`，已推送。
+
+专用安装器已更新本机 `.agents/skills/work-report`，21 个文件一致，5 项 hook 定义检查通过。安装后使用该目录下的实际 runtime 入口重复上述 CRLF + deferred + 四次 Stop 检查，结果通过。3 个既有 Codex 相关进程的 PID/启动标识保持一致，config.toml、auth.json、CC Switch DB、hooks.json 前后哈希一致。
+
+[安装检查](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-pending-feedback/install-result.json) · [安装后入口验证](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-pending-feedback/installed-result.json)
+
+本轮对 PHAI 只做只读排查，未更新其 Skill、清理其状态或重启进程；远端后续调用仍取决于该机安装版本。

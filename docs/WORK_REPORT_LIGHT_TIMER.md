@@ -34,3 +34,10 @@
 修复源码 `4be867506e37b68f65192e900dab98fd808559f8` 已推送到 `codex/work-report-light-timer`。专用安装器已更新本机 Skill，23 文件一致，5 个既有 hook 定义检查通过。安装前后配置、凭证、CC Switch DB、hooks.json 哈希一致，既有三个 Codex 相关进程身份保持；安装后的 report_timer.py --help 可运行。
 
 没有设置长期业务定时任务，也没有更新 PHAI 或修改其监督程序。最后的队列读回见 [final-queue-readback.json](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-light-timer/final-queue-readback.json)，安装证据见 [install-result.json](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-light-timer/install-result.json)。当前客户端即时 steer 尚未通过验收；如随后在本对话收到探针，应记录它是活动轮内还是轮次结束后到达，不能倒推为已证明即时投递。
+
+
+## 后续实际到达：探针 A
+
+手动探针 A 于 **2026-09-07 13:05:22 UTC** 作为本对话的新输入到达，对应新 turn `01a07bf9-2c96-71d3-b3bf-5906f05f4265`。这是上一轮最终回复之后，距离 12:25:29 入队约 39 分 53 秒；Main 已在 commentary 确认标识并继续验收记录工作。
+
+这次证明了该消息会回到原对话并在轮次结束后被处理，不能据此称为活动轮中的即时 steer。探针明确不要求正式报告，所以本次仍是消息传输与续行记录的验收。未新增定时器、未改动业务任务。证据：[probe-a-arrival.json](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-light-timer/probe-a-arrival.json)。

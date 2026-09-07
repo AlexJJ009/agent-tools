@@ -7,7 +7,9 @@ import tempfile
 import textwrap
 import unittest
 import datetime as dt
+import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 
 
 TEST_DIR = Path(__file__).resolve().parent
@@ -190,6 +192,14 @@ class ReportRuntimeTests(unittest.TestCase):
 
         return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
+    def load_runtime_module(self):
+        name = f"report_runtime_under_test_{self.repo_counter}"
+        spec = importlib.util.spec_from_file_location(name, RUNTIME)
+        module = importlib.util.module_from_spec(spec)
+        self.assertIsNotNone(spec.loader)
+        spec.loader.exec_module(module)
+        return module
+
     def write_delivery(
         self,
         task_dir,
@@ -262,6 +272,16 @@ class ReportRuntimeTests(unittest.TestCase):
     def test_register_ignores_none_and_rejects_missing_git_ignore(self):
         text = "Please send an end report."
         repo, task_dir, request = self.make_repo_task(ignored=True, request_text=text)
+        prompt_event = json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "prompt": text,
+            }
+        )
+        self.assertIn("hookSpecificOutput", self.data(self.run_cli("hook", input=prompt_event, cwd=repo)))
         decision = self.decision(self.root / "decision.json", text, verdict="none")
         proc = self.register(repo, task_dir, request, decision)
         self.assertEqual(proc.returncode, 0, proc.stdout)
@@ -353,6 +373,16 @@ class ReportRuntimeTests(unittest.TestCase):
         self.run_cli("hook", input=event, cwd=repo)
         proc = self.register(repo, task_dir, request, self.decision(self.root / "decision.json", text))
         self.assertEqual(self.data(proc)["issues"][0]["code"], "pending_session_mismatch")
+
+    def test_register_confirmed_preserves_crlf_request_hash_for_context_match(self):
+        text = "Please send an end report.\r\nKeep the original task evidence."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        proc = self.register(repo, task_dir, request, self.decision(self.root / "decision.json", text))
+        self.assertEqual(proc.returncode, 0, proc.stdout)
+        result = self.data(proc)
+        self.assertEqual(result["status"], "registered")
+        manifest = json.loads((task_dir / "reporting.json").read_text())
+        self.assertEqual(manifest["request_sha256"], self.sha(text))
 
     def test_stop_blocks_until_fresh_verified_final_delivery(self):
         text = "Please send an end report."
@@ -956,7 +986,7 @@ class ReportRuntimeTests(unittest.TestCase):
         self.assertEqual(manifest["resume_after_report_gate"]["state"], "cancelled")
 
     def test_prompt_candidate_blocks_stop_until_judge_decision_clears_it(self):
-        text = "Please send an end report."
+        text = "After this work is complete, send a report."
         repo, task_dir, request = self.make_repo_task(request_text=text)
         prompt_event = json.dumps(
             {
@@ -964,7 +994,7 @@ class ReportRuntimeTests(unittest.TestCase):
                 "cwd": str(repo),
                 "session_id": self.session_id,
                 "turn_id": "t1",
-                "prompt": "After this work is complete, send a report.",
+                "prompt": text,
             }
         )
         prompt = self.data(self.run_cli("hook", input=prompt_event, cwd=repo))
@@ -972,11 +1002,387 @@ class ReportRuntimeTests(unittest.TestCase):
         stop_event = json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id})
         stop = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
         self.assertEqual(stop["decision"], "block")
-        decision = self.decision(self.root / "none.json", text, verdict="none")
-        cleared = self.data(self.register(repo, task_dir, request, decision))
+        decision = self.decision(self.root / "none.json", text, verdict="none", evidence_quotes=["send a report"])
+        cleared = self.data(
+            self.run_cli(
+                "register",
+                "--request",
+                request,
+                "--decision",
+                decision,
+                "--session-id",
+                self.session_id,
+                "--workspace",
+                repo,
+            )
+        )
         self.assertEqual(cleared["status"], "ignored")
+        resolution = json.loads(Path(cleared["resolution"]).read_text())
+        self.assertEqual(resolution["decision"]["verdict"], "none")
+        self.assertFalse(resolution["auto_enforced"])
         stop2 = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
         self.assertEqual(stop2, {})
+
+    def test_ordinary_stop_without_pending_does_not_create_pending_lock_artifacts(self):
+        self.repo_counter += 1
+        repo = self.root / f"clean-repo-{self.repo_counter}"
+        repo.mkdir()
+        self.git(repo, "init")
+        self.git(repo, "config", "user.email", "runtime@example.invalid")
+        self.git(repo, "config", "user.name", "Runtime Tests")
+        (repo / "README.md").write_text("repo\n", encoding="utf-8")
+        self.git(repo, "add", "README.md")
+        self.git(repo, "commit", "-m", "initial")
+        stop_event = json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id})
+        self.assertEqual(self.data(self.run_cli("hook", input=stop_event, cwd=repo)), {})
+        self.assertFalse((repo / "docs").exists())
+
+    def test_nonconfirmed_register_without_pending_has_no_lock_artifacts(self):
+        self.repo_counter += 1
+        repo = self.root / f"no-pending-repo-{self.repo_counter}"
+        repo.mkdir()
+        self.git(repo, "init")
+        self.git(repo, "config", "user.email", "runtime@example.invalid")
+        self.git(repo, "config", "user.name", "Runtime Tests")
+        (repo / "README.md").write_text("repo\n", encoding="utf-8")
+        self.git(repo, "add", "README.md")
+        self.git(repo, "commit", "-m", "initial")
+        text = "After this, no report needed."
+        request = repo / "request.md"
+        request.write_text(text, encoding="utf-8")
+        decision = self.decision(self.root / "no-pending-none.json", text, verdict="none", evidence_quotes=["no report needed"])
+        proc = self.run_cli(
+            "register",
+            "--request",
+            request,
+            "--decision",
+            decision,
+            "--session-id",
+            self.session_id,
+            "--workspace",
+            repo,
+        )
+        self.assertEqual(self.data(proc)["issues"][0]["code"], "pending_missing")
+        self.assertFalse((repo / "docs").exists())
+
+    def test_prompt_candidate_needs_clarification_clears_without_task_dir(self):
+        text = "After this work is complete, send a report."
+        repo, _task_dir, request = self.make_repo_task(request_text=text)
+        prompt_event = json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "prompt": text,
+            }
+        )
+        self.assertIn("hookSpecificOutput", self.data(self.run_cli("hook", input=prompt_event, cwd=repo)))
+        decision = self.decision(
+            self.root / "needs_clarification.json",
+            text,
+            verdict="needs_clarification",
+            evidence_quotes=["send a report"],
+        )
+        cleared = self.data(
+            self.run_cli(
+                "register",
+                "--request",
+                request,
+                "--decision",
+                decision,
+                "--session-id",
+                self.session_id,
+                "--workspace",
+                repo,
+            )
+        )
+        self.assertEqual(cleared["status"], "ignored")
+        self.assertFalse((repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.json").exists())
+
+    def test_deferred_milestone_resolution_is_recorded_without_scheduling(self):
+        text = "完整矩阵结束后给我一份报告。"
+        repo, _task_dir, request = self.make_repo_task(request_text=text)
+        prompt_event = json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "prompt": text,
+            }
+        )
+        self.assertIn("hookSpecificOutput", self.data(self.run_cli("hook", input=prompt_event, cwd=repo)))
+        decision = self.decision(
+            self.root / "deferred.json",
+            text,
+            verdict="deferred",
+            on_end=False,
+            interval_seconds=None,
+            evidence_quotes=["完整矩阵结束后"],
+            reason="explicit future milestone, but no runtime milestone scheduler exists",
+        )
+        result = self.data(
+            self.run_cli(
+                "register",
+                "--request",
+                request,
+                "--decision",
+                decision,
+                "--session-id",
+                self.session_id,
+                "--workspace",
+                repo,
+            )
+        )
+        self.assertEqual(result["status"], "deferred")
+        self.assertFalse(result["scheduled"])
+        self.assertFalse(result["auto_enforced"])
+        deferred_resolution_path = Path(result["resolution"])
+        resolution = json.loads(deferred_resolution_path.read_text())
+        self.assertEqual(resolution["decision"]["verdict"], "deferred")
+        self.assertEqual(resolution["decision"]["evidence_quotes"], ["完整矩阵结束后"])
+        self.assertNotIn("resume_after_report", resolution["decision"])
+        self.assertFalse((repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.json").exists())
+        self.assertEqual(
+            self.data(self.run_cli("hook", input=json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id}), cwd=repo)),
+            {},
+        )
+
+        followup = "After this, no report needed for this ordinary follow-up."
+        request.write_text(followup, encoding="utf-8")
+        followup_event = json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t2",
+                "prompt": followup,
+            }
+        )
+        self.assertIn("hookSpecificOutput", self.data(self.run_cli("hook", input=followup_event, cwd=repo)))
+        followup_decision = self.decision(
+            self.root / "followup-none.json",
+            followup,
+            verdict="none",
+            evidence_quotes=["no report needed"],
+        )
+        followup_result = self.data(
+            self.run_cli(
+                "register",
+                "--request",
+                request,
+                "--decision",
+                followup_decision,
+                "--session-id",
+                self.session_id,
+                "--workspace",
+                repo,
+            )
+        )
+        self.assertEqual(followup_result["status"], "ignored")
+        followup_resolution_path = Path(followup_result["resolution"])
+        self.assertNotEqual(deferred_resolution_path, followup_resolution_path)
+        self.assertTrue(deferred_resolution_path.exists())
+        self.assertTrue(followup_resolution_path.exists())
+
+    def test_late_new_pending_survives_old_nonconfirmed_resolution_clear(self):
+        text = "After this work is complete, send a report."
+        new_text = "After the follow-up, send a report."
+        repo, _task_dir, request = self.make_repo_task(request_text=text)
+        prompt_event = json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "prompt": text,
+            }
+        )
+        self.assertIn("hookSpecificOutput", self.data(self.run_cli("hook", input=prompt_event, cwd=repo)))
+        decision = self.decision(self.root / "none-race.json", text, verdict="none", evidence_quotes=["send a report"])
+        runtime = self.load_runtime_module()
+        original_write_resolution = runtime.write_pending_resolution
+
+        def write_resolution_then_new_pending(workspace_root, session_id, pending, raw_decision):
+            path = original_write_resolution(workspace_root, session_id, pending, raw_decision)
+            runtime.atomic_write_json(
+                runtime.pending_path(workspace_root, session_id),
+                {
+                    "schema_version": "work-report.pending/1",
+                    "session_id": session_id,
+                    "turn_id": "t2",
+                    "workspace": str(workspace_root),
+                    "created_at": runtime.iso_now(),
+                    "request_sha256": self.sha(new_text),
+                    "prompt": new_text,
+                    "state": "needs_intent_judge",
+                    "attempts": 0,
+                    "reason": "new same-session candidate arrived during old resolution",
+                },
+            )
+            return path
+
+        runtime.write_pending_resolution = write_resolution_then_new_pending
+        old_env = os.environ.copy()
+        os.environ.update(self.git_env())
+        try:
+            rc, result = runtime.cmd_register(
+                SimpleNamespace(
+                    task_dir=None,
+                    request=str(request),
+                    decision=str(decision),
+                    session_id=self.session_id,
+                    workspace=str(repo),
+                )
+            )
+        finally:
+            os.environ.clear()
+            os.environ.update(old_env)
+        self.assertEqual(rc, 0)
+        self.assertEqual(result["status"], "ignored")
+        self.assertTrue(Path(result["resolution"]).exists())
+        current_pending = json.loads((repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.json").read_text())
+        self.assertEqual(current_pending["request_sha256"], self.sha(new_text))
+        self.assertEqual(current_pending["prompt"], new_text)
+
+    def test_nonconfirmed_register_rejects_same_session_pending_hash_mismatch(self):
+        text = "After this work is complete, send a report."
+        other_text = "Please send an end report."
+        repo, _task_dir, request = self.make_repo_task(request_text=other_text)
+        prompt_event = json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "prompt": text,
+            }
+        )
+        self.assertIn("hookSpecificOutput", self.data(self.run_cli("hook", input=prompt_event, cwd=repo)))
+        decision = self.decision(self.root / "none-mismatch.json", other_text, verdict="none")
+        proc = self.run_cli(
+            "register",
+            "--request",
+            request,
+            "--decision",
+            decision,
+            "--session-id",
+            self.session_id,
+            "--workspace",
+            repo,
+        )
+        self.assertEqual(self.data(proc)["issues"][0]["code"], "pending_request_mismatch")
+        self.assertTrue((repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.json").exists())
+
+    def test_confirmed_register_failure_records_one_time_pending_diagnostic(self):
+        text = "After this work is complete, send a report."
+        repo, _task_dir, request = self.make_repo_task(request_text=text)
+        prompt_event = json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "prompt": text,
+            }
+        )
+        self.assertIn("hookSpecificOutput", self.data(self.run_cli("hook", input=prompt_event, cwd=repo)))
+        decision = self.decision(self.root / "confirmed.json", text, evidence_quotes=["send a report"])
+        external_repo = self.root / "external-repo"
+        external_repo.mkdir()
+        self.git(external_repo, "init")
+        self.git(external_repo, "config", "user.email", "runtime@example.invalid")
+        self.git(external_repo, "config", "user.name", "Runtime Tests")
+        (external_repo / "README.md").write_text("external\n", encoding="utf-8")
+        self.git(external_repo, "add", "README.md")
+        self.git(external_repo, "commit", "-m", "initial")
+        external_task_dir = external_repo / "docs" / "work-reports" / "20260906T000000Z-runtime-abcdef"
+        external_task_dir.mkdir(parents=True)
+        proc = self.run_cli(
+            "register",
+            "--task-dir",
+            external_task_dir,
+            "--request",
+            request,
+            "--decision",
+            decision,
+            "--session-id",
+            self.session_id,
+            "--workspace",
+            repo,
+        )
+        self.assertEqual(self.data(proc)["issues"][0]["code"], "task_dir_git_mismatch")
+        pending_path = repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.json"
+        pending = json.loads(pending_path.read_text())
+        self.assertEqual(pending["state"], "register_failed")
+        self.assertEqual(pending["last_register_error"]["verdict"], "confirmed")
+        stop_event = json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id})
+        first = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
+        self.assertIn("systemMessage", first)
+        self.assertIn("Judge result was recorded", first["systemMessage"])
+        self.assertIn("no report obligation was registered or satisfied", first["systemMessage"])
+        retry = self.run_cli(
+            "register",
+            "--task-dir",
+            external_task_dir,
+            "--request",
+            request,
+            "--decision",
+            decision,
+            "--session-id",
+            self.session_id,
+            "--workspace",
+            repo,
+        )
+        self.assertEqual(self.data(retry)["issues"][0]["code"], "task_dir_git_mismatch")
+        self.assertEqual(self.data(self.run_cli("hook", input=stop_event, cwd=repo)), {})
+        changed = self.run_cli(
+            "register",
+            "--request",
+            request,
+            "--decision",
+            decision,
+            "--session-id",
+            self.session_id,
+            "--workspace",
+            repo,
+        )
+        self.assertEqual(self.data(changed)["issues"][0]["code"], "task_dir_required")
+        changed_notice = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
+        self.assertIn("systemMessage", changed_notice)
+        self.assertIn("task_dir_required", changed_notice["systemMessage"])
+
+    def test_manifest_conflict_records_one_time_pending_diagnostic(self):
+        text = "Please send an end report."
+        repo, task_dir, request = self.make_repo_task(request_text=text)
+        self.assertEqual(self.register(repo, task_dir, request, self.decision(self.root / "initial.json", text)).returncode, 0)
+        prompt_event = json.dumps(
+            {
+                "hook_event_name": "UserPromptSubmit",
+                "cwd": str(repo),
+                "session_id": self.session_id,
+                "turn_id": "t1",
+                "prompt": text,
+            }
+        )
+        self.assertIn("hookSpecificOutput", self.data(self.run_cli("hook", input=prompt_event, cwd=repo)))
+        different = self.decision(
+            self.root / "different.json",
+            text,
+            on_end=True,
+            interval_seconds=60,
+            evidence_quotes=["end report"],
+        )
+        proc = self.register(repo, task_dir, request, different)
+        self.assertEqual(self.data(proc)["issues"][0]["code"], "manifest_conflict")
+        pending = json.loads((repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.json").read_text())
+        self.assertEqual(pending["state"], "register_failed")
+        self.assertEqual(pending["last_register_error"]["code"], "manifest_conflict")
+        stop_event = json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id})
+        notice = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
+        self.assertIn("systemMessage", notice)
+        self.assertIn("manifest_conflict", notice["systemMessage"])
 
     def test_prompt_candidate_matches_interim_continue_terms(self):
         repo, _, _ = self.make_repo_task(request_text="irrelevant")

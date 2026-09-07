@@ -142,6 +142,14 @@ def sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def read_utf8_exact(path: Path) -> str:
+    reject_symlinks(path)
+    try:
+        return path.read_bytes().decode("utf-8")
+    except Exception as exc:
+        raise RuntimeFailure("request_read_failed", f"cannot read UTF-8 text {path}: {exc}") from exc
+
+
 def run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", *args], cwd=str(cwd), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
@@ -195,6 +203,7 @@ def context_for_request(task_dir: Path, request_sha256: str) -> dict[str, Any]:
 def validate_decision(decision: Any, request_text: str) -> dict[str, Any] | None:
     if not isinstance(decision, dict) or decision.get("schema_version") != INTENT_SCHEMA:
         raise RuntimeFailure("decision_schema_invalid", "decision must use work-report.intent/1")
+    decision = dict(decision)
     for field in ["request_sha256", "reviewer_id", "verdict", "evidence_quotes", "reason"]:
         if field not in decision:
             raise RuntimeFailure("decision_field_missing", f"decision missing {field}")
@@ -204,7 +213,7 @@ def validate_decision(decision: Any, request_text: str) -> dict[str, Any] | None
         raise RuntimeFailure("decision_reason_invalid", "reason must be a nonempty string")
     if decision["request_sha256"] != sha256_text(request_text):
         raise RuntimeFailure("decision_digest_mismatch", "decision request_sha256 does not match request file")
-    if decision["verdict"] not in {"confirmed", "none", "needs_clarification"}:
+    if decision["verdict"] not in {"confirmed", "none", "needs_clarification", "deferred"}:
         raise RuntimeFailure("decision_verdict_invalid", "decision verdict is invalid")
     quotes = decision.get("evidence_quotes")
     if not isinstance(quotes, list) or not all(isinstance(q, str) and q for q in quotes):
@@ -261,6 +270,20 @@ def pending_path(workspace_root: Path, session_id: Any) -> Path:
     return pending_root(workspace_root) / f"{safe_session_id(session_id)}.json"
 
 
+@contextlib.contextmanager
+def locked_pending(workspace_root: Path, session_id: Any):
+    root = pending_root(workspace_root)
+    root.mkdir(parents=True, exist_ok=True)
+    lock_path = root / f".{safe_session_id(session_id)}.lock"
+    reject_symlinks(lock_path)
+    with lock_path.open("a+", encoding="utf-8") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
 def ensure_pending_git_policy(workspace_root: Path) -> None:
     root = pending_root(workspace_root)
     root.mkdir(parents=True, exist_ok=True)
@@ -288,76 +311,116 @@ def write_pending_prompt(workspace_root: Path, event: dict[str, Any]) -> dict[st
     if not isinstance(prompt, str) or not PROMPT_REPORT_RE.search(prompt) or not PROMPT_TIMING_RE.search(prompt):
         return None
     ensure_pending_git_policy(workspace_root)
-    request_sha = sha256_text(prompt)
-    existing_path = pending_path(workspace_root, event.get("session_id"))
-    if existing_path.exists():
-        with contextlib.suppress(RuntimeFailure, json.JSONDecodeError):
-            existing = load_json(existing_path)
-            if isinstance(existing, dict) and existing.get("request_sha256") == request_sha:
-                return existing
-    pending = {
-        "schema_version": "work-report.pending/1",
-        "session_id": str(event.get("session_id") or ""),
-        "turn_id": str(event.get("turn_id") or ""),
-        "workspace": str(workspace_root),
-        "created_at": iso_now(),
-        "request_sha256": request_sha,
-        "prompt": prompt,
-        "state": "needs_intent_judge",
-        "attempts": 0,
-        "reason": "conservative candidate matched report and timing cue",
-    }
-    atomic_write_json(existing_path, pending)
-    return pending
+    with locked_pending(workspace_root, event.get("session_id")):
+        request_sha = sha256_text(prompt)
+        existing_path = pending_path(workspace_root, event.get("session_id"))
+        if existing_path.exists():
+            with contextlib.suppress(RuntimeFailure, json.JSONDecodeError):
+                existing = load_json(existing_path)
+                if isinstance(existing, dict) and existing.get("request_sha256") == request_sha:
+                    return existing
+        pending = {
+            "schema_version": "work-report.pending/1",
+            "session_id": str(event.get("session_id") or ""),
+            "turn_id": str(event.get("turn_id") or ""),
+            "workspace": str(workspace_root),
+            "created_at": iso_now(),
+            "request_sha256": request_sha,
+            "prompt": prompt,
+            "state": "needs_intent_judge",
+            "attempts": 0,
+            "reason": "conservative candidate matched report and timing cue",
+        }
+        atomic_write_json(existing_path, pending)
+        return pending
 
 
 def bump_pending_stop(workspace_root: Path, session_id: Any) -> dict[str, Any] | None:
+    if not pending_path(workspace_root, session_id).exists():
+        return None
+    with locked_pending(workspace_root, session_id):
+        path = pending_path(workspace_root, session_id)
+        if not path.exists():
+            return None
+        data = load_json(path)
+        if not isinstance(data, dict):
+            path.unlink(missing_ok=True)
+            return None
+        if data.get("state") == "failed_open":
+            if data.get("notified_at"):
+                return None
+            data["notified_at"] = iso_now()
+            atomic_write_json(path, data)
+            return data
+        if data.get("state") == "register_failed":
+            if data.get("notified_at"):
+                return None
+            data["notified_at"] = iso_now()
+            data["last_stop_at"] = iso_now()
+            atomic_write_json(path, data)
+            return data
+        data["attempts"] = int(data.get("attempts", 0)) + 1
+        data["last_stop_at"] = iso_now()
+        if data["attempts"] > MAX_ATTEMPTS:
+            data["state"] = "failed_open"
+            data["message"] = "Possible work-report obligation has no valid intent resolution recorded after two Stop continuations; failing open visibly."
+            data["notified_at"] = iso_now()
+            atomic_write_json(path, data)
+            atomic_write_json(
+                workspace_root / "docs" / "work-reports" / ".pending" / f"{safe_session_id(session_id)}.failure.json",
+                {
+                    "schema_version": "work-report.pending.failure/1",
+                    "session_id": str(session_id or ""),
+                    "failed_at": iso_now(),
+                    "reason": "possible work-report obligation had no valid intent resolution recorded after two Stop continuations",
+                    "request_sha256": data.get("request_sha256"),
+                },
+            )
+            return data
+        atomic_write_json(path, data)
+        return data
+
+
+def clear_pending_if_request_matches_unlocked(workspace_root: Path, session_id: Any, request_sha256: str) -> bool:
+    path = pending_path(workspace_root, session_id)
+    if not path.exists():
+        return False
+    with contextlib.suppress(RuntimeFailure, FileNotFoundError):
+        data = load_json(path)
+        if isinstance(data, dict) and data.get("request_sha256") == request_sha256:
+            path.unlink()
+            return True
+    return False
+
+
+def clear_pending_if_request_matches(workspace_root: Path, session_id: Any, request_sha256: str) -> bool:
+    if not pending_path(workspace_root, session_id).exists():
+        return False
+    with locked_pending(workspace_root, session_id):
+        return clear_pending_if_request_matches_unlocked(workspace_root, session_id, request_sha256)
+
+
+def load_matching_pending(workspace_root: Path, session_id: str, request_sha256: str) -> dict[str, Any] | None:
     path = pending_path(workspace_root, session_id)
     if not path.exists():
         return None
     data = load_json(path)
-    if not isinstance(data, dict):
-        path.unlink(missing_ok=True)
-        return None
-    if data.get("state") == "failed_open":
-        if data.get("notified_at"):
-            return None
-        data["notified_at"] = iso_now()
-        atomic_write_json(path, data)
-        return data
-    data["attempts"] = int(data.get("attempts", 0)) + 1
-    data["last_stop_at"] = iso_now()
-    if data["attempts"] > MAX_ATTEMPTS:
-        data["state"] = "failed_open"
-        data["message"] = "Possible work-report obligation was never reviewed after two Stop continuations; failing open visibly."
-        data["notified_at"] = iso_now()
-        atomic_write_json(path, data)
-        atomic_write_json(
-            workspace_root / "docs" / "work-reports" / ".pending" / f"{safe_session_id(session_id)}.failure.json",
-            {
-                "schema_version": "work-report.pending.failure/1",
-                "session_id": str(session_id or ""),
-                "failed_at": iso_now(),
-                "reason": "possible work-report obligation was never reviewed after two Stop continuations",
-                "request_sha256": data.get("request_sha256"),
-            },
-        )
-        return data
-    atomic_write_json(path, data)
+    if not isinstance(data, dict) or data.get("schema_version") != "work-report.pending/1":
+        raise RuntimeFailure("pending_invalid", "matching pending marker has wrong schema")
+    if data.get("session_id") != session_id:
+        raise RuntimeFailure("pending_session_mismatch", "pending marker does not match register session_id")
+    if data.get("request_sha256") != request_sha256:
+        raise RuntimeFailure("pending_request_mismatch", "pending marker does not match request hash")
     return data
 
 
-def clear_pending_for_session(workspace_root: Path, session_id: Any) -> None:
-    with contextlib.suppress(FileNotFoundError):
-        pending_path(workspace_root, session_id).unlink()
-
-
-def require_register_session(workspace_root: Path, session_id: str, request_sha256: str) -> None:
+def require_register_session(workspace_root: Path, session_id: str, request_sha256: str) -> dict[str, Any] | None:
     if not UUID_RE.match(session_id):
         raise RuntimeFailure("session_id_invalid", "register session_id must be the actual Codex session UUID")
     root = pending_root(workspace_root)
+    matching = load_matching_pending(workspace_root, session_id, request_sha256)
     if not root.exists():
-        return
+        return matching
     for path in sorted(root.glob("*.json")):
         try:
             data = load_json(path)
@@ -367,6 +430,67 @@ def require_register_session(workspace_root: Path, session_id: str, request_sha2
             continue
         if data.get("request_sha256") == request_sha256 and data.get("session_id") != session_id:
             raise RuntimeFailure("pending_session_mismatch", "matching pending request belongs to a different session_id")
+    return matching
+
+
+def record_pending_register_failure(
+    workspace_root: Path,
+    session_id: str,
+    request_sha256: str,
+    decision: dict[str, Any],
+    failure: RuntimeFailure,
+) -> None:
+    if not pending_path(workspace_root, session_id).exists():
+        return
+    with locked_pending(workspace_root, session_id):
+        with contextlib.suppress(RuntimeFailure, FileNotFoundError):
+            data = load_matching_pending(workspace_root, session_id, request_sha256)
+            if not data:
+                return
+            prior = data.get("last_register_error") if isinstance(data.get("last_register_error"), dict) else {}
+            same_diagnosis = (
+                prior.get("code") == failure.code
+                and prior.get("message") == failure.message
+                and prior.get("verdict") == decision.get("verdict")
+            )
+            data["state"] = "register_failed"
+            data["register_attempts"] = int(data.get("register_attempts", 0)) + 1
+            data["last_register_error"] = {
+                "at": iso_now(),
+                "code": failure.code,
+                "message": failure.message,
+                "verdict": decision.get("verdict"),
+                "reviewer_id": decision.get("reviewer_id"),
+            }
+            if not same_diagnosis:
+                data.pop("notified_at", None)
+            atomic_write_json(pending_path(workspace_root, session_id), data)
+
+
+def write_pending_resolution(
+    workspace_root: Path,
+    session_id: str,
+    pending: dict[str, Any],
+    decision: dict[str, Any],
+) -> Path:
+    request_sha = str(pending.get("request_sha256") or "unknown")
+    path = pending_root(workspace_root) / f"{safe_session_id(session_id)}.{request_sha}.resolution.json"
+    atomic_write_json(
+        path,
+        {
+            "schema_version": "work-report.pending.resolution/1",
+            "session_id": session_id,
+            "request_sha256": pending.get("request_sha256"),
+            "pending_created_at": pending.get("created_at"),
+            "resolved_at": iso_now(),
+            "verdict": decision.get("verdict"),
+            "decision": decision,
+            "status": "not_scheduled",
+            "auto_enforced": False,
+            "reason": "non-confirmed intent decisions do not create a work-report runtime obligation",
+        },
+    )
+    return path
 
 
 def load_manifest(task_dir: Path) -> dict[str, Any]:
@@ -930,21 +1054,45 @@ def stop_manifest_pass(
 
 
 def cmd_register(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
-    task_dir = safe_absolute(Path(args.task_dir))
     workspace = safe_absolute(Path(args.workspace))
     request = safe_absolute(Path(args.request))
     decision_path = safe_absolute(Path(args.decision))
-    root, _ = require_task_dir_policy(task_dir, workspace)
-    request_text = request.read_text(encoding="utf-8")
+    root = git_root(workspace)
+    request_text = read_utf8_exact(request)
     request_sha = sha256_text(request_text)
-    require_register_session(root, args.session_id, request_sha)
-    context = context_for_request(task_dir, request_sha)
-    if Path(context.get("workspace", "")).resolve() != root:
-        raise RuntimeFailure("workspace_mismatch", "task context workspace does not match Git root")
-    decision = validate_decision(load_json(decision_path), request_text)
+    raw_decision = load_json(decision_path)
+    decision = validate_decision(raw_decision, request_text)
+    pending = require_register_session(root, args.session_id, request_sha)
     if decision is None:
-        clear_pending_for_session(root, args.session_id)
-        return 0, {"status": "ignored", "reason": "intent verdict is not confirmed"}
+        if pending is None:
+            raise RuntimeFailure("pending_missing", "non-confirmed decisions require an exact matching pending marker")
+        with locked_pending(root, args.session_id):
+            pending = require_register_session(root, args.session_id, request_sha)
+            if pending is None:
+                raise RuntimeFailure("pending_missing", "non-confirmed decisions require an exact matching pending marker")
+            resolution = write_pending_resolution(root, args.session_id, pending, raw_decision)
+            clear_pending_if_request_matches_unlocked(root, args.session_id, request_sha)
+        verdict = raw_decision.get("verdict")
+        return 0, {
+            "status": "ignored" if verdict in {"none", "needs_clarification"} else "deferred",
+            "verdict": verdict,
+            "resolution": str(resolution),
+            "scheduled": False,
+            "auto_enforced": False,
+            "reason": "intent verdict is not confirmed; no runtime obligation was registered",
+        }
+
+    try:
+        if not args.task_dir:
+            raise RuntimeFailure("task_dir_required", "confirmed decisions require --task-dir")
+        task_dir = safe_absolute(Path(args.task_dir))
+        root, _ = require_task_dir_policy(task_dir, workspace)
+        context = context_for_request(task_dir, request_sha)
+        if Path(context.get("workspace", "")).resolve() != root:
+            raise RuntimeFailure("workspace_mismatch", "task context workspace does not match Git root")
+    except RuntimeFailure as exc:
+        record_pending_register_failure(root, args.session_id, request_sha, decision, exc)
+        raise
 
     registered_at = iso_now()
     existing_path = manifest_path(task_dir)
@@ -959,12 +1107,14 @@ def cmd_register(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 and existing.get("resume_after_report", False) == decision["resume_after_report"]
             )
             if same:
-                clear_pending_for_session(root, args.session_id)
+                clear_pending_if_request_matches(root, args.session_id, request_sha)
                 return 0, {"status": "registered", "task_dir": str(task_dir), "manifest": str(existing_path), "idempotent": True}
-            raise RuntimeFailure(
+            conflict = RuntimeFailure(
                 "manifest_conflict",
                 "task-dir already has a different reporting manifest; use a separate reporting task-dir with references to the original task state, preserving existing obligations",
             )
+            record_pending_register_failure(root, args.session_id, request_sha, decision, conflict)
+            raise conflict
     manifest = {
         "schema_version": RUNTIME_SCHEMA,
         "task_dir": str(task_dir),
@@ -1014,7 +1164,7 @@ def cmd_register(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     }
     with locked_manifest(task_dir):
         save_manifest(task_dir, manifest)
-    clear_pending_for_session(root, args.session_id)
+    clear_pending_if_request_matches(root, args.session_id, request_sha)
     result = {"status": "registered", "task_dir": str(task_dir), "manifest": str(manifest_path(task_dir))}
     if decision["resume_after_report"]:
         result["next_step"] = (
@@ -1107,11 +1257,24 @@ def cmd_hook(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                         f"Pending marker: {pending_path(root, session_id)}."
                     ),
                 }
+            if data.get("state") == "register_failed":
+                error = data.get("last_register_error") if isinstance(data.get("last_register_error"), dict) else {}
+                verdict = error.get("verdict") or "unknown"
+                code = error.get("code") or "unknown_error"
+                message = error.get("message") or "register failed"
+                return 0, {
+                    "systemMessage": (
+                        "A work-report intent Judge result was recorded, but report_runtime.py register failed "
+                        f"for verdict={verdict}: {code}: {message}. "
+                        "This diagnostic is emitted once for the same pending marker; no report obligation was registered or satisfied. "
+                        f"Pending marker: {pending_path(root, session_id)}."
+                    ),
+                }
             return 0, {
                 "decision": "block",
                 "reason": (
-                    "A possible work-report obligation from UserPromptSubmit has not been reviewed. "
-                    "Run the real intent Judge; call register for confirmed obligations, or register the none/needs_clarification decision to clear it. "
+                    "A possible work-report obligation from UserPromptSubmit has no valid intent resolution recorded. "
+                    "Run the real intent Judge; call register for confirmed obligations, or register the none/needs_clarification/deferred decision to clear it. "
                     f"Pending marker: {pending_path(root, session_id)}. Session UUID: {session_id}."
                 ),
             }
@@ -1279,7 +1442,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Manage bounded work-report obligations")
     sub = parser.add_subparsers(dest="command", required=True)
     register = sub.add_parser("register")
-    register.add_argument("--task-dir", required=True)
+    register.add_argument("--task-dir")
     register.add_argument("--request", required=True)
     register.add_argument("--decision", required=True)
     register.add_argument("--session-id", required=True)

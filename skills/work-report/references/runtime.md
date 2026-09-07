@@ -4,22 +4,26 @@
 
 ## 注册约定
 
-1. 保存用户原始提示词到已排除跟踪的产物目录。若由 UserPromptSubmit 捕获，原文在 `<repo>/docs/work-reports/.pending/<session-id>.json` 的 `prompt`，准确复制其文本，不用模型目标改述代替。
-2. 用 `report_tool.py init --record-only --workspace <repo> --title <slug> --request <request.txt>` 开始记录，同一约定的已有任务传 `--task-dir`；已有不同的活动结束/周期约定时，为插入的中途汇报另建 task-dir，用 `--state` 引用原 working-state。结果 `draft.md` 不是正式报告。
-3. 使用宿主实际 SubAgent，传入原文路径和 [intent-judge.md](intent-judge.md) 的完整路径，要求先读规则再返回其中定义的 JSON。Judge 的作用是识别用户明确要求，不是为每条日常消息调用模型。将真实返回原样存入 task-dir 的 `intent.json`；若字段或格式错误，让同一 Judge 修正，不自行翻译、补字段或改判定。
-4. 调用（脚本均在 skill 的 scripts 目录）：
+1. 保存用户原始提示词；若来自 UserPromptSubmit，用 JSON 读取 pending 的 `prompt` 并按 UTF-8 原样写出，不转录或规范化换行。runtime 和报告工具都按原始字节计算摘要；CRLF 与 LF 不相同。
+2. 先实际委派 intent Judge，再根据判定选择登记方式。普通问答／非当前约定不需要初始化报告目录。
+3. `none`、`needs_clarification`、`deferred` 可直接调用，不传 `--task-dir`：
 
 ```text
-python3 report_runtime.py register --task-dir <task-dir> --workspace <repo> \
-  --request <request.txt> --decision <intent.json> --session-id <原始主对话UUID>
-python3 report_runtime.py status --task-dir <task-dir>
+python3 report_runtime.py register --workspace <repo> \
+  --request <request.txt> --decision <intent.json> --session-id <真实UUID>
 ```
 
-`confirmed` 才登记结束/周期/中途续行要求；`none` 清除误触候选，`needs_clarification` 先澄清，不宣称已经安排。周期必须来自原文，不擅自假定三小时。`reporting.json` 是本次汇报约定的运行状态，不是另一套业务任务系统。活动 manifest 的不同约定重注册会返回 `manifest_conflict`，不得为消除这个错误取消原任务的结束/周期约定；中途抽检使用独立汇报目录并保留原状态引用。
+这条路径校验原文、Judge 格式、引文和匹配的 pending，保存处理记录后解除候选提醒；不创建报告、收据或已完成状态。`deferred` 保留未来里程碑约定，并明确尚未配置自动触发；Main 在原工作状态中保留要求，到业务里程碑实际完成时生成 final 报告。`needs_clarification` 只对真正缺失的信息澄清一次，普通问题照常回答，不要求用户阅读或批准报告。
+
+4. 只有 `confirmed` 才用 `report_tool.py init --record-only` 建立上下文，然后把真实 Judge JSON 传给 register，增加 `--task-dir <task-dir>`。同一约定复用目录；已有不同活动约定时，临时汇报另建目录，用 `--state` 引用原 working-state，不取消原义务。正式报告在 register 成功之后再 init。
+
+默认报告目录是项目 `docs/work-reports/`，工具维护本地 Git 排除。实验日志／模型产物的外置目录不自动成为报告目录；只有用户明确指定报告位置时才传 `--output-root`。没有初始化报告的需要时，不为清除候选而建立目录或要求用户批准 Git 忽略规则。
+
+登记失败不代表 Judge 没执行，也不代表报告已交付。已校验 Judge 后的登记错误保留在 pending 诊断记录中，Stop 至多给一次具体原因和恢复提示，不重复输出“Judge 尚未执行”。不要通过猴子补丁、伪造 context、删状态文件或转换原文换行来让登记通过。未能登记的自动保障必须明确标为未就绪；可推进的原任务继续执行。
 
 session-id 必须使用 hook 上下文或 pending JSON 中的真实 session UUID，不能写 `current-session` 等占位。运行时会拒绝占位或与待审原文不匹配的会话绑定。
 
-当前结束语义是注册后 Main 的下一次正常 Stop（本轮最终回复前）。Stop 不表示项目、训练或所有后台作业完成。长任务跨多轮的阶段终点须由用户明确约定；不能让一次“完成后汇报”无限作用于报告之后的问答。
+当前结束语义是注册后 Main 的下一次正常 Stop（本轮最终回复前）。Stop 不表示项目、训练或所有后台作业完成。明确的跨轮业务里程碑用 deferred 记录，不缩成每轮回复前汇报；也不把后续普通问答变成新义务。
 
 正式批次必须在 register 成功之后重新 init：前面的 `init --record-only` 只为登记提供上下文。即使先前已生成 report.md 占位，也不能复用其早于 registered_at 的快照；需同一 task-dir 新建 `--kind progress` 批次再写报告。脚本的新鲜度检查不因这是中途抽检而放宽。
 

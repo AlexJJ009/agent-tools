@@ -48,3 +48,24 @@
 定时探针 B 于 **2026-09-07 13:08:06 UTC** 到达原对话，对应 turn `01a07bfb-aaaf-7ad2-b4ed-20b99d4cb2c1`，发生在探针 A 所在轮次的最终回复之后。距离 12:36:51 入队约 31 分 15 秒；Main 已在 commentary 确认标识。两条测试探针已从队列消费，开发已完成，本次只记录结果，没有创建新定时器或报告。
 
 两次到达均证实了当前本机客户端的跨轮队列处理；本测试没有观察到活动轮即时 steer。完整报告生成仍不是这两条传输探针的测试内容。证据：[probe-b-arrival.json](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-light-timer/probe-b-arrival.json)。
+
+
+## 原任务未结束时到达：探针 C
+
+本次使用一个约 3 分钟的受控后台批任务：同一 worker（PID `177766`）每 10 秒完成一批，共 18 批，计算 `SHA256("work-report-long-probe:" + str(i))`，`i=0..17`。这是模拟长任务的续接验收，不是真实业务实验。验收任务还包含 Main 在探针到达后核验全部结果，不能用 worker 退出代替验收完成。
+
+| 时刻（2026-09-07 UTC） | 实际证据 |
+|---|---|
+| 13:14:19 | 原 worker 启动 |
+| 13:14:22 | 一次性定时器成功入队，ID `01a07c01-6852-74d1-a6d8-e1ccf6a8ae34` |
+| 13:15:05 | 前一轮结束前检查：4/18 批，worker 仍运行，验收未完成 |
+| 13:15:19 | 探针作为原对话新输入到达 |
+| 13:15:42 | 保存 arrival.json：PID 与启动 ticks 匹配，进程状态 S，8/18 批、running |
+| 13:17:19 | 同一 worker 写出 complete、18/18 批 |
+| 13:18:38 | Main 逐项重算全部 18 个 SHA256，完全匹配；内存中替换一个错误摘要的负例被核验拒绝 |
+
+**通过：后台原任务尚未结束时收到投递，随后继续完成该任务的结果核验。** 没有启动替代 worker、新定时器或正式报告，没有操作业务任务。到达时间与现场采样时间分别记录，8/18 是现场采样时的批次进度。
+
+边界：探针仍在前一轮回复结束后被处理，因此没有证明活动模型轮次内的即时 steer；一次受控测试也不保证所有任务都不会受提示词影响。可将该机制用于到点投递、跨轮续接的汇报提醒，不承诺到点立即生成报告。本次明确跳过正式报告，尚不能称为完整 work-report 生成与续行的端到端验收。
+
+证据目录：`/home/alex_mercer/projects/_artifacts/agent-tools/work-report-long-probe/`，包含 `task.json`、`before-yield.json`、`arrival.json`、`progress.json` 和 `result.json`。仅补充本地验收记录，Skill 源码与安装内容未改动。

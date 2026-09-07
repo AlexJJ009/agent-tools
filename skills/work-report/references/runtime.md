@@ -50,6 +50,8 @@ Main 收到补报要求后，使用同一 task-dir 新建相应 `final` 或 `pro
 
 ## 定时与补偿
 
+用户选择轻量 Python 定时器加 `codex queue` 时，使用 [timer.md](timer.md)：它到点向原对话投递消息，不等待报告收据，也不创建本节旧 runtime 周期或 cron。下面保留独立生成报告的旧 cron 适配器；同一约定只选一个后端。
+
 优先用当前 harness 已安装且可调用的原对话调度能力。只有真实创建成功并读回任务标识，才称“已安排”。不可用时用 agent-tools 的间隔 cron 适配器：
 
 ```text

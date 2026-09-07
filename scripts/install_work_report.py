@@ -51,7 +51,8 @@ def main(argv=None) -> int:
         for required in ['SKILL.md', 'references/rubric.yaml', 'references/judge.md',
                          'references/runtime.md', 'references/intent-judge.md',
                          'assets/report.md', 'scripts/report_tool.py',
-                         'scripts/report_runtime.py', 'scripts/report_scheduler.py']:
+                         'scripts/report_runtime.py', 'scripts/report_scheduler.py',
+                    'scripts/report_timer.py', 'references/timer.md']:
             if not (source / required).is_file():
                 raise RuntimeError('missing source: ' + required)
         if duplicate.exists() or duplicate.is_symlink():

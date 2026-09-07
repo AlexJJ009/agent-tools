@@ -26,7 +26,8 @@ class WorkReportInstallTests(unittest.TestCase):
         for rel in ['SKILL.md', 'references/rubric.yaml', 'references/judge.md',
                     'references/runtime.md', 'references/intent-judge.md',
                     'assets/report.md', 'scripts/report_tool.py',
-                    'scripts/report_runtime.py', 'scripts/report_scheduler.py']:
+                    'scripts/report_runtime.py', 'scripts/report_scheduler.py',
+                    'scripts/report_timer.py', 'references/timer.md']:
             p = self.source / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text('fixture source ' + rel)
@@ -62,6 +63,14 @@ class WorkReportInstallTests(unittest.TestCase):
         self.assertEqual(self.install(['--check']), 0)
         (target / 'SKILL.md').write_text('changed installed content')
         self.assertEqual(self.install(['--check']), 1)
+
+    def test_missing_timer_preserves_previous_install(self):
+        self.assertEqual(self.install(), 0)
+        target = self.home / '.agents/skills/work-report'
+        before = installer.files(target)
+        (self.source / 'scripts/report_timer.py').unlink()
+        self.assertEqual(self.install(), 1)
+        self.assertEqual(installer.files(target), before)
 
     def test_unmanaged_directory_preserved(self):
         target = self.home / '.agents/skills/work-report'

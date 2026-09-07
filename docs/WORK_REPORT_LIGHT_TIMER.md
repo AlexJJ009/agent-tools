@@ -27,3 +27,10 @@
 当前结果证明了到点发送、工具正常运行与取消。没有证明本机客户端会在当前轮中即时 steer，也没有在本次传输探针中生成正式报告；探针明确要求只确认到达，不触发额外报告。测试没有并发 resume，也没有人为中断主对话来伪装即时送达。
 
 原始证据位于 `/home/alex_mercer/projects/_artifacts/agent-tools/work-report-light-timer/`：manual-probe.json、timed-probe.json、queue-readback-after-timer.json、cancel-result.json。两条探针已发送，后续是否到达以本对话实际新消息为准；一次性测试定时器均已退出，没有留下长期业务周期。
+
+
+## 本机安装与边界
+
+修复源码 `4be867506e37b68f65192e900dab98fd808559f8` 已推送到 `codex/work-report-light-timer`。专用安装器已更新本机 Skill，23 文件一致，5 个既有 hook 定义检查通过。安装前后配置、凭证、CC Switch DB、hooks.json 哈希一致，既有三个 Codex 相关进程身份保持；安装后的 report_timer.py --help 可运行。
+
+没有设置长期业务定时任务，也没有更新 PHAI 或修改其监督程序。最后的队列读回见 [final-queue-readback.json](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-light-timer/final-queue-readback.json)，安装证据见 [install-result.json](/home/alex_mercer/projects/_artifacts/agent-tools/work-report-light-timer/install-result.json)。当前客户端即时 steer 尚未通过验收；如随后在本对话收到探针，应记录它是活动轮内还是轮次结束后到达，不能倒推为已证明即时投递。

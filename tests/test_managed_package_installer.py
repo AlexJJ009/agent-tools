@@ -19,53 +19,12 @@ class ManagedPackageInstallerTests(unittest.TestCase):
     def descriptor(self, name):
         return MODULE.load_descriptor(ROOT / "config" / "managed-packages" / f"{name}.json", ROOT)
 
-    def test_descriptors_cover_both_products_without_product_specific_helper(self):
-        goal = self.descriptor("goal-plan")
+    def test_linear_descriptor_uses_version_file(self):
         linear = self.descriptor("linear-workflow")
-        self.assertEqual(goal["resolved_version"], "0.2.0")
         self.assertEqual(linear["resolved_version"], (ROOT / "linear_workflow" / "VERSION").read_text().strip())
-        self.assertNotEqual(goal["runtime"]["entrypoint"], linear["runtime"]["entrypoint"])
-
-    def test_goal_plan_descriptor_preserves_existing_targets(self):
-        descriptor = self.descriptor("goal-plan")
-        destinations = {item["destination"] for group in ("codex_targets", "claude_targets") for item in descriptor[group]}
-        self.assertEqual(destinations, {
-            ".claude/skills/goal-plan",
-            ".claude/commands/goal-plan.md",
-            ".claude/agents/goal-plan-reviewer.md",
-            ".codex/skills/goal-plan",
-            "plugins/goal-plan",
-            ".codex/plugins/cache/personal/goal-plan/{version}",
-            ".codex/prompts/goal-plan.md",
-        })
-        self.assertEqual(descriptor["launcher"]["name"], "goal-plan-runtime")
-        self.assertEqual(
-            descriptor["legacy_policy"],
-            "preserve-managed-compatibility-new-install-opt-in",
-        )
-
-    def test_goal_plan_deprecation_gate_requires_exact_pilot_evidence(self):
-        descriptor = self.descriptor("goal-plan")
-        self.assertEqual(MODULE.validate_deprecation_evidence(descriptor, ROOT), [])
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            evidence = json.loads((ROOT / descriptor["deprecation_gate"]["evidence"]).read_text())
-            evidence["linear_issue_status"] = "In Review"
-            source = root / descriptor["deprecation_gate"]["evidence"]
-            source.parent.mkdir(parents=True)
-            source.write_text(json.dumps(evidence), encoding="utf-8")
-            runtime_module = (
-                root / descriptor["runtime"]["source"] / "src" / "goal_plan_runtime"
-            )
-            runtime_module.mkdir(parents=True, exist_ok=True)
-            (runtime_module / "deprecation.py").write_text(
-                (ROOT / descriptor["runtime"]["source"] / "src" / "goal_plan_runtime" / "deprecation.py").read_text(),
-                encoding="utf-8",
-            )
-            self.assertTrue(MODULE.validate_deprecation_evidence(descriptor, root))
 
     def test_managed_status_distinguishes_fresh_and_managed_homes(self):
-        descriptor = self.descriptor("goal-plan")
+        descriptor = self.descriptor("linear-workflow")
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
             self.assertFalse(MODULE.managed_install_exists(descriptor, ROOT, home, "unix"))
@@ -73,8 +32,8 @@ class ManagedPackageInstallerTests(unittest.TestCase):
             MODULE.copy_managed(source, target)
             self.assertTrue(MODULE.managed_install_exists(descriptor, ROOT, home, "unix"))
 
-    def test_compat_install_can_skip_marketplace_registration(self):
-        descriptor = self.descriptor("goal-plan")
+    def test_install_can_skip_marketplace_registration(self):
+        descriptor = self.descriptor("linear-workflow")
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
             MODULE.install(
@@ -87,7 +46,7 @@ class ManagedPackageInstallerTests(unittest.TestCase):
                 skip_plugin_registration=True,
             )
             self.assertFalse((home / ".agents" / "plugins" / "marketplace.json").exists())
-            self.assertTrue((home / ".codex" / "skills" / "goal-plan" / "SKILL.md").is_file())
+            self.assertTrue((home / ".codex" / "skills" / "linear-plan" / "SKILL.md").is_file())
 
     def test_managed_reinstall_is_idempotent(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -118,16 +77,16 @@ class ManagedPackageInstallerTests(unittest.TestCase):
             home = Path(tmp)
             path = home / ".agents" / "plugins" / "marketplace.json"
             path.parent.mkdir(parents=True)
-            path.write_text(json.dumps({"plugins": [{"name": "other", "x": 1}, {"name": "goal-plan"}]}))
-            MODULE.update_marketplace(home, self.descriptor("goal-plan"))
+            path.write_text(json.dumps({"plugins": [{"name": "other", "x": 1}, {"name": "linear-workflow"}]}))
+            MODULE.update_marketplace(home, self.descriptor("linear-workflow"))
             plugins = json.loads(path.read_text())["plugins"]
-            self.assertEqual([p["name"] for p in plugins], ["other", "goal-plan"])
+            self.assertEqual([p["name"] for p in plugins], ["other", "linear-workflow"])
             self.assertEqual(plugins[0]["x"], 1)
 
     def test_drift_iterates_descriptor_targets(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
-            descriptor = self.descriptor("goal-plan")
+            descriptor = self.descriptor("linear-workflow")
             for source, target in MODULE.target_pairs(descriptor, ROOT, home):
                 MODULE.copy_managed(source, target)
             drift = MODULE.drift_report(descriptor, ROOT, home, "unix")

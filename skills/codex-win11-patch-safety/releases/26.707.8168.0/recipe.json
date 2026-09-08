@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "openai-codex-26.707.8168.0-75f9ed95794c",
+  "status": "candidate",
+  "application": {
+    "packageName": "OpenAI.Codex",
+    "packageVersion": "26.707.8168.0",
+    "packageFullName": "OpenAI.Codex_26.707.8168.0_x64__2p2nqsd0c76g0",
+    "appVersion": "26.707.61608",
+    "codexBuildNumber": "5200",
+    "sourceAsarSha256": "75f9ed95794cb5fd37f5278789d323f2e7cd7ba4e279157ab040cd3ea6efd329"
+  },
+  "patcher": {
+    "kind": "feature-signature-javascript",
+    "entrypoint": "patch-codex-webview.mjs",
+    "asarTool": "@electron/asar@3.4.1",
+    "assetSelectors": [
+      "use-service-tier-settings-*.js",
+      "read-service-tier-for-request-*.js",
+      "model-queries-*.js",
+      "model-list-filter-*.js"
+    ],
+    "requiredFeatures": [
+      "apikey-fast-auth-gate",
+      "apikey-service-tier-request",
+      "reasoning-efforts-max-ultra",
+      "conditional-gpt-5.6-model-fallback",
+      "stale-provider-model-list-compatibility",
+      "per-model-ultra-filtering"
+    ],
+    "officialFeaturesToPreserve": [
+      "max-ultra-validator",
+      "next-turn-thread-settings",
+      "default-model-config-writer",
+      "native-gpt-5.6-models"
+    ],
+    "sha256": "17cd4d2ea94b5ed4971f3d3fbf387e0055cd91c24a6bf995cd6fb2da3377ee04"
+  },
+  "verification": {
+    "requiredReports": [
+      "patch-report.json",
+      "verification-report.json",
+      "prelaunch-state-verification.json",
+      "config-health.json"
+    ],
+    "requiredWireCases": [
+      "terra-xhigh-priority",
+      "sol-ultra-normalized-to-max-all-turns"
+    ],
+    "requiredSemanticGates": [
+      "userConfiguration",
+      "sshConnections",
+      "projectMemoryAndPlanning",
+      "ccSwitch"
+    ]
+  },
+  "provenance": {
+    "capturedFrom": "C:\\Users\\Alex Mercer\\Downloads\\Report\\CodexPatched",
+    "capturedAt": "2026-07-13",
+    "legacyPatchedAsarSha256": "e98c3c83a573608e80416b756900b6691256a2deaf9e111dbea49f7e6ad5a95b",
+    "legacyVerificationWarning": "The historical verification report used C:\\Users\\Public\\CodexPatchedProfile. This recipe must remain candidate until it passes the existing-default-profile snapshot, four semantic gates, and hash-bound release verdict.",
+    "promotionRequirements": [
+      "human reviewer identity and reason",
+      "closed-App full snapshot",
+      "all deterministic checks PASS",
+      "hash-bound release verdict PASS",
+      "postflight four-gate PASS on existing default profile"
+    ]
+  }
+}

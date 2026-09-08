@@ -1,10 +1,8 @@
 param(
-  [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
+  [string]$Root = (Resolve-Path (Join-Path $PSScriptRoot "..")).ProviderPath,
   [string]$UserHome = $env:USERPROFILE,
   [string]$CodexHome = (Join-Path $env:USERPROFILE ".codex"),
   [string]$CcSwitchDb = (Join-Path $env:USERPROFILE ".cc-switch\cc-switch.db"),
-  [switch]$NoGoalPlan,
-  [switch]$LegacyGoalPlan,
   [switch]$NoAgentWt,
   [switch]$LinearWorkflow,
   [switch]$NoLinearWorkflow,
@@ -45,15 +43,16 @@ function Invoke-AgentToolsPython {
   if (-not (Test-Path -LiteralPath $Script)) {
     throw "missing Python helper: $Script"
   }
+  $resolvedScript = (Resolve-Path -LiteralPath $Script).ProviderPath
 
   $python = Get-PythonCommand
   if ((Split-Path -Leaf $python) -ieq "py.exe") {
-    & $python -3 $Script @ScriptArgs
+    & $python -3 $resolvedScript @ScriptArgs
   } else {
-    & $python $Script @ScriptArgs
+    & $python $resolvedScript @ScriptArgs
   }
   if ($LASTEXITCODE -ne 0) {
-    throw "Python helper failed ($LASTEXITCODE): $Script"
+    throw "Python helper failed ($LASTEXITCODE): $resolvedScript"
   }
 }
 
@@ -64,6 +63,7 @@ function Assert-CodexTargetGuard {
     [Parameter(Mandatory = $true)][string]$TargetCodexHome,
     [Parameter(Mandatory = $true)][string]$TargetCcSwitchDb
   )
+
   $normalizedUserHome = [IO.Path]::GetFullPath($TargetUserHome).TrimEnd('\')
   $codexProfile = [IO.Path]::GetFullPath((Split-Path -Parent $TargetCodexHome)).TrimEnd('\')
   $ccSwitchProfile = [IO.Path]::GetFullPath((Split-Path -Parent (Split-Path -Parent $TargetCcSwitchDb))).TrimEnd('\')
@@ -71,10 +71,17 @@ function Assert-CodexTargetGuard {
       -not $normalizedUserHome.Equals($ccSwitchProfile, [StringComparison]::OrdinalIgnoreCase)) {
     throw "UserHome, CodexHome, and CcSwitchDb must belong to the same native Win11 profile"
   }
-  Invoke-AgentToolsPython (Join-Path $RepoRoot "scripts\codex_target_guard.py") `
-    --platform win11 --codex-home $TargetCodexHome --cc-switch-db $TargetCcSwitchDb `
-    --expected-user $env:USERNAME --path-only --allow-missing-config `
-    --allow-missing-cc-switch --skip-cc-switch-read-check
+
+  $script = Join-Path $RepoRoot "scripts\codex_target_guard.py"
+  Invoke-AgentToolsPython $script `
+    --platform win11 `
+    --codex-home $TargetCodexHome `
+    --cc-switch-db $TargetCcSwitchDb `
+    --expected-user $env:USERNAME `
+    --path-only `
+    --allow-missing-config `
+    --allow-missing-cc-switch `
+    --skip-cc-switch-read-check
 }
 
 function Copy-Managed {
@@ -98,7 +105,7 @@ function Copy-Managed {
       } else {
         $backup = "$Target.backup-$(Get-Date -Format yyyyMMdd-HHmmss)"
         Move-Item -LiteralPath $Target -Destination $backup
-        Write-Host "Backed up existing goal-plan target: $backup"
+        Write-Host "Backed up existing managed target: $backup"
       }
     }
     Copy-Item -LiteralPath $Source -Destination $Target -Recurse
@@ -112,7 +119,7 @@ function Copy-Managed {
       } else {
         $backup = "$Target.backup-$(Get-Date -Format yyyyMMdd-HHmmss)"
         Move-Item -LiteralPath $Target -Destination $backup
-        Write-Host "Backed up existing goal-plan target: $backup"
+        Write-Host "Backed up existing managed target: $backup"
       }
     }
     Copy-Item -LiteralPath $Source -Destination $Target
@@ -120,92 +127,18 @@ function Copy-Managed {
   }
 }
 
-function Install-PersonalMarketplace {
-  param([Parameter(Mandatory = $true)][string]$TargetHome)
-
-  $marketplace = Join-Path $TargetHome ".agents\plugins\marketplace.json"
-  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $marketplace) | Out-Null
-
-  $plugins = @()
-  if (Test-Path -LiteralPath $marketplace) {
-    try {
-      $raw = Get-Content -LiteralPath $marketplace -Raw
-      if ($raw.Trim()) {
-        $existing = $raw | ConvertFrom-Json
-        if ($existing.plugins) {
-          foreach ($plugin in @($existing.plugins)) {
-            if ($plugin.name -ne "goal-plan") {
-              $plugins += $plugin
-            }
-          }
-        }
-      }
-    } catch {
-      Copy-Item -LiteralPath $marketplace -Destination "$marketplace.invalid-backup" -Force
-    }
-  }
-
-  $plugins += [ordered]@{
-    name = "goal-plan"
-    source = [ordered]@{
-      source = "local"
-      path = ".\plugins\goal-plan"
-    }
-    policy = [ordered]@{
-      installation = "AVAILABLE"
-      authentication = "ON_INSTALL"
-    }
-    category = "Developer Tools"
-  }
-
-  $data = [ordered]@{
-    name = "personal"
-    interface = [ordered]@{ displayName = "Personal" }
-    plugins = $plugins
-  }
-
-  $data | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $marketplace -Encoding UTF8
-}
-
-function Install-GoalPlan {
+function Install-CodexPatchSafetySkill {
   param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
-    [Parameter(Mandatory = $true)][string]$TargetHome,
-    [switch]$RegisterPlugin
+    [Parameter(Mandatory = $true)][string]$TargetHome
   )
 
-  $sourceRoot = Join-Path $RepoRoot "goal_plan"
-  if (-not (Test-Path -LiteralPath $sourceRoot)) {
-    throw "goal-plan tools not installed: missing $sourceRoot"
+  $source = Join-Path $RepoRoot "skills\codex-win11-patch-safety"
+  if (-not (Test-Path -LiteralPath (Join-Path $source "SKILL.md"))) {
+    throw "Codex patch safety skill missing: $source"
   }
-
-  $helper = Join-Path $RepoRoot "scripts\managed_package_installer.py"
-  $descriptor = Join-Path $RepoRoot "config\managed-packages\goal-plan.json"
-  $installerArgs = @("install", "--descriptor", $descriptor, "--repo-root", $RepoRoot, "--home", $TargetHome, "--platform", "win11")
-  if (-not $RegisterPlugin) {
-    $installerArgs += "--skip-plugin-registration"
-  }
-  Invoke-AgentToolsPython $helper @installerArgs
-
-  Write-Host "goal-plan installed for Win11 user: $TargetHome"
-}
-
-function Test-GoalPlanPackageState {
-  param(
-    [Parameter(Mandatory = $true)][string]$RepoRoot,
-    [Parameter(Mandatory = $true)][string]$TargetHome,
-    [Parameter(Mandatory = $true)][ValidateSet("deprecation-check", "managed-status")][string]$Command
-  )
-  $python = Get-PythonCommand
-  $helper = Join-Path $RepoRoot "scripts\managed_package_installer.py"
-  $descriptor = Join-Path $RepoRoot "config\managed-packages\goal-plan.json"
-  $probeArgs = @($helper, $Command, "--descriptor", $descriptor, "--repo-root", $RepoRoot, "--home", $TargetHome, "--platform", "win11")
-  if ((Split-Path -Leaf $python) -ieq "py.exe") {
-    & $python -3 @probeArgs | Out-Null
-  } else {
-    & $python @probeArgs | Out-Null
-  }
-  return $LASTEXITCODE -eq 0
+  Copy-Managed $source (Join-Path $TargetHome ".codex\skills\codex-win11-patch-safety")
+  Write-Host "Installed Codex Win11 patch safety skill."
 }
 
 function Install-LinearWorkflow {
@@ -338,36 +271,12 @@ function Invoke-CodexProviderBucketMigration {
 
 Assert-CodexTargetGuard -RepoRoot $Root -TargetUserHome $UserHome -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
 
+Install-CodexPatchSafetySkill -RepoRoot $Root -TargetHome $UserHome
+
 if (-not $NoAgentWt) {
   Install-AgentWt -RepoRoot $Root -TargetHome $UserHome -TargetCodexHome $CodexHome
 } else {
   Write-Host "agent-wt not installed (-NoAgentWt)."
-}
-
-if ($NoGoalPlan -and $LegacyGoalPlan) {
-  throw "-NoGoalPlan and -LegacyGoalPlan cannot be combined"
-}
-$installGoalPlan = $false
-$registerGoalPlan = $false
-if ($LegacyGoalPlan) {
-  $installGoalPlan = $true
-  $registerGoalPlan = $true
-} elseif (-not $NoGoalPlan) {
-  if (-not (Test-GoalPlanPackageState -RepoRoot $Root -TargetHome $UserHome -Command "deprecation-check")) {
-    Write-Warning "goal-plan deprecation gate is not satisfied; preserving the prior default install behavior."
-    $installGoalPlan = $true
-    $registerGoalPlan = $true
-  } elseif (Test-GoalPlanPackageState -RepoRoot $Root -TargetHome $UserHome -Command "managed-status") {
-    $installGoalPlan = $true
-  }
-}
-
-if ($installGoalPlan) {
-  Install-GoalPlan -RepoRoot $Root -TargetHome $UserHome -RegisterPlugin:$registerGoalPlan
-} elseif ($NoGoalPlan) {
-  Write-Host "goal-plan tools not installed (-NoGoalPlan)."
-} else {
-  Write-Host "goal-plan compatibility tools not installed for this new environment; use -LegacyGoalPlan for explicit opt-in."
 }
 
 $installLinearWorkflow = -not $NoLinearWorkflow

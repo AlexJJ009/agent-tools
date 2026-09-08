@@ -1,0 +1,6 @@
+interface:
+  display_name: "工作汇报"
+  short_description: "生成项目内 Markdown 工作汇报，检查证据、范围漂移并独立评审"
+  default_prompt: "使用 $work-report 汇报当前任务的进展、关键取舍、验证结果和范围风险。"
+policy:
+  allow_implicit_invocation: true

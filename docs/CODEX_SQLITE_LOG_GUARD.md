@@ -43,20 +43,15 @@ On Linux servers, it patches:
 ${CODEX_HOME:-$HOME/.codex}/logs_2.sqlite
 ```
 
-On WSL, it patches the WSL Codex home and, by default, all detected Windows
-Codex App homes under:
+On WSL, it patches only the WSL Codex home:
 
 ```text
-/mnt/c/Users/*/.codex/logs_2.sqlite
+${CODEX_HOME:-$HOME/.codex}/logs_2.sqlite
 ```
 
-Control the Windows side from WSL:
-
-```bash
-./install.sh --codex-sqlite-log-guard-wsl-windows auto
-./install.sh --codex-sqlite-log-guard-wsl-windows always
-./install.sh --codex-sqlite-log-guard-wsl-windows never
-```
+Run `scripts\install-win11.ps1` from native Windows for the Windows Codex
+database. WSL refuses all mounted Windows profile writes, including direct
+invocation of this helper.
 
 Skip the guard:
 
@@ -89,24 +84,6 @@ Enable for the current user:
 python3 scripts/configure_codex_sqlite_log_guard.py --mode enable
 ```
 
-Enable for WSL plus detected Windows Codex App homes:
-
-```bash
-python3 scripts/configure_codex_sqlite_log_guard.py --mode enable --include-wsl-windows
-```
-
-Check status:
-
-```bash
-python3 scripts/configure_codex_sqlite_log_guard.py --mode status --include-wsl-windows
-```
-
-Disable:
-
-```bash
-python3 scripts/configure_codex_sqlite_log_guard.py --mode disable --include-wsl-windows
-```
-
 Patch a specific Codex home:
 
 ```bash
@@ -120,6 +97,10 @@ On native Windows, run from PowerShell with Python available:
 ```powershell
 python scripts\configure_codex_sqlite_log_guard.py --mode enable --codex-home "$env:USERPROFILE\.codex"
 ```
+
+Every direct invocation first runs the read-only target guard. It refuses a
+Linux/WSL process aimed at `/mnt/<drive>/Users/...`; do not bypass it by
+overriding `HOME` or `CODEX_HOME`.
 
 ## What You Lose
 

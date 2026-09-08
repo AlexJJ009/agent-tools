@@ -1,4 +1,0 @@
-interface:
-  display_name: "Goal Plan (Legacy)"
-  short_description: "Maintain or migrate existing legacy Goals"
-  default_prompt: "Use $goal-plan only to read, validate, migrate, or explicitly maintain existing legacy Goal artifacts."

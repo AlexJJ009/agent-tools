@@ -26,7 +26,7 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             "--no-codex-app-fast-mode", "--no-codex-desktop-connection-fast-mode",
             "--no-codex-sqlite-log-guard", "--no-codex-provider-bucket-migration",
             "--codex-proxy-wrapper", "never", "--no-codex-remote-control",
-            "--no-claude-desktop-ssh", "--no-goal-plan", "--no-linear-workflow",
+            "--no-claude-desktop-ssh", "--no-linear-workflow",
             "--no-cron", "--no-registry", "--no-agent-core",
         ]
         return subprocess.run(
@@ -35,7 +35,7 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
 
     def test_linux_installer_defaults_to_native_platform_only(self):
         text = (ROOT / "install.sh").read_text(encoding="utf-8")
-        self.assertIn('GOAL_PLAN_INCLUDE_WSL_WINDOWS="${GOAL_PLAN_INCLUDE_WSL_WINDOWS:-never}"', text)
+        self.assertNotIn("goal-plan", text)
         self.assertIn('$HOME/.agents/skills/manage-worktrees', text)
         self.assertNotIn('/mnt/c/.agents/skills/manage-worktrees', text)
 

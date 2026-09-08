@@ -22,18 +22,21 @@ The recommended deployment model is one central tool directory per machine, not 
   server workspaces.
 - `migrate_codex_provider_bucket.py` — Codex history and cc-switch template
   migration that forces every non-target Codex provider bucket into `custom`.
+- `skills/work-report/` — Markdown progress reports with independent review, explicit end-report hooks, and opt-in interval scheduling. See [v2 acceptance and installation](docs/WORK_REPORT_V2_ACCEPTANCE.md).
+- `skills/codex-win11-patch-safety/` — discoverable, versioned Win11 ChatGPT
+  Codex patch workflow with protected-state snapshots, external config
+  dependency checks, exact release selection, and human activation gates.
 - `skills/manage-worktrees/` — Coding Agent workflow plus the `agent-wt` CLI
   for worktree admission, mount-aware layout, cache/artifact planning,
   registry records, and doctor checks.
 - `install.sh` — portable installer for a new Linux/WSL2 machine.
 - `scripts/install-win11.ps1` — native Win11 installer for the current Windows
-  user. It installs Linear Workflow, preserves an existing managed goal-plan
-  compatibility runtime, configures Codex App to use the subscription
-  backed `custom` history bucket, enables the SQLite log guard, and migrates
-  existing Codex history into that bucket.
+  user. It preserves the local custom bearer-token provider, enables the SQLite
+  log guard, and migrates existing Codex history into the stable `custom`
+  history bucket.
 - `scripts/configure_codex_win11_subscription.py` — Win11-specific Codex App
-  config patch that keeps `model_provider = "custom"` while routing through
-  the official ChatGPT/Codex backend instead of relay providers.
+  config patch that keeps `model_provider = "custom"` and the local
+  `experimental_bearer_token` provider contract.
 - `scripts/configure_codex_app_fast_mode.py` — cross-platform Codex App/CLI
   config patch that keeps `service_tier = "priority"` and
   `[features].fast_mode = true` in the target Codex home.
@@ -54,8 +57,6 @@ The recommended deployment model is one central tool directory per machine, not 
   request was really billed as Fast/priority.
 - `experiment_registry/` — canonical SQLite experiment registry tooling,
   schema, queries, validation scripts, and the `experiment-registry` skill.
-- `goal_plan/` — deprecated compatibility runtime and client assets for reading,
-  validating, migrating, or explicitly maintaining existing Goals.
 - `AGENTS.md` — project constraints for future agent changes.
 - `docs/CODEX_AUTOREVIEW_DEFAULT.md` — runbook for Codex defaults, including
   AutoReview without Full Access and stream timeout/retry defaults.
@@ -113,15 +114,6 @@ cd ~/agent-tools
 ./install.sh --root ~/projects --root /data-1 --max-depth 3
 ```
 
-The guarded installer also installs `agent-wt` and exactly one Codex-visible
-`manage-worktrees` Skill at `~/.agents/skills/manage-worktrees`. A legacy
-`~/.codex/skills/manage-worktrees` copy is rejected to prevent duplicate Skill
-discovery. Use `--no-agent-wt` to skip this component. Native Win11 uses
-`scripts\install-win11.ps1` and installs the PowerShell launcher plus the same
-single current-scope Skill after the native target guard passes. Codex is the
-validated harness; Claude Code and other Agent Skills consumers remain
-portability targets without a verified-support claim.
-
 If the machine only has one root:
 
 ```bash
@@ -155,19 +147,17 @@ For ordinary Linux servers without a local proxy wrapper:
 ./install.sh --root /data-1 --codex-proxy-wrapper never
 ```
 
-The installer always enables Codex Fast defaults for the current Codex home.
-On macOS this is the same `~/.codex/config.toml` used by the Codex App and CLI.
-On WSL2 it also patches the detected Windows Codex App home under
-`/mnt/c/Users/*/.codex` by default, so the Win11 App gets the same Fast default
-as the WSL/SSH app-server path. Use `--no-codex-app-fast-mode` to skip this
-small config-only patch, or `--codex-app-fast-wsl-windows never` if a WSL
-install should not touch the Windows Codex App config.
+The installer always enables Codex Fast defaults for the current platform's
+Codex home. On macOS this is the same `~/.codex/config.toml` used by the Codex
+App and CLI. A WSL2 run no longer patches a mounted Windows Codex profile: run
+`scripts\install-win11.ps1` from native Windows for Win11 state. The legacy
+`--codex-app-fast-wsl-windows always` mode is rejected on WSL.
 
 The installer also enables the short-term Codex SQLite log guard by default.
 This installs a trigger in `logs_2.sqlite` that ignores new diagnostic log
 rows, protecting SSD write endurance on long streaming or automation runs. On
-WSL2 it patches both the WSL Codex home and detected Win11 Codex App homes by
-default. Use `--no-codex-sqlite-log-guard` to skip it, or
+WSL2 it applies only to the WSL Codex home. Run `scripts\install-win11.ps1`
+for the native Win11 database. Use `--no-codex-sqlite-log-guard` to skip it, or
 `--disable-codex-sqlite-log-guard` after OpenAI fixes the upstream logging bug.
 See `docs/CODEX_SQLITE_LOG_GUARD.md`.
 When running installer helpers, `install.sh` probes for a working Python 3.10+
@@ -211,44 +201,14 @@ so reinstalling never drops a peer you had already whitelisted. Use
 system SSH protection, or set `INSTALL_FAIL2BAN_HARDENING=always` when a
 non-standard server should be forced through the same check.
 
-`goal-plan` is deprecated for new work. Ordinary new software development uses
-`linear-plan` for Planning and `linear-deliver` for an approved Ready Batch.
-Fresh installs do not install or register `goal-plan` by default after the
-verified DRAGAI-61 pilot gate. Existing managed installations still receive the
-compatibility runtime and legacy Skill/command updates without re-registering
-the deprecated plugin as a recommended entry. Use `--legacy-goal-plan` (Unix)
-or `-LegacyGoalPlan` (native Win11) for an explicit compatibility opt-in.
-
-The retained compatibility package contains:
-
-- Claude Code: `~/.claude/skills/goal-plan`, `~/.claude/commands/goal-plan.md`,
-  and `~/.claude/agents/goal-plan-reviewer.md`.
-- Codex App/CLI: `~/.codex/skills/goal-plan`, `~/plugins/goal-plan`, a personal
-  marketplace entry, and `codex plugin add goal-plan@personal` when `codex` is
-  available on `PATH`.
-- Runtime tools: an isolated uv environment at
-  `~/.local/share/goal-plan/runtime/.venv` and the launcher
-  `~/.local/bin/goal-plan-runtime`. The runtime never imports the target
-  project's Python environment, so Goals can govern repositories written in any
-  language. `uv` must already be available on `PATH`; installation does not
-  silently download it from the network.
-
-`goal_plan/` is the source of truth inside this repo. The installed user-level
-locations are separate:
+Installed user-level locations are separate:
 
 - Linux, WSL, and server installs use `install.sh` and install into the current
   Unix user. If the server default user is `root`, this means `/root/.claude`,
-  `/root/.codex`, `/root/plugins/goal-plan`, and `/root/.agents`.
-- WSL installs only copy goal-plan into detected Win11 user homes when the
-  compatibility install is active and cross-profile mode is explicitly enabled:
-  `C:\Users\<User>\.claude`, `C:\Users\<User>\.codex`,
-  `C:\Users\<User>\plugins\goal-plan`, and the Codex personal plugin cache.
-  Use `--goal-plan-wsl-windows never` to skip this, or
-  `--goal-plan-wsl-windows always` when missing Windows homes should fail the
-  install.
+  `/root/.codex`, and `/root/.agents`.
+- WSL installs never copy Skills or plugins into a mounted Win11 profile.
 - Native Win11 clones should run `scripts\install-win11.ps1`. That installs the
-  same Claude Code and Codex App user-level files for the current Windows user.
-  It also installs
+  Codex App user-level files for the current Windows user. It also installs
   `C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1` and
   disables Codex App remote auto-connect by default for that Windows user.
   Unlike Linux/WSL provider bootstraps, native Win11 Codex App uses a custom
@@ -263,11 +223,37 @@ locations are separate:
   `-AllowRunningCodexProviderBucketMigration` when running from inside an
   active Codex conversation.
 
-The explicit `/goal-plan` command remains only for existing Goal maintenance and
-migration. `goal-plan-runtime init` rejects new Goals by default and points to
-Linear Workflow; `--legacy-override` is the explicit, warning-emitting bypass.
-Existing `plan.md`, append-only ledgers, findings, acceptance, `validate-plan`,
-and `validate-runtime` remain compatible. No installer deletes Goal artifacts.
+## Codex Fleet Target Guard
+
+All Agent Tools installers, Skill deployments, and Codex/CC Switch
+configuration helpers must validate their target before writing. The guard is
+read-only: it verifies the platform, Unix/Windows profile boundary, Codex
+provider shape, CC Switch database validation, and current provider without
+printing secrets.
+
+The standalone Fast-mode, SQLite-log, Win11 bearer-token, and provider-bucket
+scripts call the same guard themselves before writes. The guard therefore
+remains effective when a script is invoked outside `install.sh`; it is not a
+convention that callers may skip.
+
+For a Linux/WSL/SSH fleet, copy
+`config/codex-fleet.targets.example.json` to an untracked local manifest and
+fill in only host aliases, users, and absolute non-secret paths. Then run:
+
+```bash
+python3 scripts/codex_fleet_guard.py sync --manifest config/codex-fleet.targets.json
+python3 scripts/codex_fleet_guard.py preflight \
+  --manifest config/codex-fleet.targets.json \
+  --expect-base-url http://15.204.46.107:8080 \
+  --canary-reject
+```
+
+`sync` installs the hash-checked, read-only helper under the target user's
+`~/.local/lib/agent-tools/`. `preflight` uses `ssh -o BatchMode=yes` and
+`RequestTTY=no`, so it cannot automate a CC Switch text UI. `--canary-reject`
+also proves that a deliberately wrong platform is rejected before any CC Switch
+command can write. A Win11 target is never dispatched by this Linux controller:
+run `scripts\install-win11.ps1` natively instead.
 
 ## Win11 Codex Remote Connections
 

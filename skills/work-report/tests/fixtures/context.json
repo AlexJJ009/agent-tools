@@ -1,0 +1,9 @@
+{
+  "source": "work-report test fixtures",
+  "original_request": "Create a local work-report skill that produces reviewable Markdown reports, with deterministic checks and a separate Judge review step. Keep it local Markdown only: no database, no network publishing, and no scheduler.",
+  "workspace_policy": "Fixtures are anonymized examples for independent review. Test-only answer keys are separated from report bodies and source notes.",
+  "evidence_files": [
+    "source.md",
+    "evidence.txt is created dynamically by tests beside generated report.md when needed"
+  ]
+}

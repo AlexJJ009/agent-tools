@@ -18,11 +18,9 @@ class LinearWorkflowInstallerContractTests(unittest.TestCase):
 
     def test_prewrite_guard_precedes_installer_dispatch(self):
         unix = (ROOT / "install.sh").read_text(encoding="utf-8")
-        guard = unix.rindex("run_codex_target_guard")
-        policy = unix.index("configure_goal_plan_install_policy", guard)
-        dispatch = unix.index("install_linear_workflow_only\n  exit 0", policy)
-        self.assertLess(guard, policy)
-        self.assertLess(policy, dispatch)
+        guard = unix.index("run_codex_target_guard before", unix.index("done\n"))
+        dispatch = unix.index("install_linear_workflow_only\n  exit 0", guard)
+        self.assertLess(guard, dispatch)
         win = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
         self.assertLess(win.rindex("Assert-CodexTargetGuard -RepoRoot"), win.rindex("Install-LinearWorkflow -RepoRoot"))
 
@@ -38,7 +36,7 @@ class LinearWorkflowInstallerContractTests(unittest.TestCase):
         text = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
         self.assertIn("[switch]$LinearWorkflow", text)
         self.assertIn("[switch]$NoLinearWorkflow", text)
-        self.assertIn("[switch]$LegacyGoalPlan", text)
+        self.assertNotIn("GoalPlan", text)
         descriptor = json.loads((ROOT / "config" / "managed-packages" / "linear-workflow.json").read_text())
         self.assertEqual("linear-workflow.cmd", descriptor["launcher"]["windows_name"])
 
@@ -50,23 +48,13 @@ class LinearWorkflowInstallerContractTests(unittest.TestCase):
                 self.assertFalse(destination.startswith(("/mnt/", "C:\\", "\\\\")))
                 self.assertNotIn("..", Path(destination).parts)
 
-    def test_default_wsl_cross_profile_mode_is_never(self):
+    def test_goal_plan_is_absent_from_installers(self):
         text = (ROOT / "install.sh").read_text(encoding="utf-8")
-        self.assertIn('GOAL_PLAN_INCLUDE_WSL_WINDOWS="${GOAL_PLAN_INCLUDE_WSL_WINDOWS:-never}"', text)
-
-    def test_goal_plan_defaults_to_deprecation_gated_compatibility(self):
-        unix = (ROOT / "install.sh").read_text(encoding="utf-8")
-        self.assertIn('INSTALL_GOAL_PLAN=0', unix)
-        self.assertIn('GOAL_PLAN_INSTALL_MODE="${GOAL_PLAN_INSTALL_MODE:-auto}"', unix)
-        self.assertIn("deprecation-check", unix)
-        self.assertIn("managed-status", unix)
-        self.assertIn("--legacy-goal-plan", unix)
-        self.assertIn("--skip-plugin-registration", unix)
-
         win = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
-        self.assertIn('ValidateSet("deprecation-check", "managed-status")', win)
-        self.assertIn("-RegisterPlugin:$registerGoalPlan", win)
-        self.assertIn("--skip-plugin-registration", win)
+        self.assertNotIn("goal-plan", text)
+        self.assertNotIn("GoalPlan", win)
+        self.assertFalse((ROOT / "goal_plan").exists())
+        self.assertFalse((ROOT / "config" / "managed-packages" / "goal-plan.json").exists())
 
 
 if __name__ == "__main__":

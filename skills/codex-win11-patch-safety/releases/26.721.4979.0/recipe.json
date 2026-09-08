@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "releaseId": "openai-codex-26.721.4979.0-44884f86d619",
+  "status": "candidate",
+  "application": {
+    "packageName": "OpenAI.Codex",
+    "packageVersion": "26.721.4979.0",
+    "packageFullName": "OpenAI.Codex_26.721.4979.0_x64__2p2nqsd0c76g0",
+    "appVersion": "26.721.41059",
+    "codexBuildNumber": "5848",
+    "sourceAsarSha256": "44884f86d619a12c3c0af1b8c65945005bda4379775b03270674c666226ff4b7"
+  },
+  "patcher": {
+    "kind": "feature-signature-javascript",
+    "entrypoint": "patch-codex-webview.mjs",
+    "asarTool": "@electron/asar@3.4.1",
+    "assetSelectors": [
+      "webview/assets/*.js containing bYr, FWi, n3r, and Qer feature signatures"
+    ],
+    "requiredFeatures": [
+      "force-fast-ui-for-chatgpt-and-apikey",
+      "force-service-tier-request-for-chatgpt-and-apikey",
+      "suppress-unsupported-configured-service-tiers",
+      "windows-native-local-marketplace-registration",
+      "plugin-list-available-verification"
+    ],
+    "officialFeaturesToPreserve": [
+      "native-gpt-5.6-models",
+      "per-model-reasoning-efforts",
+      "per-model-service-tier-capability-filter",
+      "profile-aware-service-tier-config",
+      "official-plugin-marketplace-and-admin-policy",
+      "official-apikey-plugin-support"
+    ],
+    "sha256": "af7f32dc2d18b83f98670d280d17e61e7645beafe13cd5862ae3f558dbd5cc77",
+    "artifacts": [
+      {
+        "path": "model-catalog.json",
+        "sha256": "6d6c694360ad6adaf91b4d72b32014afce4c8c8322a304cd01ade377cc00d5f6",
+        "configKey": "model_catalog_json",
+        "targetPath": "C:\\Users\\Alex Mercer\\Downloads\\Report\\CodexPatched\\model-catalog.json",
+        "requiredWhileConfigured": true
+      }
+    ],
+    "companionScripts": [
+      {
+        "entrypoint": "Patch-CodexApp.ps1",
+        "sha256": "567a77f36b63d944f2fbbe4ccae1c4c08305cfa3e66262eda31d82126775bd86"
+      },
+      {
+        "entrypoint": "Restore-CodexModelCatalog.ps1",
+        "sha256": "e233143fe94b165eb0802fbb3795eb8015cd252d170b4915675c923e00d4cf01"
+      },
+      {
+        "entrypoint": "register-plugin-marketplace.ps1",
+        "sha256": "cddea29b8d135282075d3193fc6a1abf66ae0d50c135079fa691e3324af01649"
+      },
+      {
+        "entrypoint": "verify-mock-responses.py",
+        "sha256": "f7b654a81a35922b453116ef92ea993efd18681f4d3b15640c06ded01ea27d60"
+      },
+      {
+        "entrypoint": "verify-release-evidence.py",
+        "sha256": "7f0897c22babed7eddc04028d7fc68b67bd29fea4ce97d4feddc8349b2e42ed8"
+      }
+    ]
+  },
+  "verification": {
+    "requiredReports": [
+      "patch-report.json",
+      "verification-report.json",
+      "prelaunch-state-verification.json",
+      "config-health.json"
+    ],
+    "requiredWireCases": [
+      "terra-xhigh-priority",
+      "sol-ultra-normalized-to-max-all-turns"
+    ],
+    "requiredPluginChecks": [
+      "marketplace-added-with-windows-native-path",
+      "plugin-list-available-json",
+      "github-and-figma-present",
+      "unavailable-account-or-bundle-plugins-not-fabricated"
+    ],
+    "requiredSemanticGates": [
+      "userConfiguration",
+      "sshConnections",
+      "projectMemoryAndPlanning",
+      "ccSwitch"
+    ]
+  },
+  "provenance": {
+    "capturedAt": "2026-07-28",
+    "oldPatcherProbe": "26.707.8168.0 patcher exits on missing use-service-tier-settings asset",
+    "pluginCompatibilityFinding": "The existing 180-bundle marketplace manifest remains valid, but its WSL /mnt/c registration is rejected by the native Windows CLI. Re-register the same root with a Windows path after snapshot approval.",
+    "officialModelFinding": "Bundled build 5848 already contains GPT-5.6 Sol, Terra, and Luna with official reasoning, Fast tier, context, tool-mode, and multi-agent metadata. No model patch is permitted.",
+    "runtimeDependencyFinding": "The existing default profile still references model_catalog_json. Removing that file invalidates the whole config even though this build has native GPT-5.6 support, so the exact catalog remains a hash-bound release artifact until an explicit reviewed config migration removes the key.",
+    "promotionRequirements": [
+      "human reviewer identity and reason",
+      "closed-App full snapshot",
+      "all deterministic checks PASS",
+      "hash-bound release verdict PASS",
+      "postflight four-gate PASS on existing default profile"
+    ]
+  }
+}

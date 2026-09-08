@@ -55,6 +55,9 @@ CLAUDE_CHAIN_PROXY_NAME="${CLAUDE_CHAIN_PROXY_NAME:-ISP-HTTPS}"
 CLAUDE_INSTALL_TIMEOUT_SECONDS="${CLAUDE_INSTALL_TIMEOUT_SECONDS:-2400}"
 CODEX_MODEL="${CODEX_MODEL:-gpt-5.5}"
 CODEX_MODEL_PROVIDER_ID="${CODEX_MODEL_PROVIDER_ID:-custom}"
+CODEX_MODEL_CONTEXT_WINDOW="${CODEX_MODEL_CONTEXT_WINDOW:-500000}"
+CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT="${CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT:-430000}"
+CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE="${CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE:-total}"
 
 : "${GITHUB_PAT:?GITHUB_PAT is required}"
 : "${GENERAL_SING_BOX_CONFIG:?GENERAL_SING_BOX_CONFIG is required}"
@@ -437,6 +440,20 @@ run_agent_tools_install() {
     --no-cc-switch-update)
 }
 
+run_codex_target_guard() {
+  local script="$AGENT_TOOLS_DIR/scripts/codex_target_guard.py"
+  [[ -f "$script" ]] || die "Codex target guard missing after agent-tools installation: $script"
+  python3 "$script" \
+    --platform auto \
+    --codex-home "$HOME/.codex" \
+    --cc-switch-db "$HOME/.cc-switch/cc-switch.db" \
+    --expected-user "$(id -un)" \
+    --path-only \
+    --allow-missing-config \
+    --allow-missing-cc-switch \
+    --skip-cc-switch-read-check
+}
+
 clean_codex_strict_config() {
   python3 - <<'PY'
 from pathlib import Path
@@ -473,6 +490,9 @@ configure_codex_from_json() {
 
   CODEX_MODEL="$CODEX_MODEL" \
   CODEX_MODEL_PROVIDER_ID="$CODEX_MODEL_PROVIDER_ID" \
+  CODEX_MODEL_CONTEXT_WINDOW="$CODEX_MODEL_CONTEXT_WINDOW" \
+  CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT="$CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT" \
+  CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE="$CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE" \
   python3 - <<'PY'
 import json
 import os
@@ -487,6 +507,9 @@ providers = json.loads(os.environ["CODEX_PROVIDERS_JSON"])
 default_provider = os.environ["CODEX_DEFAULT_PROVIDER"]
 default_model = os.environ.get("CODEX_MODEL", "gpt-5.5")
 bucket = os.environ.get("CODEX_MODEL_PROVIDER_ID", "custom")
+context_window = int(os.environ.get("CODEX_MODEL_CONTEXT_WINDOW", "500000"))
+auto_compact_limit = int(os.environ.get("CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT", "430000"))
+auto_compact_scope = os.environ.get("CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE", "total")
 safe_id = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 if not providers:
@@ -495,6 +518,14 @@ if default_provider not in {p["id"] for p in providers}:
     raise SystemExit(f"default provider not found: {default_provider}")
 if not safe_id.match(bucket):
     raise SystemExit(f"invalid bucket id: {bucket}")
+if context_window <= 0:
+    raise SystemExit("CODEX_MODEL_CONTEXT_WINDOW must be positive")
+if auto_compact_limit <= 0:
+    raise SystemExit("CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT must be positive")
+if auto_compact_limit >= context_window:
+    raise SystemExit("CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT must be lower than CODEX_MODEL_CONTEXT_WINDOW")
+if auto_compact_scope not in {"total", "body_after_prefix"}:
+    raise SystemExit(f"invalid CODEX_MODEL_AUTO_COMPACT_TOKEN_LIMIT_SCOPE: {auto_compact_scope}")
 
 codex_home.mkdir(parents=True, exist_ok=True)
 default = next(p for p in providers if p["id"] == default_provider)
@@ -509,6 +540,9 @@ model = "{default.get('model', default_model)}"
 model_reasoning_effort = "high"
 service_tier = "priority"
 model_provider = "{bucket}"
+model_context_window = {context_window}
+model_auto_compact_token_limit = {auto_compact_limit}
+model_auto_compact_token_limit_scope = "{auto_compact_scope}"
 
 [features]
 fast_mode = true
@@ -551,6 +585,9 @@ for index, provider in enumerate(providers, start=1):
 model = "{model}"
 model_provider = "{bucket}"
 model_reasoning_effort = "high"
+model_context_window = {context_window}
+model_auto_compact_token_limit = {auto_compact_limit}
+model_auto_compact_token_limit_scope = "{auto_compact_scope}"
 
 [model_providers.{bucket}]
 name = "{name}"
@@ -853,6 +890,7 @@ main() {
   install_codex
   install_claude
   run_agent_tools_install
+  run_codex_target_guard
   configure_codex_from_transfer || configure_codex_from_json
   import_codex_resume_history
   validate_install

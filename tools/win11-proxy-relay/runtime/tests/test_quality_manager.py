@@ -599,6 +599,115 @@ class QualityManagerDecisionTests(unittest.TestCase):
         self.assertEqual(selected['node'], 'candidate')
         self.assertIsNone(selected['speed'])
 
+    def test_feitu_recovery_candidates_keep_miaomiao_backup_inside_cap(self):
+        pool = quality_manager.POOLS[1]
+        state = {
+            "speed_cache": {
+                "feitu-a": {
+                    "node": "feitu-a",
+                    "ok": True,
+                    "status": 200,
+                    "bytes": quality_manager.SPEED_BYTES,
+                    "expected_bytes": quality_manager.SPEED_BYTES,
+                    "mbps": 50,
+                    "measured_at_ts": 1200,
+                },
+                "feitu-b": {
+                    "node": "feitu-b",
+                    "ok": True,
+                    "status": 200,
+                    "bytes": quality_manager.SPEED_BYTES,
+                    "expected_bytes": quality_manager.SPEED_BYTES,
+                    "mbps": 40,
+                    "measured_at_ts": 1199,
+                },
+                "feitu-c": {
+                    "node": "feitu-c",
+                    "ok": True,
+                    "status": 200,
+                    "bytes": quality_manager.SPEED_BYTES,
+                    "expected_bytes": quality_manager.SPEED_BYTES,
+                    "mbps": 30,
+                    "measured_at_ts": 1198,
+                },
+                "miaomiao-ok": {
+                    "node": "miaomiao-ok",
+                    "ok": True,
+                    "status": 200,
+                    "bytes": quality_manager.SPEED_BYTES,
+                    "expected_bytes": quality_manager.SPEED_BYTES,
+                    "mbps": 100,
+                    "measured_at_ts": 1197,
+                },
+            }
+        }
+        candidates = quality_manager.recovery_candidates_from_verified_cache(
+            state,
+            ["dead", "feitu-a", "feitu-b", "feitu-c", "miaomiao-ok"],
+            "dead",
+            1201,
+            args(),
+            pool=pool,
+        )
+        self.assertEqual(len(candidates), 3)
+        self.assertIn("miaomiao-ok", [item["node"] for item in candidates])
+
+    def test_feitu_speed_budget_not_spent_on_failed_site_candidate_before_backup(self):
+        pool = quality_manager.POOLS[1]
+        state = {"pools": {pool.name: {"speed_attempts": [1000, 1001]}}}
+        delays = [
+            {"node": "feitu-bad", "ok": True, "median_ms": 50, "p95_ms": 50, "jitter_ms": 0, "request_failure_ratio": 0.0},
+            {"node": "miaomiao-good", "ok": True, "median_ms": 60, "p95_ms": 60, "jitter_ms": 0, "request_failure_ratio": 0.0},
+            {"node": "feitu-other", "ok": True, "median_ms": 70, "p95_ms": 70, "jitter_ms": 0, "request_failure_ratio": 0.0},
+        ]
+
+        def fake_site_health(port, probes, timeout):
+            node = fake_site_health.nodes.pop(0)
+            if node == "feitu-bad":
+                return {"ok": False, "request_failure_ratio": 1.0, "errors": ["hf_config:TimeoutError"]}
+            return {"ok": True, "request_failure_ratio": 0.0, "errors": []}
+
+        fake_site_health.nodes = ["feitu-bad", "miaomiao-good", "feitu-other"]
+
+        def fake_speed(api_url, measured_pool, node, measured_args):
+            return {
+                "node": node,
+                "ok": True,
+                "status": 200,
+                "bytes": quality_manager.SPEED_BYTES,
+                "expected_bytes": quality_manager.SPEED_BYTES,
+                "mbps": 100,
+                "measured_at_ts": 1200,
+            }
+
+        with (
+            mock.patch.object(quality_manager, "now_ts", return_value=1200),
+            mock.patch.object(quality_manager, "choose_api", return_value=("http://api", None)),
+            mock.patch.object(
+                quality_manager,
+                "discover_members",
+                return_value=(
+                    ["current", "feitu-bad", "miaomiao-good", "feitu-other"],
+                    None,
+                    {"now": "current", "all": ["feitu-auto", "current", "feitu-bad", "miaomiao-good", "feitu-other"]},
+                ),
+            ),
+            mock.patch.object(quality_manager, "measure_delays", return_value=delays),
+            mock.patch.object(quality_manager, "site_payload_health", side_effect=fake_site_health),
+            mock.patch.object(quality_manager, "measure_speed", side_effect=fake_speed) as measure_speed,
+            mock.patch.object(quality_manager, "verify_recovery_path", return_value={"ok": True}),
+            mock.patch.object(quality_manager, "put_selector") as put_selector,
+        ):
+            event = quality_manager.assess_pool(pool, state, args(), mock.Mock())
+
+        self.assertEqual(event["speed_metrics"]["feitu-bad"]["skipped"], "fresh_site_probe_failed")
+        self.assertTrue(event["speed_metrics"]["miaomiao-good"]["ok"])
+        self.assertEqual([call.args[2] for call in measure_speed.call_args_list], ["miaomiao-good"])
+        self.assertEqual(event["decision"]["target"], "miaomiao-good")
+        managed_writes = [call for call in put_selector.call_args_list if call.args[1] == "feitu-quality"]
+        self.assertEqual(len(managed_writes), 1)
+        self.assertEqual(managed_writes[0].args, ("http://api", "feitu-quality", "miaomiao-good", 1))
+
     def test_ai_native_fallback_without_production_port_uses_real_delay(self):
         pool = replace(quality_manager.POOLS[0], production_port=None)
         with (mock.patch.object(quality_manager, 'choose_api', return_value=('http://api', None)),
@@ -633,6 +742,46 @@ class QualityManagerDecisionTests(unittest.TestCase):
         self.assertEqual(pools[1].production_port, 18097)
         self.assertEqual(pools[1].measurement_port, 18014)
 
+
+
+class SubscriptionFallbackTests(unittest.TestCase):
+    def test_miaomiao_reserved_when_feitu_fills_latency_shortlist(self):
+        items = [{"node": "feitu-" + str(i)} for i in range(8)] + [{"node": "miaomiao-1"}]
+        chosen = quality_manager.subscription_shortlist(quality_manager.POOLS[1], items, 3)
+        self.assertEqual([x["node"] for x in chosen], ["feitu-0", "miaomiao-1", "feitu-1"])
+
+    def test_failed_feitu_uses_verified_miaomiao(self):
+        result = quality_manager.decide_selection(pool=quality_manager.POOLS[1], pool_state={}, current="feitu-bad", ranked=[{"node":"miaomiao-good", "score":100}], ts=1000, args=args())
+        self.assertEqual(result["target"], "miaomiao-good")
+
+    def test_healthy_feitu_preferred_over_faster_backup(self):
+        result = quality_manager.decide_selection(pool=quality_manager.POOLS[1], pool_state={}, current=None, ranked=[{"node":"miaomiao-good", "score":10},{"node":"feitu-good", "score":100}], ts=1000, args=args())
+        self.assertEqual(result["target"], "feitu-good")
+
+    def test_quarantined_primary_does_not_block_backup(self):
+        state={"quarantine":{"feitu-bad":{"until_ts":2000}}}
+        result=quality_manager.decide_selection(pool=quality_manager.POOLS[1],pool_state=state,current=None,ranked=[{"node":"feitu-bad","score":10},{"node":"miaomiao-good","score":100}],ts=1000,args=args())
+        self.assertEqual(result["target"],"miaomiao-good")
+
+
+class BenchmarkFallbackTests(unittest.TestCase):
+    def test_server_benchmark_403_uses_valid_hf_payload(self):
+        import json
+        vocab = {str(i): i for i in range(50256)}
+        vocab["<|endoftext|>"] = 50256
+        body = json.dumps({"model": {"vocab": vocab, "merges": ["a b"] * 50000}}, separators=(',', ':')).encode().ljust(1355256, b' ')
+        denied = quality_manager.error.HTTPError('https://speed.cloudflare.com', 403, 'Forbidden', {}, None)
+        with mock.patch.object(quality_manager, 'put_selector'), mock.patch.object(quality_manager, 'proxy_fetch', side_effect=[denied, (200, body, 2.0)]):
+            result = quality_manager.measure_speed('http://api', quality_manager.POOLS[1], 'miaomiao-good', args())
+        self.assertTrue(result['ok'])
+        self.assertTrue(result['benchmark_fallback'])
+        self.assertEqual(result['expected_bytes'], 1355256)
+
+    def test_benchmark_fallback_rejects_wrong_payload(self):
+        denied = quality_manager.error.HTTPError('https://speed.cloudflare.com', 403, 'Forbidden', {}, None)
+        with mock.patch.object(quality_manager, 'put_selector'), mock.patch.object(quality_manager, 'proxy_fetch', side_effect=[denied, (200, b'{}'.ljust(1355256, b' '), 2.0)]):
+            result = quality_manager.measure_speed('http://api', quality_manager.POOLS[1], 'miaomiao-good', args())
+        self.assertFalse(result['ok'])
 
 if __name__ == "__main__":
     unittest.main()

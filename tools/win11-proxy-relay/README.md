@@ -48,6 +48,8 @@ No user password is stored for either mode.
 
 Private relay config is imported separately with `-PrivateConfig <path>`. The installer copies the JSON into `state\server-config.json`, rewrites its sing-box cache path to `state\server-cache.db`, and records a schema snapshot. The public ZIP does not export subscription data, node credentials, v2rayN DB files, or SSH private keys.
 
+When `runtime\build-configs.py` is used for private migration, it reads the local v2rayN DB in read-only mode and stages a server-only sing-box config from enabled `feitu` and `miaomiao` subscriptions. Selector tags remain `server-feitu`, `feitu-quality`, `feitu-measure`, and `feitu-auto`; leaf tags use `feitu-*` and `miaomiao-*`. Taiwan rows and subscription metadata/error rows are excluded, including rows such as `当出现较长时间error时...`.
+
 For SSH, the installer resolves the owner account's host alias with `ssh -G`, copies only `known_hosts`, and writes `state\ssh_config` with absolute paths. The private key remains at the resolved `IdentityFile`; it is referenced, not copied into the package.
 
 ## Runtime Behavior
@@ -119,3 +121,11 @@ The builder uses an explicit file allowlist and rejects cache, DB, log, state, p
 Hysteria2 使用 QUIC/UDP，只改变笔记本到节点这一段，开发机到笔记本的 OpenSSH 仍是 TCP。需要订阅实际提供 Hysteria2 服务，不能把 AnyTLS 配置改名当成 Hy2。先用同一批 HF/PyPI 下载进行端到端对照测试，再决定是否迁移。
 
 服务升级采用新的版本目录（例如 `C:\Program Files\Win11ProxyRelay-v2`），导入旧私有配置后替换同名任务；安装器拒绝覆盖已有 settings.json 的目录，以保留可回退的旧程序。Boot 安装目录的父目录也必须由管理员控制，推荐 Program Files。
+
+## 双订阅自动回退
+
+开发机候选包含 `feitu` 和 `miaomiao`。保留旧 API selector 标签以兼容既有工具，面板显示“飞兔优先 / 喵喵备用”。先要求实际 HF/PyPI/Cloudflare 内容成功，合格的飞兔优先；没有合格飞兔时使用喵喵。两个订阅都无合格节点时记录故障，不声称恢复。手动指定外层节点时，健康管理器不会擅自覆盖用户选择。
+
+正常评估与紧急恢复都为备用订阅保留候选位置。内容验证在测速前执行，失败节点不会耗掉备用的测速预算。Cloudflare 测速端点返回 403/404 时，开发机策略改用 HF tokenizer 的完整文件、字节数和词表结构验证吞吐量；这不等于饱和带宽测试。AI 的原有测速策略不变。
+
+更新订阅后重新生成私有配置并执行核心校验，再重载专用核心；不要只修改 API 中临时选项。VLESS REALITY 转换保留 ProtoExtra.Flow、xudp 和 uTLS 参数。后台 Python 任务在可用时使用 pythonw.exe，PowerShell 使用隐藏窗口；已有任务定义的更新可能需要管理员权限。

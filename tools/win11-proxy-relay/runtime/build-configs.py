@@ -16,6 +16,9 @@ import sys
 from settings import load_settings
 
 ROOT = pathlib.Path(__file__).resolve().parent
+SOURCES = ('feitu', 'miaomiao')
+PREFIX_BY_SOURCE = {'feitu': 'feitu', 'miaomiao': 'miaomiao'}
+METADATA_WORDS = ('剩余', '到期', '重置', '套餐', '官网', '公告', 'error')
 
 
 def write(path, data):
@@ -25,6 +28,94 @@ def write(path, data):
 
 def default_db(settings):
     return pathlib.Path(settings['v2rayn_dir']) / 'guiConfigs' / 'guiNDB.db'
+
+
+def is_metadata_row(name):
+    lowered = (name or '').lower()
+    return any(word.lower() in lowered for word in METADATA_WORDS)
+
+
+def sing_box_utls_fingerprint(value):
+    fingerprint = (value or '').strip().lower()
+    if fingerprint == 'qq':
+        return 'chrome'
+    return fingerprint
+
+
+def convert_profile_row(row, source, blocked_pattern):
+    r = dict(row)
+    tag = PREFIX_BY_SOURCE[source] + '-' + r['IndexId']
+    name = r.get('Remarks') or ''
+    if is_metadata_row(name):
+        return None, {'tag': tag, 'source': source, 'name': name, 'reason': 'metadata_row'}
+    if not r.get('Address') or not r.get('Port'):
+        return None, {'tag': tag, 'source': source, 'name': name, 'reason': 'missing_address_or_port'}
+    if blocked_pattern.search(name):
+        return None, {'tag': tag, 'source': source, 'name': name, 'reason': 'blocked_by_policy'}
+
+    extra = json.loads(r.get('ProtoExtra') or '{}')
+    node = {'tag': tag, 'server': r['Address'], 'server_port': r['Port']}
+    if r['ConfigType'] == 11:
+        # v2rayN 7.19.5 EConfigType.Anytls = 11.
+        node.update(type='anytls', password=r['Password'])
+        node['tls'] = {'enabled': True, 'insecure': str(r.get('AllowInsecure')).lower() == 'true'}
+        if r.get('Sni'):
+            node['tls']['server_name'] = r['Sni']
+        if r.get('Alpn'):
+            node['tls']['alpn'] = r['Alpn'].split(',')
+        if extra:
+            raise RuntimeError('Unexpected AnyTLS options; conversion needs review')
+    elif r['ConfigType'] == 3:
+        method = extra.get('SsMethod') or r.get('Security')
+        if not method:
+            raise RuntimeError('Missing Shadowsocks method')
+        node.update(type='shadowsocks', method=method, password=r['Password'])
+    elif r['ConfigType'] == 5:
+        if str(r.get('StreamSecurity') or '').lower() != 'reality':
+            raise RuntimeError('Unsupported VLESS stream security: ' + str(r.get('StreamSecurity')))
+        uuid = r.get('Id') or r.get('Username') or r.get('Password')
+        if not uuid:
+            raise RuntimeError('Missing VLESS uuid')
+        node.update(type='vless', uuid=uuid, packet_encoding='xudp')
+        flow = r.get('Flow') or extra.get('Flow')
+        if flow:
+            node['flow'] = flow
+        tls = {
+            'enabled': True,
+            'server_name': r.get('Sni') or r['Address'],
+            'reality': {
+                'enabled': True,
+                'public_key': r.get('PublicKey') or '',
+                'short_id': r.get('ShortId') or '',
+            },
+        }
+        fingerprint = sing_box_utls_fingerprint(r.get('Fingerprint'))
+        if fingerprint:
+            tls['utls'] = {'enabled': True, 'fingerprint': fingerprint}
+        node['tls'] = tls
+        if str(r.get('Network') or '').lower() not in ('', 'tcp'):
+            raise RuntimeError('Unsupported VLESS network: ' + str(r.get('Network')))
+    else:
+        raise RuntimeError('Unsupported node type: ' + str(r['ConfigType']))
+    return node, {'tag': tag, 'source': source, 'name': name, 'reason': 'included'}
+
+
+def collect_nodes(con, blocked_pattern):
+    nodes = []
+    metadata = []
+    blocked = []
+    for source in SOURCES:
+        for row in con.execute(
+            'SELECT p.* FROM ProfileItem p JOIN SubItem s ON p.Subid=s.Id WHERE s.Remarks=? AND s.Enabled=1 ORDER BY p.IndexId',
+            (source,),
+        ):
+            node, info = convert_profile_row(row, source, blocked_pattern)
+            metadata.append(info)
+            if node is None:
+                blocked.append(info)
+            else:
+                nodes.append(node)
+    return nodes, metadata, blocked
 
 
 def build(settings, db_path=None, with_main_templates=False):
@@ -38,41 +129,11 @@ def build(settings, db_path=None, with_main_templates=False):
         )
     con = sqlite3.connect(db.as_uri() + '?mode=ro', uri=True)
     con.row_factory = sqlite3.Row
-    nodes = []
     policy = json.loads((ROOT / 'feitu-node-policy.json').read_text(encoding='utf-8'))
     blocked_pattern = re.compile(policy['blocked_name_pattern'], re.IGNORECASE)
-    blocked = []
-    for row in con.execute('SELECT p.* FROM ProfileItem p JOIN SubItem s ON p.Subid=s.Id WHERE s.Remarks=? AND s.Enabled=1 ORDER BY p.IndexId', ('feitu',)):
-        r = dict(row)
-        if any(word in (r['Remarks'] or '') for word in ['剩余', '到期', '重置', '套餐', '官网', '公告']):
-            continue
-        if not r['Address'] or not r['Port']:
-            continue
-        if blocked_pattern.search(r['Remarks'] or ''):
-            blocked.append({'tag': 'feitu-' + r['IndexId'], 'name': r['Remarks']})
-            continue
-        extra = json.loads(r['ProtoExtra'] or '{}')
-        node = {'tag': 'feitu-' + r['IndexId'], 'server': r['Address'], 'server_port': r['Port']}
-        if r['ConfigType'] == 11:
-            # v2rayN 7.19.5 EConfigType.Anytls = 11.
-            node.update(type='anytls', password=r['Password'])
-            node['tls'] = {'enabled': True, 'insecure': str(r['AllowInsecure']).lower() == 'true'}
-            if r['Sni']:
-                node['tls']['server_name'] = r['Sni']
-            if r['Alpn']:
-                node['tls']['alpn'] = r['Alpn'].split(',')
-            if extra:
-                raise RuntimeError('Unexpected AnyTLS options; conversion needs review')
-        elif r['ConfigType'] == 3:
-            method = extra.get('SsMethod') or r['Security']
-            if not method:
-                raise RuntimeError('Missing Shadowsocks method')
-            node.update(type='shadowsocks', method=method, password=r['Password'])
-        else:
-            raise RuntimeError('Unsupported feitu node type: ' + str(r['ConfigType']))
-        nodes.append(node)
+    nodes, node_metadata, blocked = collect_nodes(con, blocked_pattern)
     if not nodes:
-        raise RuntimeError('No feitu nodes')
+        raise RuntimeError('No relay nodes')
     sidecar = {
         'log': {'level': 'warn', 'timestamp': True},
         'dns': {'servers': [{'type': 'udp', 'tag': 'direct-dns', 'server': '223.5.5.5'}]},
@@ -100,10 +161,16 @@ def build(settings, db_path=None, with_main_templates=False):
         }
     }
     write(state_dir / 'server-config.json', sidecar)
-    write(state_dir / 'feitu-filter-result.json', {'included_nodes': len(nodes), 'excluded_nodes': blocked})
+    source_counts = {source: len([item for item in node_metadata if item['source'] == source and item['reason'] == 'included']) for source in SOURCES}
+    write(state_dir / 'feitu-filter-result.json', {'included_nodes': len(nodes), 'included_by_source': source_counts, 'excluded_nodes': blocked})
+    write(state_dir / 'node-labels.json', {item['tag']: item['name'] for item in node_metadata if item['reason'] == 'included'})
+    write(state_dir / 'node-sources.json', {
+        item['tag']: {'source': item['source'], 'name': item['name'], 'reason': item['reason']}
+        for item in node_metadata
+    })
     if not with_main_templates:
         con.close()
-        print(json.dumps({'feitu_nodes': len(nodes), 'server_config': str(state_dir / 'server-config.json')}))
+        print(json.dumps({'relay_nodes': len(nodes), 'included_by_source': source_counts, 'server_config': str(state_dir / 'server-config.json')}))
         return
     template = con.execute('SELECT * FROM FullConfigTemplateItem WHERE Enabled=1 AND Remarks=?', ('sing-box',)).fetchone()
     if not template or not template['AddProxyOnly']:
@@ -160,12 +227,8 @@ def build(settings, db_path=None, with_main_templates=False):
         runtime = copy.deepcopy(data)
         runtime['outbounds'] = [o for o in runtime['outbounds'] if o['tag'] != 'proxy'] + proxy
         write(state_dir / (name + '.json'), runtime)
-    write(state_dir / 'node-labels.json', {
-        'feitu-' + r['IndexId']: r['Remarks'] for r in con.execute(
-            'SELECT p.IndexId,p.Remarks FROM ProfileItem p JOIN SubItem s ON p.Subid=s.Id WHERE s.Remarks=?', ('feitu',))
-    })
     con.close()
-    print(json.dumps({'feitu_nodes': len(nodes), 'normal_and_tun_staged': True}))
+    print(json.dumps({'relay_nodes': len(nodes), 'included_by_source': source_counts, 'normal_and_tun_staged': True}))
 
 
 def apply(settings, db_path=None):

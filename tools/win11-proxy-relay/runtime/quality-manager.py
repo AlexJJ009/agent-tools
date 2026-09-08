@@ -463,6 +463,7 @@ def recovery_candidates_from_verified_cache(
     current: str | None,
     ts: float,
     args: argparse.Namespace,
+    pool: PoolConfig | None = None,
 ) -> list[dict[str, Any]]:
     candidates: list[dict[str, Any]] = []
     for node in members:
@@ -487,7 +488,7 @@ def recovery_candidates_from_verified_cache(
             if node in members and node != current and node not in known and item.get('ok') and item.get('request_failure_ratio') == 0 and not is_quarantined(pool_state, node, ts):
                 candidates.append({'node': node, 'speed': None, 'measured_at_ts': 0})
                 known.add(node)
-    return candidates[:3]
+    return subscription_shortlist(pool, candidates, 3) if pool is not None else candidates[:3]
 
 
 def freshly_verify_recovery(
@@ -581,8 +582,26 @@ def measure_speed(api_url: str, pool: PoolConfig, node: str, args: argparse.Name
                 "measured_at": utc_now(),
                 "measured_at_ts": now_ts(),
             }
-    status, body, elapsed = proxy_fetch(pool.measurement_port, args.speed_url, args.speed_timeout, args.speed_bytes + 1)
-    ok = status == 200 and len(body) == args.speed_bytes and elapsed > 0
+    speed_url = args.speed_url
+    expected_bytes = args.speed_bytes
+    benchmark_fallback = False
+    try:
+        status, body, elapsed = proxy_fetch(pool.measurement_port, speed_url, args.speed_timeout, expected_bytes + 1)
+    except error.HTTPError as exc:
+        if not pool.reliability_first or speed_url != SPEED_URL or exc.code not in (403, 404):
+            raise
+        # A benchmark service denial is not evidence that package downloads fail.
+        speed_url = "https://huggingface.co/gpt2/resolve/main/tokenizer.json"
+        expected_bytes = 1355256
+        benchmark_fallback = True
+        status, body, elapsed = proxy_fetch(pool.measurement_port, speed_url, args.speed_timeout, expected_bytes + 1)
+    ok = status == 200 and len(body) == expected_bytes and elapsed > 0
+    if ok and benchmark_fallback:
+        try:
+            model = json.loads(body)["model"]
+            ok = len(model["vocab"]) == 50257 and model["vocab"].get("<|endoftext|>") == 50256 and len(model["merges"]) == 50000
+        except (ValueError, KeyError, TypeError):
+            ok = False
     bytes_per_sec = len(body) / elapsed if ok else 0.0
     return {
         "node": node,
@@ -590,11 +609,13 @@ def measure_speed(api_url: str, pool: PoolConfig, node: str, args: argparse.Name
         "loc": loc,
         "status": status,
         "bytes": len(body),
-        "expected_bytes": args.speed_bytes,
+        "expected_bytes": expected_bytes,
+        "url": speed_url,
+        "benchmark_fallback": benchmark_fallback,
         "elapsed_seconds": elapsed,
         "bytes_per_second": bytes_per_sec,
         "mbps": bytes_per_sec * 8 / 1_000_000,
-        "note": "short 512KiB transfer throughput; not saturated link capacity",
+        "note": "short transfer throughput; not saturated link capacity",
         "measured_at": utc_now(),
         "measured_at_ts": now_ts(),
     }
@@ -684,6 +705,21 @@ def speed_budget_remaining(pool_state: dict[str, Any], ts: float, args: argparse
     return max(0, args.max_speed_nodes_per_pool - len(attempts))
 
 
+def subscription_priority(pool: PoolConfig, node: str) -> int:
+    # Server subscription preference never overrides the HTTPS eligibility gate.
+    return int(pool.reliability_first and node.startswith("miaomiao-"))
+
+
+def subscription_shortlist(pool: PoolConfig, healthy: list[dict[str, Any]], size: int) -> list[dict[str, Any]]:
+    if not pool.reliability_first or size < 2:
+        return healthy[:size]
+    primary = next((x for x in healthy if x["node"].startswith("feitu-")), None)
+    backup = next((x for x in healthy if x["node"].startswith("miaomiao-")), None)
+    heads = [x for x in (primary, backup) if x is not None]
+    tags = {x["node"] for x in heads}
+    return (heads + [x for x in healthy if x["node"] not in tags])[:size]
+
+
 def decide_selection(
     *,
     pool: PoolConfig,
@@ -707,6 +743,7 @@ def decide_selection(
         if pool.allow_native_fallback:
             return {"target": pool.native_fallback, "action": "fallback_only_quarantined_candidates"}
         return {"target": current, "action": "only_quarantined_alternatives_hold_current"}
+    ranked = sorted(ranked, key=lambda item: (subscription_priority(pool, item["node"]), item["score"]))
     best = ranked[0]
     if current is None or current == pool.native_fallback:
         pool_state["challenger"] = None
@@ -729,7 +766,8 @@ def decide_selection(
     if ts - last_switch_ts < args.switch_hold_seconds:
         return {"target": current, "action": "hold_current", "challenger": best["node"]}
     better_by = 1.0 - (best["score"] / current_entry["score"])
-    if better_by < args.challenger_improvement:
+    preferred_subscription = subscription_priority(pool, best["node"]) < subscription_priority(pool, current)
+    if better_by < args.challenger_improvement and not preferred_subscription:
         pool_state["challenger"] = None
         pool_state["challenger_streak"] = 0
         return {"target": current, "action": "keep_current_within_hysteresis", "better_by": better_by}
@@ -789,7 +827,7 @@ def assess_pool(pool: PoolConfig, state: dict[str, Any], args: argparse.Namespac
             [item for item in delays if delay_is_eligible(pool, item)],
             key=lambda item: (float(item.get("median_ms") or 999999), float(item.get("jitter_ms") or 999999)),
         )
-        shortlist = healthy[: args.shortlist_size]
+        shortlist = subscription_shortlist(pool, healthy, args.shortlist_size)
         if current and current != pool.native_fallback:
             current_delay = by_node.get(current)
             if current_delay and current_delay.get("ok") and all(item["node"] != current for item in shortlist):
@@ -798,39 +836,6 @@ def assess_pool(pool: PoolConfig, state: dict[str, Any], args: argparse.Namespac
                 shortlist = [current_delay] + shortlist[:max(0, args.shortlist_size - 1)]
         event["delay_metrics"] = delays
         event["shortlist"] = [item["node"] for item in shortlist]
-
-        speed_cache = pool_state.setdefault("speed_cache", {})
-        speed_metrics: dict[str, Any] = {}
-        attempts = prune_speed_attempts(pool_state, ts, args.speed_ttl_seconds)
-        measured = 0
-        for item in shortlist:
-            node = item["node"]
-            cached = cached_speed(pool_state, node, ts, args.speed_ttl_seconds)
-            if cached is not None:
-                speed_metrics[node] = cached | {"cache_hit": True}
-                continue
-            if len(attempts) >= args.max_speed_nodes_per_pool:
-                speed_metrics[node] = {"node": node, "ok": False, "skipped": "speed_probe_budget_exhausted"}
-                continue
-            attempts.append(ts)
-            pool_state["speed_attempts"] = attempts
-            try:
-                speed = measure_speed(api_url, pool, node, args)
-            except Exception as exc:
-                speed = {"node": node, "ok": False, "error": repr(exc), "measured_at": utc_now(), "measured_at_ts": now_ts()}
-            speed_cache[node] = speed
-            speed_metrics[node] = speed
-            measured += 1
-        event["speed_metrics"] = speed_metrics
-        event["speed_budget"] = {
-            "nodes_measured_this_assessment": measured,
-            "attempts_used_in_rolling_window": len(attempts),
-            "remaining_attempts_in_rolling_window": speed_budget_remaining(pool_state, ts, args),
-            "max_nodes_per_pool_per_30min": args.max_speed_nodes_per_pool,
-            "bytes_per_probe": args.speed_bytes,
-            "cache_ttl_seconds": args.speed_ttl_seconds,
-            "rough_daily_budget_note": "3 nodes per pool per 30min at 512KiB is about 144MiB/day for two pools",
-        }
 
         site_metrics: dict[str, Any] = {}
         if pool.reliability_first and pool.site_probe_urls:
@@ -857,6 +862,42 @@ def assess_pool(pool: PoolConfig, state: dict[str, Any], args: argparse.Namespac
                     quarantine_node(pool_state, node, ts, args, "fresh_site_probe_failed", site_health)
             event["site_metrics"] = site_metrics
 
+        speed_cache = pool_state.setdefault("speed_cache", {})
+        speed_metrics: dict[str, Any] = {}
+        attempts = prune_speed_attempts(pool_state, ts, args.speed_ttl_seconds)
+        measured = 0
+        for item in shortlist:
+            node = item["node"]
+            if pool.reliability_first and not site_metrics.get(node, {}).get("ok"):
+                speed_metrics[node] = {"node": node, "ok": False, "skipped": "fresh_site_probe_failed"}
+                continue
+            cached = cached_speed(pool_state, node, ts, args.speed_ttl_seconds)
+            if cached is not None:
+                speed_metrics[node] = cached | {"cache_hit": True}
+                continue
+            if len(attempts) >= args.max_speed_nodes_per_pool:
+                speed_metrics[node] = {"node": node, "ok": False, "skipped": "speed_probe_budget_exhausted"}
+                continue
+            attempts.append(ts)
+            pool_state["speed_attempts"] = attempts
+            try:
+                speed = measure_speed(api_url, pool, node, args)
+            except Exception as exc:
+                speed = {"node": node, "ok": False, "error": repr(exc), "measured_at": utc_now(), "measured_at_ts": now_ts()}
+            speed_cache[node] = speed
+            speed_metrics[node] = speed
+            measured += 1
+        event["speed_metrics"] = speed_metrics
+        event["speed_budget"] = {
+            "nodes_measured_this_assessment": measured,
+            "attempts_used_in_rolling_window": len(attempts),
+            "remaining_attempts_in_rolling_window": speed_budget_remaining(pool_state, ts, args),
+            "max_nodes_per_pool_per_30min": args.max_speed_nodes_per_pool,
+            "bytes_per_probe": args.speed_bytes,
+            "cache_ttl_seconds": args.speed_ttl_seconds,
+            "rough_daily_budget_note": "up to 3 attempts per pool per 30min; default 512KiB, server benchmark 403/404 fallback may add 1.3MiB HF payload per attempt",
+        }
+
         ranked = []
         shortlisted_nodes = {item["node"] for item in shortlist}
         for item in healthy:
@@ -868,7 +909,7 @@ def assess_pool(pool: PoolConfig, state: dict[str, Any], args: argparse.Namespac
             scored = score_candidate(item, speed_metrics.get(node), pool)
             if scored["eligible"]:
                 ranked.append({"node": node, **scored, "delay": by_node[node], "speed": speed_metrics.get(node)})
-        ranked.sort(key=lambda item: item["score"])
+        ranked.sort(key=lambda item: (subscription_priority(pool, item["node"]), item["score"]))
         event["ranked"] = ranked
         current_delay = by_node.get(current) if current else None
         current_ranked = any(item["node"] == current for item in ranked)
@@ -1027,7 +1068,7 @@ def check_current_pool(pool: PoolConfig, state: dict[str, Any], args: argparse.N
             ts = now_ts()
             event["quarantined"] = quarantine_node(pool_state, effective_current, ts, args, "current_check_failed")
             pool_state["current_failed_checks"] = 0
-            recovery_candidates = recovery_candidates_from_verified_cache(pool_state, members, effective_current, ts, args)
+            recovery_candidates = recovery_candidates_from_verified_cache(pool_state, members, effective_current, ts, args, pool=pool)
             event["recovery_candidates"] = [item["node"] for item in recovery_candidates]
             recovery = freshly_verify_recovery(api_url, pool, pool_state, recovery_candidates, ts, args)
             if recovery is not None:

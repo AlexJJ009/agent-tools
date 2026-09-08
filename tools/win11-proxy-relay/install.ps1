@@ -504,6 +504,8 @@ function New-TaskActionFor {
         [string]$SettingsPath,
         [string]$Python
     )
+    $backgroundPython = Join-Path (Split-Path -Parent $Python) 'pythonw.exe'
+    if (-not (Test-Path -LiteralPath $backgroundPython)) { $backgroundPython = $Python }
     $winPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     switch ($TaskName) {
         'FeituServerProxy' {
@@ -513,10 +515,10 @@ function New-TaskActionFor {
             return New-ScheduledTaskAction -Execute $winPowerShell -Argument ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}" -SettingsPath "{1}"' -f (Join-Path $RuntimeDir 'phai-reverse-proxy.ps1'), $SettingsPath)
         }
         'ProxyQualityManager' {
-            return New-ScheduledTaskAction -Execute $Python -Argument ('"{0}" --settings "{1}"' -f (Join-Path $RuntimeDir 'quality-manager.py'), $SettingsPath)
+            return New-ScheduledTaskAction -Execute $backgroundPython -Argument ('"{0}" --settings "{1}"' -f (Join-Path $RuntimeDir 'quality-manager.py'), $SettingsPath)
         }
         'AiProxyFailover' {
-            return New-ScheduledTaskAction -Execute $Python -Argument ('"{0}" --settings "{1}"' -f (Join-Path $RuntimeDir 'ai-fallback.py'), $SettingsPath)
+            return New-ScheduledTaskAction -Execute $backgroundPython -Argument ('"{0}" --settings "{1}"' -f (Join-Path $RuntimeDir 'ai-fallback.py'), $SettingsPath)
         }
         default {
             throw "Unknown managed task: $TaskName"

@@ -37,6 +37,7 @@ RUNTIME_FILES = (
     "settings.py",
     "show-quality.py",
     "v2rayn-dashboard.html",
+    "tests/test_build_configs.py",
     "tests/test_probe.py",
     "tests/test_quality_manager.py",
     "tests/test_settings.py",

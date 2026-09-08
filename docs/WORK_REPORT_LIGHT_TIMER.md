@@ -69,3 +69,20 @@
 边界：探针仍在前一轮回复结束后被处理，因此没有证明活动模型轮次内的即时 steer；一次受控测试也不保证所有任务都不会受提示词影响。可将该机制用于到点投递、跨轮续接的汇报提醒，不承诺到点立即生成报告。本次明确跳过正式报告，尚不能称为完整 work-report 生成与续行的端到端验收。
 
 证据目录：`/home/alex_mercer/projects/_artifacts/agent-tools/work-report-long-probe/`，包含 `task.json`、`before-yield.json`、`arrival.json`、`progress.json` 和 `result.json`。仅补充本地验收记录，Skill 源码与安装内容未改动。
+
+
+## 保持当前轮的探针 D：未通过即时到达验收
+
+本次约定 Main 在 180 秒观察窗口内不发送最终回复，并以 15 秒间隔记录队列状态。首次定时器因状态目录不存在而退出，未发送消息；创建目录后再次启动一次性投递，原观察截止时间保持不变。因此实际入队后的窗口约 69 秒，并非完整 180 秒。
+
+| 时间（UTC） | 观察 |
+|---|---|
+| 2026-09-07 13:33:50 | 开始观察，截止时间为 13:36:50 |
+| 2026-09-07 13:35:41 | 成功入队，ID `01a07c14-ed01-7380-b202-9b957faf5676` |
+| 2026-09-07 13:36:50 | 最后采样仍在队列；观察进程正常退出，未收到探针 |
+| 2026-09-08 01:31:14 | UserPromptSubmit 钩子记录探针输入，turn `01a07ea4-02a4-77f0-88f6-6da85d1bdee4` |
+| 2026-09-08 01:31:33 | Main 保存 arrival.json，随后完成验收记录 |
+
+**结论：消息最终到达，但当前轮观察窗口内到达的验收未通过；即时 steer 仍未证明。** 对话记录中 Main 在到达前没有发送最终回复，但入队到钩子输入相隔近 12 小时，不能凭缺少 final 推断模型一直运行，也不能把本次归为即时活动轮插入。长时间间隔的原因尚未核查。
+
+没有延长或重启观察测试、没有新建定时器或正式报告。真实 intent Judge 返回 none，已通过 register 清除候选标记。现场状态、逐次队列采样、到达记录及结论保存在 `/home/alex_mercer/projects/_artifacts/agent-tools/work-report-active-probe-D/` 的 `task.json`、`observations.jsonl`、`arrival.json`、`result.json`。

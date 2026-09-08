@@ -31,5 +31,5 @@
     "name": "linear-workflow",
     "windows_name": "linear-workflow.cmd"
   },
-  "legacy_policy": "coexist-with-goal-plan"
+  "legacy_policy": "goal-plan-retired"
 }

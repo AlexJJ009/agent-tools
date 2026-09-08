@@ -1,0 +1,23 @@
+{
+  "targets": [
+    {
+      "id": "wsl",
+      "platform": "wsl",
+      "transport": "local",
+      "expected_user": "replace-with-unix-user",
+      "codex_home": "/home/replace-with-unix-user/.codex",
+      "cc_switch_db": "/home/replace-with-unix-user/.cc-switch/cc-switch.db",
+      "cc_switch_bin": "/home/replace-with-unix-user/.local/bin/cc-switch"
+    },
+    {
+      "id": "ovh-109",
+      "platform": "linux",
+      "transport": "ssh",
+      "ssh_alias": "ovh-109",
+      "expected_user": "ubuntu",
+      "codex_home": "/home/ubuntu/.codex",
+      "cc_switch_db": "/home/ubuntu/.cc-switch/cc-switch.db",
+      "cc_switch_bin": "/home/ubuntu/.local/bin/cc-switch"
+    }
+  ]
+}

@@ -27,37 +27,6 @@ REQUIRED = {
 }
 
 
-def validate_deprecation_evidence(descriptor: dict[str, Any], repo_root: Path) -> list[str]:
-    gate = descriptor.get("deprecation_gate")
-    if not isinstance(gate, dict):
-        return ["descriptor has no deprecation_gate"]
-    if gate.get("required_linear_issue") != "DRAGAI-61":
-        return ["deprecation_gate.required_linear_issue must be DRAGAI-61"]
-    relative = gate.get("evidence")
-    if not isinstance(relative, str) or not relative:
-        return ["deprecation_gate.evidence must name the pilot evidence file"]
-    source = repo_root / relative
-    try:
-        from importlib.util import module_from_spec, spec_from_file_location
-
-        module_path = (
-            repo_root
-            / descriptor["runtime"]["source"]
-            / "src"
-            / descriptor["runtime"]["module"]
-            / "deprecation.py"
-        )
-        spec = spec_from_file_location("goal_plan_deprecation_gate", module_path)
-        if spec is None or spec.loader is None:
-            return [f"cannot load deprecation validator from {module_path}"]
-        module = module_from_spec(spec)
-        spec.loader.exec_module(module)
-        value = json.loads(source.read_text(encoding="utf-8"))
-        return list(module.validate_pilot_evidence(value))
-    except (OSError, json.JSONDecodeError, ImportError) as exc:
-        return [f"cannot validate deprecation evidence at {source}: {exc}"]
-
-
 def managed_install_exists(descriptor: dict[str, Any], repo_root: Path, home: Path, platform: str) -> bool:
     for source, target in target_pairs(descriptor, repo_root, home):
         if marker_for(source, target).is_file():
@@ -289,7 +258,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "command",
-        choices=["validate", "pairs", "install", "check", "deprecation-check", "managed-status"],
+        choices=["validate", "pairs", "install", "check", "managed-status"],
     )
     parser.add_argument("--descriptor", type=Path, required=True)
     parser.add_argument("--repo-root", type=Path, required=True)
@@ -305,14 +274,7 @@ def main() -> int:
     args = parse_args()
     try:
         descriptor = load_descriptor(args.descriptor, args.repo_root)
-        if args.command == "deprecation-check":
-            errors = validate_deprecation_evidence(descriptor, args.repo_root)
-            if errors:
-                for error in errors:
-                    print(f"DEPRECATION_GATE=RED: {error}", file=sys.stderr)
-                return 1
-            print("DEPRECATION_GATE=GREEN: DRAGAI-61 pilot evidence accepted")
-        elif args.command == "managed-status":
+        if args.command == "managed-status":
             if not managed_install_exists(descriptor, args.repo_root, args.home, args.platform):
                 print(f'{descriptor["name"]} managed install: absent')
                 return 1

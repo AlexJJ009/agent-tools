@@ -157,7 +157,7 @@ separately from `--no-codex-config`:
 |---|---|---|
 | install guard | `INSTALL_CODEX_SQLITE_LOG_GUARD` / `--no-codex-sqlite-log-guard` | `1` |
 | mode | `CODEX_SQLITE_LOG_GUARD_MODE` / `--disable-codex-sqlite-log-guard` | `enable` |
-| WSL Windows homes | `CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS` / `--codex-sqlite-log-guard-wsl-windows` | `auto` |
+| WSL Windows homes | `CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS` / `--codex-sqlite-log-guard-wsl-windows` | `never`; WSL writes are rejected |
 | compact DB | `CODEX_SQLITE_LOG_GUARD_VACUUM` / `--codex-sqlite-log-guard-vacuum` | `0` |
 
 The installer replaces the managed keys above, including top-level
@@ -184,12 +184,11 @@ fast_mode = true
 ```
 
 On macOS, the Codex App and CLI use `~/.codex/config.toml`, so the normal
-installer path covers the App. On WSL2, the installer also patches the detected
-Windows Codex App home under `/mnt/c/Users/*/.codex` by default. Control this
-with:
+installer path covers the App. On WSL2, it patches only the WSL home. Native
+Win11 state must be changed through `scripts\install-win11.ps1` on Windows;
+the legacy WSL-to-Windows mode is rejected.
 
 ```bash
-./install.sh --codex-app-fast-wsl-windows auto
 ./install.sh --codex-app-fast-wsl-windows never
 ./install.sh --no-codex-app-fast-mode
 ```

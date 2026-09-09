@@ -61,6 +61,14 @@ rows. Old template nodes are never inherited. The generated
 credential-free record of that decision; the v2rayN database remains the private
 node source of truth.
 
+AI leaf tags are stable SHA-256-derived identifiers built from the subscription
+name and the node's non-secret network identity. They must not use v2rayN
+`IndexId`: v2rayN assigns fresh IDs and may reorder rows after every subscription
+refresh. Credential rotation at the same named endpoint preserves its tag, while
+an address, port, protocol, SNI, or other routing-identity change produces a new
+tag. Duplicate stable identities fail the build instead of silently sharing a
+selector tag.
+
 The human-facing `us-ai` selector intentionally exposes only two choices:
 `ai-auto-fallback` and the current ordinary `proxy`. `ai-quality`, `ai-measure`,
 and `us-ai-auto-READONLY` remain internal because the reliability manager needs

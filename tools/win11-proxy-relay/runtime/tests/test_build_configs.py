@@ -196,6 +196,137 @@ class BuildConfigsTests(unittest.TestCase):
             rebuilt,
         )
 
+    def test_stable_ai_tag_ignores_v2rayn_index_and_credential_rotation(self):
+        first = row(
+            IndexId="volatile-1", Subid="subscription-1", Remarks="BWG to OVH",
+            Address="bwg.invalid", Port=44301, Password="old-secret",
+            ConfigType=3, Security="aes-128-gcm",
+        )
+        refreshed = row(
+            IndexId="volatile-2", Subid="subscription-2", Remarks="BWG to OVH",
+            Address="bwg.invalid", Port=44301, Password="new-secret",
+            Username="new-username", Id="new-uuid",
+            ConfigType=3, Security="aes-128-gcm",
+        )
+
+        self.assertEqual(
+            build_configs.stable_ai_tag(first, "搬瓦工"),
+            build_configs.stable_ai_tag(refreshed, "搬瓦工"),
+        )
+        self.assertRegex(
+            build_configs.stable_ai_tag(first, "搬瓦工"),
+            r"^ai-node-[0-9a-f]{16}$",
+        )
+
+    def test_stable_ai_tag_changes_with_network_identity(self):
+        first = row(Remarks="BWG to OVH", Address="bwg.invalid", Port=44301)
+        moved = row(Remarks="BWG to OVH", Address="bwg.invalid", Port=44401)
+
+        self.assertNotEqual(
+            build_configs.stable_ai_tag(first, "搬瓦工"),
+            build_configs.stable_ai_tag(moved, "搬瓦工"),
+        )
+
+    def test_stable_ai_tag_covers_effective_non_secret_protocol_identity(self):
+        cases = [
+            (
+                row(ConfigType=3, Security="aes-128-gcm", ProtoExtra="{}"),
+                {"Security": "chacha20-ietf-poly1305"},
+            ),
+            (
+                row(ConfigType=11, Sni="a.example", Alpn="h2", AllowInsecure="false"),
+                {"Alpn": "http/1.1"},
+            ),
+            (
+                row(ConfigType=5, PublicKey="public-a", ShortId="aaaa", Fingerprint="qq"),
+                {"PublicKey": "public-b"},
+            ),
+            (
+                row(ConfigType=5, PublicKey="public-a", ShortId="aaaa", Fingerprint="qq"),
+                {"ShortId": "bbbb"},
+            ),
+            (
+                row(ConfigType=5, PublicKey="public-a", ShortId="aaaa", Fingerprint="qq"),
+                {"Fingerprint": "firefox"},
+            ),
+            (
+                row(ConfigType=5, Flow="", ProtoExtra='{"Flow":"xtls-rprx-vision"}'),
+                {"ProtoExtra": "{}"},
+            ),
+        ]
+        for original, changes in cases:
+            with self.subTest(changes=changes):
+                changed = dict(original)
+                changed.update(changes)
+                self.assertNotEqual(
+                    build_configs.stable_ai_tag(original, "搬瓦工"),
+                    build_configs.stable_ai_tag(changed, "搬瓦工"),
+                )
+
+    def test_stable_ai_tag_normalizes_equivalent_vless_identity(self):
+        first = row(
+            ConfigType=5, Flow="", ProtoExtra='{"Flow":"xtls-rprx-vision"}',
+            Fingerprint="qq", Network="TCP", StreamSecurity="REALITY",
+        )
+        equivalent = dict(first)
+        equivalent.update(
+            IndexId="new-index", Flow="xtls-rprx-vision", ProtoExtra="{}",
+            Fingerprint="chrome", Network="tcp", StreamSecurity="reality",
+        )
+        self.assertEqual(
+            build_configs.stable_ai_tag(first, "搬瓦工"),
+            build_configs.stable_ai_tag(equivalent, "搬瓦工"),
+        )
+
+    def test_subscription_nodes_are_ordered_by_stable_tag(self):
+        con = self.make_profile_db(":memory:")
+        con.execute("INSERT INTO SubItem VALUES (?,?,?)", ("bwg-sub", "搬瓦工", 1))
+        candidates = [
+            row(Remarks="BWG A", Address="bwg.invalid", Port=44301),
+            row(Remarks="BWG B", Address="bwg.invalid", Port=44401),
+        ]
+        ordered = sorted(
+            candidates,
+            key=lambda item: build_configs.stable_ai_tag(item, "搬瓦工"),
+            reverse=True,
+        )
+        for ordinal, item in enumerate(ordered):
+            item.update(IndexId=str(ordinal), Subid="bwg-sub")
+            self.insert_profile(con, item)
+
+        nodes, _, _ = build_configs.collect_subscription_nodes(
+            con, ["搬瓦工"], re.compile("台湾")
+        )
+
+        tags = [node["tag"] for node in nodes]
+        self.assertEqual(tags, sorted(tags))
+
+    def test_filtered_subscription_row_does_not_parse_malformed_proto_extra(self):
+        con = self.make_profile_db(":memory:")
+        con.execute("INSERT INTO SubItem VALUES (?,?,?)", ("bwg-sub", "搬瓦工", 1))
+        self.insert_profile(
+            con,
+            row(
+                IndexId="blocked", Subid="bwg-sub", Remarks="台湾 blocked",
+                ProtoExtra="{not-json",
+            ),
+        )
+        self.insert_profile(
+            con,
+            row(
+                IndexId="included", Subid="bwg-sub", Remarks="BWG included",
+                ConfigType=3, ProtoExtra='{"SsMethod":"aes-128-gcm"}',
+                Security="aes-128-gcm",
+            ),
+        )
+
+        nodes, _, blocked = build_configs.collect_subscription_nodes(
+            con, ["搬瓦工"], re.compile("台湾")
+        )
+
+        self.assertEqual(len(nodes), 1)
+        self.assertEqual(blocked[0]["reason"], "blocked_by_policy")
+
     def test_selected_proxy_uses_durable_gui_config_without_generated_config(self):
         with tempfile.TemporaryDirectory() as temp:
             v2 = Path(temp) / "v2rayN"
@@ -304,7 +435,16 @@ class BuildConfigsTests(unittest.TestCase):
             runtime = json.loads((state / "tun-runtime.json").read_text(encoding="utf-8"))
             runtime_outbounds = {item["tag"]: item for item in runtime["outbounds"]}
             self.assertEqual(runtime_outbounds["proxy"]["server"], "fallback.invalid")
-            self.assertIn("ai-node-ai-1", runtime_outbounds)
+            expected_tag = build_configs.stable_ai_tag(
+                row(
+                    IndexId="another-volatile-id", ConfigType=3,
+                    Subid="another-subscription-id", Remarks="BWG to OVH",
+                    Address="bwg.invalid", Port=44301, Password="rotated-ai-pass",
+                    Security="aes-128-gcm", ProtoExtra='{"SsMethod":"aes-128-gcm"}',
+                ),
+                "搬瓦工",
+            )
+            self.assertIn(expected_tag, runtime_outbounds)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ in v2rayN, validate the result, then reload the dedicated core explicitly.
 import argparse
 import copy
 import datetime
+import hashlib
 import json
 import pathlib
 import re
@@ -42,10 +43,10 @@ def sing_box_utls_fingerprint(value):
     return fingerprint
 
 
-def convert_profile_row(row, source, blocked_pattern, tag_prefix=None):
+def convert_profile_row(row, source, blocked_pattern, tag_prefix=None, tag=None):
     r = dict(row)
     prefix = tag_prefix or PREFIX_BY_SOURCE[source]
-    tag = prefix + '-' + r['IndexId']
+    tag = tag or (prefix + '-' + r['IndexId'])
     name = r.get('Remarks') or ''
     if is_metadata_row(name):
         return None, {'tag': tag, 'source': source, 'name': name, 'reason': 'metadata_row'}
@@ -101,6 +102,48 @@ def convert_profile_row(row, source, blocked_pattern, tag_prefix=None):
     return node, {'tag': tag, 'source': source, 'name': name, 'reason': 'included'}
 
 
+def stable_ai_tag(row, subscription_name, tag_prefix='ai-node'):
+    """Return an AI tag that survives v2rayN subscription refreshes.
+
+    v2rayN assigns fresh ``IndexId`` values when a subscription is refreshed.
+    Selector tags must therefore be derived from the node's non-secret network
+    identity, not from that volatile database key.  Credential rotation at the
+    same named endpoint intentionally preserves the tag.
+    """
+    r = dict(row)
+    config_type = r.get('ConfigType')
+    extra = json.loads(r.get('ProtoExtra') or '{}')
+    identity = {
+        'subscription': subscription_name,
+        'remarks': r.get('Remarks') or '',
+        'config_type': config_type,
+        'address': r.get('Address') or '',
+        'port': r.get('Port'),
+    }
+    if config_type == 11:
+        identity.update(
+            allow_insecure=str(r.get('AllowInsecure')).lower() == 'true',
+            sni=r.get('Sni') or '',
+            alpn=r.get('Alpn') or '',
+        )
+    elif config_type == 3:
+        identity['method'] = extra.get('SsMethod') or r.get('Security') or ''
+    elif config_type == 5:
+        identity.update(
+            network=(r.get('Network') or '').lower(),
+            stream_security=(r.get('StreamSecurity') or '').lower(),
+            sni=r.get('Sni') or r.get('Address') or '',
+            flow=r.get('Flow') or extra.get('Flow') or '',
+            fingerprint=sing_box_utls_fingerprint(r.get('Fingerprint')),
+            public_key=r.get('PublicKey') or '',
+            short_id=r.get('ShortId') or '',
+        )
+    canonical = json.dumps(
+        identity, ensure_ascii=False, sort_keys=True, separators=(',', ':'),
+    ).encode('utf-8')
+    return f'{tag_prefix}-{hashlib.sha256(canonical).hexdigest()[:16]}'
+
+
 def collect_nodes(con, blocked_pattern):
     nodes = []
     metadata = []
@@ -142,11 +185,18 @@ def collect_subscription_nodes(con, subscription_names, blocked_pattern, tag_pre
                 blocked_pattern,
                 tag_prefix=tag_prefix,
             )
-            metadata.append(info)
             if node is None:
+                metadata.append(info)
                 blocked.append(info)
             else:
+                tag = stable_ai_tag(row, subscription_name, tag_prefix)
+                node['tag'] = tag
+                info['tag'] = tag
+                metadata.append(info)
                 nodes.append(node)
+    # Subscription refreshes may also reorder volatile IndexId values.  Keep
+    # selector membership and its default stable by ordering on the durable tag.
+    nodes.sort(key=lambda node: node['tag'])
     tags = [node['tag'] for node in nodes]
     if len(tags) != len(set(tags)):
         raise RuntimeError('Duplicate AI node tags across configured subscriptions')

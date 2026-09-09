@@ -1,4 +1,0 @@
-{
-  "blocked_name_pattern": "台湾|臺灣|台灣|\\btaiwan\\b|\\btw\\b|🇹🇼",
-  "reason": "User requested exclusion of Taiwan nodes from the development-server Feitu pool after repeated failures."
-}

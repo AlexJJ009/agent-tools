@@ -218,6 +218,19 @@ class BuildConfigsTests(unittest.TestCase):
             r"^ai-node-[0-9a-f]{16}$",
         )
 
+    def test_stable_ai_tag_ignores_display_remark_changes(self):
+        first = row(
+            Remarks="BWG to OVH old label", Address="bwg.invalid", Port=44301,
+            ConfigType=3, Security="aes-128-gcm",
+        )
+        renamed = dict(first)
+        renamed.update(IndexId="new-index", Remarks="BWG to OVH new label")
+
+        self.assertEqual(
+            build_configs.stable_ai_tag(first, "搬瓦工"),
+            build_configs.stable_ai_tag(renamed, "搬瓦工"),
+        )
+
     def test_stable_ai_tag_changes_with_network_identity(self):
         first = row(Remarks="BWG to OVH", Address="bwg.invalid", Port=44301)
         moved = row(Remarks="BWG to OVH", Address="bwg.invalid", Port=44401)

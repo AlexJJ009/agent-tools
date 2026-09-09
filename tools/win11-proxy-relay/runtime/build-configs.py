@@ -115,7 +115,6 @@ def stable_ai_tag(row, subscription_name, tag_prefix='ai-node'):
     extra = json.loads(r.get('ProtoExtra') or '{}')
     identity = {
         'subscription': subscription_name,
-        'remarks': r.get('Remarks') or '',
         'config_type': config_type,
         'address': r.get('Address') or '',
         'port': r.get('Port'),

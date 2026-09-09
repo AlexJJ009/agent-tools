@@ -112,7 +112,7 @@ v2rayN 数据库中的当前订阅行重建。生成时会删除上一轮 AI lea
 - `feitu-measure`：隔离测量 selector，用于不影响生产链路地检查候选节点。
 - `feitu-auto`：sing-box 原生 URLTest 备用，只表示延时评估，不代表真实内容验收。
 
-主 AI pool 的 `ai-node-*` tag 不能使用 v2rayN `IndexId`：订阅刷新会重建 `IndexId` 并可能改变行顺序。Wrapper 根据订阅名和节点的非秘密网络身份生成稳定 SHA-256 tag，并按 tag 排序。密码/UUID 轮换不改 tag；协议、地址、端口、SNI、Reality public key/short ID 等出站语义改变时产生新 tag。重复稳定身份必须让生成失败，不能静默共用 selector tag。
+主 AI pool 的 `ai-node-*` tag 不能使用 v2rayN `IndexId`：订阅刷新会重建 `IndexId` 并可能改变行顺序。Wrapper 根据订阅名和节点的非秘密网络身份生成稳定 SHA-256 tag，并按 tag 排序。显示名称、密码或 UUID 轮换不改 tag；协议、地址、端口、SNI、Reality public key/short ID 等出站语义改变时产生新 tag。重复稳定身份必须让生成失败，不能静默共用 selector tag。
 
 ### 6.2 健康策略
 

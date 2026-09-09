@@ -26,6 +26,7 @@ DEFAULTS: dict[str, Any] = {
     "ssh_identity_file": "",
     "ssh_known_hosts": "",
     "main_controller_ports": [7903, 7902],
+    "main_ai_subscriptions": [],
     "ai_primary_port": 17911,
     "ai_fallback_port": 17912,
     "ai_measure_port": 17913,
@@ -62,6 +63,12 @@ def load_settings(path: str | Path | None = None) -> dict[str, Any]:
             merged[key] = _resolve_path(str(merged[key]), base)
 
     merged["main_controller_ports"] = [int(port) for port in merged.get("main_controller_ports", [])]
+    main_ai_subscriptions = merged.get("main_ai_subscriptions", [])
+    if isinstance(main_ai_subscriptions, str):
+        main_ai_subscriptions = [main_ai_subscriptions]
+    merged["main_ai_subscriptions"] = [
+        str(name).strip() for name in main_ai_subscriptions if str(name).strip()
+    ]
     for key in (
         "local_proxy_port",
         "remote_proxy_port",

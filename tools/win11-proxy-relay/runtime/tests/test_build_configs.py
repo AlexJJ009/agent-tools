@@ -45,6 +45,30 @@ def row(**overrides):
 
 
 class BuildConfigsTests(unittest.TestCase):
+    def make_profile_db(self, path):
+        con = sqlite3.connect(path)
+        con.executescript(
+            """
+            CREATE TABLE SubItem (Id TEXT, Remarks TEXT, Enabled INTEGER);
+            CREATE TABLE ProfileItem (
+              IndexId TEXT, ConfigType INTEGER, Subid TEXT, Remarks TEXT, Address TEXT,
+              Port INTEGER, Password TEXT, Username TEXT, Network TEXT, HeaderType TEXT,
+              RequestHost TEXT, Path TEXT, StreamSecurity TEXT, AllowInsecure TEXT,
+              Sni TEXT, Alpn TEXT, Fingerprint TEXT, PublicKey TEXT, ShortId TEXT,
+              SpiderX TEXT, ProtoExtra TEXT, Flow TEXT, Id TEXT, Security TEXT
+            );
+            """
+        )
+        con.row_factory = sqlite3.Row
+        return con
+
+    def insert_profile(self, con, item):
+        columns = list(item)
+        con.execute(
+            f"INSERT INTO ProfileItem ({','.join(columns)}) VALUES ({','.join('?' for _ in columns)})",
+            tuple(item[column] for column in columns),
+        )
+
     def test_vless_reality_conversion_uses_v2rayn_fields(self):
         node, info = build_configs.convert_profile_row(row(), "miaomiao", re.compile("台湾"))
         self.assertEqual(info["reason"], "included")
@@ -133,6 +157,154 @@ class BuildConfigsTests(unittest.TestCase):
         self.assertIn("miaomiao-2", outbounds["feitu-auto"]["outbounds"])
         self.assertEqual(labels["miaomiao-2"], "us")
         self.assertEqual(sources["miaomiao-2"]["source"], "miaomiao")
+
+    def test_rebuild_main_ai_pool_replaces_old_leaf_nodes(self):
+        tun = {
+            "outbounds": [
+                {"type": "direct", "tag": "direct"},
+                {"type": "vless", "tag": "us-home-1", "server": "old.invalid"},
+                {"type": "vless", "tag": "lgx-marz-vless", "server": "old.invalid"},
+                {"type": "urltest", "tag": "us-ai-auto-READONLY",
+                 "outbounds": ["us-home-1", "lgx-marz-vless"]},
+                {"type": "selector", "tag": "us-ai",
+                 "outbounds": ["us-ai-auto-READONLY", "us-home-1", "lgx-marz-vless"]},
+                {"type": "selector", "tag": "ai-quality", "outbounds": ["us-home-1"]},
+                {"type": "selector", "tag": "ai-measure", "outbounds": ["us-home-1"]},
+                {"type": "selector", "tag": "ai-auto-fallback", "outbounds": ["ai-quality", "proxy"]},
+            ]
+        }
+        nodes = [
+            {"type": "shadowsocks", "tag": "ai-node-1", "server": "bwg.invalid",
+             "server_port": 44301, "method": "aes-128-gcm", "password": "secret"},
+            {"type": "shadowsocks", "tag": "ai-node-2", "server": "bwg.invalid",
+             "server_port": 44401, "method": "aes-128-gcm", "password": "secret"},
+        ]
+
+        rebuilt = build_configs.rebuild_main_ai_pool(tun, nodes)
+        outbounds = {item["tag"]: item for item in rebuilt["outbounds"]}
+
+        self.assertNotIn("us-home-1", outbounds)
+        self.assertNotIn("lgx-marz-vless", outbounds)
+        self.assertEqual(outbounds["us-ai-auto-READONLY"]["outbounds"], ["ai-node-1", "ai-node-2"])
+        self.assertEqual(
+            outbounds["us-ai"]["outbounds"],
+            ["ai-auto-fallback", "proxy"],
+        )
+        self.assertEqual(outbounds["ai-measure"]["outbounds"], ["ai-node-1", "ai-node-2"])
+        self.assertEqual(
+            build_configs.rebuild_main_ai_pool(rebuilt, nodes),
+            rebuilt,
+        )
+
+    def test_selected_proxy_uses_durable_gui_config_without_generated_config(self):
+        with tempfile.TemporaryDirectory() as temp:
+            v2 = Path(temp) / "v2rayN"
+            (v2 / "guiConfigs").mkdir(parents=True)
+            (v2 / "guiConfigs" / "guiNConfig.json").write_text(
+                json.dumps({"IndexId": "selected-1", "SubIndexId": "sub-1"}),
+                encoding="utf-8",
+            )
+            con = self.make_profile_db(":memory:")
+            self.insert_profile(
+                con,
+                row(
+                    IndexId="selected-1", ConfigType=3, Subid="sub-1", Remarks="fallback",
+                    Address="fallback.invalid", Port=1443, Password="ss-pass", Security="aes-128-gcm",
+                    ProtoExtra='{"SsMethod":"aes-128-gcm"}',
+                ),
+            )
+            proxy = build_configs.selected_proxy_outbound(con, v2, re.compile("台湾"))
+
+        self.assertEqual(proxy["tag"], "proxy")
+        self.assertEqual(proxy["type"], "shadowsocks")
+        self.assertEqual(proxy["server"], "fallback.invalid")
+        self.assertFalse((v2 / "binConfigs" / "config.json").exists())
+
+    def test_selected_proxy_requires_one_matching_profile(self):
+        for count in (0, 2):
+            with self.subTest(count=count), tempfile.TemporaryDirectory() as temp:
+                v2 = Path(temp) / "v2rayN"
+                (v2 / "guiConfigs").mkdir(parents=True)
+                (v2 / "guiConfigs" / "guiNConfig.json").write_text(
+                    json.dumps({"IndexId": "duplicate"}), encoding="utf-8"
+                )
+                con = self.make_profile_db(":memory:")
+                for ordinal in range(count):
+                    self.insert_profile(
+                        con,
+                        row(IndexId="duplicate", Remarks=f"node-{ordinal}"),
+                    )
+                with self.assertRaisesRegex(RuntimeError, f"found {count}"):
+                    build_configs.selected_proxy_outbound(con, v2, re.compile("台湾"))
+
+    def test_main_only_stages_runtime_without_rewriting_relay_config(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            v2 = root / "v2rayN"
+            state = root / "state"
+            (v2 / "guiConfigs").mkdir(parents=True)
+            state.mkdir()
+            (v2 / "guiConfigs" / "guiNConfig.json").write_text(
+                json.dumps({"IndexId": "fallback-1"}), encoding="utf-8"
+            )
+            relay_marker = '{"preserve":"dedicated-relay"}\n'
+            (state / "server-config.json").write_text(relay_marker, encoding="utf-8")
+            con = self.make_profile_db(v2 / "guiConfigs" / "guiNDB.db")
+            con.execute(
+                "CREATE TABLE FullConfigTemplateItem "
+                "(Enabled INTEGER, Remarks TEXT, AddProxyOnly INTEGER, Config TEXT, TunConfig TEXT)"
+            )
+            con.execute("INSERT INTO SubItem VALUES (?,?,?)", ("bwg-sub", "搬瓦工", 1))
+            self.insert_profile(
+                con,
+                row(
+                    IndexId="ai-1", ConfigType=3, Subid="bwg-sub", Remarks="BWG to OVH",
+                    Address="bwg.invalid", Port=44301, Password="ai-pass", Security="aes-128-gcm",
+                    ProtoExtra='{"SsMethod":"aes-128-gcm"}',
+                ),
+            )
+            self.insert_profile(
+                con,
+                row(
+                    IndexId="fallback-1", ConfigType=3, Subid="other-sub", Remarks="fallback",
+                    Address="fallback.invalid", Port=443, Password="fallback-pass", Security="aes-128-gcm",
+                    ProtoExtra='{"SsMethod":"aes-128-gcm"}',
+                ),
+            )
+            tun = {
+                "inbounds": [{"type": "tun", "tag": "tun-in"}],
+                "outbounds": [
+                    {"type": "direct", "tag": "direct"},
+                    {"type": "selector", "tag": "proxy", "outbounds": ["direct"]},
+                    {"type": "urltest", "tag": "us-ai-auto-READONLY", "outbounds": ["old-node"]},
+                    {"type": "selector", "tag": "us-ai", "outbounds": ["old-node"]},
+                    {"type": "shadowsocks", "tag": "old-node", "server": "old.invalid"},
+                ],
+                "route": {"rules": []},
+                "experimental": {
+                    "clash_api": {"external_controller": "127.0.0.1:7903"},
+                    "cache_file": {"enabled": True, "store_fakeip": True},
+                },
+            }
+            con.execute(
+                "INSERT INTO FullConfigTemplateItem VALUES (?,?,?,?,?)",
+                (1, "sing-box", 1, json.dumps(tun), json.dumps(tun)),
+            )
+            con.commit()
+            con.close()
+            settings = {
+                "v2rayn_dir": str(v2), "state_dir": str(state),
+                "main_ai_subscriptions": ["搬瓦工"], "main_controller_ports": [7903, 7902],
+                "ai_primary_port": 17911, "ai_fallback_port": 17912, "ai_measure_port": 17913,
+            }
+
+            build_configs.build(settings, with_main_templates=True, main_only=True)
+
+            self.assertEqual((state / "server-config.json").read_text(encoding="utf-8"), relay_marker)
+            runtime = json.loads((state / "tun-runtime.json").read_text(encoding="utf-8"))
+            runtime_outbounds = {item["tag"]: item for item in runtime["outbounds"]}
+            self.assertEqual(runtime_outbounds["proxy"]["server"], "fallback.invalid")
+            self.assertIn("ai-node-ai-1", runtime_outbounds)
 
 
 if __name__ == "__main__":

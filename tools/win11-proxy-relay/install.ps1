@@ -14,6 +14,7 @@ param(
     [string]$StartupMode = 'Logon',
     [string]$OwnerHome = $env:USERPROFILE,
     [string]$ServiceSshConfig = '',
+    [string[]]$MainAiSubscriptions = @(),
     [switch]$KeepAwakeOnAC,
     [switch]$Start,
     [switch]$SkipConnectionCheck,
@@ -621,6 +622,7 @@ $planObject = [pscustomobject]@{
     ssh_port = $sshResolved.Port
     ssh_identity_file = $sshResolved.IdentityFile
     ssh_known_hosts_source = $sshResolved.KnownHosts
+    main_ai_subscriptions = @($MainAiSubscriptions)
 }
 
 if ($Plan) {
@@ -670,6 +672,7 @@ if ($PSCmdlet.ShouldProcess($installRootFull, 'Install Win11 proxy relay')) {
             remote_proxy_port = 17890
             controller_port = 17903
             main_controller_ports = @(7903, 7902)
+            main_ai_subscriptions = @($MainAiSubscriptions)
             state_dir = $stateDir
             owner_home = $ownerHomeFull
             python_exe = $pythonFull

@@ -27,6 +27,7 @@ Supported settings fields:
 - `remote_proxy_port`
 - `controller_port`
 - `main_controller_ports`
+- `main_ai_subscriptions`
 - `state_dir`
 - `owner_home`
 - `python_exe`
@@ -49,6 +50,25 @@ No user password is stored for either mode.
 Private relay config is imported separately with `-PrivateConfig <path>`. The installer copies the JSON into `state\server-config.json`, rewrites its sing-box cache path to `state\server-cache.db`, and records a schema snapshot. The public ZIP does not export subscription data, node credentials, v2rayN DB files, or SSH private keys.
 
 When `runtime\build-configs.py` is used for private migration, it reads the local v2rayN DB in read-only mode and stages a server-only sing-box config from enabled `feitu` and `miaomiao` subscriptions. Selector tags remain `server-feitu`, `feitu-quality`, `feitu-measure`, and `feitu-auto`; leaf tags use `feitu-*` and `miaomiao-*`. Taiwan rows and subscription metadata/error rows are excluded, including rows such as `当出现较长时间error时...`.
+
+The main v2rayN AI pool has a separate source contract. Set `main_ai_subscriptions`
+to the enabled subscription names that should appear under `us-ai-auto-READONLY`
+(for example `["搬瓦工"]`). A `--with-main-templates` build fails when this list is
+empty. Each build deletes the previous AI leaf members and reconstructs
+`us-ai-auto-READONLY`, `ai-quality`, and `ai-measure` from the current subscription
+rows. Old template nodes are never inherited. The generated
+`state\main-ai-source.json` and `state\main-ai-node-labels.json` are the auditable,
+credential-free record of that decision; the v2rayN database remains the private
+node source of truth.
+
+The human-facing `us-ai` selector intentionally exposes only two choices:
+`ai-auto-fallback` and the current ordinary `proxy`. `ai-quality`, `ai-measure`,
+and `us-ai-auto-READONLY` remain internal because the reliability manager needs
+separate production, isolated-measurement, and native-delay paths. The bundled
+dashboard hides those internal groups under a collapsed diagnostic section.
+Use `build-configs.py --with-main-templates --main-only` when refreshing this
+pool on a live machine; it stages the main normal/TUN templates without
+rewriting the dedicated PHAI relay `server-config.json`.
 
 For SSH, the installer resolves the owner account's host alias with `ssh -G`, copies only `known_hosts`, and writes `state\ssh_config` with absolute paths. The private key remains at the resolved `IdentityFile`; it is referenced, not copied into the package.
 
@@ -98,6 +118,7 @@ The builder uses an explicit file allowlist and rejects cache, DB, log, state, p
   -CoreExe 'C:\Tools\sing-box\sing-box.exe' `
   -PythonExe 'C:\Tools\Python\python.exe' `
   -SshHost 'dev-server' `
+  -MainAiSubscriptions '搬瓦工' `
   -PrivateConfig 'C:\Private\server-config.json' `
   -StartupMode Boot -Start
 ```

@@ -152,10 +152,18 @@
       <section>
         <h2>主入口分组</h2>
         <div class="rows" id="mainGroups"></div>
+        <details>
+          <summary>诊断详情</summary>
+          <div class="rows" id="mainDiagnostics"></div>
+        </details>
       </section>
       <section>
         <h2>开发机分组：飞兔 / 喵喵备用</h2>
         <div class="rows" id="feituGroups"></div>
+        <details>
+          <summary>诊断详情</summary>
+          <div class="rows" id="feituDiagnostics"></div>
+        </details>
       </section>
     </div>
     <section>
@@ -179,11 +187,11 @@ const params = new URLSearchParams(location.search);
 const defaultMainPorts = (params.get("mainPorts") || "7903,7902").split(",").map(v => v.trim()).filter(Boolean);
 const feituPort = params.get("feituPort") || "17903";
 const controllers = { main: null, feitu: "http://127.0.0.1:" + feituPort };
-async function loadLabels(){for(const path of [params.get("labels"), "node-labels.json", "../state/node-labels.json"].filter(Boolean)){try{nodeLabels = await (await fetch(path,{cache:"no-store",signal:AbortSignal.timeout(1500)})).json(); return;}catch{}}}
+async function loadLabels(){for(const path of [params.get("labels"),"main-ai-node-labels.json","node-labels.json","../state/main-ai-node-labels.json","../state/node-labels.json"].filter(Boolean)){try{const data=await (await fetch(path,{cache:"no-store",signal:AbortSignal.timeout(1500)})).json();nodeLabels={...nodeLabels,...data};}catch{}}}
 const displayNames = {'us-ai':'AI 使用策略','ai-auto-fallback':'美国优先 / 日常回退','ai-quality':'美国组综合选路','us-ai-auto-READONLY':'美国组延时自动','proxy':'日常节点（跟随 v2rayN）','server-feitu':'开发机使用策略','feitu-quality':'飞兔优先 / 喵喵备用','feitu-auto':'双订阅延时自动（不含内容验收）'};
-const mainGroupNames = ['us-ai','ai-auto-fallback','ai-quality','us-ai-auto-READONLY','proxy'];
-const feituGroupNames = ['server-feitu','feitu-quality','feitu-auto'];
-const summary=document.querySelector('#summary'), mainGroups=document.querySelector('#mainGroups'), feituGroups=document.querySelector('#feituGroups'), connections=document.querySelector('#connections'), updated=document.querySelector('#updated');
+const mainDiagnosticNames = ['ai-auto-fallback','ai-quality','us-ai-auto-READONLY'];
+const feituDiagnosticNames = ['feitu-quality','feitu-auto'];
+const summary=document.querySelector('#summary'), mainGroups=document.querySelector('#mainGroups'), mainDiagnostics=document.querySelector('#mainDiagnostics'), feituGroups=document.querySelector('#feituGroups'), feituDiagnostics=document.querySelector('#feituDiagnostics'), connections=document.querySelector('#connections'), updated=document.querySelector('#updated');
 let busy=false;
 function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function label(v){return displayNames[v]||nodeLabels[v]||v||'未知';}
@@ -198,8 +206,10 @@ async function refresh(){if(busy||document.activeElement?.tagName==='SELECT')ret
  const [m,f]=await Promise.allSettled([mainData(),getJson(controllers.feitu,'/proxies')]);
  const mp=m.status==='fulfilled'?m.value.proxies:{},fp=f.status==='fulfilled'?f.value.proxies:{};
  summary.innerHTML=[row('主内核',m.status==='fulfilled'?esc(controllers.main):'暂不可达',m.status==='fulfilled'?'ok':'bad'),row('开发机内核',f.status==='fulfilled'?'已连接':'暂不可达',f.status==='fulfilled'?'ok':'bad'),row('AI 当前链路',esc(chain(mp,'us-ai'))),row('日常代理',esc(label('proxy'))),row('开发机当前链路',esc(chain(fp,'server-feitu')))].join('');
- mainGroups.innerHTML=chooser(mp,'us-ai','main')+groupRows(mp,mainGroupNames);
- feituGroups.innerHTML=chooser(fp,'server-feitu','feitu')+groupRows(fp,feituGroupNames);
+ mainGroups.innerHTML=chooser(mp,'us-ai','main');
+ mainDiagnostics.innerHTML=groupRows(mp,mainDiagnosticNames);
+ feituGroups.innerHTML=chooser(fp,'server-feitu','feitu');
+ feituDiagnostics.innerHTML=groupRows(fp,feituDiagnosticNames);
  const sources=await Promise.allSettled([controllers.main?getJson(controllers.main,'/connections'):Promise.reject(),getJson(controllers.feitu,'/connections')]);
  const items=[];sources.forEach((r,i)=>{if(r.status==='fulfilled')for(const item of r.value.connections||[])items.push({item,core:i?'开发机 / 双订阅':'本机'});});
  renderConnections(items);updated.textContent=new Date().toLocaleString();

@@ -42,9 +42,10 @@ def sing_box_utls_fingerprint(value):
     return fingerprint
 
 
-def convert_profile_row(row, source, blocked_pattern):
+def convert_profile_row(row, source, blocked_pattern, tag_prefix=None):
     r = dict(row)
-    tag = PREFIX_BY_SOURCE[source] + '-' + r['IndexId']
+    prefix = tag_prefix or PREFIX_BY_SOURCE[source]
+    tag = prefix + '-' + r['IndexId']
     name = r.get('Remarks') or ''
     if is_metadata_row(name):
         return None, {'tag': tag, 'source': source, 'name': name, 'reason': 'metadata_row'}
@@ -118,7 +119,128 @@ def collect_nodes(con, blocked_pattern):
     return nodes, metadata, blocked
 
 
-def build(settings, db_path=None, with_main_templates=False):
+def collect_subscription_nodes(con, subscription_names, blocked_pattern, tag_prefix='ai-node'):
+    nodes = []
+    metadata = []
+    blocked = []
+    for subscription_name in subscription_names:
+        matches = con.execute(
+            'SELECT Id FROM SubItem WHERE Remarks=? AND Enabled=1',
+            (subscription_name,),
+        ).fetchall()
+        if len(matches) != 1:
+            raise RuntimeError(
+                f'Expected exactly one enabled subscription named {subscription_name!r}; found {len(matches)}'
+            )
+        for row in con.execute(
+            'SELECT p.* FROM ProfileItem p WHERE p.Subid=? ORDER BY p.IndexId',
+            (matches[0]['Id'],),
+        ):
+            node, info = convert_profile_row(
+                row,
+                subscription_name,
+                blocked_pattern,
+                tag_prefix=tag_prefix,
+            )
+            metadata.append(info)
+            if node is None:
+                blocked.append(info)
+            else:
+                nodes.append(node)
+    tags = [node['tag'] for node in nodes]
+    if len(tags) != len(set(tags)):
+        raise RuntimeError('Duplicate AI node tags across configured subscriptions')
+    if not nodes:
+        raise RuntimeError('Configured main AI subscriptions contained no usable nodes')
+    return nodes, metadata, blocked
+
+
+def selected_proxy_outbound(con, v2rayn_dir, blocked_pattern):
+    """Rebuild v2rayN's durable current selection as sing-box tag ``proxy``.
+
+    Newer v2rayN releases remove binConfigs/config.json after starting, so the
+    live generated file cannot be a build input.  guiNConfig.json and
+    ProfileItem are the durable sources v2rayN itself uses.
+    """
+    gui_config_path = pathlib.Path(v2rayn_dir) / 'guiConfigs' / 'guiNConfig.json'
+    gui_config = json.loads(gui_config_path.read_text(encoding='utf-8-sig'))
+    index_id = str(gui_config.get('IndexId') or '').strip()
+    if not index_id:
+        raise RuntimeError('guiNConfig.json does not contain a selected IndexId')
+    matches = con.execute(
+        'SELECT * FROM ProfileItem WHERE IndexId=?',
+        (index_id,),
+    ).fetchall()
+    if len(matches) != 1:
+        raise RuntimeError(
+            f'Expected exactly one ProfileItem for selected IndexId {index_id!r}; found {len(matches)}'
+        )
+    node, info = convert_profile_row(
+        matches[0], 'selected', blocked_pattern, tag_prefix='selected-proxy'
+    )
+    if node is None:
+        raise RuntimeError(
+            f'Selected ProfileItem {index_id!r} is unusable: {info["reason"]}'
+        )
+    node['tag'] = 'proxy'
+    return node
+
+
+def rebuild_main_ai_pool(tun, ai_nodes):
+    """Replace every previously managed AI leaf with the current subscription set."""
+    result = copy.deepcopy(tun)
+    outbounds = result.get('outbounds', [])
+    ai_auto = next((o for o in outbounds if o.get('tag') == 'us-ai-auto-READONLY'), None)
+    us_ai = next((o for o in outbounds if o.get('tag') == 'us-ai'), None)
+    if not ai_auto or ai_auto.get('type') != 'urltest':
+        raise RuntimeError('Expected us-ai-auto-READONLY urltest in sing-box template')
+    if not us_ai or us_ai.get('type') != 'selector':
+        raise RuntimeError('Expected us-ai selector in sing-box template')
+
+    selector_tags = {
+        'us-ai-auto-READONLY', 'us-ai', 'ai-auto-fallback', 'ai-quality', 'ai-measure'
+    }
+    old_member_tags = set(ai_auto.get('outbounds') or [])
+    old_leaf_tags = {
+        o.get('tag') for o in outbounds
+        if o.get('tag') in old_member_tags and o.get('tag') not in selector_tags
+    }
+    new_tags = [node['tag'] for node in ai_nodes]
+    removable_tags = old_leaf_tags | set(new_tags) | {
+        'ai-auto-fallback', 'ai-quality', 'ai-measure'
+    }
+    result['outbounds'] = [
+        o for o in outbounds if o.get('tag') not in removable_tags
+    ]
+
+    rebuilt_auto = next(o for o in result['outbounds'] if o.get('tag') == 'us-ai-auto-READONLY')
+    rebuilt_auto['outbounds'] = new_tags
+    rebuilt_auto['interrupt_exist_connections'] = False
+    rebuilt_us_ai = next(o for o in result['outbounds'] if o.get('tag') == 'us-ai')
+    # The only human decision is automatic AI routing versus the current
+    # ordinary v2rayN node. Health/measurement selectors stay internal.
+    rebuilt_us_ai['outbounds'] = ['ai-auto-fallback', 'proxy']
+    rebuilt_us_ai['default'] = 'ai-auto-fallback'
+    rebuilt_us_ai['interrupt_exist_connections'] = False
+
+    result['outbounds'] += [
+        {'type': 'selector', 'tag': 'ai-quality',
+         'outbounds': ['us-ai-auto-READONLY'] + new_tags,
+         'default': 'us-ai-auto-READONLY', 'interrupt_exist_connections': False},
+        {'type': 'selector', 'tag': 'ai-measure', 'outbounds': new_tags,
+         'default': new_tags[0], 'interrupt_exist_connections': False},
+        {'type': 'selector', 'tag': 'ai-auto-fallback',
+         'outbounds': ['ai-quality', 'proxy'],
+         'default': 'ai-quality', 'interrupt_exist_connections': False},
+        *copy.deepcopy(ai_nodes),
+    ]
+    tags = [o.get('tag') for o in result['outbounds']]
+    if len(tags) != len(set(tags)):
+        raise RuntimeError('Duplicate outbound tags after rebuilding main AI pool')
+    return result
+
+
+def build(settings, db_path=None, with_main_templates=False, main_only=False):
     v2rayn_dir = pathlib.Path(settings['v2rayn_dir'])
     state_dir = pathlib.Path(settings['state_dir'])
     db = pathlib.Path(db_path) if db_path else default_db(settings)
@@ -131,10 +253,17 @@ def build(settings, db_path=None, with_main_templates=False):
     con.row_factory = sqlite3.Row
     policy = json.loads((ROOT / 'feitu-node-policy.json').read_text(encoding='utf-8'))
     blocked_pattern = re.compile(policy['blocked_name_pattern'], re.IGNORECASE)
-    nodes, node_metadata, blocked = collect_nodes(con, blocked_pattern)
-    if not nodes:
-        raise RuntimeError('No relay nodes')
-    sidecar = {
+    if main_only and not with_main_templates:
+        raise RuntimeError('--main-only requires --with-main-templates')
+    nodes = []
+    node_metadata = []
+    blocked = []
+    source_counts = {}
+    if not main_only:
+        nodes, node_metadata, blocked = collect_nodes(con, blocked_pattern)
+        if not nodes:
+            raise RuntimeError('No relay nodes')
+        sidecar = {
         'log': {'level': 'warn', 'timestamp': True},
         'dns': {'servers': [{'type': 'udp', 'tag': 'direct-dns', 'server': '223.5.5.5'}]},
         'inbounds': [
@@ -159,15 +288,15 @@ def build(settings, db_path=None, with_main_templates=False):
             'clash_api': {'external_controller': f"127.0.0.1:{settings['controller_port']}"},
             'cache_file': {'enabled': True, 'path': str(state_dir / 'server-cache.db')}
         }
-    }
-    write(state_dir / 'server-config.json', sidecar)
-    source_counts = {source: len([item for item in node_metadata if item['source'] == source and item['reason'] == 'included']) for source in SOURCES}
-    write(state_dir / 'feitu-filter-result.json', {'included_nodes': len(nodes), 'included_by_source': source_counts, 'excluded_nodes': blocked})
-    write(state_dir / 'node-labels.json', {item['tag']: item['name'] for item in node_metadata if item['reason'] == 'included'})
-    write(state_dir / 'node-sources.json', {
-        item['tag']: {'source': item['source'], 'name': item['name'], 'reason': item['reason']}
-        for item in node_metadata
-    })
+        }
+        write(state_dir / 'server-config.json', sidecar)
+        source_counts = {source: len([item for item in node_metadata if item['source'] == source and item['reason'] == 'included']) for source in SOURCES}
+        write(state_dir / 'feitu-filter-result.json', {'included_nodes': len(nodes), 'included_by_source': source_counts, 'excluded_nodes': blocked})
+        write(state_dir / 'node-labels.json', {item['tag']: item['name'] for item in node_metadata if item['reason'] == 'included'})
+        write(state_dir / 'node-sources.json', {
+            item['tag']: {'source': item['source'], 'name': item['name'], 'reason': item['reason']}
+            for item in node_metadata
+        })
     if not with_main_templates:
         con.close()
         print(json.dumps({'relay_nodes': len(nodes), 'included_by_source': source_counts, 'server_config': str(state_dir / 'server-config.json')}))
@@ -175,24 +304,26 @@ def build(settings, db_path=None, with_main_templates=False):
     template = con.execute('SELECT * FROM FullConfigTemplateItem WHERE Enabled=1 AND Remarks=?', ('sing-box',)).fetchone()
     if not template or not template['AddProxyOnly']:
         raise RuntimeError('Expected enabled sing-box AddProxyOnly template for --with-main-templates')
-    tun = json.loads(template['TunConfig'])
+    main_ai_subscriptions = settings.get('main_ai_subscriptions') or []
+    if not main_ai_subscriptions:
+        raise RuntimeError(
+            'main_ai_subscriptions must name the enabled v2rayN subscriptions used by the main AI pool'
+        )
+    ai_nodes, ai_metadata, ai_blocked = collect_subscription_nodes(
+        con, main_ai_subscriptions, blocked_pattern
+    )
+    tun = rebuild_main_ai_pool(json.loads(template['TunConfig']), ai_nodes)
     for o in tun['outbounds']:
-        if o.get('tag') == 'us-ai':
-            o['outbounds'] = list(dict.fromkeys(['ai-auto-fallback', 'ai-quality', 'us-ai-auto-READONLY', 'proxy'] + o['outbounds']))
-            o['default'] = 'ai-auto-fallback'
         if o.get('type') in ['selector', 'urltest']:
             o['interrupt_exist_connections'] = False
-    ai_members = next(o['outbounds'] for o in tun['outbounds'] if o['tag'] == 'us-ai-auto-READONLY')
-    tun['outbounds'] = [o for o in tun['outbounds'] if o['tag'] not in ['ai-auto-fallback', 'ai-quality', 'ai-measure']]
-    tun['outbounds'] += [
-        {'type': 'selector', 'tag': 'ai-quality', 'outbounds': ['us-ai-auto-READONLY'] + ai_members,
-         'default': 'us-ai-auto-READONLY', 'interrupt_exist_connections': False},
-        {'type': 'selector', 'tag': 'ai-measure', 'outbounds': ai_members,
-         'default': ai_members[0], 'interrupt_exist_connections': False}
-    ]
-    tun['outbounds'].append({'type': 'selector', 'tag': 'ai-auto-fallback',
-                            'outbounds': ['ai-quality', 'proxy'],
-                            'default': 'ai-quality', 'interrupt_exist_connections': False})
+    write(state_dir / 'main-ai-node-labels.json', {
+        item['tag']: item['name'] for item in ai_metadata if item['reason'] == 'included'
+    })
+    write(state_dir / 'main-ai-source.json', {
+        'subscriptions': main_ai_subscriptions,
+        'included_nodes': len(ai_nodes),
+        'excluded_nodes': ai_blocked,
+    })
     probe_tags = ['ai-primary-probe', 'ai-fallback-probe', 'ai-measure-probe']
     tun['inbounds'] = [i for i in tun['inbounds'] if i['tag'] not in probe_tags]
     tun['inbounds'] += [
@@ -218,17 +349,22 @@ def build(settings, db_path=None, with_main_templates=False):
     # The normal template has the same AI/domain policy; only TUN capture is absent.
     write(state_dir / 'normal-template.json', normal)
     write(state_dir / 'tun-template.json', tun)
-    # v2rayN injects its currently selected node as "proxy" when AddProxyOnly=1.
-    current = json.loads((v2rayn_dir / 'binConfigs/config.json').read_text(encoding='utf-8-sig'))
-    proxy = [o for o in current['outbounds'] if o['tag'] == 'proxy']
-    if len(proxy) != 1:
-        raise RuntimeError('Expected exactly one active proxy outbound')
+    # Reproduce the outbound v2rayN injects as "proxy" for AddProxyOnly=1,
+    # using durable state rather than its short-lived binConfigs/config.json.
+    proxy = [selected_proxy_outbound(con, v2rayn_dir, blocked_pattern)]
     for name, data in [('normal-runtime', normal), ('tun-runtime', tun)]:
         runtime = copy.deepcopy(data)
         runtime['outbounds'] = [o for o in runtime['outbounds'] if o['tag'] != 'proxy'] + proxy
         write(state_dir / (name + '.json'), runtime)
     con.close()
-    print(json.dumps({'relay_nodes': len(nodes), 'included_by_source': source_counts, 'normal_and_tun_staged': True}))
+    print(json.dumps({
+        'relay_nodes': len(nodes),
+        'included_by_source': source_counts,
+        'main_ai_subscriptions': main_ai_subscriptions,
+        'main_ai_nodes': len(ai_nodes),
+        'relay_refreshed': not main_only,
+        'normal_and_tun_staged': True,
+    }, ensure_ascii=False))
 
 
 def apply(settings, db_path=None):
@@ -245,7 +381,8 @@ def apply(settings, db_path=None):
     dest.close()
     for rel in ['guiConfigs/guiNConfig.json', 'globalTUNfile.json', 'binConfigs/config.json']:
         source = v2rayn_dir / rel
-        shutil.copy2(source, backup / source.name)
+        if source.exists():
+            shutil.copy2(source, backup / source.name)
     with con:
         result = con.execute('UPDATE FullConfigTemplateItem SET Config=?,TunConfig=? WHERE Enabled=1 AND Remarks=?',
                              (json.dumps(normal, ensure_ascii=False), json.dumps(tun, ensure_ascii=False), 'sing-box'))
@@ -263,6 +400,9 @@ if __name__ == '__main__':
     parser.add_argument('--db', default=None)
     parser.add_argument('--apply', action='store_true')
     parser.add_argument('--with-main-templates', '--apply-main', action='store_true', dest='with_main_templates')
+    parser.add_argument('--main-only', action='store_true', help='Stage main v2rayN templates without rewriting the dedicated relay config.')
     args = parser.parse_args()
     loaded_settings = load_settings(args.settings)
-    apply(loaded_settings, args.db) if args.apply else build(loaded_settings, args.db, args.with_main_templates)
+    apply(loaded_settings, args.db) if args.apply else build(
+        loaded_settings, args.db, args.with_main_templates, args.main_only
+    )

@@ -1,8 +1,11 @@
 name: linear-workflow-runtime
 
 on:
+  # This job is a required status check for every main-branch PR, so it must
+  # not be suppressed by a path filter on pull_request events.
   pull_request:
     paths:
+      - "**"
       - .github/workflows/linear-workflow-runtime.yml
       - .github/actions/linear-workflow-pr-check/**
       - .github/pull_request_template.md

@@ -1,0 +1,12 @@
+{
+  "actor": "Alex Mercer",
+  "confirmed_at": "2026-09-20T00:00:00+00:00",
+  "source_quote": "I confirm ALG-K-001 for the current simulation target.",
+  "source_path": "/absolute/path/to/user-feedback.txt",
+  "source_sha256": "<sha256-of-user-feedback.txt>",
+  "candidate_sha": "<candidate-sha-from-agent-workflow-target>",
+  "target_digest": "<target_digest-from-agent-workflow-target>",
+  "choices": {
+    "ALG-K-001": "confirmed"
+  }
+}

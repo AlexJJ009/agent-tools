@@ -1,0 +1,116 @@
+{
+  "scenario": "algorithm",
+  "protocol_view": true,
+  "route_reason": "Agent investigated a code parameter and a formal experiment boundary.",
+  "mode_note": "Pass this file with: agent-workflow init --query request.txt --scenario algorithm --context minimal-context.json --mode simulation --slug k4-demo",
+  "facts": {
+    "infra": false,
+    "side_effects": false
+  },
+  "goals": [
+    "Bind K=4 per source to the real config and consumer before any formal run."
+  ],
+  "non_goals": [
+    "Do not start a long experiment from this simulation record."
+  ],
+  "allowed_paths": [
+    "configs/demo.json",
+    "src/runner.py"
+  ],
+  "forbidden_paths": [],
+  "formal_run_policy": "requires_human",
+  "run_class": "short_smoke",
+  "command": [
+    "python3",
+    "scripts/run_demo.py",
+    "--config",
+    "configs/demo.json"
+  ],
+  "command_paths": [
+    "scripts/run_demo.py"
+  ],
+  "config_paths": [
+    "configs/demo.json"
+  ],
+  "items": [
+    {
+      "id": "ALG-K",
+      "source_quote": "K=4",
+      "normalized_value": 4,
+      "requirement_kind": "protocol",
+      "authority": "user",
+      "confidence": 0.9,
+      "cost_if_wrong": "Formal run would test the wrong sampling protocol.",
+      "blocking_question": "",
+      "semantic_candidates": [],
+      "checklist_ids": [
+        "ALG-K-001"
+      ],
+      "meaning": "Samples per enabled source, not total rollout count.",
+      "unit": "samples_per_source",
+      "label": "K=4 per enabled source reaches the consumer."
+    }
+  ],
+  "bindings": {
+    "ALG-K": {
+      "id": "ALG-K-BINDING",
+      "config_key": "samples_per_source",
+      "consumer_symbol": "cfg['samples_per_source']",
+      "definition": {
+        "path": "configs/demo.json",
+        "line": 2,
+        "symbol": "samples_per_source"
+      },
+      "consumer": {
+        "path": "src/runner.py",
+        "line": 17,
+        "symbol": "cfg['samples_per_source']"
+      },
+      "overrides": [
+        {
+          "path": "scripts/run_demo.py",
+          "line": 8,
+          "symbol": "cfg ="
+        },
+        {
+          "path": "scripts/run_demo.py",
+          "line": 11,
+          "symbol": "cfg['samples_per_source'] ="
+        }
+      ],
+      "readback_key": "_bindings.samples_per_source",
+      "watched_paths": [
+        "configs/demo.json",
+        "src/runner.py"
+      ]
+    }
+  },
+  "checks": {
+    "ALG-K-001": {
+      "risk": "high_risk",
+      "verifier": {
+        "method": "command_json",
+        "watched_paths": [
+          "configs/demo.json",
+          "src/runner.py",
+          "scripts/readback_demo.py"
+        ],
+        "argv": [
+          "python3",
+          "scripts/readback_demo.py",
+          "--json"
+        ],
+        "observation_key": "sampling.samples_per_source",
+        "timeout_seconds": 30
+      },
+      "review_scope": {
+        "must_review": [
+          "src/runner.py:17"
+        ],
+        "context_only": [
+          "configs/demo.json:2"
+        ]
+      }
+    }
+  }
+}

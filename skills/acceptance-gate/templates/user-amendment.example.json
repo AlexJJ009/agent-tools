@@ -1,0 +1,14 @@
+{
+  "source_path": "/absolute/path/to/user-amendment.txt",
+  "source_quote": "Change K to 8 per source for the current target.",
+  "updates": [
+    {
+      "protocol_id": "ALG-K",
+      "expected": {
+        "value": 8,
+        "unit": "samples_per_source"
+      },
+      "meaning": "Eight samples per enabled source, not total rollout count."
+    }
+  ]
+}

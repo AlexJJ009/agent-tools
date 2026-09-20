@@ -1,0 +1,6 @@
+interface:
+  display_name: "独立审查"
+  short_description: "生成有限范围的人审和独立审查输入"
+  default_prompt: "Use $reviewer-brief to prepare a bounded human or independent reviewer brief with evidence anchors and review scope."
+policy:
+  allow_implicit_invocation: true

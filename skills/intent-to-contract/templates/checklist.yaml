@@ -1,0 +1,148 @@
+{
+  "schema_version": 1,
+  "task_id": "<task-id>",
+  "created_at": "<iso-utc>",
+  "repo": "<absolute-repo-path>",
+  "mode": "simulation",
+  "source": {
+    "query_sha256": "<sha256>",
+    "query_path": "request.txt"
+  },
+  "route": {
+    "primary": "algorithm",
+    "class": "high_risk",
+    "modules": [
+      "intent-to-contract",
+      "cleaner",
+      "acceptance-gate"
+    ],
+    "reason": "Agent-selected route; verify against project facts.",
+    "facts": {}
+  },
+  "agreement": {
+    "goals": [],
+    "non_goals": [],
+    "allowed_paths": [],
+    "forbidden_paths": [],
+    "formal_run_policy": "requires_human"
+  },
+  "extraction": {
+    "items": []
+  },
+  "protocols": [
+    {
+      "id": "<protocol-id>",
+      "source": {
+        "path": "request.txt",
+        "quote": "<source_quote>",
+        "authority": "user"
+      },
+      "meaning": "<precise meaning>",
+      "expected": {
+        "value": "<value>",
+        "unit": "<unit>"
+      },
+      "extraction_ref": "<extraction-id>",
+      "binding": {
+        "id": "<binding-id>",
+        "config_key": "<verified key>",
+        "consumer_symbol": "<verified consumer>",
+        "definition": {
+          "path": "<repo-relative-path>",
+          "line": 1,
+          "symbol": "<symbol>"
+        },
+        "consumer": {
+          "path": "<repo-relative-path>",
+          "line": 1,
+          "symbol": "<symbol>"
+        },
+        "overrides": [
+          {
+            "path": "<repo-relative-path>",
+            "line": 1,
+            "symbol": "<override symbol>"
+          }
+        ],
+        "readback_key": "<dot.path.to.binding-readback>",
+        "watched_paths": []
+      }
+    }
+  ],
+  "checklist": [
+    {
+      "id": "<check-id>",
+      "requirement": "<human-readable requirement>",
+      "requirement_ref": "<protocol-id>",
+      "binding_ref": "<binding-id>",
+      "source": {
+        "path": "request.txt",
+        "quote": "<source_quote>",
+        "authority": "user"
+      },
+      "risk": "high_risk",
+      "verifier": {
+        "method": "command_json",
+        "expected_ref": "<protocol-id>.expected",
+        "watched_paths": [],
+        "argv": [
+          "<project-verifier>",
+          "--json"
+        ],
+        "observation_key": "<json.path>",
+        "timeout_seconds": 30
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": []
+    }
+  ],
+  "code_state": {
+    "branch": "<branch>",
+    "base_sha": "<sha>",
+    "working_tree": "dirty"
+  },
+  "handoff": {
+    "path": "task.md"
+  },
+  "formal_run": {
+    "class": "formal_experiment",
+    "status": "awaiting_human",
+    "required_checklist_items": [
+      "<check-id>"
+    ],
+    "candidate_sha": null,
+    "agent_review": {
+      "status": "unverified",
+      "evidence": []
+    },
+    "human_confirmation": {
+      "required": true,
+      "actor": null,
+      "confirmed_at": null,
+      "target_digest": null
+    },
+    "command": [
+      "<formal-command>"
+    ],
+    "command_paths": [
+      "<repo-relative-entrypoint>"
+    ],
+    "config_paths": [
+      "<repo-relative-config>"
+    ],
+    "command_digest": null,
+    "config_digest": null,
+    "agent_target_digest": null
+  }
+}

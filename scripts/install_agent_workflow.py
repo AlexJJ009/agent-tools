@@ -214,6 +214,8 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="read-only source/install consistency check")
     args = parser.parse_args(argv)
+    if sys.version_info < (3, 11):
+        parser.error("Python 3.11 or newer is required (the launcher uses Python's -P option)")
     if platform.system() != "Linux":
         parser.error("this installer supports the current Linux/WSL user only")
     home = Path.home().resolve()
@@ -228,6 +230,10 @@ def main(argv: list[str] | None = None) -> int:
         run_target_guard(home)
         expected = validate_sources()
         reject_collisions(home, runtime_target, launcher, check=args.check)
+        reject_parent_escape(state, home)
+        if state.is_symlink():
+            raise RuntimeError(f"state directory must not be a symlink: {state}")
+        reject_parent_escape(state / "install-backups" / "entry", home)
         if args.check:
             verify_installed(home, expected, runtime_target, launcher)
             print(json.dumps({"status": "pass", "runtime": str(runtime_target), "launcher": str(launcher), "skills": list(SKILLS)}))

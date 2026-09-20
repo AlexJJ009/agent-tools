@@ -11,6 +11,26 @@ The recommended deployment model is one central tool directory per machine, not 
 
 ## Files
 
+- `skills/{intent-to-contract,infra-verification,cleaner,acceptance-gate,reviewer-brief}/`
+  and `agent_workflow/` — versioned workflow skills and runtime source; see
+  [usage](docs/AGENT_WORKFLOW.md). On Linux/WSL with Python 3.11+ and Git,
+  run the following from a checkout containing this suite, as the intended Unix
+  user (without `sudo`):
+
+  ```sh
+  python3 scripts/install_agent_workflow.py
+  python3 scripts/install_agent_workflow.py --check
+  ~/.local/bin/agent-workflow --help
+  ```
+
+  Add `~/.local/bin` to your shell's `PATH` to use `agent-workflow` by name.
+  This dedicated installer is separate from `install.sh`. It runs the target
+  guard, copies skills to `~/.agents/skills/` and runtime to
+  `~/.local/share/agent-workflow/`; the Git checkout remains the source of truth.
+  After updating the checkout, rerun install and check. Restart the Codex session
+  and verify all five skills are discovered. Native Windows is not supported by
+  this installer. No third-party Python packages are required.
+
 - `sync_agent_context.py` — main scanner and synchronizer.
 - `sync_agent_context_cron.sh` — heartbeat wrapper for cron.
 - `codex_project_memory.py` — creates a project-local Codex memory layer and

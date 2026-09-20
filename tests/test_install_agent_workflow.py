@@ -77,6 +77,22 @@ class AgentWorkflowInstallTests(unittest.TestCase):
         self.assertFalse((self.home / ".agents").exists())
         self.assertFalse((self.home / ".local").exists())
 
+    def test_old_python_refuses_before_writes(self):
+        with patch.object(installer.sys, "version_info", (3, 10)), self.assertRaises(SystemExit):
+            self.install()
+        self.assertEqual(self.calls, [])
+        self.assertFalse((self.home / ".local").exists())
+
+    def test_state_symlink_outside_profile_is_rejected(self):
+        external = self.base / "external"
+        external.mkdir()
+        local_state = self.home / ".local/state"
+        local_state.mkdir(parents=True)
+        (local_state / "agent-workflow").symlink_to(external, target_is_directory=True)
+        self.assertEqual(self.install(), 1)
+        self.assertEqual(list(external.iterdir()), [])
+        self.assertFalse((self.home / ".agents").exists())
+
     def test_missing_runtime_refuses_install(self):
         (self.repo / "agent_workflow").rename(self.repo / "agent_workflow.missing")
         self.assertEqual(self.install(), 1)

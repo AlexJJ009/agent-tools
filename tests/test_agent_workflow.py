@@ -96,6 +96,34 @@ class WorkflowTests(unittest.TestCase):
         runner.write_text('print("different operation")\n')
         self.gate(root)
 
+    def test_branch_switch_and_deletion_preserve_same_target(self):
+        root = self.authorized()
+        before = self.cli('target', '--record', root)
+        original = subprocess.check_output(['git', '-C', str(self.repo), 'branch', '--show-current'], text=True).strip()
+        subprocess.run(['git', '-C', str(self.repo), 'switch', '-c', 'deployment-main'], check=True, capture_output=True)
+        subprocess.run(['git', '-C', str(self.repo), 'branch', '-d', original], check=True, capture_output=True)
+        self.assertEqual(self.cli('target', '--record', root), before)
+        self.gate(root, expected=0)
+
+    def test_merge_commit_requires_fresh_checks_and_review(self):
+        root = self.authorized()
+        before = self.cli('target', '--record', root)
+        git = ['git', '-C', str(self.repo), '-c', 'user.name=Fixture Author',
+               '-c', 'user.email=fixture@example.invalid']
+        original = subprocess.check_output(git + ['branch', '--show-current'], text=True).strip()
+        subprocess.run(git + ['switch', '-c', 'development'], check=True, capture_output=True)
+        subprocess.run(git + ['commit', '--allow-empty', '-m', 'New candidate'], check=True, capture_output=True)
+        subprocess.run(git + ['switch', original], check=True, capture_output=True)
+        subprocess.run(git + ['merge', '--no-ff', 'development', '-m', 'Merge candidate'], check=True, capture_output=True)
+        subprocess.run(git + ['branch', '-d', 'development'], check=True, capture_output=True)
+        after = self.cli('target', '--record', root)
+        self.assertNotEqual(before['target']['candidate_sha'], after['target']['candidate_sha'])
+        self.assertIn('stale or missing candidate_sha', '; '.join(self.gate(root)['errors']))
+        self.check(root)
+        self.gate(root)  # New Agent evidence cannot silently renew human approval.
+        self.approve(root)  # Explicit simulation-only reviewer fixture.
+        self.gate(root, expected=0)
+
     def test_low_risk_entrypoint_change_invalidates(self):
         root = self.initialize('business')
         self.mutate(root, lambda x: (x['route'].update(primary='bug_fix', **{'class':'lightweight'}, facts={}),

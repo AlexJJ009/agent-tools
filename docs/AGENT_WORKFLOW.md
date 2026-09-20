@@ -28,6 +28,12 @@ Records live under `docs/agent-workflow/records/YYYY-MM-DD/YYYYMMDDTHHMMSSZ-<slu
 
 The installer copies the runtime to `~/.local/share/agent-workflow`, creates the launcher `~/.local/bin/agent-workflow`, and installs the five skills to `~/.agents/skills/`. It runs `scripts/codex_target_guard.py` before any write, rejects unmanaged collisions, and does not edit Codex config, auth, CC Switch databases, history, or existing conversations. `--check` is read-only and verifies installed files against the repository source.
 
+Use `main` as the deployment source after reviewed development branches are merged.
+Installation does not bind to a branch name or fixed commit. Task records do bind
+formal-run approval to the task repository's current commit: a merge or squash
+that changes that commit requires fresh checks and any required human review.
+Changing only the branch name at the same commit does not invalidate the target.
+
 ## Context API
 
 The runtime validates Agent-supplied context. It does not infer arbitrary requirements from prose. The Agent investigates the repository and then supplies:

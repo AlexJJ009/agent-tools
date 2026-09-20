@@ -1,0 +1,7 @@
+{
+  "algorithm": {"query":"把 Overleaf method 接入训练，K=4、response=8192，先别跑长实验","scenario":"algorithm","modules":["intent-to-contract","infra-verification","cleaner","acceptance-gate"],"expected":{"counts":{"bare":4,"privileged":4},"output_limit":8192,"capacity_ok":true}},
+  "infra": {"query":"Harbor 镜像启动失败，检查 Docker mount、GPU 和恢复","scenario":"infra","modules":["intent-to-contract","infra-verification","cleaner","acceptance-gate"],"expected":{"image":"fixture:1","container":"fixture-episode","mount":"/sandbox/data:ro","gpu":"simulated","recovery":"checkpoint-readback","cancelled":true,"resources_remaining":0}},
+  "business": {"query":"New API 修一个退款重复扣款 bug","scenario":"bug_fix","modules":["intent-to-contract","cleaner","acceptance-gate"],"expected":20},
+  "learning": {"query":"把这篇 PPO 论文讲懂并沉淀笔记","scenario":"learning","modules":["teaching-reconstruction"]},
+  "office": {"query":"做一份对外 PPT，检查数字和导出页面","scenario":"office","modules":["intent-to-contract","office-tools"]}
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: "训练与 Agentic 基础设施验收"
+  short_description: "核查训练、容器、资源和生命周期证据"
+  default_prompt: "Use $infra-verification to verify runtime readback, lifecycle, Docker or Harbor state, and resource cleanup evidence."
+policy:
+  allow_implicit_invocation: true

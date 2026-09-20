@@ -1,0 +1,14 @@
+schema_version: 1
+evidence:
+  id: "<evidence-id>"
+  checklist_id: "<check-id>"
+  level: "static"
+  collected_at: "<iso-utc>"
+  command: "<command or inspection>"
+  expected: "<expected value or behavior>"
+  observed: "<observed value or behavior>"
+  artifacts:
+    - path: "<relative-or-absolute-path>"
+      sha256: "<sha256-or-null>"
+  conclusion: "unverified"
+  limitations: []

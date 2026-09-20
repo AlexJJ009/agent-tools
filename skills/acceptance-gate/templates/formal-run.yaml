@@ -1,0 +1,30 @@
+{
+  "class": "formal_experiment",
+  "status": "awaiting_human",
+  "required_checklist_items": [
+    "<check-id>"
+  ],
+  "candidate_sha": "<sha>",
+  "agent_review": {
+    "status": "unverified",
+    "evidence": []
+  },
+  "human_confirmation": {
+    "required": true,
+    "actor": null,
+    "confirmed_at": null,
+    "target_digest": null
+  },
+  "command": [
+    "<formal-command>"
+  ],
+  "command_paths": [
+    "<repo-relative-entrypoint>"
+  ],
+  "config_paths": [
+    "<repo-relative-config>"
+  ],
+  "command_digest": "<sha256>",
+  "config_digest": "<sha256>",
+  "agent_target_digest": null
+}

@@ -60,12 +60,7 @@ def main(argv=None):
             return 0 if output['status'] == 'pass' else 1
         elif args.command == 'gate' and runtime.read_record(args.record).get('schema_version') == 2:
             record = runtime.read_record(args.record)
-            if args.action == 'formal-run' and args.action not in record['actions']:
-                with runtime.locked(args.record) as root:
-                    errors = runtime.gate(root, args.simulation)
-                output = {'status': 'fail' if errors else 'pass', 'command': 'gate', 'errors': errors}
-            else:
-                output = managed.gate_action(args.record, args.action, phase=args.phase or record['phase'], simulation=args.simulation)
+            output = managed.gate_action(args.record, args.action, phase=args.phase or record['phase'], simulation=args.simulation)
             print(json.dumps(output, ensure_ascii=False))
             return 0 if output['status'] == 'pass' else 1
         else:

@@ -49,13 +49,13 @@ def choice_errors(root, record, choice_ids):
             require(resolution is not None or delegated, f'{cid}: choice unresolved')
             if resolution:
                 source_event(root, record, resolution['source_ref'], human=bool(choice['understanding'].get('required_scope')) and not delegated)
+            understanding = choice['understanding']
+            require(not understanding.get('open_questions'), f'{cid}: understanding questions remain')
             if delegated:
                 continue
-            understanding = choice['understanding']
             scope = understanding.get('required_scope')
             if not scope:
                 continue
-            require(not understanding.get('open_questions'), f'{cid}: understanding questions remain')
             require(understanding.get('explanation_ref'), f'{cid}: explanation missing')
             source_event(root, record, understanding['explanation_ref'])
             matched = False
@@ -188,11 +188,14 @@ def execute(root, action_id, *, simulation=False, expected_digest=None):
             require(input_identity(record, action) == result['input_digest'], 'inputs changed after gate')
             actual_argv = []
             for arg in argv:
-                path = Path(arg)
+                # argparse-style --key=/absolute/path must consume the same
+                # snapshot as a separate absolute path argument.
+                prefix, separator, value = arg.partition('=') if arg.startswith('-') else ('', '', arg)
+                path = Path(value if separator else arg)
                 if path.is_absolute() and path.resolve().is_relative_to(Path(record['repo']).resolve()):
                     relative = str(path.resolve().relative_to(Path(record['repo']).resolve()))
                     require(relative in manifest, f'undeclared command input: {relative}')
-                    actual_argv.append(str(folder / relative))
+                    actual_argv.append((prefix + separator if separator else '') + str(folder / relative))
                 else:
                     actual_argv.append(arg)
             receipt = dict(result, inputs=manifest, argv=actual_argv, at=runtime.now(), snapshot=True)

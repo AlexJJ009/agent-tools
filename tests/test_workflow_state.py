@@ -60,6 +60,26 @@ class StateTests(unittest.TestCase):
             runtime.update(root, stale)
         self.assertFalse(load(root / 'checklist.yaml')['pending_inputs']['prompt-1']['resolved'])
 
+    def test_source_replacement_during_copy_cannot_poison_record(self):
+        root = self.initialize()
+        event = self.event(root, 'input.record', {'id': 'race'})
+        original = self.source.read_bytes()
+        read_bytes = Path.read_bytes
+        changed = False
+        def race(path):
+            nonlocal changed
+            data = read_bytes(path)
+            if path == self.source and not changed:
+                changed = True
+                self.source.write_bytes(data + b'Concurrent source change.\n')
+            return data
+        with patch.object(Path, 'read_bytes', race):
+            runtime.update(root, event)
+        self.assertTrue(changed)
+        record = runtime.read_record(root)
+        snapshot = root / record['events'][-1]['source']['path']
+        self.assertEqual(snapshot.read_bytes(), original)
+
     def test_interrupted_view_write_recovers_from_canonical_commit(self):
         root = self.initialize()
         event = self.event(root, 'input.record', {'id': 'prompt-1'})

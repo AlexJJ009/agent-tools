@@ -1,5 +1,7 @@
 """Observable execution controls for scoped authority and frozen inputs."""
 import json
+import contextlib
+import io
 from pathlib import Path
 import subprocess
 import sys
@@ -113,6 +115,40 @@ class ManagedTests(unittest.TestCase):
         self.assertEqual(json.loads(self.marker.read_text())['value'], 1)
         self.assertFalse(self.gate()['ready'])
 
+    def test_joined_absolute_config_argument_consumes_snapshot(self):
+        worker = self.repo / 'joined.py'
+        worker.write_text('import json,sys\nfrom pathlib import Path\n'
+                         'p=sys.argv[1].split("=",1)[1]\n'
+                         'Path(sys.argv[2]).write_text(Path(p).read_text())\n')
+        action = dict(runtime.read_record(self.root)['actions']['sample'])
+        action.update(id='joined', argv=[sys.executable, 'joined.py',
+                      '--config=' + str(self.repo / 'config.json'), str(self.marker)],
+                      command_paths=['joined.py'])
+        self.event('action.register', {'action': action})
+        self.verify()
+        self.event('authorization.grant', {'id': 'joined-grant', 'action_ids': ['joined'],
+                   'scope': action['authorization_scope']}, human=True)
+        run = subprocess.run
+        def race(argv, **kwargs):
+            if len(argv) > 1 and argv[1] == 'joined.py':
+                (self.repo / 'config.json').write_text('{"value": 99}\n')
+            return run(argv, **kwargs)
+        with patch('agent_workflow.managed.subprocess.run', side_effect=race):
+            result = managed.execute(self.root, 'joined', simulation=True)
+        self.assertEqual(result['returncode'], 0)
+        self.assertEqual(json.loads(self.marker.read_text())['value'], 1)
+
+    def test_schema2_formal_run_cannot_fall_back_to_legacy_gate(self):
+        from agent_workflow import cli
+        self.verify()
+        self.event('choice.propose', {'id': 'method', 'question': 'Which method?',
+                   'affects': ['VALUE-001'], 'required_scope': 'method'})
+        self.event('input.record', {'id': 'unclassified'}, human=True)
+        with patch.object(runtime, 'gate', return_value=[]) as legacy, contextlib.redirect_stdout(io.StringIO()) as output:
+            code = cli.main(['gate', '--record', str(self.root), '--action', 'formal-run', '--simulation'])
+        self.assertNotEqual(code, 0, output.getvalue())
+        legacy.assert_not_called()
+
     def test_scope_feedback_does_not_cover_another_choice_and_demo_can_delegate(self):
         self.verify()
         self.authorize()
@@ -134,6 +170,20 @@ class ManagedTests(unittest.TestCase):
         self.event('input.record', {'id': 'new-message'}, human=True)
         self.assertFalse(self.gate()['ready'])
         self.event('input.resolve', {'id': 'new-message', 'disposition': 'no_contract_change', 'reason': 'User requested status only.'})
+        self.assertTrue(self.gate()['ready'])
+
+    def test_later_user_question_blocks_previously_delegated_choice(self):
+        self.verify()
+        self.authorize()
+        self.event('choice.propose', {'id': 'reward', 'question': 'Which reward?',
+                   'affects': ['VALUE-001'], 'required_scope': 'reward'})
+        self.event('delegation.grant', {'id': 'demo', 'choice_ids': ['reward'], 'scope': 'reward'}, human=True)
+        self.assertTrue(self.gate()['ready'])
+        self.event('understanding.feedback', {'choice_id': 'reward', 'scope': 'reward', 'kind': 'question'}, human=True)
+        self.assertFalse(self.gate()['ready'])
+        question = runtime.read_record(self.root)['choices'][0]['understanding']['open_questions'][0]['id']
+        self.event('understanding.feedback', {'choice_id': 'reward', 'scope': 'reward',
+                   'kind': 'decision', 'resolves': [question]}, human=True)
         self.assertTrue(self.gate()['ready'])
 
     def test_completion_without_training_command_keeps_user_acceptance_pending(self):

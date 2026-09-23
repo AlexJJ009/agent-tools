@@ -6,6 +6,7 @@ classifiers, decide what a request means and whether an explanation is useful.
 from __future__ import annotations
 
 from copy import deepcopy
+import hashlib
 from pathlib import Path
 
 from .contracts import digest, fields, file_digest, require, within
@@ -93,8 +94,8 @@ def snapshot_source(root, source):
     path = Path(source['path'])
     if not path.is_absolute():
         path = within(root, source['path'])
-    require(file_digest(path) == source['sha256'], 'source hash mismatch')
     data = path.read_bytes()
+    require(hashlib.sha256(data).hexdigest() == source['sha256'], 'source hash mismatch')
     require(source['quote'] in data.decode('utf-8'), 'source quote is not verbatim')
     target = root / 'evidence' / 'sources' / (source['sha256'] + '.txt')
     runtime.write_bytes(target, data)

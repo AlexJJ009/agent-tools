@@ -1,8 +1,10 @@
 {
+  "schema_version": 2,
+  "phase": "baseline",
   "scenario": "algorithm",
   "protocol_view": true,
   "route_reason": "Agent investigated a code parameter and a formal experiment boundary.",
-  "mode_note": "Pass this file with: agent-workflow init --query request.txt --scenario algorithm --context minimal-context.json --mode simulation --slug k4-demo",
+  "mode_note": "Pass this illustrative context with: agent-workflow init --query request.txt --scenario algorithm --context context.example.json --mode simulation --slug k4-demo; omit schema_version for legacy v1 initialization.",
   "facts": {
     "infra": false,
     "side_effects": false
@@ -110,7 +112,8 @@
         "context_only": [
           "configs/demo.json:2"
         ]
-      }
+      },
+      "participation": "understanding"
     }
   }
 }

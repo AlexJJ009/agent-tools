@@ -1,4 +1,6 @@
 import json
+import hashlib
+import datetime as dt
 import os
 import shutil
 import subprocess
@@ -293,6 +295,22 @@ class ReportToolTests(unittest.TestCase):
                 "evidence": ["report.md"],
             },
         }
+        # Simulated stage records validate the binding protocol, not independence.
+        completed = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
+        cold = {"schema_version": "work-report.cold-read/1", "artifact_digest": digest,
+                "reviewer_id": "unit-test-cold-reader", "input_scope": "artifact_only",
+                "completed_at": completed, "cold_read": {
+                    "goal": "Explain the requested local reporting change.",
+                    "main_finding_and_reason": "The local observations support the described scope.",
+                    "next_decision_or_acceptance_step": "Inspect the disclosed remaining acceptance.",
+                    "missing_context": []}}
+        cold_path = case.report.parent / "cold-read.json"
+        cold_path.write_text(json.dumps(cold, indent=2) + "\n")
+        cold_hash = hashlib.sha256(cold_path.read_bytes()).hexdigest()
+        review["cold_read"] = {"path": "cold-read.json", "sha256": cold_hash}
+        review["source_verification"] = {"artifact_digest": digest, "cold_read_sha256": cold_hash,
+                                         "completed_at": completed, "reconstruction_accurate": True,
+                                         "reason": "Simulated second-stage comparison for protocol tests."}
         (case.report.parent / "review.json").write_text(json.dumps(review, indent=2), encoding="utf-8")
         return review
 
@@ -481,29 +499,146 @@ class ReportToolTests(unittest.TestCase):
 
     def test_report_without_table_or_image_fails_visual_requirement(self):
         with tempfile.TemporaryDirectory() as tmp:
-            case = self.init_report(self.make_workspace(tmp))
+            case = self.init_report(self.make_workspace(tmp), tool=self.required_visual_tool(tmp))
             self.write_report(case, self.body_with_sections(case, visual=None))
             self.assert_fail(self.check_report(case))
 
     def test_empty_table_does_not_count_as_visual(self):
         with tempfile.TemporaryDirectory() as tmp:
-            case = self.init_report(self.make_workspace(tmp))
+            case = self.init_report(self.make_workspace(tmp), tool=self.required_visual_tool(tmp))
             self.write_report(case, self.body_with_sections(case, visual="empty_table"))
             self.assert_fail(self.check_report(case))
 
     def test_table_inside_code_fence_does_not_count(self):
         with tempfile.TemporaryDirectory() as tmp:
-            case = self.init_report(self.make_workspace(tmp))
+            case = self.init_report(self.make_workspace(tmp), tool=self.required_visual_tool(tmp))
             self.write_report(case, self.body_with_sections(case, visual="code_table"))
             self.assert_fail(self.check_report(case))
 
     def test_mermaid_only_is_not_a_verified_visual(self):
         with tempfile.TemporaryDirectory() as tmp:
-            case = self.init_report(self.make_workspace(tmp))
+            case = self.init_report(self.make_workspace(tmp), tool=self.required_visual_tool(tmp))
             self.write_report(case, self.body_with_sections(case, visual="mermaid"))
             result = self.assert_fail(self.check_report(case))
             codes = {issue.get("code") for issue in result.get("issues", [])}
             self.assertIn("visual_unverified", codes)
+
+    def required_visual_tool(self, tmp):
+        # AC-13 removes the default quota; preserve these format negatives when
+        # a historical/custom policy still explicitly requires a verified visual.
+        copied, tool = self.copy_skill(tmp)
+        rubric_path = self.rubric_path(copied)
+        rubric = yaml.safe_load(rubric_path.read_text())
+        rubric["minimum_visuals"] = 1
+        rubric_path.write_text(yaml.safe_dump(rubric))
+        return tool
+
+    def test_compact_report_needs_no_decorative_visual(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = self.checked_case(tmp, visual=None)
+            self.write_review(case)
+            self.assert_pass(self.finalize(case))
+
+    def test_duplicate_semantic_id_is_rejected(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = self.checked_case(tmp, visual=None)
+            case.report.write_text(case.report.read_text() + "\n## Another goal {#goal}\n\nDifferent promise.\n")
+            data = self.assert_fail(self.check_report(case))
+            self.assertIn("section_duplicate", {x["code"] for x in data["issues"]})
+
+    def test_chinese_headings_with_ids_pass(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = self.init_report(self.make_workspace(tmp))
+            body = "\n".join(f"## 本节说明 {{#{sid}}}\n\n本节保留实际目标与观察。\n" for sid, _ in self.section_defs())
+            self.write_report(case, body)
+            self.assert_pass(self.check_report(case))
+
+    def test_cold_read_missing_or_changed_prevents_delivery(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = self.checked_case(tmp)
+            self.write_review(case)
+            cold = case.report.parent / "cold-read.json"
+            original = cold.read_bytes()
+            cold.unlink()
+            self.assert_fail(self.finalize(case))
+            cold.write_bytes(original)
+            self.assert_pass(self.finalize(case))
+            cold.write_bytes(original + b"\n")
+            data = self.assert_fail(self.finalize(case))
+            self.assertIn("cold_read_changed", {x["code"] for x in data["issues"]})
+
+    def test_cold_read_scope_order_and_accuracy_controls(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = self.checked_case(tmp)
+            review = self.write_review(case)
+            path = case.report.parent / "review.json"
+            review["source_verification"]["completed_at"] = "2000-01-01T00:00:00Z"
+            path.write_text(json.dumps(review))
+            data = self.assert_fail(self.finalize(case))
+            self.assertIn("review_stage_order_invalid", {x["code"] for x in data["issues"]})
+            review = self.write_review(case)
+            review["source_verification"]["reconstruction_accurate"] = False
+            path.write_text(json.dumps(review))
+            data = self.assert_fail(self.finalize(case))
+            self.assertIn("cold_read_inaccurate", {x["code"] for x in data["issues"]})
+            review = self.write_review(case)
+            cold_path = case.report.parent / "cold-read.json"
+            cold = json.loads(cold_path.read_text())
+            cold["input_scope"] = "full_context_first"
+            cold_path.write_text(json.dumps(cold))
+            cold_hash = hashlib.sha256(cold_path.read_bytes()).hexdigest()
+            review["cold_read"]["sha256"] = cold_hash
+            review["source_verification"]["cold_read_sha256"] = cold_hash
+            path.write_text(json.dumps(review))
+            data = self.assert_fail(self.finalize(case))
+            self.assertIn("cold_read_binding_invalid", {x["code"] for x in data["issues"]})
+
+    def test_workflow_snapshot_stale_delivery_and_archival_verification(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = self.make_workspace(tmp)
+            workflow = workspace / "checklist.yaml"
+            record = {"schema_version": 2, "revision": 7, "repo": str(workspace), "checklist": []}
+            workflow.write_text(json.dumps(record))
+            request = workspace / "request.txt"
+            request.write_text("Report this phase and keep user acceptance pending.")
+            result = self.assert_pass(self.run_cli("init", "--workspace", workspace, "--title", "workflow", "--request", request, "--workflow-record", workflow))
+            report = Path(result["report"])
+            context = json.loads(Path(result["context"]).read_text())
+            case = ReportCase(workspace, report.parent.parent, report, Path(result["context"]), result["task_id"], result["report_id"], Path(context["output_root"]), DEFAULT_TOOL, SKILL_ROOT)
+            self.assertEqual(context["workflow"]["revision"], 7)
+            self.assertEqual(context["workflow"]["text"], workflow.read_text())
+            self.write_report(case, self.body_with_sections(case, visual=None))
+            self.assert_pass(self.check_report(case))
+            self.write_review(case)
+            self.assert_pass(self.finalize(case))
+            receipt = (report.parent / "delivery.json").read_bytes()
+            record["revision"] = 8
+            workflow.write_text(json.dumps(record))
+            self.assert_fail(self.finalize(case))
+            self.assert_pass(self.run_cli("finalize", "--report", report, "--task", case.task_id, "--workspace", workspace, "--verify-only"))
+            self.assertEqual((report.parent / "delivery.json").read_bytes(), receipt)
+            self.assertEqual(json.loads(case.context.read_text())["workflow"]["revision"], 7)
+            data = self.assert_fail(self.check_report(case))
+            self.assertIn("workflow_snapshot_stale", {x["code"] for x in data["issues"]})
+
+    def test_legacy_report_keeps_original_review_protocol(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = self.init_report(self.make_workspace(tmp))
+            context = json.loads(case.context.read_text())
+            context.pop("rubric_version")
+            case.context.write_text(json.dumps(context))
+            body = self.body_with_sections(case)
+            for sid, title in self.section_defs():
+                body = body.replace("## " + title, f"## {title} {{#{sid}}}")
+            self.write_report(case, body)
+            self.assert_pass(self.check_report(case))
+            review = self.write_review(case)
+            review["rubric_version"] = "2.0.1"
+            review.pop("cold_read")
+            review.pop("source_verification")
+            (case.report.parent / "review.json").write_text(json.dumps(review))
+            (case.report.parent / "cold-read.json").unlink()
+            self.assert_pass(self.finalize(case))
 
     def test_missing_local_image_fails_even_with_full_sections(self):
         with tempfile.TemporaryDirectory() as tmp:

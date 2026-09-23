@@ -1,41 +1,36 @@
-version: 2.0.1
-minimum_visuals: 1
-placeholders: [TODO, 待填写, 填写]
+version: 3.0.0
+minimum_visuals: 0
+cold_read_required: true
+placeholders: [TODO]
 sections:
   - id: goal
-    title: 目标与边界
-    aliases: [目标与范围]
+    title: Goal and scope
   - id: progress
-    title: 本轮进展
-    aliases: [进展与变化]
+    title: Current progress
   - id: decisions
-    title: 关键决策与问题处理
-    aliases: [决策与问题处理]
+    title: Decisions and reasons
   - id: evidence
-    title: 验证结果
-    aliases: [验证与证据]
+    title: Observations and evidence
   - id: scope
-    title: 风险阻塞与范围偏离
-    aliases: [风险、阻塞与范围偏离]
+    title: Limits and scope changes
   - id: next_steps
-    title: 下一步与需决策事项
-    aliases: [下一步与需要决策的事项]
+    title: Next steps and decisions
 criteria:
   - id: goal
     allow_na: false
-    standard: 独立完整地说明所汇报工作的目标、当前状态和边界，不擅自改写开发目标或验收条件；用户针对报告的追加问题在对话里另行回答，不要求把报告改成问答清单。
+    standard: Explain the reader's problem, intended outcome, current result and boundary without changing the agreed target. Organize a standalone account around the reader's task; answer later chat questions separately.
   - id: evidence
     allow_na: false
-    standard: 区分完成、进行中、失败和未验证；重要结论有可追溯依据。重要缺口和已知不利证据不得遗漏；涉及PR交付时核对当前review及未解决意见，不仅看CI。诚实披露业务证据缺失可以满足报告透明度，不能把文件存在或脚本成功说成业务验收通过。
+    standard: Connect each important claim to a concrete observation, traceable source and reason the observation supports the claim. Distinguish complete, active, failed and unverified work. Expose adverse evidence and unresolved review findings in the main argument. A passed tool or existing file does not prove business success. Reconcile the frozen workflow snapshot and current delivery state.
   - id: decisions
     allow_na: true
-    standard: 说明重要技术选择的背景、实现机制、理由、代价及失败尝试；没有重要决定时如实说明，不编造经历或事后理由。
+    standard: Explain the important choice, alternatives, mechanism, evidence, reason and consequence. Synthesize sources by the question they answer. Record actual decisions when made; do not invent tradeoffs or retrospective reasons. If no important choice arose, say so.
   - id: scope
     allow_na: false
-    standard: 对照原要求与必要实现步骤，披露阻塞、未知、额外扩展和过度设计。已如实披露漂移并给出止损建议的报告可以通过，不要求先修复全部业务问题。
+    standard: Compare the original request and revisions with actual work. Separate necessary implementation, existing user changes, unknowns and added scope. Disclosed drift can pass as reporting; do not require unrelated business repairs or silently accept results for the user.
   - id: next_steps
     allow_na: false
-    standard: 中途抽检保留原任务的具体恢复点，区分报告交付与任务结束；下一步与需人决策事项明确、可判断且不超出授权；无待决策项时明确说明，不擅自回滚或追加功能。
+    standard: State the concrete next action or acceptance decision and its consequence. A progress report retains the original goal and resume point; delivering it does not finish the development task. Honor existing authority and reporting agreements without inventing new approval obligations.
   - id: readability
     allow_na: false
-    standard: Markdown 简洁，表格或图示承载实际信息；用户约五分钟能恢复上下文，不靠篇幅、技术复杂度或装饰凑质量。
+    standard: A cold reader can reconstruct the goal, main finding and reason, an important choice, and next decision from the artifact alone. Use precise terms with concrete referents and explain unfamiliar mechanisms once. Each paragraph has a useful role. Tables and figures are optional and must clarify an actual comparison; length, terminology and polished prose cannot replace an argument.

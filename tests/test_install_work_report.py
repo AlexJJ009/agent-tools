@@ -27,7 +27,9 @@ class WorkReportInstallTests(unittest.TestCase):
                     'references/runtime.md', 'references/intent-judge.md',
                     'assets/report.md', 'scripts/report_tool.py',
                     'scripts/report_runtime.py', 'scripts/report_scheduler.py',
-                    'scripts/report_timer.py', 'references/timer.md']:
+                    'scripts/report_timer.py', 'references/timer.md',
+                    'references/writing-contract.md', 'references/legacy/section-aliases.json',
+                    'references/legacy/rubric-2.0.1.yaml']:
             p = self.source / rel
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_text('fixture source ' + rel)
@@ -71,6 +73,15 @@ class WorkReportInstallTests(unittest.TestCase):
         (self.source / 'scripts/report_timer.py').unlink()
         self.assertEqual(self.install(), 1)
         self.assertEqual(installer.files(target), before)
+
+    def test_shared_writing_copy_drift_refuses_before_publication(self):
+        packaged = self.repo / 'skills/reviewer-brief/references/writing-contract.md'
+        packaged.parent.mkdir(parents=True)
+        packaged.write_text('independently changed rules')
+        self.assertEqual(self.install(), 1)
+        self.assertFalse((self.home / '.agents').exists())
+        packaged.write_bytes((self.source / 'references/writing-contract.md').read_bytes())
+        self.assertEqual(self.install(), 0)
 
     def test_unmanaged_directory_preserved(self):
         target = self.home / '.agents/skills/work-report'

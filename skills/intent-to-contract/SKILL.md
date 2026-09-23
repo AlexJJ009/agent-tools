@@ -23,6 +23,34 @@ Use [acceptance profiles](references/acceptance-profiles.md) when selecting scen
 
 Before constructing CLI context, read the [runtime input contract](references/runtime-api.md) for field enums, path scope and observation/readback distinctions.
 
+## Discover choices before dependent work
+
+For an ordinary request such as using defaults or refreshing a page, inspect the
+reference and actual consumer before proposing execution. Discover differences
+that change method identity, result interpretation, cost or important business
+behavior. Record the source as user wording, code/reference fact or agent
+proposal; do not attribute discovered defaults to the user's original quote.
+Both user and agent may raise choices. Explain their mechanism, consequence and
+recommended option together, without escalating visual or routine coding details.
+
+Follow explicit participation preferences. Without one, newly uncovered method
+or material business choices require a scoped explanation and feedback or clear
+delegation before dependent action. A choice about critic initialization does
+not close an unresolved reward question. A self-report, reconstruction, question,
+decision, execution delegation and result acceptance are distinct events. Do not
+infer global understanding from any one of them.
+
+Explicit delegation of a bounded demo permits autonomous implementation and
+verification; do not force teaching, a quiz or repeated permission. Record the
+scope and existing ask-before-run constraints. Pause only actions that depend on
+an unresolved material choice; continue unrelated investigation and drafts.
+
+Use one canonical record. Process meaningful input, choices and evidence through
+its event interface; reuse applicable authority after routine repairs while
+refreshing affected technical evidence. Classify MVP feedback as scoped result
+acceptance, an existing defect, criterion clarification or a future-version
+request. A general positive reaction does not accept the entire checklist.
+
 ## Required Outputs
 
 The runtime does not perform arbitrary natural-language extraction. The Agent supplies a JSON context containing investigated `items`, `facts`, `bindings`, `checks`, formal command/config scope, and review targets. Bindings include ordered override anchors and a `readback_key` into verifier JSON where `{config_key, consumer_symbol, value}` is returned. Optional `protocol_view: true` renders `protocol.md` from the canonical record. See [context example](templates/context.example.json); replace every sample path and value with inspected project facts.

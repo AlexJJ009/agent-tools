@@ -1,6 +1,6 @@
 interface:
-  display_name: "需求与协议入口"
-  short_description: "读回目标、关键参数、协议和验收清单"
-  default_prompt: "Use $intent-to-contract to turn this request into a grounded task agreement with protocol bindings and acceptance criteria."
+  display_name: "Intent to Contract"
+  short_description: "Discover key choices and preserve scoped requirements"
+  default_prompt: "Use $intent-to-contract to inspect this request and code, surface material choices, and maintain a sourced task agreement."
 policy:
   allow_implicit_invocation: true

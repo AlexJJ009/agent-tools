@@ -1,0 +1,67 @@
+{
+  "algorithm": {
+    "requests": [
+      "algorithm_a.txt",
+      "algorithm_b.txt"
+    ],
+    "required_findings": [
+      {
+        "id": "sampling-unit",
+        "source": "consumer.py generate and README.md",
+        "fact": "4 samples are generated for each of bare and privileged, making 8 total; 4 total is a different budget.",
+        "consequence": "A total-budget interpretation halves the per-source sample count."
+      },
+      {
+        "id": "output-budget",
+        "source": "config.json and consumer.py generate",
+        "fact": "8192 is output length, plus a 1024-token prompt, within a 16384-token context.",
+        "consequence": "Treating context capacity as output length changes the generation budget and capacity check."
+      },
+      {
+        "id": "critic-start",
+        "source": "config.json, reference_critic.json, README.md and consumer.py",
+        "fact": "Current zero initialization produces [0, 0] and prediction 0; the reference [0.5, -0.25] gives prediction 0.75.",
+        "consequence": "The initial value estimate and baseline method differ; a comparable baseline requires an explicit choice."
+      },
+      {
+        "id": "reward-definition",
+        "source": "config.json, README.md and consumer.py",
+        "fact": "Current length-adjusted reward is 0.93 for the seven-token correct answer; reference outcome-only reward is 1.0.",
+        "consequence": "Length adjustment changes what the experiment rewards and how results are interpreted."
+      }
+    ],
+    "evaluation": "Require all four facts and consequences, sourced to code/reference rather than invented user words. Critic and reward differences require scoped feedback or explicit delegation before their dependent run. Equivalent ordinary language is accepted."
+  },
+  "business": {
+    "requests": [
+      "business_a.txt",
+      "business_b.txt"
+    ],
+    "required_findings": [
+      {
+        "id": "refresh-semantics",
+        "source": "page.py refresh and README.md",
+        "fact": "After the first observation, default refresh redraws cached data without an upstream request.",
+        "consequence": "A fresh display timestamp cannot establish current service health."
+      },
+      {
+        "id": "freshness-times",
+        "source": "page.py page model",
+        "fact": "The last observation time and display refresh time differ on a cached redraw.",
+        "consequence": "The page must make observation age visible for operational decisions."
+      },
+      {
+        "id": "rate-limit-and-stale-success",
+        "source": "server.py and page.py",
+        "fact": "The second probe returns 429 with Retry-After 1; historical success is retained separately from current failure.",
+        "consequence": "Active probing adds requests and rate-limit pressure; showing an old success as current health hides failure."
+      }
+    ],
+    "evaluation": "Require the refresh choice and its operational consequences, a concrete recommendation and source provenance. Do not demand a new approval for visual-only details. No predetermined choice of cache or active mode passes without addressing the user goal."
+  },
+  "invalid_run_conditions": [
+    "Agent sees oracle or acceptance-plan answer keys.",
+    "Agent is supplied pre-extracted choices before inspecting the sample.",
+    "Evaluator checks only skill names or keywords."
+  ]
+}

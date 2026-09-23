@@ -30,8 +30,23 @@ Use these levels in `checklist.yaml`:
 
 Do not upgrade `static` to `real` because a file path exists. Do not treat a successful `K=1` smoke run as evidence for `K=4`.
 
+## Observable effects and local invalidation
+
+Read what the consumer actually used, not a configuration echo. Record argv,
+exit status, process output, resource identity and consumed values. For a monitor,
+compare server request counts and observation times before and after refresh;
+a new display time may only redraw cached data. Keep 429, timeout and other
+failures visible even when historical success exists.
+
+When relying on a check, demonstrate a meaningful negative once: an ignored
+field, changed override, missing effect or stale success must make it fail. A
+sandbox CPU consumer proves consumption only, not learning effectiveness. A
+manually supplied Hook event proves handler logic only, not real host refusal.
+Technical changes invalidate their dependent evidence; unchanged decisions and
+scoped delegation do not reopen merely because a SHA changed.
+
 ## Failure Feedback
 
 When a check fails, report the checklist ID, expected value, observed value, code or environment location, command/readback evidence, and the smallest next probe. Feed this back to the coder without changing the agreed target.
 
-Formal experiments, production writes, and expensive runs remain blocked until `acceptance-gate` confirms current agent checks, human confirmation when required, candidate SHA, config digest, and command digest.
+Formal experiments, production writes, and expensive runs remain blocked until `acceptance-gate` confirms current agent checks, relevant choices and understanding or delegation, applicable execution scope, and current candidate/config/command evidence. Keep these conditions separate; no check fabricates user acceptance.

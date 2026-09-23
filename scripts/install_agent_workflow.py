@@ -101,6 +101,12 @@ def managed_launcher_contents(runtime_target: Path) -> set[str]:
 
 def validate_sources() -> dict[str, dict[str, str]]:
     source_hashes: dict[str, dict[str, str]] = {}
+    canonical = ROOT / "skills/work-report/references/writing-contract.md"
+    packaged = ROOT / "skills/reviewer-brief/references/writing-contract.md"
+    if not packaged.is_file():
+        raise RuntimeError("missing generated reviewer-brief writing contract")
+    if canonical.is_file() and packaged.read_bytes() != canonical.read_bytes():
+        raise RuntimeError("generated writing contract differs; run work-report/scripts/sync_writing_contract.py --write")
     for skill in SKILLS:
         source = ROOT / "skills" / skill
         if not source.is_dir():
@@ -182,6 +188,9 @@ def write_marker(path: Path, payload: dict[str, object]) -> None:
 def copy_skill(source: Path, staged_parent: Path, skill: str, expected: dict[str, str]) -> Path:
     staged = staged_parent / skill
     shutil.copytree(source, staged, ignore=shutil.ignore_patterns("__pycache__", "*.pyc", MARKER))
+    canonical = ROOT / "skills/work-report/references/writing-contract.md"
+    if skill == "reviewer-brief" and canonical.is_file():
+        shutil.copyfile(canonical, staged / "references/writing-contract.md")
     write_marker(staged, {"suite": SUITE, "kind": "skill", "skill": skill, "source": str(source), "files": expected})
     return staged
 

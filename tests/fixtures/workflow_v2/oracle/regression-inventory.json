@@ -1,0 +1,168 @@
+{
+  "source_commit": "0cd9d12",
+  "policy": "Retain the stated failure modes; document an equivalent replacement when semantics intentionally change.",
+  "sources": [
+    {
+      "path": "tests/fixtures/agent_workflow/config.json",
+      "test_methods": []
+    },
+    {
+      "path": "tests/fixtures/agent_workflow/consumer.py",
+      "test_methods": []
+    },
+    {
+      "path": "tests/fixtures/agent_workflow/infra.json",
+      "test_methods": []
+    },
+    {
+      "path": "tests/fixtures/agent_workflow/infra_probe.py",
+      "test_methods": []
+    },
+    {
+      "path": "tests/fixtures/agent_workflow/launcher.py",
+      "test_methods": []
+    },
+    {
+      "path": "tests/fixtures/agent_workflow/oracles.json",
+      "test_methods": []
+    },
+    {
+      "path": "tests/fixtures/agent_workflow/override.json",
+      "test_methods": []
+    },
+    {
+      "path": "tests/fixtures/agent_workflow/refund.py",
+      "test_methods": []
+    },
+    {
+      "path": "tests/fixtures/agent_workflow/refund_probe.py",
+      "test_methods": []
+    },
+    {
+      "path": "tests/test_agent_workflow.py",
+      "test_methods": [
+        "test_entrypoint_dirty_change_invalidates",
+        "test_branch_switch_and_deletion_preserve_same_target",
+        "test_merge_commit_requires_fresh_checks_and_review",
+        "test_low_risk_entrypoint_change_invalidates",
+        "test_empty_binding_key_rejected",
+        "test_missing_binding_readback_rejected",
+        "test_revision_only_invalidates_affected_item",
+        "test_check_rejects_deleted_readback",
+        "test_protocol_view_is_derived",
+        "test_wrong_parameter_alias_rejected",
+        "test_static_evidence_is_observation_not_expected_echo",
+        "test_s02_help_and_missing_arguments",
+        "test_s03_s05_algorithm_execution",
+        "test_five_queries",
+        "test_s04_schema_negative_controls",
+        "test_unused_same_name_field",
+        "test_launcher_overrides_correct_config",
+        "test_stale_consumer_anchor",
+        "test_ambiguous_8k",
+        "test_wrong_harbor_route",
+        "test_missing_readback",
+        "test_forged_human_status",
+        "test_s07_valid_simulated_approval",
+        "test_wrong_candidate_sha",
+        "test_missing_config_or_command",
+        "test_changed_command_invalidates_authorization",
+        "test_changed_uncommitted_consumer",
+        "test_local_invalidation_keeps_unrelated_refund_evidence",
+        "test_human_pending_preserves_agent_checked",
+        "test_no_agent_check_no_approval",
+        "test_cannot_launder_simulated_evidence"
+      ]
+    },
+    {
+      "path": "tests/test_agent_workflow_portability.py",
+      "test_methods": [
+        "test_tracked_export_survives_source_relocation"
+      ]
+    },
+    {
+      "path": "tests/test_install_agent_workflow.py",
+      "test_methods": [
+        "test_guard_failure_writes_nothing",
+        "test_old_python_refuses_before_writes",
+        "test_state_symlink_outside_profile_is_rejected",
+        "test_missing_runtime_refuses_install",
+        "test_runtime_preflight_failure_writes_nothing",
+        "test_install_and_check_readback",
+        "test_runtime_help_uses_safe_path_and_installed_cwd",
+        "test_unmanaged_skill_is_preserved",
+        "test_duplicate_codex_skill_is_rejected",
+        "test_unmanaged_runtime_is_preserved",
+        "test_modified_managed_launcher_is_rejected_before_overwrite",
+        "test_prior_managed_launcher_can_be_upgraded",
+        "test_failed_final_launcher_validation_restores_previous_install",
+        "test_failed_first_final_validation_removes_new_launcher",
+        "test_symlink_parent_outside_profile_is_rejected",
+        "test_check_only_does_not_create_missing_install"
+      ]
+    },
+    {
+      "path": "tests/test_install_work_report.py",
+      "test_methods": [
+        "test_guard_failure_writes_nothing",
+        "test_install_readback_and_source_drift",
+        "test_missing_timer_preserves_previous_install",
+        "test_unmanaged_directory_preserved",
+        "test_failed_tool_preflight_preserves_installed_version",
+        "test_failed_post_install_validation_restores_previous_install",
+        "test_duplicate_codex_location_is_not_overwritten",
+        "test_symlinked_parent_outside_profile_is_rejected",
+        "test_check_only_does_not_create_missing_install"
+      ]
+    },
+    {
+      "path": "tests/test_install_work_report_hooks.py",
+      "test_methods": [
+        "test_changed_managed_options_are_detected_and_repaired",
+        "test_guard_failure_writes_nothing",
+        "test_install_merges_foreign_hooks_and_check_reports_native_review",
+        "test_duplicate_install_is_idempotent",
+        "test_remove_preserves_foreign_and_similar_groups",
+        "test_remove_recognizes_exact_runtime_command_with_different_python",
+        "test_malformed_json_and_nonobject_are_preserved_and_fail",
+        "test_foreign_event_shape_is_preserved_and_fails",
+        "test_check_is_read_only_and_requires_installed_runtime"
+      ]
+    },
+    {
+      "path": "tests/test_install_work_report_schedule.py",
+      "test_methods": [
+        "test_install_registers_cron_and_metadata_preserving_foreign_entries",
+        "test_check_reports_registered_without_rewriting_cron",
+        "test_check_fails_when_managed_line_differs_from_metadata",
+        "test_long_path_stays_in_metadata_not_cron_command",
+        "test_remove_only_exact_task_marker",
+        "test_guard_failure_and_missing_interval_do_not_write_cron",
+        "test_crontab_permission_error_preserves_entries",
+        "test_crontab_write_failure_is_reported",
+        "test_malformed_managed_cron_line_is_rejected"
+      ]
+    },
+    {
+      "path": "tests/test_report_timer.py",
+      "test_methods": [
+        "test_after_waits_until_due_and_queues_thread_message",
+        "test_at_requires_timezone_and_schedules_absolute_due",
+        "test_stop_marker_exits_before_queue",
+        "test_existing_stop_marker_is_respected",
+        "test_duplicate_lock_prevents_second_timer",
+        "test_queue_failure_is_recorded_without_retrying_same_due_time",
+        "test_real_codex_queue_text_output_is_parsed_and_thread_checked",
+        "test_queue_success_without_id_is_uncertain_not_confirmed_sent",
+        "test_invalid_run_args_fail_before_state_dir_mutation",
+        "test_nan_and_inf_schedules_fail_before_state_dir_mutation",
+        "test_every_coalesces_missed_intervals_instead_of_bursting",
+        "test_status_and_stop_use_existing_state_dir"
+      ]
+    },
+    {
+      "path": "tests/workflow_support.py",
+      "test_methods": []
+    }
+  ]
+}

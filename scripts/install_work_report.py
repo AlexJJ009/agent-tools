@@ -52,9 +52,14 @@ def main(argv=None) -> int:
                          'references/runtime.md', 'references/intent-judge.md',
                          'assets/report.md', 'scripts/report_tool.py',
                          'scripts/report_runtime.py', 'scripts/report_scheduler.py',
-                    'scripts/report_timer.py', 'references/timer.md']:
+                    'scripts/report_timer.py', 'references/timer.md',
+                    'references/writing-contract.md', 'references/legacy/section-aliases.json',
+                    'references/legacy/rubric-2.0.1.yaml']:
             if not (source / required).is_file():
                 raise RuntimeError('missing source: ' + required)
+        packaged = ROOT / 'skills/reviewer-brief/references/writing-contract.md'
+        if packaged.is_file() and packaged.read_bytes() != (source / 'references/writing-contract.md').read_bytes():
+            raise RuntimeError('generated reviewer-brief writing contract differs from canonical source')
         if duplicate.exists() or duplicate.is_symlink():
             raise RuntimeError(f'duplicate skill location exists: {duplicate}; preserve it and resolve explicitly')
         if claude.exists() or claude.is_symlink():

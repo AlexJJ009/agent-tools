@@ -1,16 +1,21 @@
 # Agent Workflow Suite
 
-The agent workflow suite packages five English-language skills with Chinese UI display names:
+The workflow uses six English-language skills. The workflow installer packages
+the first five; Work Report retains its existing separate installer.
 
 | Skill | Display name | Purpose |
 |---|---|---|
-| `intent-to-contract` | 需求与协议入口 | Read back the task, preserve source quotes, ground parameters, and seed checklist items. |
-| `infra-verification` | 训练与 Agentic 基础设施验收 | Collect readback evidence for training, Agentic, Docker, Harbor, GPU, mount, network, lifecycle, and cleanup behavior. |
-| `cleaner` | 代码整理器 | Perform behavior-preserving cleanup after coder work. |
-| `acceptance-gate` | 验收与人工复核 | Enforce checklist status, evidence, human confirmation, and formal-run authorization. |
-| `reviewer-brief` | 独立审查 | Produce bounded human review and independent reviewer briefs. |
+| `intent-to-contract` | Intent to Contract | Read back the task, preserve source quotes, ground parameters, and seed checklist items. |
+| `infra-verification` | Infrastructure Verification | Collect readback evidence for training, Agentic, Docker, Harbor, GPU, mount, network, lifecycle, and cleanup behavior. |
+| `cleaner` | Cleaner | Perform behavior-preserving cleanup after coder work. |
+| `acceptance-gate` | Acceptance Gate | Enforce current evidence, scoped choices and execution authority. |
+| `reviewer-brief` | Reviewer Brief | Produce bounded human review and independent reviewer briefs. |
+| `work-report` | Work Report | Produce requested reports from task state with independent cold reading and source verification. |
 
 The runtime is installed as `agent-workflow` for use outside this checkout. The six scenario profiles are `algorithm`, `infra`, `business`, `bug_fix`, `office`, and `learning`.
+
+The following commands describe the retained schema-1 interface. New contexts
+can set `schema_version: 2`; use the scoped commands below for that interface.
 
 ```text
 agent-workflow init --query <request.txt> --scenario <scenario> --context <context.json> --mode simulation
@@ -29,7 +34,7 @@ Records live under `docs/agent-workflow/records/YYYY-MM-DD/YYYYMMDDTHHMMSSZ-<slu
 The installer copies the runtime to `~/.local/share/agent-workflow`, creates the launcher `~/.local/bin/agent-workflow`, and installs the five skills to `~/.agents/skills/`. It runs `scripts/codex_target_guard.py` before any write, rejects unmanaged collisions, and does not edit Codex config, auth, CC Switch databases, history, or existing conversations. `--check` is read-only and verifies installed files against the repository source.
 
 Use `main` as the deployment source after reviewed development branches are merged.
-Installation does not bind to a branch name or fixed commit. Task records do bind
+Installation does not bind to a branch name or fixed commit. Legacy task records bind
 formal-run approval to the task repository's current commit: a merge or squash
 that changes that commit requires fresh checks and any required human review.
 Changing only the branch name at the same commit does not invalidate the target.
@@ -76,6 +81,66 @@ The copied license texts are in `docs/agent-workflow/licenses/`. The original sa
 
 Run `python3 -m unittest tests.test_agent_workflow tests.test_install_agent_workflow` from the checkout. Set `WORKFLOW_TEST_EVIDENCE` to a new output directory to retain every runtime CLI call, exit code, stdout/stderr, fixture Git repository and record. The expected values in `tests/fixtures/agent_workflow/oracles.json` and `tests/workflow_support.py` are fixture-author annotations, not runtime-generated expected answers.
 
-The current installation does not add trusted Codex hooks or modify project training/production entrypoints. A project must call `agent-workflow gate --record ... --action formal-run` immediately before its protected action and honor a nonzero exit. The CLI itself never launches the formal command. Do not describe this voluntary local gate as a sandbox or an unbypassable permission boundary.
+The default installation does not activate trusted Codex hooks or modify project
+entrypoints. Schema-1 `gate` remains a voluntary preflight. Schema-2 registered
+local actions use `execute`, which rechecks state inside the execution boundary.
+It does not implement a production or GPU admission controller.
 
 `checklist.yaml` uses JSON syntax (a YAML 1.2 subset) to avoid adding runtime dependencies. Arbitrary YAML syntax is not supported. Generated `task.md` status blocks and optional `protocol.md` derive from the canonical record; keep implementation errors, cleaner outcomes, running task handles and next actions in the existing task work-record section.
+
+## Scoped state and local execution
+
+The Agent inspects code to discover consequential defaults, presents their
+effects, and records sourced choices or explicit delegation. User decisions
+and new questions update that state. The runtime validates scopes, preserves
+source bytes, rejects conflicting revisions, and invalidates affected evidence.
+It does not infer understanding from silence or renew unchanged authorization
+after every repair. See the [typed runtime API](../skills/intent-to-contract/references/runtime-api.md).
+
+```text
+agent-workflow migrate --record <existing-v1-record>
+agent-workflow update --record <record> --event <sourced-event.json>
+agent-workflow status --record <record>
+agent-workflow check --record <record> --phase agent
+agent-workflow execute --record <record> --action <registered-local-action> --simulation
+agent-workflow gate --record <record> --action completion --phase <current-phase>
+```
+
+Only use `--simulation` for simulation records. Register the action and its
+declared command/config inputs, required checks, choices and authorization scope
+before execution. Schema 2 rejects unregistered `formal-run`; it cannot fall
+back to the legacy gate. The local execution adapter copies checked inputs and
+uses the copy, including joined `--config=/absolute/path` arguments. Queued
+invocations can pass `--expected-digest` and must recheck at dequeue. Arbitrary
+programs reading undeclared external files require a project-specific adapter.
+
+## Optional native Codex adapter
+
+After the workflow runtime is installed, run `scripts/install_agent_workflow_hooks.py`
+explicitly and review/trust the definitions in native `/hooks`. The installer
+runs the target guard, preserves foreign Hook groups and does not change trust,
+provider settings or permission mode. Installation and trust are separate steps.
+
+Once this adapter is active, the Agent binds its actual session and workspace to
+the current record. Reuse this binding on resume; do not scan unrelated projects
+or invent a session ID. The installed module is under `~/.local/share/agent-workflow`:
+
+```text
+env PYTHONPATH=<installed-runtime-directory> python3 -P -m agent_workflow.hooks bind \
+  --session-id <actual-session-id> --workspace <repository> --record <record>
+```
+
+Add `--on-stop --phase <phase>` only for an existing phase-closeout obligation.
+Default binding does not impose a Stop obligation. Use `unbind` for an explicit
+replacement. `SessionStart` restores the binding; `UserPromptSubmit` preserves
+new input for Agent classification; `PreToolUse` checks recognized registered
+actions; `PostToolUse` links their outcomes; `Stop` evaluates only the agreed
+phase and gives at most one recovery continuation. The execution entry checks
+again with Hooks disabled. Shell aliases and arbitrary wrappers are not a
+universal protected boundary.
+
+Work Report and reviewer-brief use the same
+[writing contract](../skills/work-report/references/writing-contract.md).
+Reports freeze the canonical revision; progress reporting does not finish the
+development phase or accept results for the user. Reproduce the increment's
+controls using the [acceptance plan](agent-workflow/incremental/acceptance-plan.md).

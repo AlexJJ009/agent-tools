@@ -8,3 +8,6 @@ __pycache__/
 *.sqlite3
 *.tar.gz
 .DS_Store
+
+# Local verification output is archived outside source control.
+/.tmp/

@@ -9,7 +9,23 @@ Use this skill when a human or independent reviewer needs a bounded review targe
 
 Use `reviews/human-review.md` for the user's review navigation. Use a separate independent reviewer prompt for agent review. Both can cite the same protocol, checklist, evidence, and diff anchors, but neither substitutes for the other.
 
-Reuse Work Report's expression discipline and local path:line link convention: every important claim should connect requirement, current observation, evidence link, and consequence. This is evidence-presentation reuse only. Do not run Work Report Judge as acceptance, duplicate Work Report state, or treat Work Report PASS as code review, human approval, or formal-run authorization.
+Read the packaged [shared writing contract](references/writing-contract.md). Reuse its expression discipline and local path:line link convention: every important claim should connect requirement, current observation, evidence link, and consequence. This is evidence-presentation reuse only. Do not run Work Report Judge as acceptance, duplicate Work Report state, or treat Work Report PASS as code review, human approval, or formal-run authorization.
+
+## Reuse the current state
+
+Read the canonical workflow revision and actual observations before writing.
+Use the existing choice explanation, sources, scoped feedback and pending items;
+do not create a second acceptance ledger. A report already containing the
+necessary explanation can be cited directly. A short brief only expands the
+current decision or acceptance step and does not trigger full report structure
+or the report Judge. Independent code review remains a different reader task.
+
+Explain the viable options, selected or proposed option, why the evidence favors
+it and what each outcome permits or delays. A state word such as checked is not
+an observation. Put decisive failures in the brief, not only in linked logs.
+An ordinary reader should be able to restate the choice, its reason and the next
+action without the main chat. Use precise domain terms only when their mechanism
+or relationship is explicit.
 
 ## Human Brief Contents
 

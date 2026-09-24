@@ -1,6 +1,6 @@
 interface:
-  display_name: "验收与人工复核"
-  short_description: "检查证据、状态、人审和正式运行门禁"
-  default_prompt: "Use $acceptance-gate to verify checklist evidence, review status, candidate SHA, and formal-run authorization before a protected action."
+  display_name: "Acceptance Gate"
+  short_description: "Check scoped readiness, current evidence and completion"
+  default_prompt: "Use $acceptance-gate to check action conditions and phase completion without conflating decisions, authority and user acceptance."
 policy:
   allow_implicit_invocation: true

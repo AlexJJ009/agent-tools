@@ -18,6 +18,14 @@ This skill borrows only the two-role mechanism from SwarmForge: coder produces b
 - Add or adjust tests only when they verify changed behavior or guard a real cleanup risk.
 - Do not delete failing tests, weaken assertions, lower formal requirements, or merge semantically distinct experiment paths to make checks green.
 
+## Preserve applicable decisions
+
+Record cleanup impact in the same workflow record. Recheck evidence affected by
+changed code while retaining unchanged semantic decisions and applicable
+execution delegation. A behavior-preserving repair does not create another
+human approval or understanding obligation. If meaning, budget or scope changes,
+record that specific new choice and continue independent in-scope work.
+
 ## No-Change Output
 
 No cleanup diff is required. When the best action is to leave the code as-is, record the reasons, the inspected scope, and any out-of-scope concerns.

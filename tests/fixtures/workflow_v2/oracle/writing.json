@@ -1,0 +1,70 @@
+{
+  "rubric_ids": [
+    "goal",
+    "evidence",
+    "decisions",
+    "scope",
+    "next_steps",
+    "readability"
+  ],
+  "positive": [
+    "draft_a.md",
+    "draft_f.md"
+  ],
+  "negative": {
+    "draft_b.md": {
+      "verdict": "revise",
+      "failures": [
+        "Goal and next acceptance step require reconstructing the appendix.",
+        "Current 429 failure and acceptance gap are buried below the main progress claim.",
+        "Numbers and file paths do not explain why cached redraw cannot establish current health."
+      ],
+      "expect_not": [
+        "A factual appendix alone makes the main argument usable."
+      ]
+    },
+    "draft_c.md": {
+      "verdict": "revise",
+      "failures": [
+        "Unchanged request count cannot establish fresh upstream information.",
+        "A local 200/429 sequence does not prove all production errors or outage coverage.",
+        "Timestamp-only user acceptance cannot accept the entire MVP.",
+        "MVP 2 active probing cannot be canceled by the report."
+      ]
+    },
+    "draft_d.md": {
+      "verdict": "revise",
+      "failures": [
+        "No observed values or concrete choice consequences.",
+        "The reader cannot identify the selected option or the remaining decision."
+      ]
+    },
+    "draft_e.md": {
+      "verdict": "revise",
+      "failures": [
+        "Domain words replace a description of requests, cached observations and display behavior.",
+        "No evidence or actionable next decision supports the claim."
+      ]
+    },
+    "draft_g.md": {
+      "verdict": "structural_failure",
+      "failures": [
+        "The goal semantic ID occurs twice; last-write-wins parsing is invalid."
+      ]
+    }
+  },
+  "positive_reconstruction": {
+    "goal": "MVP 1 distinguishes last service observation from display redraw so the user can judge cached health and decide on active probing.",
+    "main_finding_and_reason": "Cached refresh changes display time without a request; a later 429 is shown as failure despite an earlier success. Cache therefore is not proof of current health.",
+    "key_choice": "Keep agreed cache behavior in MVP 1; active probing needs a separate MVP 2 decision about interval and rate limits.",
+    "next_decision_or_acceptance_step": "Show 429 display for scoped user acceptance; define MVP 2 interval/rate-limit behavior.",
+    "missing_context": "No missing context prevents these reader tasks; raw trace validation waits for stage two."
+  },
+  "stage_rules": [
+    "Provide one artifact plus reviewer-task.md before recording stage one.",
+    "Never supply writing.json, other drafts or acceptance-plan.md to the reviewer.",
+    "Only after the raw cold read is saved, supply writing-source-packet.json and actual structure-check result.",
+    "Bind stage one to the artifact digest; any body change requires a new cold read.",
+    "A different second-stage reviewer must read the original unmodified first-stage output."
+  ]
+}

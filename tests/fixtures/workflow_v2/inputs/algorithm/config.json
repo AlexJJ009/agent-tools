@@ -1,0 +1,11 @@
+{
+  "sources": ["bare", "privileged"],
+  "samples_per_source": 4,
+  "max_response_length": 8192,
+  "max_prompt_length": 1024,
+  "context_window": 16384,
+  "critic_initialization": "zero",
+  "critic_weights_path": "reference_critic.json",
+  "reward_definition": "length_adjusted",
+  "length_penalty_per_token": 0.01
+}

@@ -34,7 +34,7 @@ REVIEW_SCHEMA = "work-report.review/1"
 TASK_RE = re.compile(r"^\d{8}T\d{6}Z-[a-z0-9][a-z0-9-]*-[0-9a-f]{8}$")
 REPORT_RE = re.compile(r"^\d{8}T\d{6}Z-(progress|final)-[0-9a-f]{6}$")
 REMOTE_SCHEMES = {"http", "https", "mailto"}
-PLACEHOLDERS = {"TODO", "待填写", "填写"}
+PLACEHOLDERS = {"TODO"}
 
 class ValidationFailure(Exception):
     def __init__(self, issues: list[dict[str, str]], warnings: list[dict[str, str]] | None = None):
@@ -194,8 +194,10 @@ def stamp() -> str:
     return utc_now().strftime("%Y%m%dT%H%M%SZ")
 
 
-def load_rubric(script_path: Path) -> tuple[dict[str, Any], Path, list[dict[str, str]]]:
+def load_rubric(script_path: Path, version: str | None = None) -> tuple[dict[str, Any], Path, list[dict[str, str]]]:
     rubric_path = script_path.parent.parent / "references" / "rubric.yaml"
+    if version == "2.0.1":
+        rubric_path = rubric_path.parent / "legacy" / "rubric-2.0.1.yaml"
     if not rubric_path.exists():
         raise ValidationFailure([issue("rubric_missing", f"missing fixed rubric: {rubric_path}")])
     reject_symlinks(rubric_path)
@@ -205,6 +207,8 @@ def load_rubric(script_path: Path) -> tuple[dict[str, Any], Path, list[dict[str,
         raise ValidationFailure([issue("invalid_rubric", f"cannot parse rubric.yaml: {exc}")]) from exc
     if not isinstance(raw, dict):
         raise ValidationFailure([issue("invalid_rubric", "rubric.yaml must contain a mapping")])
+    if version is not None and raw.get("version") != version:
+        raise ValidationFailure([issue("rubric_version_unknown", f"unsupported report rubric version: {version}")])
     return raw, rubric_path, []
 
 
@@ -360,7 +364,7 @@ def first_context(task_dir: Path) -> dict[str, Any] | None:
 
 def validate_context_snapshot(context: dict[str, Any]) -> list[dict[str, str]]:
     issues: list[dict[str, str]] = []
-    for key in ["request", "state"]:
+    for key in ["request", "state", *(["workflow"] if "workflow" in context else [])]:
         value = context.get(key)
         if not isinstance(value, dict):
             issues.append(issue("context_snapshot_invalid", f"context {key} must be a mapping"))
@@ -372,6 +376,13 @@ def validate_context_snapshot(context: dict[str, Any]) -> list[dict[str, str]]:
             digest = hashlib.sha256(value["text"].encode("utf-8")).hexdigest()
             if digest != value["sha256"]:
                 issues.append(issue("context_snapshot_hash_mismatch", f"context {key}.sha256 does not match frozen text"))
+        if key == "workflow" and isinstance(value.get("text"), str):
+            try:
+                snapshot = json.loads(value["text"])
+                if not isinstance(snapshot, dict) or snapshot.get("revision", 0) != value.get("revision"):
+                    raise ValueError("revision mismatch")
+            except (ValueError, TypeError):
+                issues.append(issue("workflow_snapshot_invalid", "workflow text must contain its stated record revision"))
     git_value = context.get("git")
     if not isinstance(git_value, dict) or not all(isinstance(git_value.get(k), str) for k in ["head", "status"]):
         issues.append(issue("context_git_invalid", "context git must contain string head and status"))
@@ -408,6 +419,21 @@ def cmd_init(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     state_path = safe_absolute(Path(args.state)) if args.state else None
     if state_path:
         state_text, state_hash = read_small_text(state_path, "state")
+    workflow = None
+    if getattr(args, "workflow_record", None):
+        workflow_path = safe_absolute(Path(args.workflow_record))
+        if workflow_path.is_dir():
+            workflow_path /= "checklist.yaml"
+        workflow_text, workflow_hash = read_small_text(workflow_path, "workflow record")
+        record = load_json_strict(workflow_path)
+        if (not isinstance(record, dict) or record.get("schema_version") not in {1, 2}
+                or not isinstance(record.get("checklist"), list)
+                or not isinstance(record.get("revision", 0), int)):
+            raise ValidationFailure([issue("workflow_record_invalid", "expected a canonical workflow checklist")])
+        if Path(record.get("repo", str(workspace))).resolve() != workspace:
+            raise ValidationFailure([issue("workflow_workspace_mismatch", "workflow belongs to a different workspace")])
+        workflow = {"path": str(workflow_path), "sha256": workflow_hash,
+                    "text": workflow_text, "revision": record.get("revision", 0)}
     warnings = ensure_git_policy(workspace, output_root, configure=True)
     rubric, _, rub_warnings = load_rubric(script_path)
     warnings.extend(rub_warnings)
@@ -485,7 +511,10 @@ def cmd_init(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "state": {"path": str(state_path), "sha256": state_hash, "text": state_text},
         "git": git_status(workspace),
         "initial_work_inventory": initial_inventory,
+        "rubric_version": rubric["version"],
     }
+    if workflow is not None:
+        context["workflow"] = workflow
     parse_iso(context["window_start"], "window_start")
     context_path = report_dir / "context.json"
     record_only = getattr(args, "record_only", False)
@@ -517,8 +546,11 @@ def token_text(tokens: list[Any], start: int, end: int) -> str:
 
 def section_map(tokens: list[Any], sections: list[dict[str, Any]]) -> tuple[dict[str, tuple[int, int]], list[dict[str, str]]]:
     aliases: dict[str, str] = {}
+    legacy_path = Path(__file__).resolve().parent.parent / "references/legacy/section-aliases.json"
+    legacy = load_json_strict(legacy_path)
     for sec in sections:
-        names = [sec.get("title"), *(sec.get("aliases") or []), sec.get("id")]
+        names = [sec.get("title"), *(sec.get("aliases") or []),
+                 *legacy["aliases"].get(sec["id"], []), sec.get("id")]
         for name in names:
             if isinstance(name, str):
                 aliases[normalize_heading(name)] = sec["id"]
@@ -538,7 +570,10 @@ def section_map(tokens: list[Any], sections: list[dict[str, Any]]) -> tuple[dict
         sec_id = explicit if explicit in aliases.values() else aliases.get(normalize_heading(title))
         if sec_id:
             end = headings[n + 1][0] if n + 1 < len(headings) else len(tokens)
-            found[sec_id] = (idx + 3, end)
+            if sec_id in found:
+                issues.append(issue("section_duplicate", f"duplicate semantic section id: {sec_id}"))
+            else:
+                found[sec_id] = (idx + 3, end)
     for sec in sections:
         sid = sec["id"]
         if sid not in found:
@@ -661,7 +696,7 @@ def validate_image(path: Path, report_dir: Path) -> tuple[bool, str | None]:
     return False, "unsupported or invalid image format"
 
 
-def validate_report(report: Path, task_id: str, workspace: Path) -> tuple[dict[str, Any], list[dict[str, str]], list[dict[str, str]], list[Path]]:
+def validate_report(report: Path, task_id: str, workspace: Path, *, current_workflow: bool = True) -> tuple[dict[str, Any], list[dict[str, str]], list[dict[str, str]], list[Path]]:
     script_path = Path(__file__).resolve()
     warnings: list[dict[str, str]] = []
     issues: list[dict[str, str]] = []
@@ -677,6 +712,14 @@ def validate_report(report: Path, task_id: str, workspace: Path) -> tuple[dict[s
     context_issues = validate_context_required(context)
     if context_issues:
         raise ValidationFailure(context_issues)
+    if current_workflow and "workflow" in context:
+        snapshot = context["workflow"]
+        try:
+            unchanged = sha256_file(Path(snapshot["path"])) == snapshot["sha256"]
+        except (OSError, ToolFailure):
+            unchanged = False
+        if not unchanged:
+            issues.append(issue("workflow_snapshot_stale", "workflow changed since this snapshot; initialize a new report batch"))
     if context.get("task_id") != task_id:
         issues.append(issue("task_mismatch", "context task_id does not match --task"))
     if Path(context["workspace"]).resolve() != workspace.resolve():
@@ -707,9 +750,11 @@ def validate_report(report: Path, task_id: str, workspace: Path) -> tuple[dict[s
     if win_start > win_end or win_end > gen:
         issues.append(issue("invalid_window", "must satisfy window_start <= window_end <= generated_at"))
 
-    rubric, _, rub_warnings = load_rubric(script_path)
+    rubric, _, rub_warnings = load_rubric(script_path, context.get("rubric_version", "2.0.1"))
     warnings.extend(rub_warnings)
     sections, _, placeholders = validate_rubric(rubric)
+    legacy = load_json_strict(script_path.parent.parent / "references/legacy/section-aliases.json")
+    placeholders.update(legacy["placeholders"])
     md = MarkdownIt("commonmark").enable("table")
     tokens = md.parse(body)
     found, section_issues = section_map(tokens, sections)
@@ -755,7 +800,10 @@ def digest_manifest(report: Path, cited_files: list[Path]) -> tuple[str, list[di
     report_dir = report.resolve().parent
     skill_dir = script_path.parent.parent
     paths = [report_dir / "context.json", report, script_path]
-    for optional in [skill_dir / "references" / "rubric.yaml", skill_dir / "references" / "judge.md"]:
+    for optional in [skill_dir / "references" / "rubric.yaml", skill_dir / "references" / "judge.md",
+                     skill_dir / "references" / "writing-contract.md",
+                     skill_dir / "references/legacy/section-aliases.json",
+                     skill_dir / "references/legacy/rubric-2.0.1.yaml"]:
         if optional.exists():
             paths.append(optional)
     assets = report_dir / "assets"
@@ -893,10 +941,61 @@ def validate_review(review: Any, rubric: dict[str, Any], digest: str) -> list[di
     return issues
 
 
+def validate_cold_read(report_dir: Path, review: Any, digest: str) -> list[dict[str, str]]:
+    """Bind the preserved first-stage response without claiming reviewer identity."""
+    if not isinstance(review, dict):
+        return [issue("cold_read_missing", "review must reference the preserved cold read")]
+    reference = review.get("cold_read")
+    verification = review.get("source_verification")
+    if not isinstance(reference, dict) or reference.get("path") != "cold-read.json":
+        return [issue("cold_read_missing", "review must reference cold-read.json and its SHA-256")]
+    path = report_dir / "cold-read.json"
+    try:
+        cold = load_json_strict(path)
+        actual_hash = sha256_file(path)
+    except (ValidationFailure, ToolFailure) as exc:
+        return [issue("cold_read_invalid", str(exc))]
+    issues = []
+    if reference.get("sha256") != actual_hash:
+        issues.append(issue("cold_read_changed", "preserved cold-read response changed after source verification"))
+    if (not isinstance(cold, dict) or cold.get("schema_version") != "work-report.cold-read/1"
+            or cold.get("artifact_digest") != digest or cold.get("input_scope") != "artifact_only"):
+        return issues + [issue("cold_read_binding_invalid", "cold read must bind this artifact and declare artifact-only input")]
+    if not isinstance(cold.get("reviewer_id"), str) or not cold["reviewer_id"].strip():
+        issues.append(issue("cold_read_reviewer_missing", "first-stage reviewer identifier is required"))
+    reconstruction = cold.get("cold_read")
+    if not isinstance(reconstruction, dict):
+        issues.append(issue("cold_read_reconstruction_missing", "first-stage reconstruction is required"))
+    else:
+        for key in ["goal", "main_finding_and_reason", "next_decision_or_acceptance_step"]:
+            if not isinstance(reconstruction.get(key), str) or not reconstruction[key].strip():
+                issues.append(issue("cold_read_field_missing", f"cold_read.{key} must be nonempty"))
+        missing = reconstruction.get("missing_context")
+        if not isinstance(missing, list) or not all(isinstance(x, str) for x in missing):
+            issues.append(issue("cold_read_field_missing", "cold_read.missing_context must be a string list"))
+    if (not isinstance(verification, dict) or verification.get("cold_read_sha256") != actual_hash
+            or verification.get("artifact_digest") != digest):
+        issues.append(issue("source_verification_missing", "second stage must bind the preserved cold read and current artifact"))
+    else:
+        if not isinstance(verification.get("reconstruction_accurate"), bool) or not isinstance(verification.get("reason"), str) or not verification["reason"].strip():
+            issues.append(issue("source_verification_invalid", "second stage must assess reconstruction accuracy and explain why"))
+        if verification.get("reconstruction_accurate") is False and review.get("verdict") == "pass":
+            issues.append(issue("cold_read_inaccurate", "a materially inaccurate cold read requires revision before pass"))
+        try:
+            first = parse_iso(cold.get("completed_at", ""), "cold_read.completed_at")
+            second = parse_iso(verification.get("completed_at", ""), "source_verification.completed_at")
+            if first > second or second > dt.datetime.now(dt.timezone.utc):
+                issues.append(issue("review_stage_order_invalid", "cold read must precede source verification and neither may be in the future"))
+        except (ValidationFailure, TypeError, AttributeError):
+            issues.append(issue("review_stage_time_invalid", "both review stages require timezone-aware completion times"))
+    return issues
+
+
 def cmd_finalize(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     workspace = canonical_workspace(safe_absolute(Path(args.workspace)))
     report = safe_absolute(Path(args.report))
-    context, issues, warnings, cited = validate_report(report, args.task, workspace)
+    context, issues, warnings, cited = validate_report(report, args.task, workspace,
+                                                     current_workflow=not getattr(args, "verify_only", False))
     digest, evidence = digest_manifest(report, cited)
     checks_path = report.parent / "checks.json"
     review_path = report.parent / "review.json"
@@ -911,9 +1010,11 @@ def cmd_finalize(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             issues.append(issue("checks_digest_mismatch", "checks artifact_digest does not match current report"))
         if checks.get("task_id") != args.task or checks.get("report_id") != report.parent.name:
             issues.append(issue("checks_metadata_mismatch", "checks task/report metadata does not match"))
-    rubric, _, rub_warnings = load_rubric(Path(__file__).resolve())
+    rubric, _, rub_warnings = load_rubric(Path(__file__).resolve(), context.get("rubric_version", "2.0.1"))
     warnings.extend(rub_warnings)
     issues.extend(validate_review(review, rubric, digest))
+    if rubric.get("cold_read_required"):
+        issues.extend(validate_cold_read(report.parent, review, digest))
     obj = {
         "status": "pass" if not issues else "fail",
         "task_id": context.get("task_id", args.task),
@@ -957,6 +1058,7 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--task-dir")
     init.add_argument("--output-root")
     init.add_argument("--state")
+    init.add_argument("--workflow-record", help="optional canonical workflow record directory or checklist file")
     init.add_argument("--kind", choices=["progress", "final"], default="progress")
     init.add_argument("--window-start")
     init.add_argument("--window-end")

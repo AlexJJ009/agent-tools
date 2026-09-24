@@ -1,6 +1,6 @@
 interface:
-  display_name: "代码整理器"
-  short_description: "在保持行为前提下整理代码和交接边界"
-  default_prompt: "Use $cleaner to preserve behavior while improving the current diff's module boundaries, maintainability, and handoff clarity."
+  display_name: "Behavior-Preserving Cleanup"
+  short_description: "Improve the current diff and preserve its agreed behavior"
+  default_prompt: "Use $cleaner to clean the current diff, retain applicable decisions, and recheck affected evidence."
 policy:
   allow_implicit_invocation: true

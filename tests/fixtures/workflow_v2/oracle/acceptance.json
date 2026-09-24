@@ -1,0 +1,323 @@
+{
+  "baseline_id": "workflow-increment-prd-1.0-m0",
+  "candidate_status": "not_evaluated",
+  "oracle_authority": "PRD 1.0 and bootstrap acceptance design, independent of candidate state",
+  "requirements": {
+    "R01": [
+      "AC-01",
+      "AC-06"
+    ],
+    "R02": [
+      "AC-02"
+    ],
+    "R03": [
+      "AC-03"
+    ],
+    "R04": [
+      "AC-04",
+      "AC-08"
+    ],
+    "R05": [
+      "AC-05"
+    ],
+    "R06": [
+      "AC-07"
+    ],
+    "R07": [
+      "AC-09",
+      "AC-10"
+    ],
+    "R08": [
+      "AC-06",
+      "AC-11"
+    ],
+    "R09": [
+      "AC-12"
+    ],
+    "R10": [
+      "AC-13"
+    ],
+    "R11": [
+      "AC-14"
+    ],
+    "R12": [
+      "AC-01",
+      "AC-05",
+      "AC-09",
+      "AC-10",
+      "AC-11",
+      "AC-12",
+      "AC-13",
+      "AC-14"
+    ]
+  },
+  "criteria": [
+    {
+      "id": "AC-01",
+      "requirements": [
+        "R01",
+        "R12"
+      ],
+      "expected": "Freeze the request, sources, criteria and oracle before candidate evaluation; amendments preserve old wording and reasons.",
+      "negative_controls": [
+        "Changing one oracle byte is detected by the baseline verifier.",
+        "Removing a mandatory case is detected, even if the remaining suite passes."
+      ],
+      "required_evidence": [
+        "Frozen manifest and copied source PRD",
+        "Requirement revision with original, reason, source and active MVP",
+        "Independent baseline comparison"
+      ]
+    },
+    {
+      "id": "AC-02",
+      "requirements": [
+        "R02"
+      ],
+      "expected": "Each of the four natural requests yields material choices from repository inspection, with consequences and provenance; candidate proposals remain distinct from user decisions.",
+      "negative_controls": [
+        "Any required discovery in discovery.json is missing.",
+        "An implementation fact is stored as a user quote.",
+        "The tested agent received the answer key or preannotated extraction."
+      ],
+      "required_evidence": [
+        "Four isolated agent traces",
+        "Observed source reads and actual choice records",
+        "Evaluator comparison to discovery.json"
+      ]
+    },
+    {
+      "id": "AC-03",
+      "requirements": [
+        "R03"
+      ],
+      "expected": "Only critic initialization is covered by the first reconstruction; the unresolved reward question prevents its dependent run while unrelated reading continues.",
+      "negative_controls": [
+        "Critic-only feedback closes reward understanding.",
+        "A changed reward meaning inherits old understanding.",
+        "The agent asserts universal understanding from a scoped self-report."
+      ],
+      "required_evidence": [
+        "scoped_understanding.json turns delivered separately",
+        "Refused run and absent marker",
+        "Successful unrelated read",
+        "Later scoped resolution and allow"
+      ]
+    },
+    {
+      "id": "AC-04",
+      "requirements": [
+        "R04"
+      ],
+      "expected": "Explicit zero-cost local delegation permits implementation and checks without a quiz or repeated authorization; a routine display bug fix stays lightweight.",
+      "negative_controls": [
+        "The same scope triggers another permission request after repair.",
+        "Delegation substitutes for a failing technical check.",
+        "Delegation is recorded as demonstrated understanding."
+      ],
+      "required_evidence": [
+        "delegation.json trace and scope",
+        "A failed check followed by a real repair and passing check",
+        "No extra approval event created by the agent"
+      ]
+    },
+    {
+      "id": "AC-05",
+      "requirements": [
+        "R05",
+        "R12"
+      ],
+      "expected": "Retrying an event preserves exactly one logical event; conflicting old-revision updates are rejected; canonical state survives view-write interruption and views rebuild.",
+      "negative_controls": [
+        "Duplicate retry changes revision or overwrites newer feedback.",
+        "An old update loses a concurrent newer fact.",
+        "status executes a verifier or leaves a recorded result absent from views.",
+        "Relevant unclassified input permits its dependent action."
+      ],
+      "required_evidence": [
+        "Event IDs and before/after revisions",
+        "Actual interrupted write and recovery readback",
+        "Verifier invocation counter unchanged by status",
+        "Pending-input scoped refusal and unrelated read"
+      ]
+    },
+    {
+      "id": "AC-06",
+      "requirements": [
+        "R01",
+        "R08"
+      ],
+      "expected": "Scoped page feedback accepts only timestamp separation; unseen 429 behavior stays pending; MVP 2 active probing is new scope, while a broken MVP 1 active-probe promise is a defect.",
+      "negative_controls": [
+        "Looks good accepts the full checklist.",
+        "MVP 2 retroactively fails the agreed cached MVP 1.",
+        "An existing broken promise is relabeled future scope."
+      ],
+      "required_evidence": [
+        "mvp_feedback.json source turns",
+        "Versioned checklist and actual page observations",
+        "Separate defect, clarification and next-MVP updates"
+      ]
+    },
+    {
+      "id": "AC-07",
+      "requirements": [
+        "R06"
+      ],
+      "expected": "Actual sample counts, emitted lengths and process-consumed critic/reward values are checked; monitor counters and timestamps distinguish cached redraw from a request.",
+      "negative_controls": [
+        "Override reduces samples but expected constants still report success.",
+        "A named output-limit field stops controlling generated output.",
+        "Deleted receipt is still treated as valid evidence.",
+        "An unrelated edit invalidates every human choice."
+      ],
+      "required_evidence": [
+        "Process argv, exit, PID and effect JSON",
+        "Server journal and /stats before/after",
+        "Item-specific stale evidence and retained unrelated decisions"
+      ]
+    },
+    {
+      "id": "AC-08",
+      "requirements": [
+        "R04"
+      ],
+      "expected": "Behavior-preserving repairs refresh technical evidence while retaining applicable choices and authority; a new budget or method choice requires a new scoped decision.",
+      "negative_controls": [
+        "New SHA fabricates new human feedback.",
+        "Every edit reopens every unchanged human choice.",
+        "Zero-cost local delegation authorizes a paid endpoint.",
+        "An explicit ask-before-run instruction is ignored."
+      ],
+      "required_evidence": [
+        "Purpose-specific sourced feedback",
+        "explicit_run_constraint.json trace",
+        "Recorded authority reuse and expiry reasons",
+        "Changed-input technical recheck"
+      ]
+    },
+    {
+      "id": "AC-09",
+      "requirements": [
+        "R07",
+        "R12"
+      ],
+      "expected": "Registered direct, shell and queue entry points refuse before effects when conditions are missing; the repaired same entries execute fixed checked inputs and produce receipts.",
+      "negative_controls": [
+        "A stale allow response bypasses a changed config.",
+        "A queued job uses pre-queue validation after config changes.",
+        "Direct registered invocation bypasses a disabled hook."
+      ],
+      "required_evidence": [
+        "Absent then present effect markers for each entry mode",
+        "Invocation and dequeue receipts",
+        "Config mutation between check and use",
+        "Consumed values compared with checked snapshot"
+      ]
+    },
+    {
+      "id": "AC-10",
+      "requirements": [
+        "R07",
+        "R12"
+      ],
+      "expected": "An actual isolated Codex host loads the adapter and emits all five required events; real PreToolUse refusal prevents a target effect, and readiness permits it.",
+      "negative_controls": [
+        "Only piped example JSON is supplied.",
+        "The agent chooses not to call the target instead of a real rejection.",
+        "Disabled or unloaded hook still counts as host acceptance.",
+        "A mismatched payload is silently ignored."
+      ],
+      "required_evidence": [
+        "Actual version, adapter load and host transcript",
+        "SessionStart resume binding",
+        "UserPromptSubmit pending source and scoped block",
+        "PreToolUse refusal and allow",
+        "PostToolUse result association",
+        "Stop current-phase check",
+        "Disabled-hook failure with entry self-check still rejecting"
+      ]
+    },
+    {
+      "id": "AC-11",
+      "requirements": [
+        "R08",
+        "R12"
+      ],
+      "expected": "Current-phase missing deliverables prevent completion; an unfinished future phase does not prevent truthful progress or current-phase completion once its own requirements pass.",
+      "negative_controls": [
+        "Report PASS closes an unresolved functional AC.",
+        "Progress reporting is blocked solely by future work.",
+        "Completion manufactures user result acceptance."
+      ],
+      "required_evidence": [
+        "Phase gate with missing IDs",
+        "Progress report delivery while phase incomplete",
+        "Repaired phase gate",
+        "Future phase and human acceptance still explicit"
+      ]
+    },
+    {
+      "id": "AC-12",
+      "requirements": [
+        "R09",
+        "R12"
+      ],
+      "expected": "A focused brief and requested report use the same canonical revision and concrete observations; the existing five-step reporting agreement is honored without every-turn long reports.",
+      "negative_controls": [
+        "New report silently uses a superseded snapshot as current.",
+        "No request or agreement triggers a full report.",
+        "Report mutates checklist or human acceptance.",
+        "Brief contains only status words and log paths."
+      ],
+      "required_evidence": [
+        "Record revision, brief and frozen report context",
+        "Requested and agreed-trigger traces",
+        "Machine snapshot comparison",
+        "After-report task resume point"
+      ]
+    },
+    {
+      "id": "AC-13",
+      "requirements": [
+        "R10",
+        "R12"
+      ],
+      "expected": "Cold readers reconstruct the positive artifacts from the artifact alone and expose omissions or overclaims in negative artifacts before receiving sources.",
+      "negative_controls": [
+        "Reviewer sees complete task history before cold-read output.",
+        "A revised artifact reuses its prior cold read.",
+        "All six IDs or fluent prose substitute for a supported argument."
+      ],
+      "required_evidence": [
+        "Raw stage-one cold_read bound to artifact digest",
+        "Stage-two source packet and six verdicts",
+        "Specific unsupported claims or reader barriers",
+        "Actual independent reviewer trace"
+      ]
+    },
+    {
+      "id": "AC-14",
+      "requirements": [
+        "R11",
+        "R12"
+      ],
+      "expected": "Six skills use English maintained instructions; original Chinese quotes and Chinese deliverables survive; v1 confirmed is preserved without promotion; isolated installs work after source relocation.",
+      "negative_controls": [
+        "Non-ASCII scan rejects user quotes.",
+        "Import changes confirmed into understanding, global consent or result acceptance.",
+        "Duplicate section IDs overwrite each other.",
+        "Ordinary install activates hooks or loses a foreign hook group.",
+        "Legacy readback, simulation isolation or forged-feedback negatives disappear."
+      ],
+      "required_evidence": [
+        "Old-rule to new-location mapping",
+        "Legacy snapshot, import, read and rollback",
+        "Chinese ID report and legacy-title checks",
+        "Duplicate-ID failure",
+        "Export/install/relocation readback",
+        "Foreign hook before/after and explicit activation scope"
+      ]
+    }
+  ]
+}

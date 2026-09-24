@@ -1,27 +1,25 @@
-# 工作汇报
+# Work report
 
-## 目标与边界
+## Goal and scope {#goal}
 
-TODO
+TODO: State the reader's problem, intended result and this phase's boundary.
 
-## 本轮进展
+## Current progress {#progress}
 
-TODO
+TODO: Lead with the actual result. Distinguish completed, active, failed and unverified work.
 
-## 关键决策与问题处理
+## Decisions and reasons {#decisions}
 
-TODO
+TODO: Explain the important choice, its evidence, rationale and consequence; say when none arose.
 
-## 验证结果
+## Observations and evidence {#evidence}
 
-| 项目 | 观察结果 | 证据与边界 |
-|---|---|---|
-| TODO | TODO | TODO |
+TODO: Give concrete observations and explain which claims they support. Link the source and state limits. Use a table or figure only when it helps comparison.
 
-## 风险阻塞与范围偏离
+## Limits and scope changes {#scope}
 
-TODO
+TODO: Compare actual work with the agreement and frozen checklist. Disclose adverse evidence, scope changes and pending user acceptance.
 
-## 下一步与需决策事项
+## Next steps and decisions {#next_steps}
 
-TODO
+TODO: Give the next action or acceptance decision. For a progress report, preserve the original task's concrete resume point.

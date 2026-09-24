@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from contextvars import ContextVar
+from copy import deepcopy
 from datetime import datetime, timezone
 import fcntl
 import hashlib
@@ -21,20 +23,23 @@ def now():
     return datetime.now(timezone.utc).isoformat()
 
 
-def write(path, obj):
+def write_bytes(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    data = json.dumps(obj, ensure_ascii=False, indent=2) + '\n'
     fd, name = tempfile.mkstemp(dir=path.parent, prefix='.workflow-')
     try:
-        with os.fdopen(fd, 'w') as f:
-            f.write(data)
-            f.flush()
-            os.fsync(f.fileno())
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(data)
+            stream.flush()
+            os.fsync(stream.fileno())
         os.replace(name, path)
     finally:
         if Path(name).exists():
             Path(name).unlink()
+
+
+def write(path, obj):
+    write_bytes(path, (json.dumps(obj, ensure_ascii=False, indent=2) + '\n').encode('utf-8'))
 
 
 def git(repo, *args):
@@ -46,13 +51,23 @@ def git_state(repo):
             'working_tree': 'dirty' if git(repo, 'status', '--porcelain') else 'clean'}
 
 
+_held_locks = ContextVar('workflow_locks', default=frozenset())
+
+
 @contextmanager
 def locked(record_dir):
     record_dir = Path(record_dir).resolve()
     require((record_dir / 'checklist.yaml').is_file(), 'record not initialized')
+    if record_dir in _held_locks.get():
+        yield record_dir
+        return
     with (record_dir / '.lock').open('a') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        yield record_dir
+        token = _held_locks.set(_held_locks.get() | {record_dir})
+        try:
+            yield record_dir
+        finally:
+            _held_locks.reset(token)
 
 
 def init(query, repo, scenario, context=None, mode='local', slug='task'):
@@ -69,17 +84,23 @@ def init(query, repo, scenario, context=None, mode='local', slug='task'):
     stamp = datetime.now(timezone.utc)
     task_id = stamp.strftime('%Y%m%dT%H%M%SZ') + '-' + slug + '-' + uuid.uuid4().hex[:6]
     root = repo / 'docs/agent-workflow/records' / stamp.strftime('%Y-%m-%d') / task_id
+    from . import state as state_core
+    schema = context.get('schema_version', 1)
+    require(schema in {1, 2}, 'unsupported schema')
     protocols, checklist = [], []
     for item in extraction['items']:
         pid = item['id']
         source = {'path': 'request.txt', 'quote': item['source_quote'], 'authority': item['authority']}
+        if schema == 2 and item['authority'] != 'user':
+            source = dict(state_core.snapshot_source(root, item['source']), authority=item['authority'])
+            item['source'] = source
         protocol = {'id': pid, 'source': source, 'meaning': item.get('meaning', str(item['normalized_value'])),
                     'expected': {'value': item['normalized_value'], 'unit': item.get('unit', 'outcome')},
                     'extraction_ref': pid, 'binding': bindings.get(pid)}
         protocols.append(protocol)
         for cid in item['checklist_ids']:
             settings = context.get('checks', {}).get(cid, {})
-            high = extraction['route']['class'] != 'lightweight'
+            high = (extraction['route']['class'] != 'lightweight') if schema == 1 else bool(context.get('facts', {}).get('side_effects'))
             verifier = settings.get('verifier', {'method': 'unconfigured', 'watched_paths': []})
             verifier = dict(verifier, expected_ref=pid + '.expected')
             c = {'id': cid, 'requirement': item.get('label', pid), 'requirement_ref': pid, 'source': source,
@@ -107,8 +128,10 @@ def init(query, repo, scenario, context=None, mode='local', slug='task'):
                                                     'actor': None, 'confirmed_at': None, 'target_digest': None},
                              'command': context.get('command', []), 'command_paths': context.get('command_paths', []), 'config_paths': context.get('config_paths', []),
                              'command_digest': None, 'config_digest': None, 'agent_target_digest': None}}
+    if schema == 2:
+        state_core.initialize(record, context)
     validate(record)
-    root.mkdir(parents=True)
+    root.mkdir(parents=True, exist_ok=True)
     (root / 'request.txt').write_bytes(query_bytes)
     write(root / 'checklist.yaml', record)
     (root / 'task.md').write_text('# Task agreement and work record\n\n'
@@ -125,22 +148,27 @@ def init(query, repo, scenario, context=None, mode='local', slug='task'):
 
 
 def read_record(root):
+    root = Path(root).resolve()
     record = load(root / 'checklist.yaml')
     validate(record)
     query = within(root, record['source']['query_path'])
     require(file_digest(query) == record['source']['query_sha256'], 'query changed without a recorded revision')
-    sources = [query.read_text()]
+    sources = [query.read_bytes().decode('utf-8')]
     for p in record['protocols']:
         source = within(root, p['source']['path'])
-        require(p['source']['quote'] in source.read_text(), 'protocol quote no longer matches source')
+        require(p['source']['quote'] in source.read_bytes().decode('utf-8'), 'protocol quote no longer matches source')
         if p['source'].get('sha256'):
             require(file_digest(source) == p['source']['sha256'], 'revision source changed')
-        if source != query:
-            sources.append(source.read_text())
+        if source != query and (record['schema_version'] == 1 or p['source']['authority'] == 'user'):
+            sources.append(source.read_bytes().decode('utf-8'))
     # Repeat the route lint with stored facts, without selecting a new Coder.
     fresh = extract_query('\n'.join(sources), {'scenario': record['route']['primary'], 'items': record['extraction']['items'],
-                                     'facts': record['route']['facts']})
+                                     'facts': record['route']['facts'], 'schema_version': record['schema_version']})
     require(record['route']['modules'] == fresh['route']['modules'] and record['route']['class'] == fresh['route']['class'], 'route profile/modules mismatch')
+    if record['schema_version'] == 2:
+        from .state import validate_source
+        for event in record['events']:
+            validate_source(root, event['source'])
     return record
 
 
@@ -307,10 +335,8 @@ def check(root, selected=None):
                 invalidate_humans(record, 'formal target changed')
             f[key] = target[key]
     record['code_state'] = git_state(record['repo'])
-    write(root / 'checklist.yaml', record)
-    refresh_views(root, record)
+    commit(root, record, 'check', 'fail' if errors else 'pass', {'selected': sorted(selected), 'errors': errors})
     review_brief(root, record)
-    append_event(root, 'check', 'fail' if errors else 'pass', {'selected': sorted(selected), 'errors': errors})
     return errors
 
 
@@ -348,7 +374,7 @@ def verify_item(root, record, c, human=False):
 
 def review_brief(root, record=None):
     record = record or read_record(root)
-    selected = [c for c in record['checklist'] if c['review_scope']['must_review']]
+    selected = [c for c in record['checklist'] if c['review_scope']['must_review'] or record['schema_version'] == 2]
     if not selected:
         return None
     path = root / 'reviews/human-review.md'
@@ -359,7 +385,7 @@ def review_brief(root, record=None):
     for c in selected:
         p = next(p for p in record['protocols'] if p['id'] == c['requirement_ref'])
         rows += [f'## {c["id"]} — {c["requirement"]}', '', f'Protocol: `{p["id"]}`. Meaning: {p["meaning"]}. Expected: `{p["expected"]}`.',
-                 f'Observation: `{c["agent_status"]}`; evidence level: `{c["evidence"]["level"]}`. Human: `{c["human_status"]}`.', '']
+                 f'Observation: {observation(root, c)}. Check: `{c["agent_status"]}`; evidence level: `{c["evidence"]["level"]}`. Human: `{c["human_status"]}`.', '']
         for ref in c['review_scope']['must_review']:
             base, sep, line = ref.rpartition(':')
             local = within(root if base == 'request.txt' else record['repo'], base if sep and line.isdigit() else ref)
@@ -371,13 +397,31 @@ def review_brief(root, record=None):
                           if c['agent_status'] == 'checked' else 'Request correction; this item has no passing current check.')
         rows += ['', f'Recommended: {recommendation}',
                  'Alternative: reject with the specific semantic disagreement; the protected action stays blocked.', '']
-    path.write_text('\n'.join(rows))
+    if record['schema_version'] == 2:
+        rows += [f'Record revision: {record["revision"]}. Current phase: {record["phase"]}.', '']
+        for choice in record['choices']:
+            resolution = choice['resolution']
+            rows += [f'## Choice {choice["id"]}: {choice["question"]}',
+                     'Affected items: ' + ', '.join(choice['affects']) + '.',
+                     ('Selected: ' + str(resolution['value']) + '. Reason: ' + resolution['rationale']) if resolution else 'Decision remains open.',
+                     'Understanding scope: ' + str(choice['understanding']['required_scope']),
+                     'Open questions: ' + json.dumps(choice['understanding']['open_questions'], ensure_ascii=False), '']
+    write_bytes(path, '\n'.join(rows).encode('utf-8'))
     return path
 
 
 def approve(root, sha, feedback_path, simulation=False):
     record = read_record(root)
     require((record['mode'] == 'simulation') == simulation, 'simulation approval must be explicitly isolated')
+    if record['schema_version'] == 2:
+        feedback = load(feedback_path)
+        purpose = feedback.pop('purpose', None)
+        allowed = {'decision': 'choice.resolve', 'result': 'result.feedback', 'execution': 'authorization.grant'}
+        require(purpose in allowed and feedback.get('type') == allowed[purpose],
+                'schema 2 approval needs one explicit purpose and its matching typed event')
+        require(sha == git(record['repo'], 'rev-parse', 'HEAD'), 'wrong candidate SHA')
+        require(feedback.get('source', {}).get('kind') == 'user', 'approval needs actual user feedback')
+        return update(root, feedback)
     require(record['agreement']['formal_run_policy'] != 'prohibited', 'formal action is prohibited by agreement')
     target = current_target(record)
     require(sha == target['candidate_sha'], 'wrong candidate SHA')
@@ -389,7 +433,7 @@ def approve(root, sha, feedback_path, simulation=False):
     dt = datetime.fromisoformat(feedback['confirmed_at'])
     require(dt.tzinfo is not None and dt <= datetime.now(timezone.utc), 'invalid confirmation timestamp')
     source_path = Path(feedback['source_path'])
-    require(file_digest(source_path) == feedback['source_sha256'] and feedback['source_quote'] in source_path.read_text(), 'feedback source mismatch')
+    require(file_digest(source_path) == feedback['source_sha256'] and feedback['source_quote'] in source_path.read_bytes().decode('utf-8'), 'feedback source mismatch')
     require(feedback['candidate_sha'] == sha and feedback['target_digest'] == digest(target), 'human reviewed a different target')
     needed = {c['id'] for c in record['checklist'] if c['risk'] == 'high_risk'}
     require(set(feedback['choices']) <= needed and all(x in {'confirmed', 'rejected'} for x in feedback['choices'].values()), 'invalid per-item choices')
@@ -411,10 +455,8 @@ def approve(root, sha, feedback_path, simulation=False):
         require(f[key] == target[key], 'Agent check is not bound to current formal target')
     f['human_confirmation'] = {'required': bool(needed), 'actor': feedback['actor'], 'confirmed_at': feedback['confirmed_at'], 'target_digest': digest(target)}
     f['status'] = 'authorized' if all(c['human_status'] == 'confirmed' for c in record['checklist'] if c['id'] in needed) else 'awaiting_human'
-    write(root / 'checklist.yaml', record)
-    refresh_views(root, record)
+    commit(root, record, 'approve', f['status'], {'simulation': simulation, 'receipt': str(path.relative_to(root))})
     review_brief(root, record)
-    append_event(root, 'approve', f['status'], {'simulation': simulation, 'receipt': str(path.relative_to(root))})
 
 
 def gate(root, simulation=False):
@@ -458,29 +500,51 @@ def gate(root, simulation=False):
     except (ContractError, OSError, ValueError, KeyError, subprocess.SubprocessError) as exc:
         errors.append(str(exc))
         invalidate_humans(record, str(exc))
-    write(root / 'checklist.yaml', record)
-    refresh_views(root, record)
-    append_event(root, 'gate', 'fail' if errors else 'pass', {'errors': errors, 'simulation': simulation, 'executes_command': False})
+    commit(root, record, 'gate', 'fail' if errors else 'pass', {'errors': errors, 'simulation': simulation, 'executes_command': False})
     return errors
 
 
 def refresh_views(root, record):
     """Render requirements from the canonical protocol; preserve the work record."""
     rows = ['| Item | Protocol / field | Expected | Agent | Human |', '|---|---|---|---|---|']
+    if record['schema_version'] == 2:
+        rows = ['| Item | Requirement | Expected | Verification | Result acceptance |', '|---|---|---|---|---|']
     for c in record['checklist']:
         p = next(p for p in record['protocols'] if p['id'] == c['requirement_ref'])
         field = p['binding']['config_key'] if p['binding'] else 'material/outcome'
         cells = [c['id'], p['id'] + ' / ' + field, json.dumps(p['expected'], ensure_ascii=False), c['agent_status'], c['human_status']]
+        if record['schema_version'] == 2:
+            cells = [c['id'], c['requirement'], json.dumps(p['expected'], ensure_ascii=False), c['agent_status'], c['result_acceptance']['status']]
         rows.append('| ' + ' | '.join(str(x).replace('|', r'\|').replace('\n', ' ') for x in cells) + ' |')
-    state = git_state(record['repo'])
+    state = record['code_state'] if record['schema_version'] == 2 else git_state(record['repo'])
     text = ('<!-- workflow-state:start -->\n' + '\n'.join(rows) +
             f'\n\nCurrent Git: `{state["branch"]}` / `{state["base_sha"]}` / `{state["working_tree"]}`.\n'
             f'Formal action: `{record["formal_run"]["status"]}`. Review: [checklist.yaml](checklist.yaml).\n'
             'Runtime launches no jobs. Re-read external running jobs before resuming.\n'
             'Next action: repair failed/unverified items; review focused high-risk items before any protected action.\n'
             '<!-- workflow-state:end -->')
+    if record['schema_version'] == 2:
+        extra = [f'\nState revision: {record["revision"]}. Current phase: {record["phase"]}.', '\n### Current choices\n']
+        for choice in record['choices']:
+            resolution = choice.get('resolution')
+            decision = f'{resolution["value"]}. Reason: {resolution["rationale"]}' if resolution else 'Awaiting a decision or covered delegation.'
+            extra.append(f'- {choice["id"]}: {choice["question"]} {decision}')
+        if not record['choices']:
+            extra.append('No choices recorded.')
+        extra.append('\n### Jobs and pending inputs\n')
+        extra.extend(f'- {job}: {value["status"]}' for job, value in record['jobs'].items())
+        extra.extend(f'- Input {key}: needs classification' for key, value in record['pending_inputs'].items() if not value['resolved'])
+        extra.append('\nNext action: inspect pending criteria and current observations; result acceptance stays pending until actual scoped user feedback.')
+        text = ('<!-- workflow-state:start -->\n' + '\n'.join(rows + extra) + '\n<!-- workflow-state:end -->')
     task = root / 'task.md'
-    task.write_text(re.sub(r'<!-- workflow-state:start -->.*?<!-- workflow-state:end -->', lambda _: text, task.read_text(), flags=re.S))
+    previous = task.read_text() if task.exists() else '# Task agreement and work record\n\n'
+    if '<!-- workflow-state:start -->' in previous:
+        previous = re.sub(r'<!-- workflow-state:start -->.*?<!-- workflow-state:end -->', lambda _: text, previous, flags=re.S)
+    else:
+        previous += '\n' + text + '\n'
+    write_bytes(task, previous.encode('utf-8'))
+    if record['schema_version'] == 2:
+        write(root / 'events.json', {'revision': record['revision'], 'events': record['events']})
     if record.get('protocol_view'):
         (root / 'protocol.md').write_text('# Protocol view\n\nDerived from [checklist.yaml](checklist.yaml); edit the canonical record, not this view.\n\n' + '\n'.join(rows) + '\n')
 
@@ -489,22 +553,32 @@ def revise(root, revision_path):
     """Record actual user amendments without rewriting the original request."""
     record = read_record(root)
     revision = load(revision_path)
+    if record['schema_version'] == 2:
+        source_path = Path(revision['source_path'])
+        affected = [c['id'] for c in record['checklist'] if c['requirement_ref'] in {u['protocol_id'] for u in revision['updates']}]
+        update(root, {'id': revision.get('id', 'revise-' + digest(revision)),
+            'base_revision': revision.get('base_revision', record['revision']), 'type': 'requirements.revise',
+            'source': {'kind': 'user', 'actor': revision.get('actor', 'user'), 'path': str(source_path),
+                       'quote': revision['source_quote'], 'sha256': file_digest(source_path)},
+            'affects': affected, 'payload': {'updates': revision['updates'],
+                'reason': revision.get('reason', 'User amendment; original expectations retained in event history.')}})
+        return affected
     fields(revision, 'source_path source_quote updates', 'revision')
     source = Path(revision['source_path'])
-    require(revision['source_quote'] and revision['source_quote'] in source.read_text(), 'revision needs a verbatim user source')
+    require(revision['source_quote'] and revision['source_quote'] in source.read_bytes().decode('utf-8'), 'revision needs a verbatim user source')
     require(revision['updates'], 'empty revision')
     source_target = root / 'evidence' / (uuid.uuid4().hex + '-user-revision.txt')
     source_target.parent.mkdir(exist_ok=True)
     source_target.write_bytes(source.read_bytes())
     affected = []
     before = []
-    for update in revision['updates']:
-        fields(update, 'protocol_id expected meaning', 'revision update')
-        p = next((p for p in record['protocols'] if p['id'] == update['protocol_id']), None)
+    for amendment in revision['updates']:
+        fields(amendment, 'protocol_id expected meaning', 'revision update')
+        p = next((p for p in record['protocols'] if p['id'] == amendment['protocol_id']), None)
         require(p is not None, 'unknown revision protocol')
         before.append(json.loads(json.dumps(p)))
-        p['expected'] = update['expected']
-        p['meaning'] = update['meaning']
+        p['expected'] = amendment['expected']
+        p['meaning'] = amendment['meaning']
         p['source'] = {'path': str(source_target.relative_to(root)), 'quote': revision['source_quote'],
                        'authority': 'user', 'sha256': file_digest(source_target)}
         e = next(e for e in record['extraction']['items'] if e['id'] == p['extraction_ref'])
@@ -520,7 +594,140 @@ def revise(root, revision_path):
     validate(record)
     invalidate_humans(record, 'user amendment')
     record['formal_run']['agent_review']['status'] = 'unverified'
-    append_event(root, 'revise', 'recorded', {'before': before, 'updates': revision, 'affected': affected})
-    write(root / 'checklist.yaml', record)
-    refresh_views(root, record)
+    commit(root, record, 'revise', 'recorded', {'before': before, 'updates': revision, 'affected': affected})
     return affected
+
+
+def observation(root, item):
+    """Render verified observations without relabeling a status as evidence."""
+    if not item['evidence']['paths']:
+        return 'No verified observation recorded'
+    try:
+        path = within(root, item['evidence']['paths'][0])
+        require(file_digest(path) == item['evidence'].get('receipt_sha256'), 'receipt changed')
+        receipt = load(path)
+        return json.dumps(receipt.get('observation', 'Verifier did not complete successfully'), ensure_ascii=False)
+    except (ContractError, OSError, ValueError):
+        return 'Saved observation is unavailable or changed; recheck required'
+
+
+def commit(root, record, command, status, detail, event=None, input_digest=None):
+    """Publish canonical state first. Derived output can always be rebuilt.
+
+    Every schema-2 writer uses this revision comparison, including legacy check,
+    approval and gate. Commands that run verifiers can therefore never overwrite
+    a concurrent semantic update after their verification completes.
+    """
+    root = Path(root).resolve()
+    with locked(root):
+        if record['schema_version'] == 2:
+            current = load(root / 'checklist.yaml')
+            expected = record['revision']
+            require(current.get('revision', 0) == expected, 'revision conflict: reread current state')
+            receipt = deepcopy(event) if event else {
+                'id': command + '-' + uuid.uuid4().hex, 'base_revision': expected,
+                'type': 'runtime.' + command, 'source': {'kind': 'runtime', 'actor': 'runtime'},
+                'affects': detail.get('selected', detail.get('affected', [])), 'payload': deepcopy(detail)}
+            receipt['input_digest'] = input_digest or (digest(event) if event else digest(receipt))
+            receipt.update(revision=expected + 1, at=now(), status=status, detail=deepcopy(detail))
+            record['revision'] = expected + 1
+            record['events'].append(receipt)
+            validate(record)
+        write(root / 'checklist.yaml', record)
+        error = None
+        try:
+            refresh_views(root, record)
+        except OSError as exc:
+            error = str(exc)
+        if record['schema_version'] == 1:
+            append_event(root, command, status, detail)
+        return {'revision': record.get('revision', 0), 'views_error': error}
+
+
+def migrate(root):
+    """Import v1 without upgrading any legacy confirmation's meaning."""
+    from .state import initialize
+    with locked(root) as root:
+        record = read_record(root)
+        if record['schema_version'] == 2:
+            refresh_views(root, record)
+            return {'revision': record['revision'], 'already_migrated': True}
+        original = (root / 'checklist.yaml').read_bytes()
+        snapshot = root / 'migrations' / ('v1-' + hashlib.sha256(original).hexdigest() + '.json')
+        if not snapshot.exists():
+            write_bytes(snapshot, original)
+        initialize(record)
+        record['migration'] = {'from_schema': 1, 'snapshot': str(snapshot.relative_to(root)),
+                               'sha256': file_digest(snapshot), 'legacy_confirmations_preserved': True}
+        return commit(root, record, 'migrate', 'recorded', {'snapshot': record['migration']})
+
+
+def rollback(root, destination):
+    """Export the byte-exact v1 snapshot for an explicit compatibility rollback.
+
+    The live record remains intact; callers can use an isolated copy of the
+    directory with this checklist to run an older runtime without losing events.
+    """
+    with locked(root) as root:
+        record = read_record(root)
+        migration = record.get('migration')
+        require(migration, 'record has no migration snapshot')
+        snapshot = within(root, migration['snapshot'])
+        require(file_digest(snapshot) == migration['sha256'], 'migration snapshot changed')
+        destination = Path(destination).resolve()
+        require(not destination.is_relative_to(root), 'rollback export must be outside the active record')
+        require(not destination.exists(), 'rollback destination already exists')
+        write_bytes(destination, snapshot.read_bytes())
+        return {'snapshot': str(destination), 'sha256': migration['sha256'], 'revision': record['revision']}
+
+
+def update(root, event):
+    from .state import apply, snapshot_source
+    supplied = load(event) if isinstance(event, (str, Path)) else deepcopy(event)
+    fields(supplied, 'id base_revision type source affects payload', 'update event')
+    require(isinstance(supplied['id'], str) and supplied['id'].strip(), 'event needs unique id')
+    require(type(supplied['base_revision']) is int, 'base_revision must be an integer')
+    with locked(root) as root:
+        record = read_record(root)
+        require(record['schema_version'] == 2, 'migrate the record before typed updates')
+        old = next((e for e in record['events'] if e['id'] == supplied['id']), None)
+        if old:
+            require(old['input_digest'] == digest(supplied), 'event ID reused with different content')
+            refresh_views(root, record)
+            return {'revision': record['revision'], 'event_revision': old['revision'], 'duplicate': True}
+        require(supplied['base_revision'] == record['revision'], 'revision conflict: reread current state')
+        saved = deepcopy(supplied)
+        saved['source'] = snapshot_source(root, saved['source'])
+        detail = apply(record, saved)
+        result = commit(root, record, 'update', 'recorded', detail, event=saved, input_digest=digest(supplied))
+        return dict(result, duplicate=False, event_revision=record['revision'])
+
+
+def status(root):
+    """Inspect file freshness and stored progress; never execute verifiers."""
+    with locked(root) as root:
+        record = read_record(root)
+        stale = []
+        changed = False
+        for item in record['checklist']:
+            if item['agent_status'] != 'checked':
+                continue
+            try:
+                verify_item(root, record, item)
+            except (ContractError, OSError, ValueError, KeyError) as exc:
+                stale.append({'id': item['id'], 'reason': str(exc)})
+                if record['schema_version'] == 2:
+                    item['agent_status'] = 'needs_recheck'
+                    item['invalidated_by'].append(str(exc))
+                    changed = True
+        if changed:
+            record['formal_run']['agent_review']['status'] = 'unverified'
+            commit(root, record, 'status', 'stale', {'affected': [s['id'] for s in stale], 'stale': stale})
+        return {'schema_version': record['schema_version'], 'revision': record.get('revision', 0),
+                'phase': record.get('phase'), 'phases': record.get('phases', {}),
+                'items': [{'id': c['id'], 'requirement': c['requirement'], 'agent_status': c['agent_status'],
+                           'observation': observation(root, c), 'result_acceptance': c.get('result_acceptance')}
+                          for c in record['checklist']],
+                'stale': stale, 'choices': record.get('choices', []), 'delegations': record.get('delegations', []),
+                'pending_inputs': {k: v for k, v in record.get('pending_inputs', {}).items() if not v['resolved']},
+                'jobs': record.get('jobs', {}), 'formal_run_status': record['formal_run']['status']}

@@ -76,7 +76,13 @@ def extract_query(query_text, context):
     }]
     for item in items:
         fields(item, 'id source_quote normalized_value requirement_kind authority confidence cost_if_wrong blocking_question checklist_ids', 'extraction')
-        require(item['source_quote'] and item['source_quote'] in query_text, 'source_quote is not verbatim query text')
+        if context.get('schema_version', 1) == 1 or item['authority'] == 'user':
+            require(item['source_quote'] and item['source_quote'] in query_text, 'source_quote is not verbatim query text')
+        else:
+            source = item.get('source', {})
+            fields(source, 'kind actor path quote sha256', 'extraction source')
+            require(source['kind'] in {'code', 'proposal'}, 'non-user extraction needs code/proposal source')
+            require(source['quote'] == item['source_quote'] and source['quote'], 'source quote mismatch')
         require(item['requirement_kind'] in {'goal', 'constraint', 'protocol', 'acceptance', 'non_goal', 'preference', 'unknown'}, 'invalid requirement_kind')
         require(item['authority'] in {'user', 'project_fact', 'source_spec', 'agent_proposal'}, 'invalid authority')
         require(isinstance(item['confidence'], (int, float)) and 0 <= item['confidence'] <= 1, 'invalid confidence')
@@ -113,7 +119,7 @@ def resolve_bindings(extraction, repo_context):
 
 def validate(record):
     fields(record, 'schema_version task_id created_at source route agreement extraction protocols checklist code_state handoff formal_run mode repo', 'record')
-    require(record['schema_version'] == 1, 'unsupported schema')
+    require(record['schema_version'] in {1, 2}, 'unsupported schema')
     require(record['mode'] in {'local', 'simulation'}, 'invalid mode')
     require(record['route']['primary'] in SCENARIOS, 'invalid route')
     require(record['agreement']['formal_run_policy'] in {'prohibited', 'sandbox_allowed', 'requires_human'}, 'invalid formal policy')
@@ -178,8 +184,11 @@ def validate(record):
     require(set(f['required_checklist_items']) <= ids, 'unknown formal checklist item')
     high_ids = {c['id'] for c in record['checklist'] if c['risk'] == 'high_risk'}
     require(high_ids <= set(f['required_checklist_items']), 'formal run omits high-risk checklist')
-    if record['route']['class'] in {'high_risk', 'infra_heavy'}:
+    if record['schema_version'] == 1 and record['route']['class'] in {'high_risk', 'infra_heavy'}:
         require(high_ids, 'high-risk route cannot omit high-risk checks')
     if f['class'] in {'formal_experiment', 'production', 'external_publish'}:
         require(high_ids and f['human_confirmation']['required'], 'protected action requires human review')
+    if record['schema_version'] == 2:
+        from .state import validate_state
+        validate_state(record)
     return protocols

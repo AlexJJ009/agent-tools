@@ -1,0 +1,49 @@
+{
+  "packet_kind": "synthetic source facts for stage-two writing verification, not production evidence",
+  "request": {
+    "mvp": "mvp-1",
+    "quote": "这一版先显示上次检测结果，自动刷新页面即可；最新检测时间和页面刷新时间分开显示。"
+  },
+  "feedback": {
+    "quote": "两个时间分开展示这项我验收了。429 的显示我还没看。下一版想加主动探测。",
+    "actor": "simulated-human"
+  },
+  "workflow_snapshot": {
+    "revision": 7,
+    "phase": "mvp-1",
+    "refresh_mode": "cache",
+    "timestamp_check": "technical_pass",
+    "error_display_check": "technical_pass",
+    "timestamp_human_acceptance": "accepted",
+    "error_display_human_acceptance": "pending",
+    "mvp_2_active_probe": "requested_not_implemented",
+    "production_release": "not_in_scope"
+  },
+  "observations": [
+    {
+      "action": "probe",
+      "request_count": 1,
+      "http_status": 200,
+      "observed_at": 1000,
+      "displayed_at": 1010,
+      "displayed_status": "healthy"
+    },
+    {
+      "action": "cache_redraw",
+      "request_count": 1,
+      "observed_at": 1000,
+      "displayed_at": 1020,
+      "displayed_status": "healthy"
+    },
+    {
+      "action": "probe",
+      "request_count": 2,
+      "http_status": 429,
+      "observed_at": 1030,
+      "displayed_at": 1040,
+      "displayed_status": "unavailable",
+      "last_success_at": 1000
+    }
+  ],
+  "scope": "Times are deterministic fixture units. No production traffic, real users or model training were measured."
+}

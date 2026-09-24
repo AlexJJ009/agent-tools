@@ -40,6 +40,10 @@ class AgentWorkflowInstallTests(unittest.TestCase):
             (root / "references/licenses/spec-kit-MIT.txt").write_text("spec license", encoding="utf-8")
             (root / "references/licenses/superpowers-MIT.txt").write_text("superpowers license", encoding="utf-8")
         runtime = self.repo / "agent_workflow"
+        canonical = self.repo / "skills/work-report/references/writing-contract.md"
+        canonical.parent.mkdir(parents=True)
+        canonical.write_text("Canonical shared writing rules\n")
+        (self.repo / "skills/reviewer-brief/references/writing-contract.md").write_bytes(canonical.read_bytes())
         runtime.mkdir()
         (runtime / "__init__.py").write_text("", encoding="utf-8")
         (runtime / "cli.py").write_text("def main(): pass\n", encoding="utf-8")
@@ -82,6 +86,15 @@ class AgentWorkflowInstallTests(unittest.TestCase):
             self.install()
         self.assertEqual(self.calls, [])
         self.assertFalse((self.home / ".local").exists())
+
+    def test_generated_writing_copy_must_match_canonical_source(self):
+        packaged = self.repo / "skills/reviewer-brief/references/writing-contract.md"
+        original = packaged.read_bytes()
+        packaged.write_text("drift")
+        self.assertEqual(self.install(), 1)
+        self.assertFalse((self.home / ".agents").exists())
+        packaged.write_bytes(original)
+        self.assertEqual(self.install(), 0)
 
     def test_state_symlink_outside_profile_is_rejected(self):
         external = self.base / "external"

@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "task_id": "<task-id>",
   "created_at": "<iso-utc>",
   "repo": "<absolute-repo-path>",
@@ -104,7 +104,13 @@
         "must_review": [],
         "context_only": []
       },
-      "invalidated_by": []
+      "invalidated_by": [],
+      "phase": "baseline",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
     }
   ],
   "code_state": {
@@ -144,5 +150,25 @@
     "command_digest": null,
     "config_digest": null,
     "agent_target_digest": null
-  }
+  },
+  "revision": 0,
+  "events": [],
+  "phase": "baseline",
+  "phases": {
+    "baseline": {
+      "required_checklist_items": [
+        "<check-id>"
+      ],
+      "independent_review": {
+        "status": "pending",
+        "evidence": []
+      }
+    }
+  },
+  "choices": [],
+  "delegations": [],
+  "execution_authority": [],
+  "actions": {},
+  "pending_inputs": {},
+  "jobs": {}
 }

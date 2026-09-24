@@ -1,0 +1,13 @@
+{
+  "script_id": "page-feedback-by-version",
+  "actor": "simulated-human",
+  "authority": "isolated fixture only; no real workload permission",
+  "turns": [
+    {"id": "mvp-1-scope", "when": "Before implementing MVP 1", "quote": "这一版先显示上次检测结果，自动刷新页面即可；最新检测时间和页面刷新时间分开显示。"},
+    {"id": "mvp-1-appearance", "when": "After the user is shown the page", "quote": "看起来不错。"},
+    {"id": "mvp-1-acceptance", "when": "After the agent presents the reviewed element and remaining checklist", "quote": "两个时间分开展示这项我验收了。429 的显示我还没看。下一版想加主动探测。"},
+    {"id": "mvp-2-request", "when": "When the next MVP is proposed", "quote": "下一版每次定时刷新都重新请求上游；遇到 429 要保留失败，不能拿上次成功当现在健康。"}
+  ],
+  "defect_branch": {"given": "An independent copy of MVP 1 promised an active request on every refresh", "quote": "这一版说好每次刷新都会重新检测，现在计数没增加，这个得先修好。"},
+  "clarification_branch": {"given": "MVP 1 already distinguishes the two timestamps", "quote": "这里的检测时间指收到上游结果的时间，不是点刷新的时间。"}
+}

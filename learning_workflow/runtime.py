@@ -174,7 +174,8 @@ def init(query, decision, workspace, session_id, task_id=None, record=None):
     dev = decision.get('development_record_ref')
     if dev:
         devroot = Path(dev['path']).resolve()
-        require((devroot / 'checklist.yaml').is_file(), 'development record is missing')
+        require(any((devroot / name).is_file() for name in ('checklist.yaml', 'task.md')),
+                'development record is missing: expected a directory containing checklist.yaml or task.md')
         require(record is None or Path(record).resolve() == devroot, 'development route must reuse the canonical record directory')
         root = devroot
         request_name = 'routing-request.txt'

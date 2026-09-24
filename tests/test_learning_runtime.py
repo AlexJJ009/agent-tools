@@ -208,6 +208,31 @@ class RouteTests(unittest.TestCase):
         self.assertEqual((dev/'request.txt').read_text(),'development request')
         self.assertTrue((dev/'routing.md').exists())
 
+    def test_project_equivalent_development_record_is_reused_without_a_checklist(self):
+        dev=self.work/'development'; dev.mkdir()
+        original=b'# Existing task\n\nRevision: 2\nRepair, teach, then finish test notes.\n'
+        (dev/'task.md').write_bytes(original)
+        (dev/'request.txt').write_text('original development request')
+        decision=dict(self.decision,activity='delivery',authorized_actions=[],
+                      development_record_ref={'path':str(dev),'revision':2})
+        root=Path(r.init(self.q,decision,self.work,'equivalent-record')['record'])
+        self.assertEqual(root,dev)
+        self.assertEqual((dev/'task.md').read_bytes(),original)
+        self.assertEqual((dev/'request.txt').read_text(),'original development request')
+        self.assertFalse((dev/'checklist.yaml').exists())
+        self.assertTrue((dev/'routing.md').exists())
+        r.input_record(root,'teach',self.q)
+        r.classify(root,'teach',dict(decision,activity='learning'),2)
+        r.input_record(root,'resume',self.q)
+        r.classify(root,'resume',decision,4)
+        self.assertEqual(r.read(root)['decision']['development_record_ref'],decision['development_record_ref'])
+        self.assertEqual((dev/'task.md').read_bytes(),original)
+        with self.assertRaisesRegex(r.RouteError,'not execution authority'):
+            r.check_action(root,'experiment',base_revision=5)
+        missing=self.work/'missing-development'; missing.mkdir()
+        with self.assertRaisesRegex(r.RouteError,'development record is missing'):
+            r.init(self.q,dict(decision,development_record_ref={'path':str(missing),'revision':1}),self.work,'missing')
+
 
 if __name__=='__main__':
     unittest.main()

@@ -32,7 +32,10 @@ remain available while input is pending.
 `routing.json` is canonical and contains the versioned decision under `decision`,
 request snapshots, input states, and a compact history. `task.md` is a derived
 view. A development task uses `development_record_ref: {path, revision}` and
-stores the route beside the original checklist, with `routing.md` as its view.
+stores the route in the existing record directory, with `routing.md` as its view.
+The reference `path` is a directory containing `checklist.yaml` or a
+project-equivalent `task.md`; it is not the Markdown file itself. Omit `--record`
+or use that same directory. Read the revision from the actual project record.
 It never overwrites the development `request.txt`, `task.md`, or checklist.
 A reference is not a second authorization or acceptance record.
 

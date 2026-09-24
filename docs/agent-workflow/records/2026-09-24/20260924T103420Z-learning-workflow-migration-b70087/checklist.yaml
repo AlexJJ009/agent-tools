@@ -1777,7 +1777,7 @@
     "config_digest": null,
     "agent_target_digest": null
   },
-  "revision": 13,
+  "revision": 15,
   "events": [
     {
       "id": "checkpoint-33e982d1-implementation",
@@ -2148,6 +2148,77 @@
       "at": "2026-09-24T12:50:10.486423+00:00",
       "status": "recorded",
       "detail": {}
+    },
+    {
+      "id": "native-campaign-complete-602b528",
+      "base_revision": 13,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/2a6c8055453e5d4db33771850c258c67b1db960b630473bb30b753a916f90670.txt",
+        "quote": "{\n  \"execution_status\": \"completed\",\n  \"collector\": \"/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/native/native-review-results.json\",\n  \"sha256\": \"23c9bf33a3d8306e70e842162fd054bda345455fb71f6354288c4b0c77beb572\",\n  \"source_candidate\": \"602b528b2ade668dd736ee01ffccf2dd7b93b3ad\",\n  \"runs\": 138,\n  \"fixed_cases\": 30,\n  \"holdouts\": 6,\n  \"critical_negative_groups\": 10,\n  \"t17_first_pass_material_failures\": 3,\n  \"t17_same_session_reviewed_corrections\": 3,\n  \"real_user_feedback\": \"not_received\",\n  \"live_activation\": false,\n  \"limits\": \"Historical failures and component/snapshot limits retained; completed job is not final acceptance or a mechanical gate pass.\"\n}",
+        "sha256": "2a6c8055453e5d4db33771850c258c67b1db960b630473bb30b753a916f90670"
+      },
+      "affects": [],
+      "payload": {
+        "id": "native-validation",
+        "status": "completed",
+        "observation": {
+          "execution_status": "completed",
+          "collector": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/native/native-review-results.json",
+          "sha256": "23c9bf33a3d8306e70e842162fd054bda345455fb71f6354288c4b0c77beb572",
+          "source_candidate": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+          "runs": 138,
+          "fixed_cases": 30,
+          "holdouts": 6,
+          "critical_negative_groups": 10,
+          "t17_first_pass_material_failures": 3,
+          "t17_same_session_reviewed_corrections": 3,
+          "real_user_feedback": "not_received",
+          "live_activation": false,
+          "limits": "Historical failures and component/snapshot limits retained; completed job is not final acceptance or a mechanical gate pass."
+        }
+      },
+      "input_digest": "f054f864d5fd12e7b70c9c031fde420a413921a6ec39f4a37ea9fe9b42ef136d",
+      "revision": 14,
+      "at": "2026-09-24T13:02:40.642031+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "independent-acceptance-audit-final-602b528",
+      "base_revision": 14,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/e5ad76323762cb4c014da92ef8e4cc6442d6e676b866531c5c1f67e15f6d2ff0.txt",
+        "quote": "{\n  \"source_candidate\": \"602b528b2ade668dd736ee01ffccf2dd7b93b3ad\",\n  \"independent_criterion_summary\": {\n    \"pass\": 20,\n    \"pending\": 1\n  },\n  \"audit\": \"/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/reviews/ac-evidence-audit.json\",\n  \"audit_sha256\": \"a926d06c274f6932e799fdbbce07d74a9e24af9dade072fbad7b69c4cc2bc687\",\n  \"pending\": \"AC-21 real user feedback\",\n  \"live_activation\": false,\n  \"formal_gate_pass_claimed\": false\n}",
+        "sha256": "e5ad76323762cb4c014da92ef8e4cc6442d6e676b866531c5c1f67e15f6d2ff0"
+      },
+      "affects": [],
+      "payload": {
+        "id": "acceptance-audit",
+        "status": "completed",
+        "observation": {
+          "source_candidate": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+          "independent_criterion_summary": {
+            "pass": 20,
+            "pending": 1
+          },
+          "audit": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/reviews/ac-evidence-audit.json",
+          "audit_sha256": "a926d06c274f6932e799fdbbce07d74a9e24af9dade072fbad7b69c4cc2bc687",
+          "pending": "AC-21 real user feedback",
+          "live_activation": false,
+          "formal_gate_pass_claimed": false
+        }
+      },
+      "input_digest": "fe392ab800a94f465fa26a1b685b413f31341222fd76f2ab893055e039d5d55b",
+      "revision": 15,
+      "at": "2026-09-24T13:07:18.095266+00:00",
+      "status": "recorded",
+      "detail": {}
     }
   ],
   "choices": [],
@@ -2230,18 +2301,24 @@
     },
     "native-validation": {
       "id": "native-validation",
-      "status": "running",
+      "status": "completed",
       "observation": {
-        "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
-        "implementation": "candidate_committed",
-        "code_review": "initial_review_passed_boundary_delta_under_review",
-        "native_validation": "running",
-        "local_activation": "not_started",
-        "human_pilot": "pending actual human feedback",
-        "zotero_test_host": "genuine isolated test service available; native integration running"
+        "execution_status": "completed",
+        "collector": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/native/native-review-results.json",
+        "sha256": "23c9bf33a3d8306e70e842162fd054bda345455fb71f6354288c4b0c77beb572",
+        "source_candidate": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+        "runs": 138,
+        "fixed_cases": 30,
+        "holdouts": 6,
+        "critical_negative_groups": 10,
+        "t17_first_pass_material_failures": 3,
+        "t17_same_session_reviewed_corrections": 3,
+        "real_user_feedback": "not_received",
+        "live_activation": false,
+        "limits": "Historical failures and component/snapshot limits retained; completed job is not final acceptance or a mechanical gate pass."
       },
       "affects": [],
-      "source_ref": "checkpoint-33e982d1-native-validation"
+      "source_ref": "native-campaign-complete-602b528"
     },
     "code-review": {
       "id": "code-review",
@@ -2281,6 +2358,24 @@
       },
       "affects": [],
       "source_ref": "final-zotero-cleanup-602b528"
+    },
+    "acceptance-audit": {
+      "id": "acceptance-audit",
+      "status": "completed",
+      "observation": {
+        "source_candidate": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+        "independent_criterion_summary": {
+          "pass": 20,
+          "pending": 1
+        },
+        "audit": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/reviews/ac-evidence-audit.json",
+        "audit_sha256": "a926d06c274f6932e799fdbbce07d74a9e24af9dade072fbad7b69c4cc2bc687",
+        "pending": "AC-21 real user feedback",
+        "live_activation": false,
+        "formal_gate_pass_claimed": false
+      },
+      "affects": [],
+      "source_ref": "independent-acceptance-audit-final-602b528"
     }
   }
 }

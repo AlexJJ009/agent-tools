@@ -47,7 +47,7 @@ The generic mechanical checklist below has no configured per-item semantic verif
 | AC-20 | Native coverage, holdout requests, and overhead report | {"value": true, "unit": "outcome"} | unverified | pending |
 | AC-21 | Bounded user pilot and explicit acceptance | {"value": true, "unit": "outcome"} | unverified | pending |
 
-State revision: 13. Current phase: implementation.
+State revision: 15. Current phase: implementation.
 
 ### Current choices
 
@@ -56,10 +56,11 @@ No choices recorded.
 ### Jobs and pending inputs
 
 - implementation: completed
-- native-validation: running
+- native-validation: completed
 - code-review: completed
 - human-pilot: unknown
 - zotero-cleanup: completed
+- acceptance-audit: completed
 
 Next action: inspect pending criteria and current observations; result acceptance stays pending until actual scoped user feedback.
 <!-- workflow-state:end -->

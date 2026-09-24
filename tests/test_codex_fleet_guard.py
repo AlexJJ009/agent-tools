@@ -78,6 +78,15 @@ class CodexFleetGuardTests(unittest.TestCase):
             with self.assertRaisesRegex(MODULE.FleetFailure, "unsafe target id"):
                 MODULE.load_manifest(manifest)
 
+    def test_manifest_rejects_profile_escape_before_remote_call(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "fleet.json"
+            for codex_home in ("/etc/.codex", "/.codex", "relative/.codex", "/tmp/not-codex"):
+                invalid = dict(TARGET, codex_home=codex_home)
+                manifest.write_text(json.dumps({"targets": [invalid]}), encoding="utf-8")
+                with self.assertRaisesRegex(MODULE.FleetFailure, "invalid Unix profile paths"):
+                    MODULE.load_manifest(manifest)
+
     def test_wrong_platform_canary_is_opposite(self):
         self.assertEqual(MODULE.opposite_platform("linux"), "win11")
         self.assertEqual(MODULE.opposite_platform("win11"), "linux")
@@ -91,7 +100,7 @@ class CodexFleetGuardTests(unittest.TestCase):
         captured = []
         original = MODULE.run
         try:
-            def fake_run(command, check=True):
+            def fake_run(command, check=True, input_text=None):
                 captured.append(command)
                 return MODULE.subprocess.CompletedProcess(command, 0, "{}", "")
 
@@ -107,8 +116,11 @@ class CodexFleetGuardTests(unittest.TestCase):
         target = dict(TARGET, codex_home="/data_storage/yl_test/lgx/home/.codex")
         calls = []
 
-        def fake_run(command, *, check=True):
+        def fake_run(command, *, check=True, input_text=None):
             calls.append(command)
+            if input_text is not None:
+                self.assertIn("def validate_paths", input_text)
+                return subprocess.CompletedProcess(command, 0, '{"status":"PASS"}', "")
             if command[0] == "scp":
                 return subprocess.CompletedProcess(command, 0, "", "")
             if "sha256sum" in command[-1]:
@@ -120,13 +132,21 @@ class CodexFleetGuardTests(unittest.TestCase):
         scp_command = next(command for command in calls if command[0] == "scp")
         profile_helper = "/data_storage/yl_test/lgx/home/.local/lib/agent-tools/codex_target_guard.py"
         self.assertEqual(scp_command[-1], f"ovh-109:{profile_helper}.tmp")
-        self.assertIn(str(Path(profile_helper).parent), calls[0][-1])
+        self.assertIn(str(Path(profile_helper).parent), calls[1][-1])
         self.assertIn(f"{profile_helper}.tmp", calls[-1][-1])
         self.assertIn(profile_helper, calls[-1][-1])
         with mock.patch.object(MODULE, "run") as run:
             run.return_value = subprocess.CompletedProcess([], 0, "{}", "")
             MODULE.run_guard(target, None)
         self.assertIn(profile_helper, run.call_args.args[0][-1])
+
+    def test_sync_refuses_guard_failure_before_writing(self):
+        with mock.patch.object(MODULE, "run") as run:
+            run.return_value = subprocess.CompletedProcess([], 2, "", "profile mismatch")
+            with self.assertRaisesRegex(MODULE.FleetFailure, "profile mismatch"):
+                MODULE.sync_target(TARGET)
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.kwargs["input_text"], MODULE.REMOTE_HELPER.read_text())
 
 
 if __name__ == "__main__":

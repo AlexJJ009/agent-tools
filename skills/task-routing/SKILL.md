@@ -17,6 +17,8 @@ Recover a failed capability or action check in the existing record; do not initi
 
 Set `readpapers_root` only from an explicit configured project root and `authorized_read_roots` only from user-granted scope; do not invent authority in a decision packet. ReadPapers owns Zotero library operations, adding papers, formal close reading, and ZotLit note updates in its configured project scope. Manuscript projects own drafts and experimental claims; code repositories own implementation and runtime facts. Existing evidence may cross these boundaries as cited material, but source access never grants execution or library write authority. For authorized SSH source reading, record repository, revision, path and observed range; distinguish code observations from executed tests.
 
+Before choosing a fallback for a requested capability, compare what the task needs with the available skill catalog. If the specialized skill is absent, disclose that limitation and distinguish a supported direct explanation from the unavailable skill-backed workflow; do not silently install it or stop independent safe work.
+
 Use an independent reviewer only for a genuinely disputed mixed intent or consequential review. Ask the user only when their intended goal cannot be inferred and the answer changes what work is authorized. If the user corrects the route, update it and resume the original task at the right stage. Work Report follows its own development reporting trigger; ordinary learning does not create one.
 
 ## Outside-project paper requests

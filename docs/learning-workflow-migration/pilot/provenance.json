@@ -1,8 +1,9 @@
 {
   "learning": {
     "run": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/native/runs/T29-9",
-    "derivation": "Final native agent_message, unchanged; original local evidence links retained.",
-    "sha256": "129b7c4c10f77d8d91a6cf829f950ecd08807daa1f1fb896987c2380d96bf592"
+    "derivation": "Native final output plus two source-review corrections: no unsupported sampling independence or training-data write claim. Raw output remains in native trace. Markdown hard-break trailing spaces normalized for repository whitespace policy.",
+    "sha256": "9768acaf61a83c64ab641ee567a33f59ff6f65ff1d2c910c8a7d86705b83cbe9",
+    "original_sha256": "129b7c4c10f77d8d91a6cf829f950ecd08807daa1f1fb896987c2380d96bf592"
   },
   "manuscript": {
     "run": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/native/runs/T10-9",

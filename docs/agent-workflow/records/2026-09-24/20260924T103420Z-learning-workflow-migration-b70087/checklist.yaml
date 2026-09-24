@@ -1,0 +1,2286 @@
+{
+  "schema_version": 2,
+  "task_id": "20260924T103420Z-learning-workflow-migration-b70087",
+  "created_at": "2026-09-24T10:34:20.819146+00:00",
+  "repo": "/home/alex_mercer/projects/_worktrees/agent-tools/codex-learning-workflow-migration",
+  "mode": "local",
+  "protocol_view": false,
+  "source": {
+    "query_sha256": "c2f58be54b3bbed9dea592e03860442c6e2791993657816c3d707619266882dc",
+    "query_path": "request.txt"
+  },
+  "route": {
+    "primary": "business",
+    "class": "infra_heavy",
+    "modules": [
+      "intent-to-contract",
+      "infra-verification",
+      "cleaner",
+      "acceptance-gate"
+    ],
+    "reason": "Agent-selected route; verify against project facts.",
+    "facts": {
+      "infra": true,
+      "side_effects": "Scoped local skill installation and hooks with rollback; no remote or production mutation."
+    }
+  },
+  "extraction": {
+    "items": [
+      {
+        "id": "AC-01",
+        "source_quote": "Preserve the existing teaching baseline",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-01"
+        ],
+        "meaning": "Core teaching behaviors and terminology remain available; every intentional semantic change is explained; no unrelated prompt rewrite.",
+        "label": "Preserve the existing teaching baseline",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Preserve the existing teaching baseline",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-02",
+        "source_quote": "Agent-led semantic routing",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-02"
+        ],
+        "meaning": "Current intent and exclusions determine activity; keywords and cwd alone do not determine it; no mandatory classifier SubAgent call.",
+        "label": "Agent-led semantic routing",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Agent-led semantic routing",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-03",
+        "source_quote": "No unwanted teaching or library side effects",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-03"
+        ],
+        "meaning": "Zero prohibited activity switches, unsolicited exercise artifacts, Zotero mutations, or publication actions in the tested negative cases.",
+        "label": "No unwanted teaching or library side effects",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "No unwanted teaching or library side effects",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-04",
+        "source_quote": "Mixed tasks, updates, and continuation",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-04"
+        ],
+        "meaning": "Main follows authorized order, resumes the right task, honors new exclusions, and neither duplicates events nor leaks a route across tasks.",
+        "label": "Mixed tasks, updates, and continuation",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Mixed tasks, updates, and continuation",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-05",
+        "source_quote": "Real Hook lifecycle and explicit coverage",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-05"
+        ],
+        "meaning": "Supported events actually run; unbound sessions remain usable; no classifier model is launched inside a command Hook; tool/event coverage is listed precisely.",
+        "label": "Real Hook lifecycle and explicit coverage",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Real Hook lifecycle and explicit coverage",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-06",
+        "source_quote": "Hook absence and stale-state behavior",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-06"
+        ],
+        "meaning": "Covered protected actions reject missing prerequisites at their entry; harmless reads continue; missing Hook coverage is disclosed; no universal interception claim.",
+        "label": "Hook absence and stale-state behavior",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Hook absence and stale-state behavior",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-07",
+        "source_quote": "English maintained instructions and contextual output language",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-07"
+        ],
+        "meaning": "Maintained normative prose and keys are English; allowed display names, original quotes, fixtures, and historical data remain intact; requested artifact language wins.",
+        "label": "English maintained instructions and contextual output language",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "English maintained instructions and contextual output language",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-08",
+        "source_quote": "Domain terms cause concrete professional actions",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-08"
+        ],
+        "meaning": "Examples demonstrate mechanism reconstruction, claim/evidence/warrant analysis, and cross-source comparison where applicable; jargon-only outputs fail.",
+        "label": "Domain terms cause concrete professional actions",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Domain terms cause concrete professional actions",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-09",
+        "source_quote": "Direct manuscript drafting and revision",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-09"
+        ],
+        "meaning": "Useful requested drafts/revisions are produced without a teaching DAG or learner test; missing results and uncertain novelty remain explicit.",
+        "label": "Direct manuscript drafting and revision",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Direct manuscript drafting and revision",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-10",
+        "source_quote": "Guided practice preserves learner authorship",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-10"
+        ],
+        "meaning": "Attempts and help are distinguishable; feedback locates an actual issue; examples are allowed on request; no mastery is inferred from an AI rewrite or a generic approval.",
+        "label": "Guided practice preserves learner authorship",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Guided practice preserves learner authorship",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-11",
+        "source_quote": "ReadPapers-only library and close-reading adapter",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-11"
+        ],
+        "meaning": "Library management and formal close reading run only in the configured ReadPapers scope; external projects consume supplied evidence without acquiring implicit library authority.",
+        "label": "ReadPapers-only library and close-reading adapter",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "ReadPapers-only library and close-reading adapter",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-12",
+        "source_quote": "Remote evidence and execution authority stay separate",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-12"
+        ],
+        "meaning": "Report says what code reading established and what needs execution; no experiment is launched from read-only authority; unreachable sources remain unverified.",
+        "label": "Remote evidence and execution authority stay separate",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Remote evidence and execution authority stay separate",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-13",
+        "source_quote": "Minimal records and one canonical development state",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-13"
+        ],
+        "meaning": "Durable records use documented UTC names and English keys; short answers need no record; development checklist/authority is referenced rather than duplicated.",
+        "label": "Minimal records and one canonical development state",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Minimal records and one canonical development state",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-14",
+        "source_quote": "Explicit curation with portable provenance",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-14"
+        ],
+        "meaning": "The note is self-contained, keeps source revision and ownership, deduplicates index entries, flags inaccessible sources, and neither writes Zotero nor publishes unless explicitly in scope.",
+        "label": "Explicit curation with portable provenance",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Explicit curation with portable provenance",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-15",
+        "source_quote": "Legacy records and managed-region integrity",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-15"
+        ],
+        "meaning": "Old meanings remain readable; no inferred mastery/acceptance; protected bytes and original records remain unchanged; conversion is explicit and recoverable.",
+        "label": "Legacy records and managed-region integrity",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Legacy records and managed-region integrity",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-16",
+        "source_quote": "Shared writing principles without workflow leakage",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-16"
+        ],
+        "meaning": "One maintained source; W1-W9 compatibility is explained; report semantics remain; practice does not leak answers; ReadPapers learning does not auto-create Work Reports.",
+        "label": "Shared writing principles without workflow leakage",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Shared writing principles without workflow leakage",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-17",
+        "source_quote": "Independent cold reading and source verification",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-17"
+        ],
+        "meaning": "Readers can explain task, argument or required exercise without missing essential context; sources support claims; material defects are fixed without claiming human learning gains.",
+        "label": "Independent cold reading and source verification",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Independent cold reading and source verification",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-18",
+        "source_quote": "Isolated installation, relocation, and scoped rollback",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-18"
+        ],
+        "meaning": "Skills and required resources resolve after relocation; installed does not falsely imply hook activation; rollback preserves unrelated and newly added user settings; no fleet rollout.",
+        "label": "Isolated installation, relocation, and scoped rollback",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Isolated installation, relocation, and scoped rollback",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-19",
+        "source_quote": "Focused cleanup, attribution, and independent code review",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-19"
+        ],
+        "meaning": "No unresolved blocking findings, duplicate rule sources, unrelated refactor or lost attribution; all retained behavior changes are explained and tested.",
+        "label": "Focused cleanup, attribution, and independent code review",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Focused cleanup, attribution, and independent code review",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-20",
+        "source_quote": "Native coverage, holdout requests, and overhead report",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-20"
+        ],
+        "meaning": "Required cases pass on every claimed host; no prohibited negative action; holdouts and failures are disclosed; default classification adds no fixed extra model call or daemon.",
+        "label": "Native coverage, holdout requests, and overhead report",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Native coverage, holdout requests, and overhead report",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      },
+      {
+        "id": "AC-21",
+        "source_quote": "Bounded user pilot and explicit acceptance",
+        "normalized_value": true,
+        "requirement_kind": "acceptance",
+        "authority": "source_spec",
+        "confidence": 1,
+        "cost_if_wrong": "Migration may violate the approved boundary.",
+        "blocking_question": "",
+        "checklist_ids": [
+          "AC-21"
+        ],
+        "meaning": "Record the user's specific judgment on readability, help level, output space and writing usefulness; unresolved material objections remain open; feedback is scoped and never inferred.",
+        "label": "Bounded user pilot and explicit acceptance",
+        "source": {
+          "kind": "code",
+          "actor": "Main Agent",
+          "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+          "quote": "Bounded user pilot and explicit acceptance",
+          "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+          "authority": "source_spec"
+        }
+      }
+    ],
+    "route": {
+      "primary": "business",
+      "class": "infra_heavy",
+      "modules": [
+        "intent-to-contract",
+        "infra-verification",
+        "cleaner",
+        "acceptance-gate"
+      ],
+      "reason": "Agent-selected route; verify against project facts.",
+      "facts": {
+        "infra": true,
+        "side_effects": "Scoped local skill installation and hooks with rollback; no remote or production mutation."
+      }
+    }
+  },
+  "agreement": {
+    "goals": [
+      "Implement and validate the authorized migration PRD."
+    ],
+    "non_goals": [
+      "No fleet, production experiment, fabricated human feedback or publication."
+    ],
+    "allowed_paths": [
+      "skills",
+      "learning_workflow",
+      "scripts",
+      "tests",
+      "shared",
+      "project_adapters",
+      "docs/learning-workflow-migration"
+    ],
+    "forbidden_paths": [],
+    "formal_run_policy": "prohibited"
+  },
+  "protocols": [
+    {
+      "id": "AC-01",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Preserve the existing teaching baseline",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Core teaching behaviors and terminology remain available; every intentional semantic change is explained; no unrelated prompt rewrite.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-01",
+      "binding": null
+    },
+    {
+      "id": "AC-02",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Agent-led semantic routing",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Current intent and exclusions determine activity; keywords and cwd alone do not determine it; no mandatory classifier SubAgent call.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-02",
+      "binding": null
+    },
+    {
+      "id": "AC-03",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "No unwanted teaching or library side effects",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Zero prohibited activity switches, unsolicited exercise artifacts, Zotero mutations, or publication actions in the tested negative cases.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-03",
+      "binding": null
+    },
+    {
+      "id": "AC-04",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Mixed tasks, updates, and continuation",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Main follows authorized order, resumes the right task, honors new exclusions, and neither duplicates events nor leaks a route across tasks.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-04",
+      "binding": null
+    },
+    {
+      "id": "AC-05",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Real Hook lifecycle and explicit coverage",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Supported events actually run; unbound sessions remain usable; no classifier model is launched inside a command Hook; tool/event coverage is listed precisely.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-05",
+      "binding": null
+    },
+    {
+      "id": "AC-06",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Hook absence and stale-state behavior",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Covered protected actions reject missing prerequisites at their entry; harmless reads continue; missing Hook coverage is disclosed; no universal interception claim.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-06",
+      "binding": null
+    },
+    {
+      "id": "AC-07",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "English maintained instructions and contextual output language",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Maintained normative prose and keys are English; allowed display names, original quotes, fixtures, and historical data remain intact; requested artifact language wins.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-07",
+      "binding": null
+    },
+    {
+      "id": "AC-08",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Domain terms cause concrete professional actions",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Examples demonstrate mechanism reconstruction, claim/evidence/warrant analysis, and cross-source comparison where applicable; jargon-only outputs fail.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-08",
+      "binding": null
+    },
+    {
+      "id": "AC-09",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Direct manuscript drafting and revision",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Useful requested drafts/revisions are produced without a teaching DAG or learner test; missing results and uncertain novelty remain explicit.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-09",
+      "binding": null
+    },
+    {
+      "id": "AC-10",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Guided practice preserves learner authorship",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Attempts and help are distinguishable; feedback locates an actual issue; examples are allowed on request; no mastery is inferred from an AI rewrite or a generic approval.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-10",
+      "binding": null
+    },
+    {
+      "id": "AC-11",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "ReadPapers-only library and close-reading adapter",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Library management and formal close reading run only in the configured ReadPapers scope; external projects consume supplied evidence without acquiring implicit library authority.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-11",
+      "binding": null
+    },
+    {
+      "id": "AC-12",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Remote evidence and execution authority stay separate",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Report says what code reading established and what needs execution; no experiment is launched from read-only authority; unreachable sources remain unverified.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-12",
+      "binding": null
+    },
+    {
+      "id": "AC-13",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Minimal records and one canonical development state",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Durable records use documented UTC names and English keys; short answers need no record; development checklist/authority is referenced rather than duplicated.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-13",
+      "binding": null
+    },
+    {
+      "id": "AC-14",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Explicit curation with portable provenance",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "The note is self-contained, keeps source revision and ownership, deduplicates index entries, flags inaccessible sources, and neither writes Zotero nor publishes unless explicitly in scope.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-14",
+      "binding": null
+    },
+    {
+      "id": "AC-15",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Legacy records and managed-region integrity",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Old meanings remain readable; no inferred mastery/acceptance; protected bytes and original records remain unchanged; conversion is explicit and recoverable.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-15",
+      "binding": null
+    },
+    {
+      "id": "AC-16",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Shared writing principles without workflow leakage",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "One maintained source; W1-W9 compatibility is explained; report semantics remain; practice does not leak answers; ReadPapers learning does not auto-create Work Reports.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-16",
+      "binding": null
+    },
+    {
+      "id": "AC-17",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Independent cold reading and source verification",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Readers can explain task, argument or required exercise without missing essential context; sources support claims; material defects are fixed without claiming human learning gains.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-17",
+      "binding": null
+    },
+    {
+      "id": "AC-18",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Isolated installation, relocation, and scoped rollback",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Skills and required resources resolve after relocation; installed does not falsely imply hook activation; rollback preserves unrelated and newly added user settings; no fleet rollout.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-18",
+      "binding": null
+    },
+    {
+      "id": "AC-19",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Focused cleanup, attribution, and independent code review",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "No unresolved blocking findings, duplicate rule sources, unrelated refactor or lost attribution; all retained behavior changes are explained and tested.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-19",
+      "binding": null
+    },
+    {
+      "id": "AC-20",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Native coverage, holdout requests, and overhead report",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Required cases pass on every claimed host; no prohibited negative action; holdouts and failures are disclosed; default classification adds no fixed extra model call or daemon.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-20",
+      "binding": null
+    },
+    {
+      "id": "AC-21",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Bounded user pilot and explicit acceptance",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "meaning": "Record the user's specific judgment on readability, help level, output space and writing usefulness; unresolved material objections remain open; feedback is scoped and never inferred.",
+      "expected": {
+        "value": true,
+        "unit": "outcome"
+      },
+      "extraction_ref": "AC-21",
+      "binding": null
+    }
+  ],
+  "checklist": [
+    {
+      "id": "AC-01",
+      "requirement": "Preserve the existing teaching baseline",
+      "requirement_ref": "AC-01",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Preserve the existing teaching baseline",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-01.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-02",
+      "requirement": "Agent-led semantic routing",
+      "requirement_ref": "AC-02",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Agent-led semantic routing",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-02.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-03",
+      "requirement": "No unwanted teaching or library side effects",
+      "requirement_ref": "AC-03",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "No unwanted teaching or library side effects",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-03.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-04",
+      "requirement": "Mixed tasks, updates, and continuation",
+      "requirement_ref": "AC-04",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Mixed tasks, updates, and continuation",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-04.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-05",
+      "requirement": "Real Hook lifecycle and explicit coverage",
+      "requirement_ref": "AC-05",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Real Hook lifecycle and explicit coverage",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-05.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-06",
+      "requirement": "Hook absence and stale-state behavior",
+      "requirement_ref": "AC-06",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Hook absence and stale-state behavior",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-06.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-07",
+      "requirement": "English maintained instructions and contextual output language",
+      "requirement_ref": "AC-07",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "English maintained instructions and contextual output language",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-07.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-08",
+      "requirement": "Domain terms cause concrete professional actions",
+      "requirement_ref": "AC-08",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Domain terms cause concrete professional actions",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-08.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-09",
+      "requirement": "Direct manuscript drafting and revision",
+      "requirement_ref": "AC-09",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Direct manuscript drafting and revision",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-09.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-10",
+      "requirement": "Guided practice preserves learner authorship",
+      "requirement_ref": "AC-10",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Guided practice preserves learner authorship",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-10.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-11",
+      "requirement": "ReadPapers-only library and close-reading adapter",
+      "requirement_ref": "AC-11",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "ReadPapers-only library and close-reading adapter",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-11.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-12",
+      "requirement": "Remote evidence and execution authority stay separate",
+      "requirement_ref": "AC-12",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Remote evidence and execution authority stay separate",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-12.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-13",
+      "requirement": "Minimal records and one canonical development state",
+      "requirement_ref": "AC-13",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Minimal records and one canonical development state",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-13.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-14",
+      "requirement": "Explicit curation with portable provenance",
+      "requirement_ref": "AC-14",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Explicit curation with portable provenance",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-14.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-15",
+      "requirement": "Legacy records and managed-region integrity",
+      "requirement_ref": "AC-15",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Legacy records and managed-region integrity",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-15.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-16",
+      "requirement": "Shared writing principles without workflow leakage",
+      "requirement_ref": "AC-16",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Shared writing principles without workflow leakage",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-16.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-17",
+      "requirement": "Independent cold reading and source verification",
+      "requirement_ref": "AC-17",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Independent cold reading and source verification",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-17.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-18",
+      "requirement": "Isolated installation, relocation, and scoped rollback",
+      "requirement_ref": "AC-18",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Isolated installation, relocation, and scoped rollback",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-18.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-19",
+      "requirement": "Focused cleanup, attribution, and independent code review",
+      "requirement_ref": "AC-19",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Focused cleanup, attribution, and independent code review",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-19.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-20",
+      "requirement": "Native coverage, holdout requests, and overhead report",
+      "requirement_ref": "AC-20",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Native coverage, holdout requests, and overhead report",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-20.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    },
+    {
+      "id": "AC-21",
+      "requirement": "Bounded user pilot and explicit acceptance",
+      "requirement_ref": "AC-21",
+      "source": {
+        "kind": "code",
+        "actor": "Main Agent",
+        "path": "evidence/sources/dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a.txt",
+        "quote": "Bounded user pilot and explicit acceptance",
+        "sha256": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+        "authority": "source_spec"
+      },
+      "risk": "low",
+      "verifier": {
+        "method": "unconfigured",
+        "watched_paths": [],
+        "expected_ref": "AC-21.expected"
+      },
+      "evidence": {
+        "level": "none",
+        "paths": [],
+        "anchors": [],
+        "object_digest": null
+      },
+      "agent_status": "unverified",
+      "human_status": "not_requested",
+      "review_scope": {
+        "must_review": [],
+        "context_only": []
+      },
+      "invalidated_by": [],
+      "phase": "implementation",
+      "participation": "unspecified",
+      "result_acceptance": {
+        "status": "pending",
+        "feedback_refs": []
+      }
+    }
+  ],
+  "code_state": {
+    "branch": "codex/learning-workflow-migration",
+    "base_sha": "7edfe74b8cb32f11f1d603cf707bb6cec1590274",
+    "working_tree": "dirty"
+  },
+  "handoff": {
+    "path": "task.md"
+  },
+  "formal_run": {
+    "class": "exploratory",
+    "status": "prohibited",
+    "required_checklist_items": [
+      "AC-01",
+      "AC-02",
+      "AC-03",
+      "AC-04",
+      "AC-05",
+      "AC-06",
+      "AC-07",
+      "AC-08",
+      "AC-09",
+      "AC-10",
+      "AC-11",
+      "AC-12",
+      "AC-13",
+      "AC-14",
+      "AC-15",
+      "AC-16",
+      "AC-17",
+      "AC-18",
+      "AC-19",
+      "AC-20",
+      "AC-21"
+    ],
+    "candidate_sha": null,
+    "agent_review": {
+      "status": "unverified",
+      "evidence": []
+    },
+    "human_confirmation": {
+      "required": false,
+      "actor": null,
+      "confirmed_at": null,
+      "target_digest": null
+    },
+    "command": [],
+    "command_paths": [],
+    "config_paths": [],
+    "command_digest": null,
+    "config_digest": null,
+    "agent_target_digest": null
+  },
+  "revision": 13,
+  "events": [
+    {
+      "id": "checkpoint-33e982d1-implementation",
+      "base_revision": 0,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4.txt",
+        "quote": "{\n  \"candidate_sha\": \"33e982d19173b0e32bfe5f40d97092cad8194fb3\",\n  \"implementation\": \"candidate_committed\",\n  \"code_review\": \"initial_review_passed_boundary_delta_under_review\",\n  \"native_validation\": \"running\",\n  \"local_activation\": \"not_started\",\n  \"human_pilot\": \"pending actual human feedback\",\n  \"zotero_test_host\": \"genuine isolated test service available; native integration running\"\n}",
+        "sha256": "2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4"
+      },
+      "affects": [],
+      "payload": {
+        "id": "implementation",
+        "status": "completed",
+        "observation": {
+          "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
+          "implementation": "candidate_committed",
+          "code_review": "initial_review_passed_boundary_delta_under_review",
+          "native_validation": "running",
+          "local_activation": "not_started",
+          "human_pilot": "pending actual human feedback",
+          "zotero_test_host": "genuine isolated test service available; native integration running"
+        }
+      },
+      "input_digest": "cfc07f80bfc3e5742817c240018bdc212cced9b833210b196aefebf7b81381fc",
+      "revision": 1,
+      "at": "2026-09-24T11:04:23.472945+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "checkpoint-33e982d1-native-validation",
+      "base_revision": 1,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4.txt",
+        "quote": "{\n  \"candidate_sha\": \"33e982d19173b0e32bfe5f40d97092cad8194fb3\",\n  \"implementation\": \"candidate_committed\",\n  \"code_review\": \"initial_review_passed_boundary_delta_under_review\",\n  \"native_validation\": \"running\",\n  \"local_activation\": \"not_started\",\n  \"human_pilot\": \"pending actual human feedback\",\n  \"zotero_test_host\": \"genuine isolated test service available; native integration running\"\n}",
+        "sha256": "2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4"
+      },
+      "affects": [],
+      "payload": {
+        "id": "native-validation",
+        "status": "running",
+        "observation": {
+          "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
+          "implementation": "candidate_committed",
+          "code_review": "initial_review_passed_boundary_delta_under_review",
+          "native_validation": "running",
+          "local_activation": "not_started",
+          "human_pilot": "pending actual human feedback",
+          "zotero_test_host": "genuine isolated test service available; native integration running"
+        }
+      },
+      "input_digest": "e13ba2f7c0daba1e454d5132f5ee8b1533a566224adb983d88a25a6f7646c8bf",
+      "revision": 2,
+      "at": "2026-09-24T11:04:23.499752+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "checkpoint-33e982d1-code-review",
+      "base_revision": 2,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4.txt",
+        "quote": "{\n  \"candidate_sha\": \"33e982d19173b0e32bfe5f40d97092cad8194fb3\",\n  \"implementation\": \"candidate_committed\",\n  \"code_review\": \"initial_review_passed_boundary_delta_under_review\",\n  \"native_validation\": \"running\",\n  \"local_activation\": \"not_started\",\n  \"human_pilot\": \"pending actual human feedback\",\n  \"zotero_test_host\": \"genuine isolated test service available; native integration running\"\n}",
+        "sha256": "2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4"
+      },
+      "affects": [],
+      "payload": {
+        "id": "code-review",
+        "status": "running",
+        "observation": {
+          "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
+          "implementation": "candidate_committed",
+          "code_review": "initial_review_passed_boundary_delta_under_review",
+          "native_validation": "running",
+          "local_activation": "not_started",
+          "human_pilot": "pending actual human feedback",
+          "zotero_test_host": "genuine isolated test service available; native integration running"
+        }
+      },
+      "input_digest": "942325a8d0174560d615339b287c5438f973cde17b0713959ef047e8d107ef6f",
+      "revision": 3,
+      "at": "2026-09-24T11:04:23.523873+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "checkpoint-33e982d1-human-pilot",
+      "base_revision": 3,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4.txt",
+        "quote": "{\n  \"candidate_sha\": \"33e982d19173b0e32bfe5f40d97092cad8194fb3\",\n  \"implementation\": \"candidate_committed\",\n  \"code_review\": \"initial_review_passed_boundary_delta_under_review\",\n  \"native_validation\": \"running\",\n  \"local_activation\": \"not_started\",\n  \"human_pilot\": \"pending actual human feedback\",\n  \"zotero_test_host\": \"genuine isolated test service available; native integration running\"\n}",
+        "sha256": "2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4"
+      },
+      "affects": [],
+      "payload": {
+        "id": "human-pilot",
+        "status": "unknown",
+        "observation": {
+          "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
+          "implementation": "candidate_committed",
+          "code_review": "initial_review_passed_boundary_delta_under_review",
+          "native_validation": "running",
+          "local_activation": "not_started",
+          "human_pilot": "pending actual human feedback",
+          "zotero_test_host": "genuine isolated test service available; native integration running"
+        }
+      },
+      "input_digest": "cee04aacd6d484a2c83fd9af87de2e27831064aa6a70a860df0b855d6a0aa1a7",
+      "revision": 4,
+      "at": "2026-09-24T11:04:23.550950+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "review-33e982d1-completed",
+      "base_revision": 4,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Independent reviewer /root/learning_code_review",
+        "path": "evidence/sources/d756b8d4dd5615d0bc52a4ac491e14ddfbf68a88c41afa232903bca2468a9970.txt",
+        "quote": "Verdict: **pass for the bounded source delta**.",
+        "sha256": "d756b8d4dd5615d0bc52a4ac491e14ddfbf68a88c41afa232903bca2468a9970"
+      },
+      "affects": [
+        "AC-19"
+      ],
+      "payload": {
+        "id": "code-review",
+        "status": "completed",
+        "observation": {
+          "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
+          "verdict": "pass for bounded delta plus initial review; native and user acceptance separate",
+          "review_file": "/home/alex_mercer/projects/_worktrees/agent-tools/codex-learning-workflow-migration/docs/learning-workflow-migration/reviews/implementation-review-boundary.md"
+        }
+      },
+      "input_digest": "fb55ac40345376c7053524935f8d8c934cb88d1b387b9413fa35e8bfb138c091",
+      "revision": 5,
+      "at": "2026-09-24T11:18:24.011006+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "review-787a8ce-completed",
+      "base_revision": 5,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Independent reviewer /root/learning_code_review",
+        "path": "evidence/sources/8443e14478597fd27435aafdc883e8a3f91887c88198742345fd77c9f7b28343.txt",
+        "quote": "Verdict: **pass for this bounded source delta**.",
+        "sha256": "8443e14478597fd27435aafdc883e8a3f91887c88198742345fd77c9f7b28343"
+      },
+      "affects": [
+        "AC-19"
+      ],
+      "payload": {
+        "id": "code-review",
+        "status": "completed",
+        "observation": {
+          "candidate_sha": "787a8ce0186240888db0d9bfc3ea54c1757577f4",
+          "verdict": "pass for project discovery delta plus earlier reviews; native and user acceptance separate",
+          "review_file": "/home/alex_mercer/projects/_worktrees/agent-tools/codex-learning-workflow-migration/docs/learning-workflow-migration/reviews/implementation-review-project-discovery.md"
+        }
+      },
+      "input_digest": "499b764f567b7d6a38fb810930901e7441f0230058e3b913c4ceb1a83e02b4a3",
+      "revision": 6,
+      "at": "2026-09-24T11:30:17.741887+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "windows-zotero-input",
+      "base_revision": 6,
+      "type": "input.record",
+      "source": {
+        "kind": "user",
+        "actor": "user",
+        "path": "evidence/sources/94fe77fdd55a9ae2eb8cc7d09fde188cf691782a04050112140fbbba123381af.txt",
+        "quote": "注意，zotero是在win11上的，不在wsl里，wsl里的zotero也应该卸载掉才对。",
+        "sha256": "94fe77fdd55a9ae2eb8cc7d09fde188cf691782a04050112140fbbba123381af"
+      },
+      "affects": [
+        "AC-11",
+        "AC-18",
+        "AC-20"
+      ],
+      "payload": {
+        "id": "windows-zotero-topology",
+        "text": "注意，zotero是在win11上的，不在wsl里，wsl里的zotero也应该卸载掉才对。"
+      },
+      "input_digest": "70e54ed8b2cc26ef6875c6fab1781e1a515589777dbd653230b28cddfdd47391",
+      "revision": 7,
+      "at": "2026-09-24T11:37:06.768098+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "windows-zotero-applied",
+      "base_revision": 7,
+      "type": "input.resolve",
+      "source": {
+        "kind": "user",
+        "actor": "user",
+        "path": "evidence/sources/94fe77fdd55a9ae2eb8cc7d09fde188cf691782a04050112140fbbba123381af.txt",
+        "quote": "注意，zotero是在win11上的，不在wsl里，wsl里的zotero也应该卸载掉才对。",
+        "sha256": "94fe77fdd55a9ae2eb8cc7d09fde188cf691782a04050112140fbbba123381af"
+      },
+      "affects": [
+        "AC-11",
+        "AC-18",
+        "AC-20"
+      ],
+      "payload": {
+        "id": "windows-zotero-topology",
+        "disposition": "applied",
+        "reason": "Task-owned WSL Zotero stopped and removed. Win11 API and mounted storage read back; real integration verification must target Win11, with no production library writes. Historical Linux fixture evidence remains labeled and does not substitute for Win11 integration."
+      },
+      "input_digest": "3edadff8d3f74c9c7aa10f7c8803b21aee82f785173dd31f811f165c55b8bd62",
+      "revision": 8,
+      "at": "2026-09-24T11:37:06.809068+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "single-zotero-recorded",
+      "base_revision": 8,
+      "type": "input.record",
+      "source": {
+        "kind": "user",
+        "actor": "user",
+        "path": "evidence/sources/3820ba6f1e429c20ab172456cb0fecdd524362b67e1148e29f83e8b046018280.txt",
+        "quote": "有一个比较奇怪的情况，我现在好像有两个 Zotero 被打开了，为什么呢？\n\n我们不是应该只有一个 Zotero 吗？怎么打开了两个？是两个不同的仓库，一个验证，一个实际生产使用吗？\n\n在实际使用的时候，我们应该只要一个 Zotero、一个 library 就够了",
+        "sha256": "3820ba6f1e429c20ab172456cb0fecdd524362b67e1148e29f83e8b046018280"
+      },
+      "affects": [
+        "AC-11",
+        "AC-18"
+      ],
+      "payload": {
+        "id": "single-zotero-daily-library",
+        "summary": "Normal use requires one existing Win11 Zotero instance and one daily library; extra screenshot window is a temporary validation fixture."
+      },
+      "input_digest": "998717249471e87da71bffb7012363900a553f8e60d2941e46db9c014dc7090a",
+      "revision": 9,
+      "at": "2026-09-24T12:32:34.415254+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "single-zotero-resolved",
+      "base_revision": 9,
+      "type": "input.resolve",
+      "source": {
+        "kind": "user",
+        "actor": "user",
+        "path": "evidence/sources/3820ba6f1e429c20ab172456cb0fecdd524362b67e1148e29f83e8b046018280.txt",
+        "quote": "有一个比较奇怪的情况，我现在好像有两个 Zotero 被打开了，为什么呢？\n\n我们不是应该只有一个 Zotero 吗？怎么打开了两个？是两个不同的仓库，一个验证，一个实际生产使用吗？\n\n在实际使用的时候，我们应该只要一个 Zotero、一个 library 就够了",
+        "sha256": "3820ba6f1e429c20ab172456cb0fecdd524362b67e1148e29f83e8b046018280"
+      },
+      "affects": [
+        "AC-11",
+        "AC-18"
+      ],
+      "payload": {
+        "id": "single-zotero-daily-library",
+        "disposition": "applied",
+        "reason": "Installer creates no Zotero app or permanent test library. Owned test window was minimized and cleanup is queued immediately after bounded validation; real user instance/library are retained. INSTALL.md states the one-library deployment boundary."
+      },
+      "input_digest": "914b4917cf8513bcfc8c61826aa8c9618d050a0fca37a9c3fa97ee7f76be0072",
+      "revision": 10,
+      "at": "2026-09-24T12:32:34.458775+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "final-implementation-602b528",
+      "base_revision": 10,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/757ff798c80a062108a4bf4557a8bb3659922f7a09c92b30263dd52b50244fe5.txt",
+        "quote": "{\n  \"candidate_sha\": \"602b528b2ade668dd736ee01ffccf2dd7b93b3ad\",\n  \"runtime_tested_sha\": \"7a6198bf02c2c1120c9753264519dd9f577b45c1\",\n  \"tests_passed\": 152,\n  \"live_activation\": false\n}",
+        "sha256": "757ff798c80a062108a4bf4557a8bb3659922f7a09c92b30263dd52b50244fe5"
+      },
+      "affects": [],
+      "payload": {
+        "id": "implementation",
+        "status": "completed",
+        "observation": {
+          "candidate_sha": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+          "runtime_tested_sha": "7a6198bf02c2c1120c9753264519dd9f577b45c1",
+          "tests_passed": 152,
+          "live_activation": false
+        }
+      },
+      "input_digest": "3d8e4778b45eb38e8ca6ab9e6ee1773f80ac72c7bc809eb75c7b9244f192c336",
+      "revision": 11,
+      "at": "2026-09-24T12:50:10.408646+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "final-code-review-602b528",
+      "base_revision": 11,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/cd945e04fcc48fd2b1dfbb10359c85932bc14414261ec0cfda292841173cd721.txt",
+        "quote": "{\n  \"through_sha\": \"602b528b2ade668dd736ee01ffccf2dd7b93b3ad\",\n  \"status\": \"bounded source reviews dry; final acceptance mapping still in progress\",\n  \"review\": \"docs/learning-workflow-migration/reviews/implementation-review-scratch-scope.md\"\n}",
+        "sha256": "cd945e04fcc48fd2b1dfbb10359c85932bc14414261ec0cfda292841173cd721"
+      },
+      "affects": [],
+      "payload": {
+        "id": "code-review",
+        "status": "completed",
+        "observation": {
+          "through_sha": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+          "status": "bounded source reviews dry; final acceptance mapping still in progress",
+          "review": "docs/learning-workflow-migration/reviews/implementation-review-scratch-scope.md"
+        }
+      },
+      "input_digest": "87670a62c28cb88cfc22577d5bbf30f9b0790f153b864aa47e65e784b2f6875b",
+      "revision": 12,
+      "at": "2026-09-24T12:50:10.456007+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "final-zotero-cleanup-602b528",
+      "base_revision": 12,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/141c5ccf7cd8d71d67f7d70d03ffd3d0d6dd3f5e66b3d5835d406a59a7e03e85.txt",
+        "quote": "{\n  \"windows_fixture_removed\": true,\n  \"wsl_fixture_removed\": true,\n  \"production_selected_objects_unchanged\": true,\n  \"production_pdf_unchanged\": true,\n  \"receipt\": \"/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/windows-zotero-fixture/cleanup-report.json\"\n}",
+        "sha256": "141c5ccf7cd8d71d67f7d70d03ffd3d0d6dd3f5e66b3d5835d406a59a7e03e85"
+      },
+      "affects": [],
+      "payload": {
+        "id": "zotero-cleanup",
+        "status": "completed",
+        "observation": {
+          "windows_fixture_removed": true,
+          "wsl_fixture_removed": true,
+          "production_selected_objects_unchanged": true,
+          "production_pdf_unchanged": true,
+          "receipt": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/windows-zotero-fixture/cleanup-report.json"
+        }
+      },
+      "input_digest": "4cc2870115f7deed32b2b7332e04401782ca4af24d63d5ee0e5d51a40bcb1631",
+      "revision": 13,
+      "at": "2026-09-24T12:50:10.486423+00:00",
+      "status": "recorded",
+      "detail": {}
+    }
+  ],
+  "choices": [],
+  "delegations": [],
+  "execution_authority": [],
+  "phase": "implementation",
+  "phases": {
+    "implementation": {
+      "required_checklist_items": [
+        "AC-01",
+        "AC-02",
+        "AC-03",
+        "AC-04",
+        "AC-05",
+        "AC-06",
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-10",
+        "AC-11",
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-15",
+        "AC-16",
+        "AC-17",
+        "AC-18",
+        "AC-19",
+        "AC-20",
+        "AC-21"
+      ],
+      "independent_review": {
+        "status": "pending",
+        "evidence": []
+      }
+    }
+  },
+  "actions": {},
+  "pending_inputs": {
+    "windows-zotero-topology": {
+      "id": "windows-zotero-topology",
+      "text": "注意，zotero是在win11上的，不在wsl里，wsl里的zotero也应该卸载掉才对。",
+      "affects": [
+        "AC-11",
+        "AC-18",
+        "AC-20"
+      ],
+      "resolved": true,
+      "source_ref": "windows-zotero-input",
+      "resolution_ref": "windows-zotero-applied",
+      "disposition": "applied",
+      "reason": "Task-owned WSL Zotero stopped and removed. Win11 API and mounted storage read back; real integration verification must target Win11, with no production library writes. Historical Linux fixture evidence remains labeled and does not substitute for Win11 integration."
+    },
+    "single-zotero-daily-library": {
+      "id": "single-zotero-daily-library",
+      "summary": "Normal use requires one existing Win11 Zotero instance and one daily library; extra screenshot window is a temporary validation fixture.",
+      "affects": [
+        "AC-11",
+        "AC-18"
+      ],
+      "resolved": true,
+      "source_ref": "single-zotero-recorded",
+      "resolution_ref": "single-zotero-resolved",
+      "disposition": "applied",
+      "reason": "Installer creates no Zotero app or permanent test library. Owned test window was minimized and cleanup is queued immediately after bounded validation; real user instance/library are retained. INSTALL.md states the one-library deployment boundary."
+    }
+  },
+  "jobs": {
+    "implementation": {
+      "id": "implementation",
+      "status": "completed",
+      "observation": {
+        "candidate_sha": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+        "runtime_tested_sha": "7a6198bf02c2c1120c9753264519dd9f577b45c1",
+        "tests_passed": 152,
+        "live_activation": false
+      },
+      "affects": [],
+      "source_ref": "final-implementation-602b528"
+    },
+    "native-validation": {
+      "id": "native-validation",
+      "status": "running",
+      "observation": {
+        "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
+        "implementation": "candidate_committed",
+        "code_review": "initial_review_passed_boundary_delta_under_review",
+        "native_validation": "running",
+        "local_activation": "not_started",
+        "human_pilot": "pending actual human feedback",
+        "zotero_test_host": "genuine isolated test service available; native integration running"
+      },
+      "affects": [],
+      "source_ref": "checkpoint-33e982d1-native-validation"
+    },
+    "code-review": {
+      "id": "code-review",
+      "status": "completed",
+      "observation": {
+        "through_sha": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+        "status": "bounded source reviews dry; final acceptance mapping still in progress",
+        "review": "docs/learning-workflow-migration/reviews/implementation-review-scratch-scope.md"
+      },
+      "affects": [],
+      "source_ref": "final-code-review-602b528"
+    },
+    "human-pilot": {
+      "id": "human-pilot",
+      "status": "unknown",
+      "observation": {
+        "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
+        "implementation": "candidate_committed",
+        "code_review": "initial_review_passed_boundary_delta_under_review",
+        "native_validation": "running",
+        "local_activation": "not_started",
+        "human_pilot": "pending actual human feedback",
+        "zotero_test_host": "genuine isolated test service available; native integration running"
+      },
+      "affects": [],
+      "source_ref": "checkpoint-33e982d1-human-pilot"
+    },
+    "zotero-cleanup": {
+      "id": "zotero-cleanup",
+      "status": "completed",
+      "observation": {
+        "windows_fixture_removed": true,
+        "wsl_fixture_removed": true,
+        "production_selected_objects_unchanged": true,
+        "production_pdf_unchanged": true,
+        "receipt": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/windows-zotero-fixture/cleanup-report.json"
+      },
+      "affects": [],
+      "source_ref": "final-zotero-cleanup-602b528"
+    }
+  }
+}

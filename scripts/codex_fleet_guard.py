@@ -64,6 +64,14 @@ def load_manifest(path: Path) -> list[dict[str, Any]]:
             raise FleetFailure(f"target {target['id']}: ssh_alias is required and must be safe")
         if target["platform"] not in {"linux", "wsl", "win11"}:
             raise FleetFailure(f"target {target['id']}: unsupported platform {target['platform']!r}")
+        if target["transport"] == "ssh" and target["platform"] in {"linux", "wsl"}:
+            codex_home = Path(target["codex_home"])
+            cc_switch_db = Path(target["cc_switch_db"])
+            if (not codex_home.is_absolute() or codex_home.name != ".codex"
+                    or codex_home.parent == Path("/") or ".." in codex_home.parts
+                    or "\\" in target["codex_home"]
+                    or cc_switch_db != codex_home.parent / ".cc-switch/cc-switch.db"):
+                raise FleetFailure(f"target {target['id']}: invalid Unix profile paths")
         python_bin = target.get("python_bin", "python3")
         if not isinstance(python_bin, str) or not python_bin or any(ch in python_bin for ch in "\r\n\0"):
             raise FleetFailure(f"target {target['id']}: python_bin must be a non-empty command path")
@@ -81,8 +89,9 @@ def select_targets(targets: list[dict[str, Any]], requested: list[str]) -> list[
     return selected
 
 
-def run(command: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    completed = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False, timeout=60)
+def run(command: list[str], *, check: bool = True, input_text: str | None = None) -> subprocess.CompletedProcess[str]:
+    completed = subprocess.run(command, input=input_text, text=True, stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE, check=False, timeout=60)
     if check and completed.returncode != 0:
         detail = completed.stderr.strip() or completed.stdout.strip() or "no output"
         raise FleetFailure(f"command failed ({completed.returncode}): {shlex.join(command)}: {detail}")
@@ -106,15 +115,20 @@ def remote_helper_relative_path() -> str:
     return f"{REMOTE_DIR}/{REMOTE_NAME}"
 
 
+def remote_helper_path(target: dict[str, Any]) -> Path:
+    return Path(target["codex_home"]).parent / remote_helper_relative_path()
+
+
 def sync_target(target: dict[str, Any]) -> dict[str, str]:
     local_hash = sha256(REMOTE_HELPER)
     if target["transport"] == "local":
         return {"id": target["id"], "status": "local", "sha256": local_hash}
     if target["platform"] == "win11":
         raise FleetFailure(f"target {target['id']}: Win11 helper must be installed by native install-win11.ps1")
-    remote_path = remote_helper_relative_path()
-    remote_tmp = f"{remote_path}.tmp"
-    run([*ssh_base(target), f'install -d -m 700 "$HOME/{REMOTE_DIR}"'])
+    require_pass(target, run_guard(target, None, path_only=True, from_stdin=True))
+    remote_path = remote_helper_path(target)
+    remote_tmp = Path(f"{remote_path}.tmp")
+    run([*ssh_base(target), f"install -d -m 700 {shlex.quote(str(remote_path.parent))}"])
     run(
         [
             "scp",
@@ -131,8 +145,8 @@ def sync_target(target: dict[str, Any]) -> dict[str, str]:
     completed = run(
         [
             *ssh_base(target),
-            f'install -m 700 "$HOME/{remote_tmp}" "$HOME/{remote_path}" && '
-            f'rm -f "$HOME/{remote_tmp}" && sha256sum "$HOME/{remote_path}"',
+            f"install -m 700 {shlex.quote(str(remote_tmp))} {shlex.quote(str(remote_path))} && "
+            f"rm -f {shlex.quote(str(remote_tmp))} && sha256sum {shlex.quote(str(remote_path))}",
         ]
     )
     remote_hash = completed.stdout.split()[0] if completed.stdout.split() else ""
@@ -174,6 +188,7 @@ def run_guard(
     requested_platform: str | None = None,
     *,
     path_only: bool = False,
+    from_stdin: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     args = guard_args(target, expected_base_url, requested_platform, path_only=path_only)
     if target["transport"] == "local":
@@ -181,8 +196,10 @@ def run_guard(
     if target["platform"] == "win11":
         raise FleetFailure(f"target {target['id']}: run the native Win11 helper, never Linux SSH")
     python_bin = shlex.quote(target.get("python_bin", "python3"))
-    remote_command = f'exec {python_bin} "$HOME/' + remote_helper_relative_path() + '" ' + shlex.join(args)
-    return run([*ssh_base(target), remote_command], check=False)
+    script = "-" if from_stdin else shlex.quote(str(remote_helper_path(target)))
+    remote_command = f"exec {python_bin} {script} " + shlex.join(args)
+    return run([*ssh_base(target), remote_command], check=False,
+               input_text=REMOTE_HELPER.read_text(encoding="utf-8") if from_stdin else None)
 
 
 def require_pass(target: dict[str, Any], completed: subprocess.CompletedProcess[str]) -> dict[str, Any]:

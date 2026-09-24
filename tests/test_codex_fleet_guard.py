@@ -78,6 +78,15 @@ class CodexFleetGuardTests(unittest.TestCase):
             with self.assertRaisesRegex(MODULE.FleetFailure, "unsafe target id"):
                 MODULE.load_manifest(manifest)
 
+    def test_manifest_rejects_profile_escape_before_remote_call(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = Path(tmp) / "fleet.json"
+            for codex_home in ("/etc/.codex", "/.codex", "relative/.codex", "/tmp/not-codex"):
+                invalid = dict(TARGET, codex_home=codex_home)
+                manifest.write_text(json.dumps({"targets": [invalid]}), encoding="utf-8")
+                with self.assertRaisesRegex(MODULE.FleetFailure, "invalid Unix profile paths"):
+                    MODULE.load_manifest(manifest)
+
     def test_wrong_platform_canary_is_opposite(self):
         self.assertEqual(MODULE.opposite_platform("linux"), "win11")
         self.assertEqual(MODULE.opposite_platform("win11"), "linux")
@@ -87,11 +96,11 @@ class CodexFleetGuardTests(unittest.TestCase):
         self.assertFalse(command.startswith("/mnt/"))
         self.assertFalse(command.startswith("C:"))
 
-    def test_remote_guard_uses_batch_ssh_and_remote_home(self):
+    def test_remote_guard_uses_batch_ssh_and_profile_home(self):
         captured = []
         original = MODULE.run
         try:
-            def fake_run(command, check=True):
+            def fake_run(command, check=True, input_text=None):
                 captured.append(command)
                 return MODULE.subprocess.CompletedProcess(command, 0, "{}", "")
 
@@ -101,7 +110,43 @@ class CodexFleetGuardTests(unittest.TestCase):
             MODULE.run = original
         self.assertIn("BatchMode=yes", captured[0])
         self.assertIn("RequestTTY=no", captured[0])
-        self.assertIn('"$HOME/.local/lib/agent-tools/codex_target_guard.py"', captured[0][-1])
+        self.assertIn('/home/ubuntu/.local/lib/agent-tools/codex_target_guard.py', captured[0][-1])
+
+    def test_sync_uses_profile_home_when_ssh_starts_elsewhere(self):
+        target = dict(TARGET, codex_home="/data_storage/yl_test/lgx/home/.codex")
+        calls = []
+
+        def fake_run(command, *, check=True, input_text=None):
+            calls.append(command)
+            if input_text is not None:
+                self.assertIn("def validate_paths", input_text)
+                return subprocess.CompletedProcess(command, 0, '{"status":"PASS"}', "")
+            if command[0] == "scp":
+                return subprocess.CompletedProcess(command, 0, "", "")
+            if "sha256sum" in command[-1]:
+                return subprocess.CompletedProcess(command, 0, MODULE.sha256(MODULE.REMOTE_HELPER) + "  helper\n", "")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with mock.patch.object(MODULE, "run", side_effect=fake_run):
+            MODULE.sync_target(target)
+        scp_command = next(command for command in calls if command[0] == "scp")
+        profile_helper = "/data_storage/yl_test/lgx/home/.local/lib/agent-tools/codex_target_guard.py"
+        self.assertEqual(scp_command[-1], f"ovh-109:{profile_helper}.tmp")
+        self.assertIn(str(Path(profile_helper).parent), calls[1][-1])
+        self.assertIn(f"{profile_helper}.tmp", calls[-1][-1])
+        self.assertIn(profile_helper, calls[-1][-1])
+        with mock.patch.object(MODULE, "run") as run:
+            run.return_value = subprocess.CompletedProcess([], 0, "{}", "")
+            MODULE.run_guard(target, None)
+        self.assertIn(profile_helper, run.call_args.args[0][-1])
+
+    def test_sync_refuses_guard_failure_before_writing(self):
+        with mock.patch.object(MODULE, "run") as run:
+            run.return_value = subprocess.CompletedProcess([], 2, "", "profile mismatch")
+            with self.assertRaisesRegex(MODULE.FleetFailure, "profile mismatch"):
+                MODULE.sync_target(TARGET)
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(run.call_args.kwargs["input_text"], MODULE.REMOTE_HELPER.read_text())
 
 
 if __name__ == "__main__":

@@ -87,7 +87,7 @@ class CodexFleetGuardTests(unittest.TestCase):
         self.assertFalse(command.startswith("/mnt/"))
         self.assertFalse(command.startswith("C:"))
 
-    def test_remote_guard_uses_batch_ssh_and_remote_home(self):
+    def test_remote_guard_uses_batch_ssh_and_profile_home(self):
         captured = []
         original = MODULE.run
         try:
@@ -101,7 +101,7 @@ class CodexFleetGuardTests(unittest.TestCase):
             MODULE.run = original
         self.assertIn("BatchMode=yes", captured[0])
         self.assertIn("RequestTTY=no", captured[0])
-        self.assertIn('"$HOME/.local/lib/agent-tools/codex_target_guard.py"', captured[0][-1])
+        self.assertIn('/home/ubuntu/.local/lib/agent-tools/codex_target_guard.py', captured[0][-1])
 
     def test_sync_uses_profile_home_when_ssh_starts_elsewhere(self):
         target = dict(TARGET, codex_home="/data_storage/yl_test/lgx/home/.codex")
@@ -118,10 +118,15 @@ class CodexFleetGuardTests(unittest.TestCase):
         with mock.patch.object(MODULE, "run", side_effect=fake_run):
             MODULE.sync_target(target)
         scp_command = next(command for command in calls if command[0] == "scp")
-        self.assertEqual(
-            scp_command[-1],
-            "ovh-109:/data_storage/yl_test/lgx/home/.local/lib/agent-tools/codex_target_guard.py.tmp",
-        )
+        profile_helper = "/data_storage/yl_test/lgx/home/.local/lib/agent-tools/codex_target_guard.py"
+        self.assertEqual(scp_command[-1], f"ovh-109:{profile_helper}.tmp")
+        self.assertIn(str(Path(profile_helper).parent), calls[0][-1])
+        self.assertIn(f"{profile_helper}.tmp", calls[-1][-1])
+        self.assertIn(profile_helper, calls[-1][-1])
+        with mock.patch.object(MODULE, "run") as run:
+            run.return_value = subprocess.CompletedProcess([], 0, "{}", "")
+            MODULE.run_guard(target, None)
+        self.assertIn(profile_helper, run.call_args.args[0][-1])
 
 
 if __name__ == "__main__":

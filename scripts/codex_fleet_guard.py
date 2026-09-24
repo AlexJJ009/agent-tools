@@ -106,16 +106,19 @@ def remote_helper_relative_path() -> str:
     return f"{REMOTE_DIR}/{REMOTE_NAME}"
 
 
+def remote_helper_path(target: dict[str, Any]) -> Path:
+    return Path(target["codex_home"]).parent / remote_helper_relative_path()
+
+
 def sync_target(target: dict[str, Any]) -> dict[str, str]:
     local_hash = sha256(REMOTE_HELPER)
     if target["transport"] == "local":
         return {"id": target["id"], "status": "local", "sha256": local_hash}
     if target["platform"] == "win11":
         raise FleetFailure(f"target {target['id']}: Win11 helper must be installed by native install-win11.ps1")
-    remote_path = remote_helper_relative_path()
-    remote_tmp = f"{remote_path}.tmp"
-    remote_home = Path(target["codex_home"]).parent
-    run([*ssh_base(target), f'install -d -m 700 "$HOME/{REMOTE_DIR}"'])
+    remote_path = remote_helper_path(target)
+    remote_tmp = Path(f"{remote_path}.tmp")
+    run([*ssh_base(target), f"install -d -m 700 {shlex.quote(str(remote_path.parent))}"])
     run(
         [
             "scp",
@@ -126,14 +129,14 @@ def sync_target(target: dict[str, Any]) -> dict[str, str]:
             "-o",
             "ConnectTimeout=15",
             str(REMOTE_HELPER),
-            f"{target['ssh_alias']}:{remote_home / remote_tmp}",
+            f"{target['ssh_alias']}:{remote_tmp}",
         ]
     )
     completed = run(
         [
             *ssh_base(target),
-            f'install -m 700 "$HOME/{remote_tmp}" "$HOME/{remote_path}" && '
-            f'rm -f "$HOME/{remote_tmp}" && sha256sum "$HOME/{remote_path}"',
+            f"install -m 700 {shlex.quote(str(remote_tmp))} {shlex.quote(str(remote_path))} && "
+            f"rm -f {shlex.quote(str(remote_tmp))} && sha256sum {shlex.quote(str(remote_path))}",
         ]
     )
     remote_hash = completed.stdout.split()[0] if completed.stdout.split() else ""
@@ -182,7 +185,7 @@ def run_guard(
     if target["platform"] == "win11":
         raise FleetFailure(f"target {target['id']}: run the native Win11 helper, never Linux SSH")
     python_bin = shlex.quote(target.get("python_bin", "python3"))
-    remote_command = f'exec {python_bin} "$HOME/' + remote_helper_relative_path() + '" ' + shlex.join(args)
+    remote_command = f"exec {python_bin} {shlex.quote(str(remote_helper_path(target)))} " + shlex.join(args)
     return run([*ssh_base(target), remote_command], check=False)
 
 

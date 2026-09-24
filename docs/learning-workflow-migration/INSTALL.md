@@ -58,6 +58,10 @@ this deployment, Zotero runs on Win11; WSL consumes the inspected Windows API
 endpoint and mounted attachment storage through the explicit project config.
 Do not install a second Zotero application in WSL to configure this adapter.
 The workflow installer installs no Zotero application and changes no library.
+Normal use has one existing Win11 Zotero instance and one daily library. A
+disposable validation profile is not part of the installed architecture or
+project defaults. Stop its exact owned instance and remove its test profile/data
+after the bounded trial; never close the user's normal instance during cleanup.
 Verify actual API, item/attachment identity and PDF location with read-only
 operations. Keep platform-specific paths in the project configuration, not
 portable skill defaults. A disposable Linux fixture proves only its own test

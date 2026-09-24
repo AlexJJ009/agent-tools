@@ -12,5 +12,11 @@
     "original_sha256": "1634434dc7c05026e4e674669ca89a4e46f30dd99b50d3c1b09fe79a5ddf3515"
   },
   "status": "pilot_not_user_accepted",
-  "fixture_type": "synthetic; no learner outcome inferred"
+  "fixture_type": "synthetic; no learner outcome inferred",
+  "practice": {
+    "run": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/native/runs/T09-1",
+    "derivation": "Exact evaluator-authored attempt and native turn-1 feedback; added context and explicit synthetic provenance. No real learner outcome.",
+    "sha256": "2bf0e7c5e831ae4131b2530bd518337c18eb6d7689ed680877791a8f2e17f646",
+    "feedback_sha256": "777b35bd26ee6e4f5b5ef6aa6a2968e1d8fa950385734e5be62b3fb5ac10e891"
+  }
 }

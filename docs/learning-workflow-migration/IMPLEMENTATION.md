@@ -1,9 +1,12 @@
 # Migration implementation and acceptance
 
-The implementation candidate is `33e982d19173b0e32bfe5f40d97092cad8194fb3`.
+The implementation candidate is `8e0170b8b0a0752ee571247142314008906de890`.
 The initial candidate `ea8a82294f59944c3057e48e221bc0b7c2f0863a` passed code review;
 native T16 subsequently exposed incorrect outside-project handoff guidance,
-which is now corrected and has passed [independent delta review](reviews/implementation-review-boundary.md). Native revalidation remains in progress. Initial code, installer and
+which is now corrected and has passed [independent delta review](reviews/implementation-review-boundary.md).
+Native T18 then exposed missing project-local skill discovery and duplicate
+recovery records; the correction passed [independent discovery review](reviews/implementation-review-project-discovery.md).
+Native revalidation remains in progress. Initial code, installer and
 maintained-prompt review passed; full PRD acceptance and live activation are
 still pending. No production library or live skill links have been migrated.
 
@@ -32,13 +35,13 @@ commands and coverage limits.
 
 | Check | Current result and boundary |
 |---|---|
-| Focused unit and affected regressions | 150 tests passed in the final consolidated run. Tests include failures and recovery; a disposable mutation disabling the pending-input guard made its tests fail. |
+| Focused unit and affected regressions | 151 tests passed in the current consolidated run. Tests include failures and recovery; a disposable mutation disabling the pending-input guard made its tests fail, and project skill discovery was reproduced failing before its fix. |
 | Independent implementation review | Three rounds, six defects fixed, final round dry; [reviewer-authored verdict](reviews/implementation-review.md) binds the code SHA. This does not certify all native scenarios. |
 | Installer | Isolated profile/source-relocation/rollback trial passed; foreign/new Hook entries and original adapter bytes preserved. Failures during link creation, copying and manifest publication were injected. |
 | Native lifecycle | Actual Codex CLI 0.155.1 events observed. Repeated semantic cases, holdouts and final-snapshot reruns are still executing; partial runs cannot be reported as all passed. |
 | Material review | Independent artifact-only reading preceded source checks. Two learning phrases and the proposal's causal/budget claims were corrected. Both current pilot artifacts passed their bounded source review. |
 | User pilot | Two concrete artifacts presented for feedback; no user judgment has yet been recorded. |
-| Zotero | A genuine isolated Zotero 10.0.3 instance and synthetic PDF attachment are available at a dedicated test port. Native adapter/library reruns are in progress; the production library is untouched. |
+| Zotero | The user confirmed Win11 is the Zotero host. The task-owned WSL Zotero 10.0.3 fixture instance, archive and profile were stopped and removed. Its historical receipts do not establish Win11 integration. GET-only readback of the actual Windows Zotero 9.0.6 service and mounted PDF succeeded; separate native read-only verification is in progress. No production library writes occurred. |
 | Local activation | Not started; retain existing live skills until the required native and user checks are satisfied. |
 
 ## Pilot navigation
@@ -56,6 +59,8 @@ reviewed versions. These artifacts demonstrate outputs, not acquired user skill.
 The focused human questions are readability, amount of help/output space, and
 usefulness of direct drafting. A general compliment or deployment authorization
 will not be converted into a specific learning outcome or pilot acceptance.
+See the [focused review navigation](reviews/human-review.md), including a short
+synthetic practice/feedback exchange.
 
 ## Evidence locations
 

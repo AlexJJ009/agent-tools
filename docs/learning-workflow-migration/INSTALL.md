@@ -50,3 +50,15 @@ Foreign or newly added hook entries remain in place. The manifest is kept at
 Use a disposable `HOME` and an explicit disposable ReadPapers root for the
 installation trial. Do not treat a passing local `--check` as native host hook
 acceptance, user acceptance, or permission to deploy to other profiles.
+
+## WSL access to Windows Zotero
+
+Zotero's application host is independent of this workflow's Python host. For
+this deployment, Zotero runs on Win11; WSL consumes the inspected Windows API
+endpoint and mounted attachment storage through the explicit project config.
+Do not install a second Zotero application in WSL to configure this adapter.
+The workflow installer installs no Zotero application and changes no library.
+Verify actual API, item/attachment identity and PDF location with read-only
+operations. Keep platform-specific paths in the project configuration, not
+portable skill defaults. A disposable Linux fixture proves only its own test
+conditions and cannot stand in for Windows integration.

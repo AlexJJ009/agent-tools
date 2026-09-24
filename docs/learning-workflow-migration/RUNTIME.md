@@ -40,7 +40,13 @@ A reference is not a second authorization or acceptance record.
 
 `check-action` checks a named action at the expected route revision. Ordinary
 reads can continue with pending input. Dependent writes require resolved input,
-available selected skills and declared output paths. Library/close-reading
+available selected skills and declared output paths. Default skill lookup includes
+user `.agents/skills` and `.codex/skills`, plus workspace `.agents/skills` and
+`.claude/skills`; explicit `skill_roots` replaces this search list. A failed
+capability check is recovered in the existing task record. For an inspected
+location correction, snapshot the preserved request with a distinct recovery
+input ID and classify at the returned revision; this creates no new authority.
+Library/close-reading
 checks additionally require the explicit configured ReadPapers scope and the
 project adapter. Remote read scopes use canonical `host:/absolute/path`
 locators, with no traversal segments. A code read never authorizes an experiment.

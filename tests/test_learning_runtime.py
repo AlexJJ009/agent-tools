@@ -167,6 +167,30 @@ class RouteTests(unittest.TestCase):
             r.curate(self.root,self.source,'notes','Lesson','test',1)
         self.assertEqual(r.check_action(self.root,'read',base_revision=1)['status'],'allowed')
 
+    def test_project_skill_discovery_and_recovery_keep_the_existing_record(self):
+        # The project-only installation must work without a user-level alias.
+        skill=self.work/'.agents/skills/read-paper/SKILL.md'
+        skill.parent.mkdir(parents=True); skill.write_text('# Project adapter\n')
+        d=dict(self.decision,activity='learning',workspace_context='readpapers',
+               readpapers_root=str(self.work),selected_skills=['read-paper'],
+               authorized_actions=['zotero_read'])
+        root=Path(r.init(self.q,d,self.work,'project-session',record=self.work/'project-record')['record'])
+        from unittest.mock import patch
+        with patch.object(Path,'home',return_value=self.base/'isolated-home'):
+            self.assertEqual(r.check_action(root,'zotero_read',base_revision=1)['status'],'allowed')
+            skill.unlink()
+            with self.assertRaisesRegex(r.RouteError,'capability unavailable'):
+                r.check_action(root,'zotero_read',base_revision=1)
+            # An inspected nonstandard root is a correction, not a new task/authority.
+            other=self.work/'custom-skills/read-paper/SKILL.md'
+            other.parent.mkdir(parents=True); other.write_text('# Adapter\n')
+            r.input_record(root,'capability-recovery',root/'request.txt')
+            fixed=dict(d,skill_roots=[str(other.parents[1])],rationale='Same request; inspected adapter path corrected.')
+            r.classify(root,'capability-recovery',fixed,2)
+            self.assertEqual(r.check_action(root,'zotero_read',base_revision=3)['status'],'allowed')
+            self.assertEqual(r.read(root)['session_id'],'project-session')
+            self.assertEqual(len(list((self.work/'project-record').rglob('routing.json'))),1)
+
     def test_cli_rejects_pending_without_hook(self):
         r.input_record(self.root,'new',self.q)
         result=subprocess.run([sys.executable,'-m','learning_workflow','curate','--record',str(self.root),'--source',str(self.source),'--destination','notes','--title','x','--topic','x','--base-revision','2'],capture_output=True,text=True)

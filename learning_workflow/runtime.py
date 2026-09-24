@@ -260,8 +260,10 @@ def check(record, action, target=None, base_revision=None):
     require(not d['unresolved'], 'unresolved route dependencies')
     require(action not in d['excluded_actions'], 'action explicitly excluded')
     require(action not in {'experiment', 'external_publish'}, 'use the existing development/publication authorization entry; a route is not execution authority')
+    roots = d.get('skill_roots') or [Path.home()/'.agents/skills', Path.home()/'.codex/skills',
+                                    Path(record['workspace_root'])/'.agents/skills',
+                                    Path(record['workspace_root'])/'.claude/skills']
     for skill in d['selected_skills']:
-        roots = d.get('skill_roots') or [str(Path.home()/'.agents/skills'), str(Path.home()/'.codex/skills'), str(Path(record['workspace_root'])/'.claude/skills')]
         require(any((Path(p)/skill/'SKILL.md').is_file() for p in roots), 'selected capability unavailable: ' + skill)
     if action in {'zotero_read','zotero_mutation','formal_close_read'}:
         configured = d.get('readpapers_root')

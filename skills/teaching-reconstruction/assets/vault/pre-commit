@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+validator="$HOME/.agents/skills/teaching-reconstruction/scripts/validate_teaching_artifact.py"
+
+if [[ ! -f "$validator" ]]; then
+  echo "teaching pre-commit validator missing: $validator" >&2
+  exit 1
+fi
+
+exec python3 "$validator" --staged --repo "$repo_root"

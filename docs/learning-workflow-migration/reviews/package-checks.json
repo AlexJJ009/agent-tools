@@ -1,0 +1,138 @@
+{
+  "checked_at": "2026-09-24T10:17:16.720760+00:00",
+  "scope": "Document-package consistency only; not migration implementation acceptance.",
+  "verdict": "pass",
+  "acceptance_items": 21,
+  "validation_cases": 30,
+  "critical_negative_cases": 10,
+  "preserved_baseline_files": 8,
+  "fixed_material_files": 7,
+  "requirements_covered": [
+    "R01",
+    "R02",
+    "R03",
+    "R04",
+    "R05",
+    "R06",
+    "R07",
+    "R08",
+    "R09",
+    "R10",
+    "R11"
+  ],
+  "artifact_sha256": {
+    "PRD.md": "d1215c7fb7b63c8faec95869380d2e8f6769bc89ddb45d54012b24040badd756",
+    "checklist.yaml": "dd698dc5f630c7608324845c482d77fe43f007d06b50e2c688edae308b31f08a",
+    "validation-cases.json": "403c3389197fd0dcf92656ed22686903423ea3167827c809e8190e2987b09ec4",
+    "fixtures/manifest.json": "f1cd4ff5049a8eb36ecb3b298a8575ab062596c8d352187ea8b518735bc9cbdb"
+  },
+  "local_links": [
+    {
+      "document": "PRD.md",
+      "target": "../work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/revisions/20260924-portable-teaching-boundary/router-probes.json",
+      "exists": true
+    },
+    {
+      "document": "PRD.md",
+      "target": "checklist.yaml",
+      "exists": true
+    },
+    {
+      "document": "PRD.md",
+      "target": "baseline/inventory.json",
+      "exists": true
+    },
+    {
+      "document": "PRD.md",
+      "target": "/home/alex_mercer/projects/obsidian-vault/read_papers/insights/academic-writing-and-research-idea-learning.md",
+      "exists": true
+    },
+    {
+      "document": "PRD.md",
+      "target": "checklist.yaml",
+      "exists": true
+    },
+    {
+      "document": "PRD.md",
+      "target": "validation-cases.json",
+      "exists": true
+    },
+    {
+      "document": "PRD.md",
+      "target": "fixtures/README.md",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "PRD.md",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "checklist.yaml",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "validation-cases.json",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "fixtures/README.md",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "baseline/inventory.json",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "reviews/review-brief.md",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "reviews/independent-review-round2.md",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "reviews/independent-review-round1.md",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "reviews/package-checks.json",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "../work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/revisions/20260924-portable-teaching-boundary/router-probes.json",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "../work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/revisions/20260924-portable-teaching-boundary/existing-trigger-tests.json",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "/home/alex_mercer/projects/obsidian-vault/read_papers/insights/academic-writing-and-research-idea-learning.md",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "../work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/SOURCES.md",
+      "exists": true
+    },
+    {
+      "document": "README.md",
+      "target": "../work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/community/sources.json",
+      "exists": true
+    }
+  ],
+  "errors": [],
+  "final_review_digest_binding": "pass"
+}

@@ -1,6 +1,6 @@
 # Learning workflow migration — review package
 
-This package specifies a future migration. It does not install skills, change current routing, or demonstrate implemented behavior.
+The approved design now has an implementation candidate. See [IMPLEMENTATION.md](IMPLEMENTATION.md) for observed validation and outstanding acceptance; the original checklist remains the frozen specification, not a generated pass report. Live activation is separate from code completion.
 
 - [PRD.md](PRD.md): Chinese explanation of scope, architecture, English instruction policy, migration order and completion boundaries.
 - [checklist.yaml](checklist.yaml): 21 acceptance criteria, all implementation statuses initially `not_run`.
@@ -13,9 +13,9 @@ This package specifies a future migration. It does not install skills, change cu
 
 ## What is already evidence
 
-The earlier [routing probes](../work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/revisions/20260924-portable-teaching-boundary/router-probes.json) are actual direct calls to the current router. The [existing test result](../work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/revisions/20260924-portable-teaching-boundary/existing-trigger-tests.json) records five passing test methods. Neither demonstrates native skill selection or the future migration.
+The earlier [routing probes](/home/alex_mercer/projects/agent-tools/docs/work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/revisions/20260924-portable-teaching-boundary/router-probes.json) are actual direct calls to the current router. The [existing test result](/home/alex_mercer/projects/agent-tools/docs/work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/revisions/20260924-portable-teaching-boundary/existing-trigger-tests.json) records five passing test methods. Neither demonstrates native skill selection or the future migration.
 
-The original expanded survey is at [the local ReadPapers note](/home/alex_mercer/projects/obsidian-vault/read_papers/insights/academic-writing-and-research-idea-learning.md). Its [source index](../work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/SOURCES.md) and [community snapshots](../work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/community/sources.json) preserve the related-work provenance. These host-specific paths are evidence locators, not proposed hard-coded runtime defaults.
+The original expanded survey is at [the local ReadPapers note](/home/alex_mercer/projects/obsidian-vault/read_papers/insights/academic-writing-and-research-idea-learning.md). Its [source index](/home/alex_mercer/projects/agent-tools/docs/work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/SOURCES.md) and [community snapshots](/home/alex_mercer/projects/agent-tools/docs/work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/community/sources.json) preserve the related-work provenance. These host-specific paths are evidence locators, not proposed hard-coded runtime defaults.
 
 ## Acceptance states
 

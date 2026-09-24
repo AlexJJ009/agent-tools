@@ -7,8 +7,9 @@
   },
   "manuscript": {
     "run": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/native/runs/T10-9",
-    "derivation": "Native file copied unchanged; independent source review pending.",
-    "sha256": "1634434dc7c05026e4e674669ca89a4e46f30dd99b50d3c1b09fe79a5ddf3515"
+    "derivation": "Native draft revised in same native task from explicit independent-review feedback; final source review passed. Original/diff retained; no learner authorship or human acceptance implied.",
+    "sha256": "e37284f95f8bffaaacf07fbfbab6f9e7a2c93a24d7a02cbc1d55e1f32eca64f3",
+    "original_sha256": "1634434dc7c05026e4e674669ca89a4e46f30dd99b50d3c1b09fe79a5ddf3515"
   },
   "status": "pilot_not_user_accepted",
   "fixture_type": "synthetic; no learner outcome inferred"

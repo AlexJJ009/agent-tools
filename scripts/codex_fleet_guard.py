@@ -114,6 +114,7 @@ def sync_target(target: dict[str, Any]) -> dict[str, str]:
         raise FleetFailure(f"target {target['id']}: Win11 helper must be installed by native install-win11.ps1")
     remote_path = remote_helper_relative_path()
     remote_tmp = f"{remote_path}.tmp"
+    remote_home = Path(target["codex_home"]).parent
     run([*ssh_base(target), f'install -d -m 700 "$HOME/{REMOTE_DIR}"'])
     run(
         [
@@ -125,7 +126,7 @@ def sync_target(target: dict[str, Any]) -> dict[str, str]:
             "-o",
             "ConnectTimeout=15",
             str(REMOTE_HELPER),
-            f"{target['ssh_alias']}:{remote_tmp}",
+            f"{target['ssh_alias']}:{remote_home / remote_tmp}",
         ]
     )
     completed = run(

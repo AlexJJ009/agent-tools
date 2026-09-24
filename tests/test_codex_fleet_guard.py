@@ -103,6 +103,26 @@ class CodexFleetGuardTests(unittest.TestCase):
         self.assertIn("RequestTTY=no", captured[0])
         self.assertIn('"$HOME/.local/lib/agent-tools/codex_target_guard.py"', captured[0][-1])
 
+    def test_sync_uses_profile_home_when_ssh_starts_elsewhere(self):
+        target = dict(TARGET, codex_home="/data_storage/yl_test/lgx/home/.codex")
+        calls = []
+
+        def fake_run(command, *, check=True):
+            calls.append(command)
+            if command[0] == "scp":
+                return subprocess.CompletedProcess(command, 0, "", "")
+            if "sha256sum" in command[-1]:
+                return subprocess.CompletedProcess(command, 0, MODULE.sha256(MODULE.REMOTE_HELPER) + "  helper\n", "")
+            return subprocess.CompletedProcess(command, 0, "", "")
+
+        with mock.patch.object(MODULE, "run", side_effect=fake_run):
+            MODULE.sync_target(target)
+        scp_command = next(command for command in calls if command[0] == "scp")
+        self.assertEqual(
+            scp_command[-1],
+            "ovh-109:/data_storage/yl_test/lgx/home/.local/lib/agent-tools/codex_target_guard.py.tmp",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

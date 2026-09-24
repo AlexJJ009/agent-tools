@@ -1,0 +1,1 @@
+注意，zotero是在win11上的，不在wsl里，wsl里的zotero也应该卸载掉才对。

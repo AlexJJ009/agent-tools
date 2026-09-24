@@ -1,0 +1,4 @@
+interface:
+  display_name: "Learning Artifact Compiler"
+  short_description: "Compile stable sessions into learning artifacts"
+  default_prompt: "Use $learning-artifact-compiler to compile verified guided-learning state into a standalone artifact."

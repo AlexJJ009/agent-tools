@@ -1,0 +1,34 @@
+{
+  "schema_version": "learning-migration-fixtures/1",
+  "kind": "synthetic_evaluation_material",
+  "files": [
+    {
+      "path": "method-source.md",
+      "sha256": "271a23dce8dc694bf19372f4ce8ccafdd2f9e1365c7d35c57f2d9580b9ee9d85"
+    },
+    {
+      "path": "literature-packet.md",
+      "sha256": "c3f8420b39c8614ce20f6265a9147ec424c1c265484d572897ac3a80c9e2845d"
+    },
+    {
+      "path": "experiment-results.md",
+      "sha256": "fcd979e904d7740cbf101771ab1e01dca0de23071a719217ab5bac8621f50bf6"
+    },
+    {
+      "path": "draft-paragraph.md",
+      "sha256": "bf0f8b857264969330f585280686fa78955a8270e97f4073700501e943d32644"
+    },
+    {
+      "path": "design-only.md",
+      "sha256": "3c3cfde2cfac7e52fdd61bd39259042ee475deadab9580cde8aa5b9d4c1649ed"
+    },
+    {
+      "path": "untrusted-README.md",
+      "sha256": "4ae9a02092334c9d6d48c1a5f1c55395da5c12c7e032a1c2b2050f1e2acf3e27"
+    },
+    {
+      "path": "api.md",
+      "sha256": "404e9b457154e0d2a71612c0a8e21c4ab0aa31bbd10b3541221e98834604ebe5"
+    }
+  ]
+}

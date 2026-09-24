@@ -1,0 +1,446 @@
+{
+  "revision": 15,
+  "events": [
+    {
+      "id": "checkpoint-33e982d1-implementation",
+      "base_revision": 0,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4.txt",
+        "quote": "{\n  \"candidate_sha\": \"33e982d19173b0e32bfe5f40d97092cad8194fb3\",\n  \"implementation\": \"candidate_committed\",\n  \"code_review\": \"initial_review_passed_boundary_delta_under_review\",\n  \"native_validation\": \"running\",\n  \"local_activation\": \"not_started\",\n  \"human_pilot\": \"pending actual human feedback\",\n  \"zotero_test_host\": \"genuine isolated test service available; native integration running\"\n}",
+        "sha256": "2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4"
+      },
+      "affects": [],
+      "payload": {
+        "id": "implementation",
+        "status": "completed",
+        "observation": {
+          "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
+          "implementation": "candidate_committed",
+          "code_review": "initial_review_passed_boundary_delta_under_review",
+          "native_validation": "running",
+          "local_activation": "not_started",
+          "human_pilot": "pending actual human feedback",
+          "zotero_test_host": "genuine isolated test service available; native integration running"
+        }
+      },
+      "input_digest": "cfc07f80bfc3e5742817c240018bdc212cced9b833210b196aefebf7b81381fc",
+      "revision": 1,
+      "at": "2026-09-24T11:04:23.472945+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "checkpoint-33e982d1-native-validation",
+      "base_revision": 1,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4.txt",
+        "quote": "{\n  \"candidate_sha\": \"33e982d19173b0e32bfe5f40d97092cad8194fb3\",\n  \"implementation\": \"candidate_committed\",\n  \"code_review\": \"initial_review_passed_boundary_delta_under_review\",\n  \"native_validation\": \"running\",\n  \"local_activation\": \"not_started\",\n  \"human_pilot\": \"pending actual human feedback\",\n  \"zotero_test_host\": \"genuine isolated test service available; native integration running\"\n}",
+        "sha256": "2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4"
+      },
+      "affects": [],
+      "payload": {
+        "id": "native-validation",
+        "status": "running",
+        "observation": {
+          "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
+          "implementation": "candidate_committed",
+          "code_review": "initial_review_passed_boundary_delta_under_review",
+          "native_validation": "running",
+          "local_activation": "not_started",
+          "human_pilot": "pending actual human feedback",
+          "zotero_test_host": "genuine isolated test service available; native integration running"
+        }
+      },
+      "input_digest": "e13ba2f7c0daba1e454d5132f5ee8b1533a566224adb983d88a25a6f7646c8bf",
+      "revision": 2,
+      "at": "2026-09-24T11:04:23.499752+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "checkpoint-33e982d1-code-review",
+      "base_revision": 2,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4.txt",
+        "quote": "{\n  \"candidate_sha\": \"33e982d19173b0e32bfe5f40d97092cad8194fb3\",\n  \"implementation\": \"candidate_committed\",\n  \"code_review\": \"initial_review_passed_boundary_delta_under_review\",\n  \"native_validation\": \"running\",\n  \"local_activation\": \"not_started\",\n  \"human_pilot\": \"pending actual human feedback\",\n  \"zotero_test_host\": \"genuine isolated test service available; native integration running\"\n}",
+        "sha256": "2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4"
+      },
+      "affects": [],
+      "payload": {
+        "id": "code-review",
+        "status": "running",
+        "observation": {
+          "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
+          "implementation": "candidate_committed",
+          "code_review": "initial_review_passed_boundary_delta_under_review",
+          "native_validation": "running",
+          "local_activation": "not_started",
+          "human_pilot": "pending actual human feedback",
+          "zotero_test_host": "genuine isolated test service available; native integration running"
+        }
+      },
+      "input_digest": "942325a8d0174560d615339b287c5438f973cde17b0713959ef047e8d107ef6f",
+      "revision": 3,
+      "at": "2026-09-24T11:04:23.523873+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "checkpoint-33e982d1-human-pilot",
+      "base_revision": 3,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4.txt",
+        "quote": "{\n  \"candidate_sha\": \"33e982d19173b0e32bfe5f40d97092cad8194fb3\",\n  \"implementation\": \"candidate_committed\",\n  \"code_review\": \"initial_review_passed_boundary_delta_under_review\",\n  \"native_validation\": \"running\",\n  \"local_activation\": \"not_started\",\n  \"human_pilot\": \"pending actual human feedback\",\n  \"zotero_test_host\": \"genuine isolated test service available; native integration running\"\n}",
+        "sha256": "2a472fc167ebd230308433ebd2d6fff9fc3067b8d69ba21086fac32ac21e28b4"
+      },
+      "affects": [],
+      "payload": {
+        "id": "human-pilot",
+        "status": "unknown",
+        "observation": {
+          "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
+          "implementation": "candidate_committed",
+          "code_review": "initial_review_passed_boundary_delta_under_review",
+          "native_validation": "running",
+          "local_activation": "not_started",
+          "human_pilot": "pending actual human feedback",
+          "zotero_test_host": "genuine isolated test service available; native integration running"
+        }
+      },
+      "input_digest": "cee04aacd6d484a2c83fd9af87de2e27831064aa6a70a860df0b855d6a0aa1a7",
+      "revision": 4,
+      "at": "2026-09-24T11:04:23.550950+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "review-33e982d1-completed",
+      "base_revision": 4,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Independent reviewer /root/learning_code_review",
+        "path": "evidence/sources/d756b8d4dd5615d0bc52a4ac491e14ddfbf68a88c41afa232903bca2468a9970.txt",
+        "quote": "Verdict: **pass for the bounded source delta**.",
+        "sha256": "d756b8d4dd5615d0bc52a4ac491e14ddfbf68a88c41afa232903bca2468a9970"
+      },
+      "affects": [
+        "AC-19"
+      ],
+      "payload": {
+        "id": "code-review",
+        "status": "completed",
+        "observation": {
+          "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
+          "verdict": "pass for bounded delta plus initial review; native and user acceptance separate",
+          "review_file": "/home/alex_mercer/projects/_worktrees/agent-tools/codex-learning-workflow-migration/docs/learning-workflow-migration/reviews/implementation-review-boundary.md"
+        }
+      },
+      "input_digest": "fb55ac40345376c7053524935f8d8c934cb88d1b387b9413fa35e8bfb138c091",
+      "revision": 5,
+      "at": "2026-09-24T11:18:24.011006+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "review-787a8ce-completed",
+      "base_revision": 5,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Independent reviewer /root/learning_code_review",
+        "path": "evidence/sources/8443e14478597fd27435aafdc883e8a3f91887c88198742345fd77c9f7b28343.txt",
+        "quote": "Verdict: **pass for this bounded source delta**.",
+        "sha256": "8443e14478597fd27435aafdc883e8a3f91887c88198742345fd77c9f7b28343"
+      },
+      "affects": [
+        "AC-19"
+      ],
+      "payload": {
+        "id": "code-review",
+        "status": "completed",
+        "observation": {
+          "candidate_sha": "787a8ce0186240888db0d9bfc3ea54c1757577f4",
+          "verdict": "pass for project discovery delta plus earlier reviews; native and user acceptance separate",
+          "review_file": "/home/alex_mercer/projects/_worktrees/agent-tools/codex-learning-workflow-migration/docs/learning-workflow-migration/reviews/implementation-review-project-discovery.md"
+        }
+      },
+      "input_digest": "499b764f567b7d6a38fb810930901e7441f0230058e3b913c4ceb1a83e02b4a3",
+      "revision": 6,
+      "at": "2026-09-24T11:30:17.741887+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "windows-zotero-input",
+      "base_revision": 6,
+      "type": "input.record",
+      "source": {
+        "kind": "user",
+        "actor": "user",
+        "path": "evidence/sources/94fe77fdd55a9ae2eb8cc7d09fde188cf691782a04050112140fbbba123381af.txt",
+        "quote": "注意，zotero是在win11上的，不在wsl里，wsl里的zotero也应该卸载掉才对。",
+        "sha256": "94fe77fdd55a9ae2eb8cc7d09fde188cf691782a04050112140fbbba123381af"
+      },
+      "affects": [
+        "AC-11",
+        "AC-18",
+        "AC-20"
+      ],
+      "payload": {
+        "id": "windows-zotero-topology",
+        "text": "注意，zotero是在win11上的，不在wsl里，wsl里的zotero也应该卸载掉才对。"
+      },
+      "input_digest": "70e54ed8b2cc26ef6875c6fab1781e1a515589777dbd653230b28cddfdd47391",
+      "revision": 7,
+      "at": "2026-09-24T11:37:06.768098+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "windows-zotero-applied",
+      "base_revision": 7,
+      "type": "input.resolve",
+      "source": {
+        "kind": "user",
+        "actor": "user",
+        "path": "evidence/sources/94fe77fdd55a9ae2eb8cc7d09fde188cf691782a04050112140fbbba123381af.txt",
+        "quote": "注意，zotero是在win11上的，不在wsl里，wsl里的zotero也应该卸载掉才对。",
+        "sha256": "94fe77fdd55a9ae2eb8cc7d09fde188cf691782a04050112140fbbba123381af"
+      },
+      "affects": [
+        "AC-11",
+        "AC-18",
+        "AC-20"
+      ],
+      "payload": {
+        "id": "windows-zotero-topology",
+        "disposition": "applied",
+        "reason": "Task-owned WSL Zotero stopped and removed. Win11 API and mounted storage read back; real integration verification must target Win11, with no production library writes. Historical Linux fixture evidence remains labeled and does not substitute for Win11 integration."
+      },
+      "input_digest": "3edadff8d3f74c9c7aa10f7c8803b21aee82f785173dd31f811f165c55b8bd62",
+      "revision": 8,
+      "at": "2026-09-24T11:37:06.809068+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "single-zotero-recorded",
+      "base_revision": 8,
+      "type": "input.record",
+      "source": {
+        "kind": "user",
+        "actor": "user",
+        "path": "evidence/sources/3820ba6f1e429c20ab172456cb0fecdd524362b67e1148e29f83e8b046018280.txt",
+        "quote": "有一个比较奇怪的情况，我现在好像有两个 Zotero 被打开了，为什么呢？\n\n我们不是应该只有一个 Zotero 吗？怎么打开了两个？是两个不同的仓库，一个验证，一个实际生产使用吗？\n\n在实际使用的时候，我们应该只要一个 Zotero、一个 library 就够了",
+        "sha256": "3820ba6f1e429c20ab172456cb0fecdd524362b67e1148e29f83e8b046018280"
+      },
+      "affects": [
+        "AC-11",
+        "AC-18"
+      ],
+      "payload": {
+        "id": "single-zotero-daily-library",
+        "summary": "Normal use requires one existing Win11 Zotero instance and one daily library; extra screenshot window is a temporary validation fixture."
+      },
+      "input_digest": "998717249471e87da71bffb7012363900a553f8e60d2941e46db9c014dc7090a",
+      "revision": 9,
+      "at": "2026-09-24T12:32:34.415254+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "single-zotero-resolved",
+      "base_revision": 9,
+      "type": "input.resolve",
+      "source": {
+        "kind": "user",
+        "actor": "user",
+        "path": "evidence/sources/3820ba6f1e429c20ab172456cb0fecdd524362b67e1148e29f83e8b046018280.txt",
+        "quote": "有一个比较奇怪的情况，我现在好像有两个 Zotero 被打开了，为什么呢？\n\n我们不是应该只有一个 Zotero 吗？怎么打开了两个？是两个不同的仓库，一个验证，一个实际生产使用吗？\n\n在实际使用的时候，我们应该只要一个 Zotero、一个 library 就够了",
+        "sha256": "3820ba6f1e429c20ab172456cb0fecdd524362b67e1148e29f83e8b046018280"
+      },
+      "affects": [
+        "AC-11",
+        "AC-18"
+      ],
+      "payload": {
+        "id": "single-zotero-daily-library",
+        "disposition": "applied",
+        "reason": "Installer creates no Zotero app or permanent test library. Owned test window was minimized and cleanup is queued immediately after bounded validation; real user instance/library are retained. INSTALL.md states the one-library deployment boundary."
+      },
+      "input_digest": "914b4917cf8513bcfc8c61826aa8c9618d050a0fca37a9c3fa97ee7f76be0072",
+      "revision": 10,
+      "at": "2026-09-24T12:32:34.458775+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "final-implementation-602b528",
+      "base_revision": 10,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/757ff798c80a062108a4bf4557a8bb3659922f7a09c92b30263dd52b50244fe5.txt",
+        "quote": "{\n  \"candidate_sha\": \"602b528b2ade668dd736ee01ffccf2dd7b93b3ad\",\n  \"runtime_tested_sha\": \"7a6198bf02c2c1120c9753264519dd9f577b45c1\",\n  \"tests_passed\": 152,\n  \"live_activation\": false\n}",
+        "sha256": "757ff798c80a062108a4bf4557a8bb3659922f7a09c92b30263dd52b50244fe5"
+      },
+      "affects": [],
+      "payload": {
+        "id": "implementation",
+        "status": "completed",
+        "observation": {
+          "candidate_sha": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+          "runtime_tested_sha": "7a6198bf02c2c1120c9753264519dd9f577b45c1",
+          "tests_passed": 152,
+          "live_activation": false
+        }
+      },
+      "input_digest": "3d8e4778b45eb38e8ca6ab9e6ee1773f80ac72c7bc809eb75c7b9244f192c336",
+      "revision": 11,
+      "at": "2026-09-24T12:50:10.408646+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "final-code-review-602b528",
+      "base_revision": 11,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/cd945e04fcc48fd2b1dfbb10359c85932bc14414261ec0cfda292841173cd721.txt",
+        "quote": "{\n  \"through_sha\": \"602b528b2ade668dd736ee01ffccf2dd7b93b3ad\",\n  \"status\": \"bounded source reviews dry; final acceptance mapping still in progress\",\n  \"review\": \"docs/learning-workflow-migration/reviews/implementation-review-scratch-scope.md\"\n}",
+        "sha256": "cd945e04fcc48fd2b1dfbb10359c85932bc14414261ec0cfda292841173cd721"
+      },
+      "affects": [],
+      "payload": {
+        "id": "code-review",
+        "status": "completed",
+        "observation": {
+          "through_sha": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+          "status": "bounded source reviews dry; final acceptance mapping still in progress",
+          "review": "docs/learning-workflow-migration/reviews/implementation-review-scratch-scope.md"
+        }
+      },
+      "input_digest": "87670a62c28cb88cfc22577d5bbf30f9b0790f153b864aa47e65e784b2f6875b",
+      "revision": 12,
+      "at": "2026-09-24T12:50:10.456007+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "final-zotero-cleanup-602b528",
+      "base_revision": 12,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/141c5ccf7cd8d71d67f7d70d03ffd3d0d6dd3f5e66b3d5835d406a59a7e03e85.txt",
+        "quote": "{\n  \"windows_fixture_removed\": true,\n  \"wsl_fixture_removed\": true,\n  \"production_selected_objects_unchanged\": true,\n  \"production_pdf_unchanged\": true,\n  \"receipt\": \"/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/windows-zotero-fixture/cleanup-report.json\"\n}",
+        "sha256": "141c5ccf7cd8d71d67f7d70d03ffd3d0d6dd3f5e66b3d5835d406a59a7e03e85"
+      },
+      "affects": [],
+      "payload": {
+        "id": "zotero-cleanup",
+        "status": "completed",
+        "observation": {
+          "windows_fixture_removed": true,
+          "wsl_fixture_removed": true,
+          "production_selected_objects_unchanged": true,
+          "production_pdf_unchanged": true,
+          "receipt": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/windows-zotero-fixture/cleanup-report.json"
+        }
+      },
+      "input_digest": "4cc2870115f7deed32b2b7332e04401782ca4af24d63d5ee0e5d51a40bcb1631",
+      "revision": 13,
+      "at": "2026-09-24T12:50:10.486423+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "native-campaign-complete-602b528",
+      "base_revision": 13,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/2a6c8055453e5d4db33771850c258c67b1db960b630473bb30b753a916f90670.txt",
+        "quote": "{\n  \"execution_status\": \"completed\",\n  \"collector\": \"/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/native/native-review-results.json\",\n  \"sha256\": \"23c9bf33a3d8306e70e842162fd054bda345455fb71f6354288c4b0c77beb572\",\n  \"source_candidate\": \"602b528b2ade668dd736ee01ffccf2dd7b93b3ad\",\n  \"runs\": 138,\n  \"fixed_cases\": 30,\n  \"holdouts\": 6,\n  \"critical_negative_groups\": 10,\n  \"t17_first_pass_material_failures\": 3,\n  \"t17_same_session_reviewed_corrections\": 3,\n  \"real_user_feedback\": \"not_received\",\n  \"live_activation\": false,\n  \"limits\": \"Historical failures and component/snapshot limits retained; completed job is not final acceptance or a mechanical gate pass.\"\n}",
+        "sha256": "2a6c8055453e5d4db33771850c258c67b1db960b630473bb30b753a916f90670"
+      },
+      "affects": [],
+      "payload": {
+        "id": "native-validation",
+        "status": "completed",
+        "observation": {
+          "execution_status": "completed",
+          "collector": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/native/native-review-results.json",
+          "sha256": "23c9bf33a3d8306e70e842162fd054bda345455fb71f6354288c4b0c77beb572",
+          "source_candidate": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+          "runs": 138,
+          "fixed_cases": 30,
+          "holdouts": 6,
+          "critical_negative_groups": 10,
+          "t17_first_pass_material_failures": 3,
+          "t17_same_session_reviewed_corrections": 3,
+          "real_user_feedback": "not_received",
+          "live_activation": false,
+          "limits": "Historical failures and component/snapshot limits retained; completed job is not final acceptance or a mechanical gate pass."
+        }
+      },
+      "input_digest": "f054f864d5fd12e7b70c9c031fde420a413921a6ec39f4a37ea9fe9b42ef136d",
+      "revision": 14,
+      "at": "2026-09-24T13:02:40.642031+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "independent-acceptance-audit-final-602b528",
+      "base_revision": 14,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/e5ad76323762cb4c014da92ef8e4cc6442d6e676b866531c5c1f67e15f6d2ff0.txt",
+        "quote": "{\n  \"source_candidate\": \"602b528b2ade668dd736ee01ffccf2dd7b93b3ad\",\n  \"independent_criterion_summary\": {\n    \"pass\": 20,\n    \"pending\": 1\n  },\n  \"audit\": \"/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/reviews/ac-evidence-audit.json\",\n  \"audit_sha256\": \"a926d06c274f6932e799fdbbce07d74a9e24af9dade072fbad7b69c4cc2bc687\",\n  \"pending\": \"AC-21 real user feedback\",\n  \"live_activation\": false,\n  \"formal_gate_pass_claimed\": false\n}",
+        "sha256": "e5ad76323762cb4c014da92ef8e4cc6442d6e676b866531c5c1f67e15f6d2ff0"
+      },
+      "affects": [],
+      "payload": {
+        "id": "acceptance-audit",
+        "status": "completed",
+        "observation": {
+          "source_candidate": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+          "independent_criterion_summary": {
+            "pass": 20,
+            "pending": 1
+          },
+          "audit": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/reviews/ac-evidence-audit.json",
+          "audit_sha256": "a926d06c274f6932e799fdbbce07d74a9e24af9dade072fbad7b69c4cc2bc687",
+          "pending": "AC-21 real user feedback",
+          "live_activation": false,
+          "formal_gate_pass_claimed": false
+        }
+      },
+      "input_digest": "fe392ab800a94f465fa26a1b685b413f31341222fd76f2ab893055e039d5d55b",
+      "revision": 15,
+      "at": "2026-09-24T13:07:18.095266+00:00",
+      "status": "recorded",
+      "detail": {}
+    }
+  ]
+}

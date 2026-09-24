@@ -1,0 +1,4 @@
+interface:
+  display_name: "Evidence Anchor"
+  short_description: "Create source-specific traceable evidence anchors"
+  default_prompt: "Use $evidence-anchor to attach precise paper, code, log, or web evidence to these claims."

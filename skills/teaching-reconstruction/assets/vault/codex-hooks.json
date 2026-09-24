@@ -1,0 +1,17 @@
+{
+  "description": "Validate durable teaching reconstruction artifacts before Codex stops.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/env python3 \"$HOME/.agents/skills/teaching-reconstruction/scripts/stop_validate.py\"",
+            "timeout": 30,
+            "statusMessage": "Validating teaching artifacts"
+          }
+        ]
+      }
+    ]
+  }
+}

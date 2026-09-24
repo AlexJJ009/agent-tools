@@ -1,0 +1,15 @@
+{
+  "execution_status": "completed",
+  "collector": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/native/native-review-results.json",
+  "sha256": "23c9bf33a3d8306e70e842162fd054bda345455fb71f6354288c4b0c77beb572",
+  "source_candidate": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+  "runs": 138,
+  "fixed_cases": 30,
+  "holdouts": 6,
+  "critical_negative_groups": 10,
+  "t17_first_pass_material_failures": 3,
+  "t17_same_session_reviewed_corrections": 3,
+  "real_user_feedback": "not_received",
+  "live_activation": false,
+  "limits": "Historical failures and component/snapshot limits retained; completed job is not final acceptance or a mechanical gate pass."
+}

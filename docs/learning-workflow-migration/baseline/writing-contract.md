@@ -1,10 +1,9 @@
 # Shared writing contract
 
-This is the canonical maintained source for reader-facing work across Work Report,
-reviewer-brief, teaching, and academic writing. Packaged copies in Work Report and
-reviewer-brief are generated so each can be installed independently. Run
-`skills/work-report/scripts/sync_writing_contract.py --write` from the repository
-to regenerate them, or `--check` to detect drift.
+This is the canonical maintained source for Work Report and reviewer-brief.
+The reviewer-brief package contains a generated identical copy so either skill
+can be installed independently. Run `scripts/sync_writing_contract.py --write`
+from this skill to regenerate it, or `--check` to detect drift.
 
 | ID | Required writing behavior |
 |---|---|
@@ -30,15 +29,11 @@ request count after a redraw proves cached display, not current upstream
 health. A later 429 remains adverse evidence even when a last-success field
 exists. Put those consequences beside the result, not in an appendix.
 
-Apply W1–W9 to the artifact’s actual reader and genre. A brief focuses on its
-current choice or acceptance step. A teaching explanation must expose the
-prerequisite that makes the next idea understandable; a practice prompt gives
-the task and conditions before revealing an answer at the appropriate stage.
-A manuscript paragraph follows its scientific argument and reader expectations.
-Work Reports retain their six semantic sections and report Judge; neither
-requirement transfers to another genre. Use plain paragraphs for a simple
-finding; tables and figures serve a real comparison. No quota rewards length,
-jargon or decoration.
+Briefs focus on the current choice or acceptance step. A short brief does not
+need a six-section report, full report Judge or another task record. Reports
+retain six semantic sections but may place their main conclusion first. Use
+plain paragraphs for a simple finding; tables and figures are optional and
+must serve a real comparison. No quota rewards length, jargon or decoration.
 
 Machine checks cover structure, snapshots and version binding. Independent
 readers assess argument and readability. A schema-valid review cannot establish

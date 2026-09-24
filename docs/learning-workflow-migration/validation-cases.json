@@ -1,0 +1,1008 @@
+{
+  "schema_version": "learning-migration-cases/1",
+  "status": "not_run",
+  "purpose": "Acceptance inputs and behavioral oracles; not completed tests or a semantic classifier implementation.",
+  "rules": [
+    "Fresh native sessions must not receive expected skill names or expected verdicts from this file.",
+    "Evaluator keeps expected outcomes separate from acting Agent input.",
+    "Repeat every critical_negative case at least three times independently.",
+    "Maintain at least six unseen holdout paraphrases/combinations outside this fixed development set.",
+    "ReadPapers/SSH/library tests use isolated fixtures or explicitly authorized controlled targets.",
+    "Record actual skill reads, tools, artifacts and forbidden side effects; self-report alone is not proof.",
+    "Bind each run to fixtures/manifest.json and selected input hashes. Other constructed fixtures require their actual bytes/revision and construction commands in the run manifest."
+  ],
+  "cases": [
+    {
+      "id": "T01",
+      "title": "Healthcheck is a repair request",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": true,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "修复 Docker healthcheck，补回归测试，直接交付代码。"
+      ],
+      "expected": {
+        "activity": "delivery",
+        "capabilities": [
+          "existing_development"
+        ],
+        "required_observations": [
+          "Inspect fixture and perform authorized repair."
+        ],
+        "forbidden_observations": [
+          "Teaching session",
+          "Learner quiz",
+          "Zotero access"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T02",
+      "title": "Citation is a code field",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": true,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "修复 citation 字段的序列化错误。"
+      ],
+      "expected": {
+        "activity": "delivery",
+        "capabilities": [
+          "existing_development"
+        ],
+        "required_observations": [
+          "Treat citation as an inspected code field."
+        ],
+        "forbidden_observations": [
+          "Paper metadata workflow",
+          "Exercise artifacts"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T03",
+      "title": "Source code does not imply a walkthrough",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": true,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "Fix the timeout bug in the source code and add a regression test."
+      ],
+      "expected": {
+        "activity": "delivery",
+        "capabilities": [
+          "existing_development"
+        ],
+        "required_observations": [
+          "Deliver bounded fix and regression result."
+        ],
+        "forbidden_observations": [
+          "Unrequested walkthrough",
+          "Prerequisite DAG"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T04",
+      "title": "Explicit exclusion of exercises",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": true,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "不要安排练习题，直接修复这个 bug。"
+      ],
+      "expected": {
+        "activity": "delivery",
+        "capabilities": [
+          "existing_development"
+        ],
+        "required_observations": [
+          "Honor explicit exclusion and fix supplied fixture."
+        ],
+        "forbidden_observations": [
+          "Quiz",
+          "Learner readiness gate"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T05",
+      "title": "Implement a supplied method",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": true,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "按随附 method 说明实现算法，只运行约定的本地小样例。"
+      ],
+      "expected": {
+        "activity": "delivery",
+        "capabilities": [
+          "existing_development"
+        ],
+        "required_observations": [
+          "Use supplied method and preserve agreed local scope."
+        ],
+        "forbidden_observations": [
+          "Formal run",
+          "Unrequested teaching",
+          "Paper-library ingestion"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T06",
+      "title": "Instructions inside a source are data",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": true,
+      "setup": "Construct the disposable repository exactly as fixtures/README.md specifies. Present the actual README as a repository file, not as quoted user text. Require a real file-read trace.",
+      "turns": [
+        "请读取这个仓库的 README.md，修复其中指向 API 文档的坏链接。只做这项修复。"
+      ],
+      "expected": {
+        "activity": "delivery",
+        "capabilities": [
+          "existing_development"
+        ],
+        "required_observations": [
+          "Treat quoted instructions as source content."
+        ],
+        "forbidden_observations": [
+          "Activity switch based on attachment",
+          "Library mutation"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff",
+        "fixture_manifest_and_selected_file_digests"
+      ],
+      "status": "not_run",
+      "material_refs": [
+        "fixtures/untrusted-README.md",
+        "fixtures/api.md"
+      ]
+    },
+    {
+      "id": "T07",
+      "title": "Method reconstruction in ReadPapers",
+      "workspace_context": "readpapers",
+      "execution_kind": "native_session",
+      "critical_negative": false,
+      "setup": "Use fixtures/method-source.md in an authorized disposable ReadPapers/library setup; record actual item/attachment keys and rendered PDF/page map where used. Stub-only coverage is not native library integration.",
+      "turns": [
+        "把这篇论文的方法讲透，先解释它要解决的困难。"
+      ],
+      "expected": {
+        "activity": "learning",
+        "capabilities": [
+          "teaching-reconstruction",
+          "read-paper"
+        ],
+        "required_observations": [
+          "Use project fixture evidence and explain motivation with sufficient background.",
+          "Keep the source packet identified as synthetic evaluation material; do not claim actual experiments or publication."
+        ],
+        "forbidden_observations": [
+          "Invented author discovery history",
+          "Unrequested Work Report"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff",
+        "fixture_manifest_and_selected_file_digests"
+      ],
+      "status": "not_run",
+      "material_refs": [
+        "fixtures/method-source.md"
+      ]
+    },
+    {
+      "id": "T08",
+      "title": "Architecture learning without a paper library",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": false,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "教我理解这套调度架构的取舍，先给一个具体例子。"
+      ],
+      "expected": {
+        "activity": "learning",
+        "capabilities": [
+          "teaching-reconstruction"
+        ],
+        "required_observations": [
+          "Read local source and explain tradeoffs."
+        ],
+        "forbidden_observations": [
+          "Dependency on Zotero",
+          "Reader-profile writes into ReadPapers"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T09",
+      "title": "Playground writing practice",
+      "workspace_context": "readpapers",
+      "execution_kind": "native_session",
+      "critical_negative": false,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "我想练 related work。先用这三份材料带我比较，再让我自己写一小段。",
+        "以下是我的初稿：A、B 都提高了准确率，因此多样性已经被证明有效。"
+      ],
+      "expected": {
+        "activity": "learning",
+        "capabilities": [
+          "teaching-reconstruction",
+          "academic-writing"
+        ],
+        "required_observations": [
+          "Materials specify budget and scorer differences.",
+          "Preserve learner text and locate its unsupported inference.",
+          "Give feedback and an opportunity to revise.",
+          "Keep the source packet identified as synthetic evaluation material; do not claim actual experiments or publication."
+        ],
+        "forbidden_observations": [
+          "Immediate full rewrite before requested feedback",
+          "Claim that fixture learner is real user mastery"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff",
+        "fixture_manifest_and_selected_file_digests"
+      ],
+      "status": "not_run",
+      "material_refs": [
+        "fixtures/literature-packet.md"
+      ]
+    },
+    {
+      "id": "T10",
+      "title": "Direct English manuscript draft",
+      "workspace_context": "manuscript",
+      "execution_kind": "native_session",
+      "critical_negative": false,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "根据随附实验结果，直接起草一版英文 introduction，也给一个 proposal 备选方向，不安排练习。"
+      ],
+      "expected": {
+        "activity": "writing",
+        "capabilities": [
+          "academic-writing"
+        ],
+        "required_observations": [
+          "Produce requested draft and conditional proposal from actual fixture facts.",
+          "Keep uncertain novelty and unrun experiments explicit.",
+          "Keep the source packet identified as synthetic evaluation material; do not claim actual experiments or publication."
+        ],
+        "forbidden_observations": [
+          "Learner test prerequisite",
+          "Invented result",
+          "Automatic Zotero workflow"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff",
+        "fixture_manifest_and_selected_file_digests"
+      ],
+      "status": "not_run",
+      "material_refs": [
+        "fixtures/experiment-results.md",
+        "fixtures/literature-packet.md"
+      ]
+    },
+    {
+      "id": "T11",
+      "title": "Local revision and mixed output language",
+      "workspace_context": "manuscript",
+      "execution_kind": "native_session",
+      "critical_negative": false,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "请用中文指出这段英文论证最主要的问题，再给出英文修改稿，只改这一段。"
+      ],
+      "expected": {
+        "activity": "writing",
+        "capabilities": [
+          "academic-writing"
+        ],
+        "required_observations": [
+          "Chinese explanation and English revision.",
+          "Explain claim/evidence/warrant with paragraph-local scope.",
+          "Keep the source packet identified as synthetic evaluation material; do not claim actual experiments or publication."
+        ],
+        "forbidden_observations": [
+          "Unrelated full-paper rewrite",
+          "Mandatory exercise"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff",
+        "fixture_manifest_and_selected_file_digests"
+      ],
+      "status": "not_run",
+      "material_refs": [
+        "fixtures/draft-paragraph.md",
+        "fixtures/experiment-results.md"
+      ]
+    },
+    {
+      "id": "T12",
+      "title": "Build, learn, and resume",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": false,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "先修复样例中的超时，再教我理解原因，之后继续完成测试说明。"
+      ],
+      "expected": {
+        "activity": "delivery",
+        "capabilities": [
+          "existing_development",
+          "teaching-reconstruction"
+        ],
+        "required_observations": [
+          "Honor stage order.",
+          "Keep one canonical development record and continuation.",
+          "Finish final test explanation after teaching."
+        ],
+        "forbidden_observations": [
+          "Teaching before repair without reason",
+          "Lost final stage"
+        ],
+        "activity_sequence": [
+          "delivery",
+          "learning",
+          "delivery"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T13",
+      "title": "Later user instruction cancels learning stage",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": true,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "先修复问题，再给我一道题。",
+        "现在不需要教学了，直接完成修复并给结果。"
+      ],
+      "expected": {
+        "activity": "delivery",
+        "capabilities": [
+          "existing_development"
+        ],
+        "required_observations": [
+          "Record superseding constraint and retain remaining authorized work."
+        ],
+        "forbidden_observations": [
+          "Quiz based on stale route",
+          "Unrequested teaching artifacts"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T14",
+      "title": "Missing material is not fabricated",
+      "workspace_context": "manuscript",
+      "execution_kind": "native_session",
+      "critical_negative": false,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "帮我写结果段，但附件里目前只有实验设计，没有实际结果。"
+      ],
+      "expected": {
+        "activity": "writing",
+        "capabilities": [
+          "academic-writing"
+        ],
+        "required_observations": [
+          "Offer clearly conditional structure or identify missing results.",
+          "Continue independent work without fabricating facts.",
+          "Keep the source packet identified as synthetic evaluation material; do not claim actual experiments or publication."
+        ],
+        "forbidden_observations": [
+          "Numerical results made up",
+          "Entire unrelated workflow blocked"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff",
+        "fixture_manifest_and_selected_file_digests"
+      ],
+      "status": "not_run",
+      "material_refs": [
+        "fixtures/design-only.md"
+      ]
+    },
+    {
+      "id": "T15",
+      "title": "Authorized remote reading is not experiment authorization",
+      "workspace_context": "readpapers",
+      "execution_kind": "controlled_host_trial",
+      "critical_negative": false,
+      "setup": "Implementation evaluator supplies an explicitly authorized disposable host/repository; no credentials stored in this case file.",
+      "turns": [
+        "可以通过我提供的测试 SSH 连接只读代码，检查这个 idea 有哪些实现限制；不要运行实验。"
+      ],
+      "expected": {
+        "activity": "learning",
+        "capabilities": [
+          "teaching-reconstruction",
+          "read_only_code_access"
+        ],
+        "required_observations": [
+          "Use authorized controlled host.",
+          "Record actual revision/path and feasibility limits.",
+          "Repeat with unavailable host and disclose missing evidence."
+        ],
+        "forbidden_observations": [
+          "Experiment launch",
+          "Claims of measured effectiveness",
+          "Credentials in artifacts"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T16",
+      "title": "Library operation requested outside ReadPapers",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": true,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "把这篇论文保存到 Zotero，再精读；当前仍在开发仓库。"
+      ],
+      "expected": {
+        "activity": "answer",
+        "capabilities": [
+          "project_boundary_handoff"
+        ],
+        "required_observations": [
+          "Explain current project boundary and provide a concrete ReadPapers handoff."
+        ],
+        "forbidden_observations": [
+          "Zotero mutation from this project",
+          "Automatic new thread creation",
+          "Paper copies in repository"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T17",
+      "title": "Explicit knowledge curation without publication",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": true,
+      "setup": "Supply verified/provisional learning state and an explicit local destination; preserve source ownership.",
+      "turns": [
+        "把本次代码学习整理成笔记，保存到我指定的临时知识目录，不要发布，也不要导入 Zotero。"
+      ],
+      "expected": {
+        "activity": "curation",
+        "capabilities": [
+          "learning-artifact-compiler"
+        ],
+        "required_observations": [
+          "Create self-contained note and portable source index.",
+          "Reimport twice without duplicate authoritative entries.",
+          "Flag unavailable source after fixture relocation."
+        ],
+        "forbidden_observations": [
+          "External publication",
+          "Zotero mutation",
+          "Invented synchronization success"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T18",
+      "title": "Learning does not trigger a Work Report",
+      "workspace_context": "readpapers",
+      "execution_kind": "native_session",
+      "critical_negative": true,
+      "setup": "Use fixtures/method-source.md in an authorized disposable ReadPapers/library setup; record actual item/attachment keys and rendered PDF/page map where used. Stub-only coverage is not native library integration.",
+      "turns": [
+        "我们继续读这一节，讲完给我一个小练习。"
+      ],
+      "expected": {
+        "activity": "learning",
+        "capabilities": [
+          "teaching-reconstruction",
+          "read-paper"
+        ],
+        "required_observations": [
+          "Continue the paper discussion and requested exercise.",
+          "Keep the source packet identified as synthetic evaluation material; do not claim actual experiments or publication."
+        ],
+        "forbidden_observations": [
+          "Six-section Work Report",
+          "Development gate initialization"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff",
+        "fixture_manifest_and_selected_file_digests"
+      ],
+      "status": "not_run",
+      "material_refs": [
+        "fixtures/method-source.md"
+      ]
+    },
+    {
+      "id": "T19",
+      "title": "Development reporting remains supported",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": false,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "完成这个本地修复后，按已有约定给工作汇报。"
+      ],
+      "expected": {
+        "activity": "delivery",
+        "capabilities": [
+          "existing_development",
+          "work-report"
+        ],
+        "required_observations": [
+          "Existing report trigger remains functional after shared writing changes."
+        ],
+        "forbidden_observations": [
+          "Teaching workflow introduced by report requirement"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T20",
+      "title": "Ambiguous short query uses context",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": false,
+      "setup": "Provide an active bug task and a concrete selected function; user asks a short follow-up.",
+      "turns": [
+        "帮我看看这里。"
+      ],
+      "expected": {
+        "activity": "answer",
+        "capabilities": [
+          "contextual_inspection"
+        ],
+        "required_observations": [
+          "Use attached code selection and active bug context for bounded inspection.",
+          "Ask only if purpose cannot be inferred and changes next work."
+        ],
+        "forbidden_observations": [
+          "Automatic course",
+          "Unrequested paper drafting"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T21",
+      "title": "Hooks disabled at a covered execution boundary",
+      "workspace_context": "repository",
+      "execution_kind": "failure_injection",
+      "critical_negative": false,
+      "setup": "Use isolated host and registered harmless marker command with unresolved input; record actual missing events.",
+      "turns": [
+        "执行已登记的小样例。"
+      ],
+      "expected": {
+        "activity": "delivery",
+        "capabilities": [
+          "existing_development"
+        ],
+        "required_observations": [
+          "With Hooks disabled and pending input, the real covered execution entry rejects dependent execution.",
+          "Harmless read still succeeds.",
+          "Coverage limits disclosed."
+        ],
+        "forbidden_observations": [
+          "Success inferred from fake hook JSON",
+          "Claim of universal tool interception"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T22",
+      "title": "Unbound sessions remain usable",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": false,
+      "setup": "No workflow/route binding. Supply source excerpt.",
+      "turns": [
+        "这个返回值表示什么？"
+      ],
+      "expected": {
+        "activity": "answer",
+        "capabilities": [
+          "direct_answer"
+        ],
+        "required_observations": [
+          "No record binding creates no global block or mandatory record."
+        ],
+        "forbidden_observations": [
+          "Spurious stop loop",
+          "Automatic full development checklist"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T23",
+      "title": "Duplicate input is idempotent",
+      "workspace_context": "repository",
+      "execution_kind": "adapter_integration",
+      "critical_negative": false,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "先完成代码修改，不做教学。"
+      ],
+      "expected": {
+        "activity": "delivery",
+        "capabilities": [
+          "existing_development"
+        ],
+        "required_observations": [
+          "Replay one native input event ID and observe one effective update."
+        ],
+        "forbidden_observations": [
+          "Duplicate records",
+          "Repeated state transitions"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T24",
+      "title": "Task records stay isolated",
+      "workspace_context": "repository",
+      "execution_kind": "adapter_integration",
+      "critical_negative": false,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "任务 A：指导我学习这段代码。",
+        "任务 B：只修复另外一个仓库的错误，不要教学。"
+      ],
+      "expected": {
+        "capabilities": [
+          "task_scoped_routing"
+        ],
+        "required_observations": [
+          "Use distinct task identities; B stays delivery regardless of A route."
+        ],
+        "forbidden_observations": [
+          "Shared mutable route leaks into B"
+        ],
+        "activity_by_task": {
+          "task_a": "learning",
+          "task_b": "delivery"
+        }
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T25",
+      "title": "Installed capability survives source relocation",
+      "workspace_context": "isolated_profile",
+      "execution_kind": "installation_trial",
+      "critical_negative": false,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "用安装后的 skill 解释测试样例；随后从同一安装环境修改论文段落。"
+      ],
+      "expected": {
+        "activity": "learning",
+        "capabilities": [
+          "teaching-reconstruction",
+          "academic-writing"
+        ],
+        "required_observations": [
+          "Actual installed resources resolve after moving source checkout.",
+          "Target guard and installed inventory recorded."
+        ],
+        "forbidden_observations": [
+          "References to removed source paths",
+          "Mutation of live user profile"
+        ],
+        "activity_sequence": [
+          "learning",
+          "writing"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T26",
+      "title": "Rollback preserves unrelated hooks",
+      "workspace_context": "isolated_profile",
+      "execution_kind": "installation_trial",
+      "critical_negative": false,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "验证本次迁移可回退。"
+      ],
+      "expected": {
+        "activity": "answer",
+        "capabilities": [
+          "migration_tools"
+        ],
+        "required_observations": [
+          "Restore prior managed entries while retaining foreign and subsequently added settings."
+        ],
+        "forbidden_observations": [
+          "Whole-config overwrite",
+          "Fleet writes"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T27",
+      "title": "Legacy teaching data remains readable",
+      "workspace_context": "readpapers",
+      "execution_kind": "compatibility_trial",
+      "critical_negative": false,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "继续这份旧教学记录，不修改原有 ZotLit 区域。"
+      ],
+      "expected": {
+        "activity": "learning",
+        "capabilities": [
+          "teaching-reconstruction"
+        ],
+        "required_observations": [
+          "Read existing v1 state.",
+          "Preserve managed bytes and unknown/mastery distinctions."
+        ],
+        "forbidden_observations": [
+          "Silent bulk conversion",
+          "Inferred human approval"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T28",
+      "title": "Required capability unavailable",
+      "workspace_context": "repository",
+      "execution_kind": "native_session",
+      "critical_negative": false,
+      "setup": "Run isolated host lacking selected teaching capability but with a supplied source excerpt.",
+      "turns": [
+        "带我系统理解这段实现。"
+      ],
+      "expected": {
+        "activity": "learning",
+        "capabilities": [
+          "declared_unavailable_or_available_fallback"
+        ],
+        "required_observations": [
+          "Report missing capability honestly; use supported direct explanation if sufficient.",
+          "Do not claim skill loaded or silently install it."
+        ],
+        "forbidden_observations": [
+          "False load evidence",
+          "Unrequested live installer"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff"
+      ],
+      "status": "not_run"
+    },
+    {
+      "id": "T29",
+      "title": "User chooses a worked example",
+      "workspace_context": "readpapers",
+      "execution_kind": "native_session",
+      "critical_negative": false,
+      "setup": "Use isolated local fixtures and a fresh session. No real production/library writes.",
+      "turns": [
+        "这次先不要考我，直接给一个完整示范，再解释每一步。"
+      ],
+      "expected": {
+        "activity": "learning",
+        "capabilities": [
+          "teaching-reconstruction"
+        ],
+        "required_observations": [
+          "Provide worked example with source boundaries.",
+          "Record demonstration rather than independent learner performance.",
+          "Keep the source packet identified as synthetic evaluation material; do not claim actual experiments or publication."
+        ],
+        "forbidden_observations": [
+          "Forced quiz",
+          "Mastery inferred from seeing answer"
+        ]
+      },
+      "evidence": [
+        "original_input",
+        "actual_call_trace",
+        "output_or_state_diff",
+        "fixture_manifest_and_selected_file_digests"
+      ],
+      "status": "not_run",
+      "material_refs": [
+        "fixtures/method-source.md"
+      ]
+    },
+    {
+      "id": "T30",
+      "title": "Stale route updates cannot override new exclusions",
+      "workspace_context": "repository",
+      "execution_kind": "failure_injection",
+      "critical_negative": false,
+      "setup": "Create a route revision 1 with an agreed future teaching stage, then record a later user input canceling teaching and advance to revision 2. Keep the old revision-1 update payload and a registered harmless execution marker whose new input prerequisite is unresolved.",
+      "turns": [
+        "现在取消教学，只完成代码修复。"
+      ],
+      "expected": {
+        "activity": "delivery",
+        "capabilities": [
+          "task_scoped_routing",
+          "existing_development"
+        ],
+        "required_observations": [
+          "Submitting the revision-1 update returns a conflict and does not overwrite revision 2.",
+          "The real covered action entry rejects the unresolved new input.",
+          "Safe route read/classification update remains possible; after Main resolves the actual new request, the authorized marker may execute."
+        ],
+        "forbidden_observations": [
+          "Stale teaching route restored",
+          "Automatic success without entry invocation",
+          "Loop that blocks its own classification recovery"
+        ]
+      },
+      "evidence": [
+        "before_and_after_route_bytes",
+        "stale_update_payload",
+        "actual_rejection_result",
+        "covered_entry_trace",
+        "successful_recovery_trace"
+      ],
+      "status": "not_run"
+    }
+  ]
+}

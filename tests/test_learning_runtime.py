@@ -143,6 +143,23 @@ class RouteTests(unittest.TestCase):
         with self.assertRaisesRegex(r.RouteError,'not execution authority'):
             r.check(rec,'experiment',base_revision=1)
 
+    def test_outside_library_request_cannot_be_declared_authorized(self):
+        wrong=dict(self.decision,activity='learning',selected_skills=['read-paper'],authorized_actions=['zotero_mutation'])
+        with self.assertRaisesRegex(r.RouteError,'already configured ReadPapers'):
+            r.init(self.q,wrong,self.work,'session-b',record=self.work/'wrong')
+        self.assertFalse((self.work/'wrong').exists())
+        r.input_record(self.root,'library-request',self.q)
+        with self.assertRaisesRegex(r.RouteError,'already configured ReadPapers'):
+            r.classify(self.root,'library-request',wrong,2)
+        # A pre-migration invalid declaration remains inspectable and recoverable.
+        legacy=r.read(self.root); legacy['decision']=wrong; r.save(self.root,legacy)
+        self.assertEqual(r.check_action(self.root,'read',base_revision=2)['status'],'allowed')
+        handoff=dict(self.decision,activity='answer',authorized_actions=[])
+        self.assertEqual(r.classify(self.root,'library-request',handoff,2)['decision']['activity'],'answer')
+        # A separate explicitly configured project can select the same adapter.
+        valid=dict(wrong,workspace_context='readpapers',readpapers_root=str(self.work))
+        self.assertEqual(r.init(self.q,valid,self.work,'session-c',record=self.work/'valid')['route_revision'],1)
+
     def test_missing_skill_fails_dependent_action_but_read_works(self):
         rec=r.read(self.root); rec['decision']['selected_skills']=['unavailable']; rec['decision']['skill_roots']=[str(self.base/'empty')]
         r.save(self.root,rec)

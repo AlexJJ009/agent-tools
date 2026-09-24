@@ -65,6 +65,8 @@ def main(argv=None):
         elif args.command in {'show','validate'}:
             with r.locked(args.record):
                 result = r.read(args.record)
+                if args.command == 'validate':
+                    r.validate_project_scope(result['decision'], result['workspace_root'])
         elif args.command == 'check-action':
             result = r.check_action(args.record,args.action,args.target,args.base_revision)
         elif args.command == 'curate':

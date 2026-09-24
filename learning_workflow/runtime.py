@@ -107,6 +107,16 @@ def validate_decision(decision):
     return decision
 
 
+def validate_project_scope(decision, workspace):
+    library_actions = {'zotero_read', 'zotero_mutation', 'formal_close_read'}
+    declares_library = 'read-paper' in decision['selected_skills'] or bool(library_actions.intersection(decision.get('authorized_actions', [])))
+    if declares_library:
+        configured = decision.get('readpapers_root')
+        require(decision['workspace_context'] == 'readpapers' and configured
+                and Path(workspace).resolve().is_relative_to(Path(configured).resolve()),
+                'library capability requires the already configured ReadPapers project; hand off outside requests without creating a new project scope')
+
+
 def resolve_target(record, target):
     path = Path(target)
     return (Path(record['workspace_root']) / path).resolve() if not path.is_absolute() else path.resolve()
@@ -155,6 +165,7 @@ def init(query, decision, workspace, session_id, task_id=None, record=None):
     require(isinstance(session_id, str) and bool(session_id.strip()), 'session id is required')
     workspace = Path(workspace).resolve()
     require(workspace.is_dir(), 'workspace must exist')
+    validate_project_scope(decision, workspace)
     stamp = datetime.now(timezone.utc)
     task_id = task_id or stamp.strftime('%Y%m%dT%H%M%SZ') + '-task-' + uuid.uuid4().hex[:8]
     require(re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,159}', task_id), 'invalid task id')
@@ -207,6 +218,7 @@ def classify(root, input_id, decision, base_revision):
     with locked(root) as root:
         record = read(root)
         require(input_id in record['inputs'], 'unknown input id')
+        validate_project_scope(decision, record['workspace_root'])
         # Idempotence is tied to input plus decision; changed decisions need a new user input.
         old = [e for e in record['history'] if e['kind'] == 'classification' and e['input_id'] == input_id]
         if old:
@@ -244,6 +256,7 @@ def check(record, action, target=None, base_revision=None):
     require(record['route_revision'] == base_revision, 'route revision conflict')
     require(not any(v['status'] == 'pending' for v in record['inputs'].values()), 'unclassified user input; resolve it before dependent actions')
     d = record['decision']
+    validate_project_scope(d, record['workspace_root'])
     require(not d['unresolved'], 'unresolved route dependencies')
     require(action not in d['excluded_actions'], 'action explicitly excluded')
     require(action not in {'experiment', 'external_publish'}, 'use the existing development/publication authorization entry; a route is not execution authority')

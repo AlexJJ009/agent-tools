@@ -1,0 +1,6 @@
+{
+  "read_papers_root": ".",
+  "zotero_data_dir": "/path/to/Zotero/dataStorage",
+  "zotero_api_url": "http://127.0.0.1:23119",
+  "import_arxiv_script": "scripts/import_arxiv_to_zotero.py"
+}

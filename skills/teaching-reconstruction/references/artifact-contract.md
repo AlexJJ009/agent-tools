@@ -1,7 +1,8 @@
 # Teaching Artifact Contract v1
 
-This file is the single human-readable schema source. The deterministic
-validator is the executable authority.
+This file is the frozen human-readable schema for legacy v1 ReadPapers artifacts.
+The deterministic v1 validator is the executable authority for these artifacts.
+New non-ReadPapers learning may use `portable-learning-record.md` instead.
 
 ## Envelope
 

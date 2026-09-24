@@ -1,6 +1,6 @@
 ---
 name: teaching-reconstruction
-description: Orchestrate personalized, evidence-backed teaching reconstruction for papers, code, blogs, and technical topics. Use when the user asks to 讲透, 精读, teach me, deeply understand, reconstruct, audit understanding, compare ideas as learning, turn material into learning material, write a tutorial/blog from verified understanding, or check whether they truly understand.
+description: Orchestrate personalized, evidence-backed teaching reconstruction for papers, code, blogs, and technical topics. Use when the user asks to learn or deeply understand a paper, code, blog, or technical topic; reconstruct a mechanism; audit their own understanding; compare ideas as learning; or turn verified learning into a tutorial or blog draft. Direct manuscript writing belongs to academic-writing.
 ---
 
 # Teaching Reconstruction
@@ -9,7 +9,7 @@ Use this as the orchestrator for guided learning. Keep the conversation learner-
 
 ## Route first
 
-Run `scripts/route_teaching_intent.py` mentally or directly when routing is ambiguous. The orchestrator owns broad learning requests and delegates in this order:
+Use `task-routing` and the live request to determine whether the current activity is learning. The legacy `scripts/route_teaching_intent.py` is not an authority for arbitrary natural-language classification. Once learning is selected, the orchestrator owns broad learning requests and calls focused skills when their work is needed:
 
 1. `teaching-dag-builder` for local prerequisite DAGs and frontier.
 2. `evidence-anchor` for source-specific claim support.
@@ -24,14 +24,15 @@ then write a tutorial" remains orchestrator-owned and stages compilation last.
 
 ## Paper adapter boundary
 
-For paper material, PDF evidence, annotations, Zotero metadata, citations, or managed-region note content, invoke the installed `read-paper` skill. Do not vendor, patch, rewrite, or edit `read-paper`; a need to modify it is `CONTRACT_CONTRADICTION`. Read `references/read-paper-adapter.md` before paper work.
+For Zotero library operations, adding a paper, formal close reading, or ZotLit note updates in the configured ReadPapers project, use the `read-paper` project adapter. Other projects may use supplied citations and paper evidence without activating library management. Read `references/read-paper-adapter.md` when the adapter is needed.
 
 ## Progressive resources
 
-- Read `references/artifact-contract.md` before writing any durable teaching manifest.
-- Use `assets/guided-session-template.md` for interactive guided mode.
-- Use `assets/learning-artifact-template.md` for artifact mode.
+- Read `references/artifact-contract.md` before writing a legacy v1 teaching manifest in ReadPapers. For new durable learning outside ReadPapers, use `references/portable-learning-record.md` when a record is needed. Do not force v1 Zotero locators or Obsidian review cards into code learning.
+- Use `assets/guided-session-template.md` for legacy v1 ReadPapers guided records; use the portable record outside that scope when a record is needed.
+- Use `assets/learning-artifact-template.md` for legacy v1 ReadPapers artifacts; for other artifacts, select a genre-appropriate structure.
 - Use `THIRD_PARTY_NOTICES.md` when provenance for adapted teaching workflow ideas is needed.
+- Apply W1–W9 from the packaged `../work-report/references/writing-contract.md` to reader-facing explanations. Preserve the teaching sequence and avoid hiding essential prerequisites or revealing exercise answers before the intended stage.
 
 ## Operating rules
 
@@ -40,5 +41,5 @@ For paper material, PDF evidence, annotations, Zotero metadata, citations, or ma
 - In guided-direct mode, state assumptions and teach immediately instead of
   turning the request into a background questionnaire.
 - Separate verified evidence from provisional explanations.
-- Never write inside ZotLit `%%zt-managed%%` regions.
-- Do not present a polished artifact before the learner has reconstructed core KCs or explicitly requested direct mode.
+- Never write inside ZotLit `%%zt-managed%%` regions when editing ReadPapers notes.
+- Do not present a polished learning artifact before the learner has reconstructed core KCs or explicitly requested direct mode. A request for direct manuscript drafting belongs to `academic-writing` and requires no learner check.

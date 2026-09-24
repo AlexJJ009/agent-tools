@@ -15,7 +15,7 @@ Build a local graph of knowledge components (KCs) that explains what must be und
 4. Classify edges as `strict`, `common`, or `convenience`.
 5. Mark the current frontier: KCs that are useful next and whose prerequisites are already satisfied or explicitly waived.
 
-Read `references/dag-building.md` for edge semantics and anti-patterns. Use the shared contract at `../teaching-reconstruction/references/artifact-contract.md` for durable manifests.
+Read `references/dag-building.md` for edge semantics and anti-patterns. Use `../teaching-reconstruction/references/artifact-contract.md` only for legacy v1 ReadPapers manifests; new non-ReadPapers durable learning may use `../teaching-reconstruction/references/portable-learning-record.md`.
 
 ## Output shape
 

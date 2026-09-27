@@ -12,7 +12,7 @@ v0.1 是先前实现和完整评测的依据；本版仅按[用户澄清](review
 
 目前已观察到三个具体问题：
 
-1. 当前教学路由按子串匹配。直接调用时，“修复 Docker healthcheck”进入学习检查，“修复 citation 字段”进入论文元数据处理，“不要安排练习题，直接修复”仍进入学习检查。原有 5 个触发测试方法全部通过，说明已有测试尚未覆盖这些反例。这是函数级观察，不是原生会话误触发的证明。[探测与原始输出](../work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/revisions/20260924-portable-teaching-boundary/router-probes.json)
+1. 当前教学路由按子串匹配。直接调用时，“修复 Docker healthcheck”进入学习检查，“修复 citation 字段”进入论文元数据处理，“不要安排练习题，直接修复”仍进入学习检查。原有 5 个触发测试方法全部通过，说明已有测试尚未覆盖这些反例。这是函数级观察，不是原生会话误触发的证明。[探测与原始输出](/home/alex_mercer/projects/agent-tools/docs/work-reports/20260920T030723Z-academic-writing-and-research-learning-e68e93d3/revisions/20260924-portable-teaching-boundary/router-probes.json)
 2. 教学成文组件要求教学状态、前置关系和练习；真实 manuscript 起草或修改不能把这些作为前提。学术写作应同时支持 ReadPapers 的练习 playground 和论文项目的实际稿件。
 3. 当前教学记录和材料适配包含 Zotero、ZotLit、Obsidian 专属要求；通用代码/架构学习不应依赖这些环境。跨项目学习成果则需要可追溯、可找回，不能为统一存储而复制整套原始资料。
 
@@ -65,7 +65,7 @@ Main Agent 是默认分类者，原因是它拥有持续的任务上下文。在
 
 脚本检查字段、任务/会话对应关系、阶段、输入是否已处理、项目范围、已选择能力是否可用，以及已登记动作是否满足其原有约束。它不证明分类语义正确，也不根据英文术语数量宣称教学有效。
 
-短答可只保留会话内判断；持续任务、阶段切换、持久材料写入或受控动作需要可读回的 route record。已有开发记录时引用现有记录及 revision，不复制其中的协议、授权和验收状态。纯学习不要求初始化完整开发 gate。
+短答可只保留会话内判断；持续学习/写作、实际跨活动阶段切换，以及本学习工作流内的持久材料写入或受控动作需要可读回的 route record。普通持续开发按已有开发套件维护记录，不因时长而额外启动学习记录。已有开发记录时引用现有记录及 revision，不复制其中的协议、授权和验收状态。纯学习不要求初始化完整开发 gate。
 
 建议最小记录形态如下，字段为英文，字段值可保留用户原话。这里定义的是拟实现接口，不是现有 CLI 已支持的参数：
 
@@ -216,6 +216,8 @@ Main 语义分类；旧关键词路由不再作为最终决策者。保留必要
 ### v0.2 本机安装范围
 
 本轮先支持当前 Linux/WSL Codex：通用 skills 进入该用户的 `.agents/skills`，项目适配器进入 ReadPapers 自己的 `.agents/skills/read-paper`，可选 Codex Hook 保留在该 profile 的 `.codex/hooks.json`。已有全局 Codex `read-paper` 别名按精确旧源迁移，避免业务项目自动获得论文库操作入口。
+
+归属按[用户补充](reviews/20260927-skill-ownership.txt)明确：通用 routing、教学、写作核心由 agent-tools 维护并在用户级安装；Zotero/论文资料管理与 Markdown Proxy 暂归 ReadPapers 项目级，不安装到通用用户入口。维护源在哪里与技能在哪些项目可被发现是两个维度，实际清单见 [SKILL-OWNERSHIP](SKILL-OWNERSHIP.md)。
 
 共享 `.claude` 目录、Claude 用户级入口与配置不迁移；它们不是 Codex 安装成功的前提。项目 `AGENTS.md` 指向新的独立适配器；其他 legacy skill 入口按原状保留。当前用户授权对指定 ReadPapers 项目做增量结构调整，包括它位于 Windows 挂载盘的情况；这不等于部署原生 Windows Codex 用户配置。原生 Windows 宿主与 Claude Code 的单独安装资格不在本轮证明范围。
 

@@ -11,14 +11,15 @@ Repository: `/home/alex_mercer/projects/_worktrees/agent-tools/codex-learning-wo
 Branch: `codex/learning-workflow-migration`
 Base captured at initialization: `7edfe74b8cb32f11f1d603cf707bb6cec1590274`
 Integration base: `6161fe959b06e668876c0aec66812294ae4a0b20`
-Implementation candidate: `602b528b2ade668dd736ee01ffccf2dd7b93b3ad`
+Historical campaign candidate: `602b528b2ade668dd736ee01ffccf2dd7b93b3ad`
+Current implementation delta: `b81d95a`
 Working tree: `dirty`. Re-read Git diff and untracked files before resuming.
 
 ## work_record
 
 152 relevant tests and bounded independent source reviews have run. Native/material results and exact evidence bindings are maintained in [IMPLEMENTATION](../../../../learning-workflow-migration/IMPLEMENTATION.md) and its evidence index.
 
-The generic mechanical checklist below has no configured per-item semantic verifier; its statuses remain unverified. Job completion observations do not turn these into checked items or imply user acceptance. AC-21 feedback and live activation are still pending.
+The generic mechanical checklist below has no configured per-item semantic verifier; its statuses remain unverified. Job completion observations do not turn these into checked items or imply user acceptance. AC-21 scoped feedback is recorded. WSL Codex activation completed; current endpoint reachability is recorded separately. See the 2026-09-27 delta and installation receipts.
 
 ## current_state
 
@@ -45,9 +46,9 @@ The generic mechanical checklist below has no configured per-item semantic verif
 | AC-18 | Isolated installation, relocation, and scoped rollback | {"value": true, "unit": "outcome"} | unverified | pending |
 | AC-19 | Focused cleanup, attribution, and independent code review | {"value": true, "unit": "outcome"} | unverified | pending |
 | AC-20 | Native coverage, holdout requests, and overhead report | {"value": true, "unit": "outcome"} | unverified | pending |
-| AC-21 | Bounded user pilot and explicit acceptance | {"value": true, "unit": "outcome"} | unverified | pending |
+| AC-21 | Bounded user pilot and explicit acceptance | {"value": true, "unit": "outcome"} | unverified | accepted |
 
-State revision: 15. Current phase: implementation.
+State revision: 20. Current phase: implementation.
 
 ### Current choices
 
@@ -58,9 +59,10 @@ No choices recorded.
 - implementation: completed
 - native-validation: completed
 - code-review: completed
-- human-pilot: unknown
+- human-pilot: completed
 - zotero-cleanup: completed
 - acceptance-audit: completed
+- local-activation: completed
 
 Next action: inspect pending criteria and current observations; result acceptance stays pending until actual scoped user feedback.
 <!-- workflow-state:end -->

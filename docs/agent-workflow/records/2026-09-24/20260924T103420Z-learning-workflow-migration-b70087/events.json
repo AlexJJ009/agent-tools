@@ -1,5 +1,5 @@
 {
-  "revision": 15,
+  "revision": 20,
   "events": [
     {
       "id": "checkpoint-33e982d1-implementation",
@@ -439,6 +439,149 @@
       "input_digest": "fe392ab800a94f465fa26a1b685b413f31341222fd76f2ab893055e039d5d55b",
       "revision": 15,
       "at": "2026-09-24T13:07:18.095266+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "user-pilot-feedback-20260927",
+      "base_revision": 15,
+      "type": "result.feedback",
+      "source": {
+        "kind": "user",
+        "actor": "User",
+        "path": "evidence/sources/37a497651f919eb3d3aec31b6bf24063ad558014bf9cdb4c9dd39278d850fff4.txt",
+        "sha256": "37a497651f919eb3d3aec31b6bf24063ad558014bf9cdb4c9dd39278d850fff4",
+        "quote": "所以我觉得，对于我们已有的几个合成材料来说，它是达标的吧。"
+      },
+      "affects": [
+        "AC-21"
+      ],
+      "payload": {
+        "kind": "acceptance",
+        "items": {
+          "AC-21": "accepted"
+        },
+        "scope_note": "Simple examples explanation/feedback/manuscript style and boundaries only; navigation defect and exercise-format request retained. No proposal technical approval or learner mastery."
+      },
+      "input_digest": "4f36fcaddbe6739faf9a8a75ad3613b963f35af663d9c62dcd4e3c69f17a37eb",
+      "revision": 16,
+      "at": "2026-09-27T12:46:27.459462+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "user-development-clarification-20260927",
+      "base_revision": 16,
+      "type": "result.feedback",
+      "source": {
+        "kind": "user",
+        "actor": "User",
+        "path": "evidence/sources/96e0eee97f94fb93189f14420c90e1927441c70bebdef44a53d5495537babdb7.txt",
+        "sha256": "96e0eee97f94fb93189f14420c90e1927441c70bebdef44a53d5495537babdb7",
+        "quote": "| R02 | 开发保持 hands-off，不能突然教学或写论文 | 活动与能力分开；否定约束优先；混合请求按已授权阶段执行<br> |\n| --- | ------------------------- | ------------------------------- |\n\n对这一条需求，其实我应该解释一下：并不是说所有的开发全部都一下子定好目标之后，就直接放手去执行。\n\n这里的 hands-off 是相对于教学和写论文这种场景来说的，针对不同的分支情况会有所不同。在实际做开发的时候，我们仍然会有自己相关的开发 skill 套件去约束它。但在本质上流程是一样的，都要定好需求、产出 MVP 等等。\n\n我们并不是说开发时定一个粗略的目标就可以放手，而是把东西细化之后，开始不断进行大量迭代。在每一次小的实现过程中 hands-off 是没问题的；在需要探索性的任务上，给出足够大的动作空间去探索，这个 hands-off 也没问题。\n\n所以用这个术语似乎容易引起一些歧义，希望现在的实践不会造成这么大的误解。\n\n另外，安装预检查发现了一个此前没覆盖的环境问题：ReadPapers 实际位于 Windows 挂载目录，它的 `.claude` 又指向多个项目共享的目录。\n\n关于这个问题，ReadPapers 一方面可能依赖 .claude 文件夹，另一方面也可能依赖 .agents 文件夹，这两个文件夹它可能都依赖。最早是因为这两种情况目前完全不支持，所以没办法。\n\n但其实用户现在主要是在用 CodeX，很少或者最近基本都没有用 Claude。所以像 .claude 这种指向多个项目共享目录的情况，安装方案肯定不能这么用。也就是说，我们肯定得做增量式更新，把它更新到服务器上对应的 .codex 文件夹、.agents 文件夹或者 .claude 文件夹里面去\n\n所以就意味着，现在的 ReadPapers 如果把所有东西全放在 .claude 里面，大家都去引用它的话，可能结构不太好，我们也允许它稍微重构一下，把这些区分开。\n\n其实本质上，.claude 以及 .agents 文件夹里面干的事情是一样的，都是那一批 skill、hook 这些。\n\n我们可以优先先把 CodeX 场景实现好，等之后确定要用 Claude Code 的时候，再把 .claude 支持上，现在可以先不用支持 .claude\n"
+      },
+      "affects": [
+        "AC-02",
+        "AC-13",
+        "AC-18"
+      ],
+      "payload": {
+        "kind": "clarification",
+        "items": {
+          "AC-02": "pending",
+          "AC-13": "pending",
+          "AC-18": "pending"
+        },
+        "scope_note": "Development owns requirements/MVP/iteration/review; Codex-first incremental local project restructuring authorized. Claude support deferred."
+      },
+      "input_digest": "e4d454019599d2a235730023f8e16c06e2107b2adaa83f49cbedcc0a054c198b",
+      "revision": 17,
+      "at": "2026-09-27T12:46:27.509765+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "user-skill-ownership-20260927",
+      "base_revision": 17,
+      "type": "result.feedback",
+      "source": {
+        "kind": "user",
+        "actor": "User",
+        "path": "evidence/sources/e8dc3d184405764038dcd05c35f161f31c78e15fef7c1836232e129701935797.txt",
+        "sha256": "e8dc3d184405764038dcd05c35f161f31c78e15fef7c1836232e129701935797",
+        "quote": "补充：之前在这台机器上的 .agents 文件夹，分了用户级和项目级。有些东西可能被错装到了 read-paper 的项目级里面。这也是为什么 read-papers 这个文件夹，之前里面引用的这种软链接、硬链接，以及引用的这些 skill 或工具，可能会比较乱的原因吧。\n\n我们这次就是要做好拆分：到底什么东西真正归 read-paper 管理，什么归 agent-tools 管理，各个 skill 怎么归属、哪些需要安装，这还是挺有讲究的：\n\n• read-paper 专属（项目级）：像关于 Zotero 管理文献材料的相关工具，只要在 read-paper 里面安装就好；Markdown Proxy 也是 read-paper 用的，所以暂时先放在 read-paper 里面。\n\n• agent-tools（用户级）：我们这次产出的核心功能，比如 routing 等相关的 skill，当然都应该装在用户级别。这也就是 agent-tools 本身的定位，必须是给用户级别安装的。\n"
+      },
+      "affects": [
+        "AC-11",
+        "AC-18"
+      ],
+      "payload": {
+        "kind": "clarification",
+        "items": {
+          "AC-11": "pending",
+          "AC-18": "pending"
+        },
+        "scope_note": "Reusable core skills user-level; ReadPapers library tools and Markdown Proxy project-level."
+      },
+      "input_digest": "41f75fd6a3017b06dd054c3cec1d5dc2a75d3e301d0889a47b5bbf1800559c74",
+      "revision": 18,
+      "at": "2026-09-27T12:46:27.549090+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "human-pilot-observed-20260927",
+      "base_revision": 18,
+      "type": "job.update",
+      "source": {
+        "kind": "user",
+        "actor": "User",
+        "path": "evidence/sources/37a497651f919eb3d3aec31b6bf24063ad558014bf9cdb4c9dd39278d850fff4.txt",
+        "sha256": "37a497651f919eb3d3aec31b6bf24063ad558014bf9cdb4c9dd39278d850fff4",
+        "quote": "这里我可以给一些比较细的反馈。\n\n首先是对于第一条样例。就目前的这个 Human Review 文件来说，其实我刚看到这一部分内容时，不知道自己要做什么。后来我发现这里有超链接，点进去看到了一个 learning example（完整示例），才明白它其实是在讲解 method。\n\n它非常彻底、也很清晰地把 method 的设计拆开来讲，给了一个例子和执行的 pipeline，以及最后在什么情况下会导出这个结果，并且对每一步都做出了解释。所以在清晰度上做得很好，对 method 本身的解释和理解也很不错。\n\n但是，单看这个 method，我确实不知道它的核心材料是什么。所以我又进一步展开看了合成的测试材料，这才知道因为这是一个例子，属于 proposed 的场景，里面给出了 problem and motivation\n\n然后我就有点一下子没有反应过来，说这个 method source 它的作用是什么？\n\nmethod source 是一篇论文吗？就假设它是论文的 problem motivation，然后是它的定义这些东西吗？为什么我们会需要 method source 这个东西呢？\n\n至少从形式上看，这个 learning example，其实我不知道什么样的形式是特别好的。但目前看，看懂是很容易的；不过看懂容易，也意味着这个问题可能本身就比较简单。\n\n目前它的拆解力度还是很细的，我觉得这是一个优点，而且理由说得也很充分。这种细的力度我可以接受，算是过关的。\n\n对于第二份材料，也就是 human review 这一部分的“练习与反馈片段”：\n\n针对这个场景来说，human review 也是要产出给用户看的材料。我看“练习与反馈片段”这部分时，由于不懂这个学习场景是什么，一下子没法立即理解它，这里的学习者句子由评测者来编写，只用来检查一点的反馈方式。\n\n所以就这两个场景来说，至少在 human review 这一块，我觉得有点让人摸不着头脑，不知道具体要干嘛。\n\n用户稍微深入看了一下，就会发现其实是有一份合成材料。\n\n我们现在的模式是：有一份合成材料，交给 agent 去作答，所以可以看到原始的请求、JSON 文件，以及 agent 最初的反馈。\n\n这些是我需要关注的内容。我看过之后，觉得这个反馈给得还是很准的，没啥问题，挺好的。\n\n然后第二项练习有一个写稿件的环节。它写了一个 introduction 出来，还有一个 alternative proposal，这个应该就是服务于选题的吧？\n\n所以我觉得，对于我们已有的几个合成材料来说，它是达标的吧。\n\n就这个 manuscript draft 而言，它其实是达标的。它这里的写作风格真的很学术，而且也挺问题导向的。\n\n然後這裡 suggest 的這個 proposal directions 我觉得他的表述和写作规范都挺好的，但其实细节内容我并没有看，形式上是可以通过的。\n\n问题意识是合格的，论证边界也有自觉。挺好的。\n\n回到之前我们阐述的那个 exercise，我觉得它的种类可以丰富一点。\n\n如果是练习写作，它可以用填空题，或者甚至可以做成给三个表述、让我们选哪个更好的形式。这就涉及到一个价值判断，和填空题不一样：填空题的话我们都要给答案，对吧？所以好像没关系。\n\n所以这种 exercise 的形式是可以丰富一些的，全是填空题不行，全是选择题也不行，我觉得可以根据不同场景去切换。甚至用户觉得比较累的时候，可以让它给三个示例，让用户选哪个反映的主题最好这样子。\n\n我觉得单纯用合成材料来做 evaluation（或者说做校验）的方式其实挺好的。这些材料目前看都还不错，至少我看到的三个材料都还不错。\n\n这种方式的定位是：\n\n1. 我们在开发的时候去依赖它们。\n2. 它们是用来通过验收的，算是一个测试，或者说是偏 End-to-End 的一些测试。\n\n我觉得这个做法非常的好，但是我们也不能依赖太多。\n\n我现在还有一个突然忘了的问题，就是我们现在是照着哪一份 PRD 文件去实现的？它的版本是否是对的？\n\n然后会有一个直接的质疑：这个 PRD 里，有什么是那种“偏移、漂移的需求”（就是它不是我们用户真的想要的需求）？有这样的东西吗？我觉得要快速审核一下。\n"
+      },
+      "affects": [
+        "AC-21"
+      ],
+      "payload": {
+        "id": "human-pilot",
+        "status": "completed",
+        "observation": {
+          "feedback": "/home/alex_mercer/projects/_worktrees/agent-tools/codex-learning-workflow-migration/docs/learning-workflow-migration/reviews/20260927-user-feedback.txt",
+          "scope": "User assessed simple synthetic examples; no learning trial or technical proposal acceptance."
+        }
+      },
+      "input_digest": "57c04d9a89f5ede77d6d3d432584df7c1dc5180f24b544e00d42ed0a6204f0a3",
+      "revision": 19,
+      "at": "2026-09-27T12:46:27.590457+00:00",
+      "status": "recorded",
+      "detail": {}
+    },
+    {
+      "id": "local-codex-activation-20260927",
+      "base_revision": 19,
+      "type": "job.update",
+      "source": {
+        "kind": "tool",
+        "actor": "Main Agent",
+        "path": "evidence/sources/ff7fa35409611402936981a39968d6ba787605222b8d24bfeff5ef17fafefeb1.txt",
+        "sha256": "ff7fa35409611402936981a39968d6ba787605222b8d24bfeff5ef17fafefeb1",
+        "quote": "{\n  \"candidate\": \"b81d95af42a666600f134b5595e546bb707cb10f\",\n  \"installed\": {\n    \"bundle\": \"/home/alex_mercer/.local/share/agent-tools/learning-workflow\",\n    \"client\": \"codex\",\n    \"global_read_paper_aliases_deactivated\": 1,\n    \"hook_trust\": \"not_verified\",\n    \"hooks_configured\": true,\n    \"launcher\": \"/home/alex_mercer/.local/bin/learning-workflow\",\n    \"read_papers_scope\": \"/mnt/c/AppsExternal/Obsidian/vault-repo/personal_knowledge_base/read_papers\",\n    \"skills\": [\n      \"teaching-reconstruction\",\n      \"teaching-dag-builder\",\n      \"evidence-anchor\",\n      \"retrieval-practice\",\n      \"learning-artifact-compiler\",\n      \"academic-writing\",\n      \"task-routing\"\n    ],\n    \"source_items\": 11,\n    \"status\": \"installed\"\n  },\n  \"check\": {\n    \"bundle\": \"/home/alex_mercer/.local/share/agent-tools/learning-workflow\",\n    \"global_read_paper_aliases_deactivated\": 1,\n    \"guard\": {\n      \"cc_switch_db\": \"/home/alex_mercer/.cc-switch/cc-switch.db\",\n      \"codex_home\": \"/home/alex_mercer/.codex\",\n      \"config\": \"platform-clean\",\n      \"platform\": \"wsl\",\n      \"status\": \"PASS\",\n      \"user\": \"alex_mercer\"\n    },\n    \"hook_trust\": \"not_verified\",\n    \"hooks_configured\": true,\n    \"links_checked\": 9,\n    \"status\": \"pass\"\n  },\n  \"protected_objects\": [\n    {\n      \"path\": \"/home/alex_mercer/.codex/config.toml\",\n      \"before\": \"fe3018c8ebfc5faa6b0fe365b55010b2ef84dd7f9bcfcccd765c44402bd64643\",\n      \"after\": \"fe3018c8ebfc5faa6b0fe365b55010b2ef84dd7f9bcfcccd765c44402bd64643\",\n      \"unchanged\": true\n    },\n    {\n      \"path\": \"/home/alex_mercer/.claude/skills\",\n      \"before\": \"1bff0b8661871f662cbeaa33f58db42c5db493a77d2e71ccfe1f9379ab3e3a20\",\n      \"after\": \"1bff0b8661871f662cbeaa33f58db42c5db493a77d2e71ccfe1f9379ab3e3a20\",\n      \"unchanged\": true\n    },\n    {\n      \"path\": \"/home/alex_mercer/projects/.claude/skills\",\n      \"before\": \"9264f6bb3ed23df7335e0511322ba91a10a6e60605f1d0fbf6c38892f150f80e\",\n      \"after\": \"9264f6bb3ed23df7335e0511322ba91a10a6e60605f1d0fbf6c38892f150f80e\",\n      \"unchanged\": true\n    }\n  ],\n  \"adapter_config\": {\n    \"read_papers_root\": \"/mnt/c/AppsExternal/Obsidian/vault-repo/personal_knowledge_base/read_papers\",\n    \"zotero_data_dir\": \"/mnt/c/AppsExternal/Zotero/dataStorage\",\n    \"zotero_api_url\": \"http://127.0.0.1:23119\",\n    \"import_arxiv_script\": \"/mnt/c/AppsExternal/Obsidian/vault-repo/personal_knowledge_base/read_papers/scripts/import_arxiv_to_zotero.py\"\n  },\n  \"zotero_read_only\": {\n    \"operation\": \"GET /api/users/0/items?limit=1; no mutation\",\n    \"error\": \"<urlopen error timed out>\"\n  },\n  \"project_context_backup\": \"/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/feedback-20260927/project-before-AGENTS.md\",\n  \"project_context_after_sha256\": \"f311f8d22a11e2ab0ef229596f48ef0c64a53b607a7aa9a8a453513ee073c2fb\",\n  \"project_config_sha256\": \"26f24db039325e3671cacf184ab6d243ab71184e2e6af4565aa812d233a67053\",\n  \"scope\": \"Current WSL Codex profile and explicitly selected ReadPapers project; no native Win11 Codex or Claude qualification. Hook groups configured and checked; not a new actual hook-event campaign.\"\n}\n"
+      },
+      "affects": [
+        "AC-18"
+      ],
+      "payload": {
+        "id": "local-activation",
+        "status": "completed",
+        "observation": {
+          "result": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/feedback-20260927/activation-result.json",
+          "scope": "Current WSL Codex profile and explicit ReadPapers project; installer checks passed. Native skills discovery recorded separately; current Zotero endpoint probe remains unresolved, no library mutation."
+        }
+      },
+      "input_digest": "0238e82b5e0bc3e82fa1076bbd54716503e902bd961d7d081258d6d47814beba",
+      "revision": 20,
+      "at": "2026-09-27T12:46:27.648164+00:00",
       "status": "recorded",
       "detail": {}
     }

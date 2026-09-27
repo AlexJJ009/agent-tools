@@ -13,10 +13,9 @@ checkout. The installer always calls `scripts/codex_target_guard.py` before
 writing profile state. To replace the five known teaching-suite symlinks, pass
 the exact old checkout with `--legacy-root`; any different occupied target is
 preserved and aborts installation. The reusable skills are installed under
-`~/.agents/skills` and linked from `~/.claude/skills`. An explicit
+`~/.agents/skills` for Codex. Claude entries are not managed. An explicit
 `--read-papers-root /absolute/project/path` additionally installs the
-`read-paper` adapter only in that project's `.agents/skills` and
-`.claude/skills`. It does not install the project adapter globally.
+`read-paper` adapter only in that project's `.agents/skills`. It does not install the project adapter globally.
 It also creates a managed `~/.local/bin/learning-workflow` link to the copied
 CLI. Ensure that directory is on `PATH` for commands shown in the skills.
 If that project already contains a `read-paper` skill directory, pass its
@@ -27,7 +26,7 @@ project targets remain untouched.
 Global user-level `read-paper` aliases would continue to expose the old broad
 skill. If they exist, pass their exact old source directory as
 `--legacy-global-read-paper-source`. Only matching symlinks under
-`~/.agents/skills`, `~/.codex/skills`, and `~/.claude/skills` are deactivated.
+`~/.agents/skills` and `~/.codex/skills` are deactivated; Claude aliases are preserved.
 Other links or directories abort installation. Rollback restores the original
 link text only if the alias path remains absent; a newly occupied path is
 preserved for manual resolution.
@@ -66,3 +65,37 @@ Verify actual API, item/attachment identity and PDF location with read-only
 operations. Keep platform-specific paths in the project configuration, not
 portable skill defaults. A disposable Linux fixture proves only its own test
 conditions and cannot stand in for Windows integration.
+
+## Codex-first target adaptation (2026-09-27)
+
+The user clarified that Codex is the current deployment target and explicitly
+authorized incremental restructuring of the ReadPapers project. This installation
+still targets the current Linux/WSL Codex profile, not a native Windows profile.
+An explicitly selected mounted project is a project scope, not permission to
+change Windows Codex settings. Win11 remains the only daily Zotero host.
+
+ReadPapers currently has `.claude` pointing to a shared directory and
+`.codex/skills` bridging into it. Merely adding `.agents/skills/read-paper`
+produced two native-discovered definitions. Pass
+`--legacy-project-skills-source /exact/inspected/shared/skills` to split that
+one project bridge into a real directory of per-entry links, excluding
+`read-paper`. Other existing skill contents continue to follow their original
+sources; new names added to that shared source are not automatically mirrored.
+The dedicated paper adapter lives only in project `.agents/skills`.
+
+The installer checks the exact old bridge and destination parents, records its
+original link text, stages the replacement beside it, and compensates on an
+installation failure. Check/rollback compare the exact shallow name/type/link
+map, including detecting added empty directories. Later user changes stop rollback
+before removals. Shared Claude sources and user Claude aliases are preserved.
+Older manifests without this bridge field still use their original rollback.
+
+The project's Codex entry document must point to the new adapter rather than
+regenerate a shared Claude index over it. Back up that document and the explicit
+project configuration separately when deploying; those editorial/config files
+are not installer-owned symlinks. Do not run the old bidirectional context sync
+over this newly independent Codex entrypoint.
+
+Official discovery reference: [Codex local skills](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills).
+Native `skills/list` receipts validate the observed host, not all Codex versions
+or actual model selection. Source and topology receipts are in the task evidence index.

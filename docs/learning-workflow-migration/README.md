@@ -1,8 +1,10 @@
 # Learning workflow migration — review package
 
-The approved design now has an implementation candidate. See [IMPLEMENTATION.md](IMPLEMENTATION.md) for observed validation and outstanding acceptance; the original checklist remains the frozen specification, not a generated pass report. Live activation is separate from code completion.
+The approved design now has an implementation candidate. See [IMPLEMENTATION.md](IMPLEMENTATION.md) for observed validation and outstanding acceptance; the original checklist remains the frozen specification, not a generated pass report. Current WSL Codex activation is recorded separately from code completion; native Windows Codex and Claude support remain outside this qualification.
 
-- [ACCEPTANCE.md](ACCEPTANCE.md): observed criterion results, failures and corrections, evaluation cost, platform limits, and the remaining real-user pilot.
+- [ACCEPTANCE.md](ACCEPTANCE.md): observed criterion results, failures and corrections, evaluation cost, platform limits, and actual scoped user-pilot feedback.
+- [SKILL-OWNERSHIP.md](SKILL-OWNERSHIP.md): actual user/project scope, maintenance source, and installed entries.
+- [PRD-REVIEW.md](PRD-REVIEW.md): 2026-09-27 version/intent audit, local corrections, engineering choices, and actual-target installation gap.
 - [PRD.md](PRD.md): Chinese explanation of scope, architecture, English instruction policy, migration order and completion boundaries.
 - [checklist.yaml](checklist.yaml): 21 acceptance criteria, all implementation statuses initially `not_run`.
 - [validation-cases.json](validation-cases.json): 30 fixed cases, including negative requests, multi-turn transitions, manuscript work, project boundaries and installation failure controls.

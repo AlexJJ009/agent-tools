@@ -1,0 +1,5 @@
+{
+  "through_sha": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+  "status": "bounded source reviews dry; final acceptance mapping still in progress",
+  "review": "docs/learning-workflow-migration/reviews/implementation-review-scratch-scope.md"
+}

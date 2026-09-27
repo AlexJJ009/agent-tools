@@ -1,0 +1,4 @@
+interface:
+  display_name: "Teaching DAG Builder"
+  short_description: "Build and audit knowledge prerequisite DAGs"
+  default_prompt: "Use $teaching-dag-builder to build a local prerequisite DAG and identify the current frontier."

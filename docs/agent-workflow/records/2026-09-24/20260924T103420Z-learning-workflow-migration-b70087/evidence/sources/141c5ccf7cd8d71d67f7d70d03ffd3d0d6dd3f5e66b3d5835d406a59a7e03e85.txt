@@ -1,0 +1,7 @@
+{
+  "windows_fixture_removed": true,
+  "wsl_fixture_removed": true,
+  "production_selected_objects_unchanged": true,
+  "production_pdf_unchanged": true,
+  "receipt": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/windows-zotero-fixture/cleanup-report.json"
+}

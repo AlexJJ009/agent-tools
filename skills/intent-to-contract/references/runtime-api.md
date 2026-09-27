@@ -66,7 +66,7 @@ The machine performs mechanical validation, not human identity authentication. `
 
 Keep an existing-behavior repair on the `bug_fix` primary route. Billing, permissions or other side effects raise risk and add acceptance checks; they do not by themselves turn a bug repair into a new business feature. The general Coder is unchanged.
 
-Learning-only intake hands off to the existing `teaching-reconstruction` skill (and `read-paper` when a paper is involved). Office-only intake uses an available office tool after recording facts, audience and export requirements. Neither path needs a formal-run gate or a code Cleaner. Missing material is a legitimate unverified handoff, not a reason that `init` should fail.
+Learning-only intake hands off to `teaching-reconstruction`. Library management and formal paper close reading use `read-paper` only within the configured ReadPapers project; other projects consume supplied evidence without implicit library authority. Direct manuscript drafting uses `academic-writing` without a learner test. A development task that enters learning keeps its canonical checklist and links a routing sidecar through `task-routing`. Office-only intake uses an available office tool after recording facts, audience and export requirements. Neither path needs a formal-run gate or a code Cleaner. Missing material is a legitimate unverified handoff, not a reason that `init` should fail.
 
 
 ## Schema 2 state and typed updates

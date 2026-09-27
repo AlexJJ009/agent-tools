@@ -124,7 +124,7 @@ class InstallerTests(unittest.TestCase):
         self.assertTrue((self.home / ".agents/skills/teaching-reconstruction").is_symlink())
 
     def test_existing_project_adapter_directory_is_restored_byte_for_byte(self) -> None:
-        old_adapter = self.papers / ".claude/skills/read-paper"
+        old_adapter = self.papers / ".agents/skills/read-paper"
         old_adapter.mkdir(parents=True)
         (old_adapter / "SKILL.md").write_bytes(b"legacy read paper\n")
         (old_adapter / "private-note.txt").write_bytes(b"keep exactly\x00\n")
@@ -142,7 +142,7 @@ class InstallerTests(unittest.TestCase):
         source.mkdir()
         (source / "SKILL.md").write_text("old broad scope\n")
         aliases = []
-        for base in (self.home / ".codex/skills", self.home / ".claude/skills"):
+        for base in (self.home / ".codex/skills", self.home / ".agents/skills"):
             base.mkdir(parents=True, exist_ok=True)
             alias = base / "read-paper"
             alias.symlink_to(source, target_is_directory=True)
@@ -232,6 +232,108 @@ class InstallerTests(unittest.TestCase):
         self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
         self.assertEqual((self.home / ".agents/skills/teaching-reconstruction").resolve(),
                          self.old / "skills/teaching-reconstruction")
+
+    def test_codex_only_preserves_shared_claude_roots(self) -> None:
+        shared = self.base / "shared-claude"
+        (shared / "skills/read-paper").mkdir(parents=True)
+        (shared / "skills/read-paper/SKILL.md").write_text("unrelated shared adapter\n")
+        (self.papers / ".claude").symlink_to(shared, target_is_directory=True)
+        global_source = self.base / "old-read-paper"
+        global_source.mkdir()
+        (global_source / "SKILL.md").write_text("old broad scope\n")
+        (self.home / ".codex/skills").mkdir(parents=True)
+        (self.home / ".codex/skills/read-paper").symlink_to(global_source)
+        # A foreign Claude alias must not even be considered for replacement.
+        (self.home / ".claude/skills/read-paper").symlink_to(shared / "skills/read-paper")
+        before_shared = installer.digest(shared)
+        before_claude = installer.digest(self.home / ".claude")
+        report = installer.install(self.home, legacy_root=self.old, read_papers_root=self.papers,
+                                   legacy_global_read_paper_source=global_source, with_hooks=False)
+        self.assertEqual(report["client"], "codex")
+        self.assertTrue((self.papers / ".agents/skills/read-paper/SKILL.md").is_file())
+        self.assertFalse((self.home / ".codex/skills/read-paper").exists())
+        self.assertEqual(installer.digest(shared), before_shared)
+        self.assertEqual(installer.digest(self.home / ".claude"), before_claude)
+        self.assertEqual(installer.check(self.home)["status"], "pass")
+        installer.rollback(self.home)
+        self.assertEqual(installer.digest(shared), before_shared)
+        self.assertEqual(installer.digest(self.home / ".claude"), before_claude)
+        self.assertEqual((self.home / ".codex/skills/read-paper").resolve(), global_source)
+
+    def test_codex_alias_into_claude_is_rejected_before_writes(self) -> None:
+        # A parent inside the allowed project can still belong to another client.
+        claude = self.papers / ".claude"
+        claude.mkdir()
+        (self.papers / ".agents").symlink_to(claude, target_is_directory=True)
+        before = installer.digest(claude)
+        with self.assertRaisesRegex(installer.InstallError, "Claude-owned"):
+            installer.install(self.home, legacy_root=self.old, read_papers_root=self.papers, with_hooks=False)
+        self.assertEqual(installer.digest(claude), before)
+        self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
+
+    def test_shared_agents_parent_is_still_rejected_before_writes(self) -> None:
+        shared = self.base / "foreign-agents"
+        shared.mkdir()
+        (self.papers / ".agents").symlink_to(shared, target_is_directory=True)
+        with self.assertRaisesRegex(installer.InstallError, "skill destination escapes"):
+            installer.install(self.home, legacy_root=self.old, read_papers_root=self.papers, with_hooks=False)
+        self.assertEqual(list(shared.iterdir()), [])
+        self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
+
+    def test_codex_alias_into_renamed_claude_root_is_rejected(self) -> None:
+        shared = self.papers / "shared-client-state"
+        shared.mkdir()
+        (self.papers / ".claude").symlink_to(shared)
+        (self.papers / ".agents").symlink_to(shared)
+        with self.assertRaisesRegex(installer.InstallError, "Claude-owned"):
+            installer.install(self.home, legacy_root=self.old, read_papers_root=self.papers, with_hooks=False)
+        self.assertEqual(list(shared.iterdir()), [])
+
+    def make_project_bridge(self) -> tuple[Path, Path]:
+        source = self.base / "shared-project-skills"
+        for name in ("read-paper", "other-skill"):
+            (source / name).mkdir(parents=True)
+            (source / name / "SKILL.md").write_text(name)
+        bridge = self.papers / ".codex/skills"
+        bridge.parent.mkdir()
+        bridge.symlink_to(source, target_is_directory=True)
+        return bridge, source
+
+    def test_project_bridge_split_and_exact_rollback(self) -> None:
+        bridge, source = self.make_project_bridge()
+        before = installer.digest(source)
+        with self.assertRaisesRegex(installer.InstallError, "exact --legacy-project"):
+            installer.install(self.home, legacy_root=self.old, read_papers_root=self.papers, with_hooks=False)
+        installer.install(self.home, legacy_root=self.old, read_papers_root=self.papers,
+                          legacy_project_skills_source=source, with_hooks=False)
+        self.assertFalse(bridge.is_symlink())
+        self.assertFalse((bridge / "read-paper").exists())
+        self.assertEqual((bridge / "other-skill").readlink(), source / "other-skill")
+        self.assertEqual(installer.check(self.home)["status"], "pass")
+        # An empty added directory must block rollback before any managed removal.
+        (bridge / "later-user-content").mkdir()
+        with self.assertRaisesRegex(installer.InstallError, "bridge changed"):
+            installer.rollback(self.home)
+        self.assertTrue((self.papers / ".agents/skills/read-paper").is_symlink())
+        (bridge / "later-user-content").rmdir()
+        installer.rollback(self.home)
+        self.assertEqual(bridge.readlink(), source)
+        self.assertEqual(installer.digest(source), before)
+
+    def test_manifest_failure_restores_split_project_bridge(self) -> None:
+        bridge, source = self.make_project_bridge()
+        original = installer.atomic_json
+        def fail_manifest(path: Path, value: dict) -> None:
+            if path.name == "install.json":
+                raise OSError("injected manifest failure after bridge split")
+            original(path, value)
+        with patch.object(installer, "atomic_json", fail_manifest):
+            with self.assertRaisesRegex(OSError, "after bridge split"):
+                installer.install(self.home, legacy_root=self.old, read_papers_root=self.papers,
+                                  legacy_project_skills_source=source, with_hooks=False)
+        self.assertEqual(bridge.readlink(), source)
+        self.assertFalse((self.papers / ".agents/skills/read-paper").exists())
+        self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
 
     def test_target_guard_rejects_cross_platform_config_before_writes(self) -> None:
         (self.home / ".codex/config.toml").write_text('note = "C:\\\\Users\\\\other"\n')

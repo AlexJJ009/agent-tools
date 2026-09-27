@@ -5,14 +5,16 @@ description: Create reconstruction, retrieval, transfer, and later-review checks
 
 # Retrieval Practice
 
-Generate checks that reveal whether the learner can rebuild the idea, not merely recognize a summary.
+Choose practice that fits the target skill and the learner's requested effort. Distinguish recognizing a sound argument from independently producing one.
 
 ## Workflow
 
-1. Start from the current frontier KCs and their evidence anchors.
-2. Mix reconstruction prompts, near-transfer prompts, far-transfer prompts, and misconception traps.
-3. Require the learner to expose mechanism, boundary, and evidence when relevant.
+1. Start from the target knowledge component (KC), available source evidence, and current request; reuse existing learning state when available.
+2. Select a response format for that objective: cloze completion, contrastive examples with a choice, error diagnosis, sentence ordering, a short rewrite, or free production. Reconstruction and near/far transfer are possible objectives, not a required sequence or fixed question mix.
+3. Use explicit effort cues. When the user asks for a lighter exercise, a small set of plausible alternatives can support discriminative judgment; invite a brief reason when useful, without turning it into a compulsory essay. Do not require a fatigue questionnaire.
 4. Keep answer keys terse and evidence-linked; do not over-teach inside the key.
+
+Record what the response actually demonstrates and how much assistance was supplied. A correct choice does not establish independent writing ability; cloze completion does not establish an unaided argument. Fade support or change formats when it serves the next requested objective, rather than forcing every exercise through the same progression.
 
 Read `references/practice-design.md` for check types and scoring notes. Use `../teaching-reconstruction/references/artifact-contract.md` only for legacy v1 ReadPapers manifests; new non-ReadPapers durable learning may use `../teaching-reconstruction/references/portable-learning-record.md`.
 

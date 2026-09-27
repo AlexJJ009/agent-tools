@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Install, check, or roll back one local learning workflow candidate.
 
-Run this on the target Linux/WSL profile. The installer copies the runtime and
+Run this on the target Linux/WSL Codex profile. Claude-specific paths are not managed. The installer copies the runtime and
 skills, never runs the repository's broad install.sh, and does not establish
 that a host has trusted or invoked the optional hooks.
 """
@@ -81,21 +81,21 @@ def source_files() -> list[tuple[Path, Path]]:
 def link_plan(home: Path, bundle: Path, read_papers_root: Path | None) -> dict[Path, Path]:
     links = {home / ".local/bin/learning-workflow": bundle / "bin/learning-workflow"}
     for name in SKILLS:
-        for base in (home / ".agents/skills", home / ".claude/skills"):
+        for base in (home / ".agents/skills",):
             links[base / name] = bundle / "skills" / name
     if read_papers_root is not None:
         if not read_papers_root.is_dir():
             raise InstallError(f"ReadPapers project does not exist: {read_papers_root}")
         adapter = bundle / "project_adapters/read_papers/read-paper"
-        for base in (read_papers_root / ".agents/skills", read_papers_root / ".claude/skills"):
+        for base in (read_papers_root / ".agents/skills",):
             links[base / "read-paper"] = adapter
     return links
 
 
 def old_global_paper_links(home: Path, exact_source: Path | None) -> dict[Path, str]:
-    """Inventory only the three known user-level aliases, never project skills."""
+    """Inventory Codex user-level aliases only; preserve Claude and project skills."""
     removed = {}
-    for base in (home / ".agents/skills", home / ".codex/skills", home / ".claude/skills"):
+    for base in (home / ".agents/skills", home / ".codex/skills"):
         path = base / "read-paper"
         if not path.exists() and not path.is_symlink():
             continue
@@ -105,13 +105,70 @@ def old_global_paper_links(home: Path, exact_source: Path | None) -> dict[Path, 
     return removed
 
 
+def project_bridge_plan(root: Path | None, exact_source: Path | None) -> dict[str, Any] | None:
+    if root is None:
+        if exact_source is not None:
+            raise InstallError("legacy project bridge requires a ReadPapers root")
+        return None
+    path = root / ".codex/skills"
+    if exact_source is None and not (path / "read-paper/SKILL.md").is_file():
+        return None
+    if (not path.is_symlink() or exact_source is None
+            or path.resolve() != exact_source or not exact_source.is_dir()):
+        raise InstallError("legacy project skills bridge needs its exact --legacy-project-skills-source")
+    if not path.parent.resolve().is_relative_to(root):
+        raise InstallError("project skills bridge parent escapes its root")
+    return {"path": str(path), "previous_target": os.readlink(path),
+            "entries": {child.name: str(child) for child in sorted(exact_source.iterdir())
+                        if child.name != "read-paper"}}
+
+
+def check_project_bridge(bridge: dict[str, Any]) -> None:
+    path = Path(bridge["path"])
+    expected = bridge["entries"]
+    if (path.is_symlink() or not path.is_dir()
+            or {child.name for child in path.iterdir()} != set(expected)
+            or any(not (path / name).is_symlink() or os.readlink(path / name) != target
+                   for name, target in expected.items())):
+        raise InstallError("managed project skills bridge changed; preserve it")
+
+
+def split_project_bridge(bridge: dict[str, Any]) -> None:
+    path = Path(bridge["path"])
+    if not path.is_symlink() or os.readlink(path) != bridge["previous_target"]:
+        raise InstallError("legacy project skills bridge changed before installation")
+    # Stage beside the bridge, including on mounted projects; do not move its source.
+    staged = Path(tempfile.mkdtemp(prefix=".learning-skills-", dir=path.parent))
+    try:
+        for name, target in bridge["entries"].items():
+            (staged / name).symlink_to(target)
+        path.unlink()
+        try:
+            staged.rename(path)
+        except Exception:
+            path.symlink_to(bridge["previous_target"], target_is_directory=True)
+            raise
+    finally:
+        if staged.exists():
+            shutil.rmtree(staged)
+
+
+def restore_project_bridge(bridge: dict[str, Any]) -> None:
+    check_project_bridge(bridge)
+    path = Path(bridge["path"])
+    for name in bridge["entries"]:
+        (path / name).unlink()
+    path.rmdir()
+    path.symlink_to(bridge["previous_target"], target_is_directory=True)
+
+
 def legacy_target(path: Path, home: Path, legacy_root: Path | None) -> bool:
     if not path.is_symlink():
         return False
     name = path.name
     if name not in OLD_SKILLS or legacy_root is None:
         return False
-    if path.parent not in (home / ".agents/skills", home / ".claude/skills"):
+    if path.parent != home / ".agents/skills":
         return False
     return path.resolve(strict=False) == (legacy_root / "skills" / name).resolve(strict=False)
 
@@ -208,6 +265,7 @@ def copy_payload(bundle: Path) -> None:
 def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | None,
             legacy_read_paper_dir: Path | None = None,
             legacy_global_read_paper_source: Path | None = None,
+            legacy_project_skills_source: Path | None = None,
             with_hooks: bool) -> dict[str, Any]:
     guard = target_guard(home)
     sources = source_files()
@@ -216,10 +274,24 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
     legacy_backup = home / ".local/state/learning-workflow/legacy-read-paper"
     links = link_plan(home, bundle, read_papers_root)
     global_paper_links = old_global_paper_links(home, legacy_global_read_paper_source)
+    bridge = project_bridge_plan(read_papers_root, legacy_project_skills_source)
     if global_paper_links and read_papers_root is None:
         raise InstallError("deactivating global read-paper aliases requires an explicit ReadPapers project adapter target")
     if legacy_read_paper_dir is not None and (read_papers_root is None or legacy_read_paper_dir not in links):
         raise InstallError("legacy ReadPapers adapter path must be one of the selected project's skill targets")
+    # Codex aliases must not write through an in-root symlink into Claude state.
+    # Inspect destination parents, not legacy targets: unlinking a Codex alias
+    # to an old Claude-owned source must leave that source untouched.
+    claude_roots = [(home / ".claude").resolve()]
+    if read_papers_root is not None:
+        claude_roots.append((read_papers_root / ".claude").resolve())
+    destinations = [*links, *global_paper_links, bundle, state, legacy_backup, home / ".codex/hooks.json"]
+    if bridge:
+        destinations.append(Path(bridge["path"]))
+    for path in destinations:
+        parent = path.parent.resolve(strict=False)
+        if ".claude" in parent.parts or any(parent.is_relative_to(root) for root in claude_roots):
+            raise InstallError(f"Codex destination resolves into Claude-owned state: {path}")
     for path in (bundle, state, legacy_backup, home / ".codex/hooks.json"):
         if not path.parent.resolve(strict=False).is_relative_to(home):
             raise InstallError(f"profile destination escapes its root: {path}")
@@ -243,7 +315,7 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
                 previous[str(path)] = {"kind": "symlink", "target": os.readlink(path)}
             elif (legacy_read_paper_dir is not None and path == legacy_read_paper_dir
                   and read_papers_root is not None and path.name == "read-paper"
-                  and path.parent in (read_papers_root / ".agents/skills", read_papers_root / ".claude/skills")
+                  and path.parent == read_papers_root / ".agents/skills"
                   and path.is_dir() and not path.is_symlink()):
                 previous[str(path)] = {"kind": "directory", "backup": str(legacy_backup),
                                        "digest": digest(path)}
@@ -273,7 +345,11 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
             if bundle.is_dir():
                 shutil.rmtree(bundle)
             raise
+    bridge_split = False
     try:
+        if bridge:
+            split_project_bridge(bridge)
+            bridge_split = True
         for path, target in links.items():
             path.parent.mkdir(parents=True, exist_ok=True)
             if path.is_symlink():
@@ -287,12 +363,13 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
         if with_hooks and hook_data is not None:
             if update_hooks(hook_data, bundle, home, remove=False):
                 atomic_json(hooks_path, hook_data)
-        manifest = {"schema_version": MARKER, "bundle": str(bundle), "bundle_digest": payload_digest,
+        manifest = {"schema_version": MARKER, "client": "codex", "bundle": str(bundle), "bundle_digest": payload_digest,
                     "source_digest": {str(relative): digest(source) for source, relative in sources},
                     "links": {str(path): {**prior, "installed_target": str(links[path])}
                               for path, prior in ((Path(k), v) for k, v in previous.items())},
                     "deactivated_global_read_paper": {str(path): target for path, target in global_paper_links.items()},
                     "read_papers_root": str(read_papers_root) if read_papers_root else None,
+                    "project_skills_bridge": bridge,
                     "hooks_installed": with_hooks, "hooks_preexisting": hooks_preexisting,
                     "guard": guard}
         atomic_json(state, manifest)
@@ -316,9 +393,11 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
                     hooks_path.unlink()
                 else:
                     atomic_json(hooks_path, current)
+        if bridge_split:
+            restore_project_bridge(bridge)
         shutil.rmtree(bundle)
         raise
-    return {"status": "installed", "bundle": str(bundle), "skills": list(SKILLS),
+    return {"status": "installed", "client": "codex", "bundle": str(bundle), "skills": list(SKILLS),
             "read_papers_scope": str(read_papers_root) if read_papers_root else None,
             "global_read_paper_aliases_deactivated": len(global_paper_links),
             "launcher": str(home / ".local/bin/learning-workflow"),
@@ -353,6 +432,8 @@ def check(home: Path) -> dict[str, Any]:
                          capture_output=True, text=True)
     if run.returncode:
         raise InstallError("installed runtime cannot start: " + run.stderr.strip())
+    if manifest.get("project_skills_bridge"):
+        check_project_bridge(manifest["project_skills_bridge"])
     hooks_present = False
     if manifest["hooks_installed"]:
         data = load_hooks(home / ".codex/hooks.json")
@@ -385,6 +466,9 @@ def rollback(home: Path) -> dict[str, Any]:
         path = Path(raw)
         if path.exists() or path.is_symlink():
             raise InstallError(f"deactivated global read-paper alias was replaced; preserve it: {path}")
+    bridge = manifest.get("project_skills_bridge")
+    if bridge:
+        check_project_bridge(bridge)
     hooks_path = home / ".codex/hooks.json"
     hook_data = load_hooks(hooks_path) if manifest["hooks_installed"] else None
     if hook_data is not None:
@@ -403,6 +487,8 @@ def rollback(home: Path) -> dict[str, Any]:
             Path(prior["backup"]).rename(path)
     for raw, target in manifest.get("deactivated_global_read_paper", {}).items():
         Path(raw).symlink_to(target, target_is_directory=True)
+    if bridge:
+        restore_project_bridge(bridge)
     shutil.rmtree(bundle)
     state.unlink()
     return {"status": "rolled_back", "links_restored": len(manifest["links"]),
@@ -421,6 +507,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="exact existing ReadPapers read-paper skill directory to back up and replace")
     parser.add_argument("--legacy-global-read-paper-source", type=Path,
                         help="exact old source of matching user-level read-paper symlinks to deactivate")
+    parser.add_argument("--legacy-project-skills-source", type=Path,
+                        help="exact shared source of the project .codex/skills symlink to split, preserving other entries")
     parser.add_argument("--with-hooks", action="store_true", help="merge bounded Codex hook definitions; trust remains unverified")
     args = parser.parse_args(argv)
     if platform.system() != "Linux":
@@ -436,6 +524,7 @@ def main(argv: list[str] | None = None) -> int:
                              read_papers_root=args.read_papers_root.resolve() if args.read_papers_root else None,
                              legacy_read_paper_dir=args.legacy_read_paper_dir.resolve() if args.legacy_read_paper_dir else None,
                              legacy_global_read_paper_source=args.legacy_global_read_paper_source.resolve() if args.legacy_global_read_paper_source else None,
+                             legacy_project_skills_source=args.legacy_project_skills_source.resolve() if args.legacy_project_skills_source else None,
                              with_hooks=args.with_hooks)
         print(json.dumps(report, ensure_ascii=False, sort_keys=True))
         return 0

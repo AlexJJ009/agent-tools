@@ -263,7 +263,7 @@ def check(record, action, target=None, base_revision=None):
     require(action not in {'experiment', 'external_publish'}, 'use the existing development/publication authorization entry; a route is not execution authority')
     roots = d.get('skill_roots') or [Path.home()/'.agents/skills', Path.home()/'.codex/skills',
                                     Path(record['workspace_root'])/'.agents/skills',
-                                    Path(record['workspace_root'])/'.claude/skills']
+                                    Path(record['workspace_root'])/'.codex/skills']
     for skill in d['selected_skills']:
         require(any((Path(p)/skill/'SKILL.md').is_file() for p in roots), 'selected capability unavailable: ' + skill)
     if action in {'zotero_read','zotero_mutation','formal_close_read'}:

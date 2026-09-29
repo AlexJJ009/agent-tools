@@ -13,6 +13,30 @@ private reports describe bounded development work and are not deployment proof.
 - [CLI server bootstrap](CLI_SERVER_BOOTSTRAP.md): server setup.
 - [Repository overview](../README.md): other maintained tools and platform guides.
 
+## Documentation Responsibilities
+
+The two README files serve different entry points; neither is a second progress
+register. The [repository README](../README.md) introduces the tools, file map
+and setup entry points. Its existing context-sync usage reference remains the
+maintained guide for that component. This README is the navigation index for
+current component guides and architectural decisions; it does not repeat their
+commands, behavior descriptions or decision status.
+
+| Material | Maintained responsibility | Update when |
+|---|---|---|
+| Root `README.md` | Repository purpose, tool inventory, setup entry points, and the existing context-sync usage reference | Repository entry points or that component's usage change |
+| `docs/README.md` | Links to current system guides and decisions | A guide is added, moved, replaced, or its responsibility changes |
+| Component guides | Implemented usage, interfaces, operational steps and limitations | The corresponding behavior changes |
+| `docs/decisions/NNNN-*.md` | Significant adopted choices, context, reasons and consequences | A material decision is adopted or superseded |
+| Ignored `docs/_local/` | Task-specific requirements, one execution checklist, recovery points and private evidence | That task progresses or its agreement changes |
+
+Keep each detailed fact in one maintained source and link to it from the entry
+points. A component guide's ordinary edit does not require rewriting both
+README files. Keep release/deployment claims tied to actual verification;
+source implementation and historical acceptance do not establish installation
+on another host. This division clarifies [ADR 0001](decisions/0001-local-development-records.md)
+and does not create a new document pack or ADR for every documentation edit.
+
 Private development material belongs in ignored `docs/_local/`, created only
 when needed: `tasks/<task-id>/`, `reports/<task-id>/`, or `scratch/<task-id>/`.
 Existing task identifiers and agreements remain valid. A handoff records the

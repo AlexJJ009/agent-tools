@@ -1,7 +1,0 @@
-补充：之前在这台机器上的 .agents 文件夹，分了用户级和项目级。有些东西可能被错装到了 read-paper 的项目级里面。这也是为什么 read-papers 这个文件夹，之前里面引用的这种软链接、硬链接，以及引用的这些 skill 或工具，可能会比较乱的原因吧。
-
-我们这次就是要做好拆分：到底什么东西真正归 read-paper 管理，什么归 agent-tools 管理，各个 skill 怎么归属、哪些需要安装，这还是挺有讲究的：
-
-• read-paper 专属（项目级）：像关于 Zotero 管理文献材料的相关工具，只要在 read-paper 里面安装就好；Markdown Proxy 也是 read-paper 用的，所以暂时先放在 read-paper 里面。
-
-• agent-tools（用户级）：我们这次产出的核心功能，比如 routing 等相关的 skill，当然都应该装在用户级别。这也就是 agent-tools 本身的定位，必须是给用户级别安装的。

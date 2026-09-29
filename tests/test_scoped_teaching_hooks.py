@@ -37,6 +37,20 @@ class ScopedTeachingTests(unittest.TestCase):
             with self.assertRaisesRegex(r.RouteError,'current output'):
                 hooks.bind(record,'session',work,state,teaching_artifacts=['old.md'])
 
+    def test_registration_identity_requires_the_actual_teaching_script(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory=Path(tmp)
+            for command in (
+                'echo .codex/teaching_stop_filter.py',
+                'cat .codex/teaching_stop_filter.py',
+                'python3 unrelated.py .codex/teaching_stop_filter.py',
+                'python3 /unrelated/teaching_stop_filter.py',
+                'python3 -c "print(1)" .codex/teaching_stop_filter.py',
+            ):
+                with self.subTest(command=command):
+                    self.assertFalse(reg.teaching_handler({'type':'command','command':command},directory))
+            self.assertTrue(reg.teaching_handler({'type':'command','command':'/usr/bin/env python3 .codex/teaching_stop_filter.py'},directory))
+
     def test_both_host_formats_migrate_and_rollback_without_touching_foreign_hooks(self):
         with tempfile.TemporaryDirectory() as tmp:
             home=Path(tmp); config=home/'.codex'; config.mkdir()

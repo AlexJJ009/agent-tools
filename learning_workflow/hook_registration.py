@@ -15,13 +15,24 @@ def teaching_handler(handler, directory):
         argv=shlex.split(handler.get('command',''))
     except ValueError:
         return False
-    for arg in argv:
-        path=(directory/arg).resolve()
-        if path.name=='teaching_stop_filter.py':
-            return True
-        if path.name=='stop_validate.py' and path.parent.name=='scripts' and path.parent.parent.name=='teaching-reconstruction':
-            return True
-    return False
+    # Recognize the interpreter's script argument, never a filename merely
+    # mentioned as data (for example by echo, cat, or a different script).
+    if argv and Path(argv[0]).name == 'env':
+        argv = argv[1:]
+    if len(argv) < 2 or not re.fullmatch(r'python(?:3(?:\.\d+)?)?', Path(argv[0]).name):
+        return False
+    script_index = 1
+    while script_index < len(argv) and argv[script_index] in {'-B', '-u', '-I', '-E', '-s'}:
+        script_index += 1
+    if script_index >= len(argv) or argv[script_index].startswith('-'):
+        return False
+    path = (directory / argv[script_index]).resolve()
+    project_filter = (directory / '.codex/teaching_stop_filter.py').resolve()
+    return path == project_filter or (
+        path.name == 'stop_validate.py'
+        and path.parent.name == 'scripts'
+        and path.parent.parent.name == 'teaching-reconstruction'
+    )
 
 
 def strip_teaching(groups,directory):

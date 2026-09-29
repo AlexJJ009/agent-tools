@@ -5,8 +5,10 @@ usage/interface documentation describe the system; task PRDs, checklists and
 private reports describe bounded development work and are not deployment proof.
 
 - [Agent workflow](AGENT_WORKFLOW.md): development agreements, readback and acceptance.
-- [Learning workflow runtime](learning-workflow-migration/RUNTIME.md): activity routing and scoped actions.
-- [Learning workflow installation](learning-workflow-migration/INSTALL.md): local Codex installation and rollback.
+- [Learning workflow runtime](LEARNING_WORKFLOW.md): activity routing and scoped actions.
+- [Learning workflow installation](LEARNING_WORKFLOW_INSTALL.md): local Codex installation and rollback.
+- [Architecture decisions](decisions/README.md): adopted choices and their reasons.
+- [Linear workflow](linear-workflow/README.md): shared runtime and explicit dispatch boundaries.
 - [Work Report timer](WORK_REPORT_LIGHT_TIMER.md): timed prompts and their delivery limits.
 - [CLI server bootstrap](CLI_SERVER_BOOTSTRAP.md): server setup.
 - [Repository overview](../README.md): other maintained tools and platform guides.

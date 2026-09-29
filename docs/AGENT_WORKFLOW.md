@@ -7,7 +7,7 @@ the first five; Work Report retains its existing separate installer.
 |---|---|---|
 | `intent-to-contract` | Intent to Contract | Read back the task, preserve source quotes, ground parameters, and seed checklist items. |
 | `infra-verification` | Infrastructure Verification | Collect readback evidence for training, Agentic, Docker, Harbor, GPU, mount, network, lifecycle, and cleanup behavior. |
-| `cleaner` | Cleaner | Perform behavior-preserving cleanup after coder work. |
+| `cleaner` | Cleaner | Check proportional cleanup, documentation impact and local artifact ownership before meaningful delivery. |
 | `acceptance-gate` | Acceptance Gate | Enforce current evidence, scoped choices and execution authority. |
 | `reviewer-brief` | Reviewer Brief | Produce bounded human review and independent reviewer briefs. |
 | `work-report` | Work Report | Produce requested reports from task state with independent cold reading and source verification. |
@@ -29,7 +29,7 @@ agent-workflow gate --record <record-dir> --action formal-run --simulation
 
 Use `--simulation` only for simulation records. A simulation record can support sandbox checks, but it cannot authorize a real formal experiment or production action. For local non-simulation records, omit `--simulation`.
 
-Records live under `docs/agent-workflow/records/YYYY-MM-DD/YYYYMMDDTHHMMSSZ-<slug>/` and contain `request.txt`, `task.md`, `checklist.yaml`, optional `protocol.md`, optional `reviews/human-review.md`, and `evidence/`.
+Create records when requested or needed for the applicable expensive/high-risk agreement; ordinary fixes do not require a PRD or checklist. New records live under ignored `docs/_local/tasks/<task-id>/` and contain `request.txt`, `task.md`, `checklist.yaml`, optional `protocol.md`, optional `reviews/human-review.md`, and `evidence/`.
 
 The installer copies the runtime to `~/.local/share/agent-workflow`, creates the launcher `~/.local/bin/agent-workflow`, and installs the five skills to `~/.agents/skills/`. It runs `scripts/codex_target_guard.py` before any write, rejects unmanaged collisions, and does not edit Codex config, auth, CC Switch databases, history, or existing conversations. `--check` is read-only and verifies installed files against the repository source.
 
@@ -75,7 +75,7 @@ This suite adapts small workflow structures from saved MIT-licensed snapshots:
 - `github/spec-kit` at `d4229c071c7ea3885b43e8a7739847300f618f13`
 - `obra/superpowers` at `5bf4e78011075bcfc0dc295f0724994cd123ee71`
 
-The copied license texts are in `docs/agent-workflow/licenses/`. The original saved license files are also in the PRD work-report reuse directory. SwarmForge is used only as a mechanism reference for coder-to-cleaner sequencing; no SwarmForge prompt or source text is copied because the local snapshot did not verify a license.
+The copied license texts are in `docs/agent-workflow/licenses/`. SwarmForge is used only as a mechanism reference for coder-to-cleaner sequencing; no SwarmForge prompt or source text is copied because the local snapshot did not verify a license.
 
 ## Local acceptance and project adoption
 
@@ -142,5 +142,14 @@ universal protected boundary.
 Work Report and reviewer-brief use the same
 [writing contract](../skills/work-report/references/writing-contract.md).
 Reports freeze the canonical revision; progress reporting does not finish the
-development phase or accept results for the user. Reproduce the increment's
-controls using the [acceptance plan](agent-workflow/incremental/acceptance-plan.md).
+development phase or accept results for the user. Reusable controls live in [workflow fixtures](../tests/fixtures/workflow_v2/README.md).
+Run `python3 -m unittest tests.test_workflow_state tests.test_workflow_managed
+tests.test_workflow_hooks tests.test_workflow_increment_acceptance -q` to exercise
+local state, execution and fixture boundaries. These tests do not establish
+native host event delivery or user acceptance.
+
+Task/handoff records retain recovery points, unfinished work and local evidence.
+Maintain current usage/interface facts here and significant design reasons in
+[ADRs](decisions/README.md), so another checkout needs no private report to use
+the runtime. Record documentation impact at meaningful delivery boundaries;
+no Markdown change is required when system behavior and usage are unchanged.

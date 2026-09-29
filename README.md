@@ -1,13 +1,19 @@
-# Agent Context Sync
+# Agent Tools
 
-Portable bridge for keeping Claude Code and Codex project context in sync.
+Tools for agent development workflows, learning and writing, project context
+synchronization, and machine-specific setup. Start here for the repository
+inventory and setup entry points; use [system documentation](docs/README.md)
+for component guides and [architecture decisions](docs/decisions/README.md).
+The [documentation responsibilities](docs/README.md#documentation-responsibilities)
+explain where each kind of information is maintained.
 
-It syncs the two agent conventions:
+The context-sync component keeps Claude Code and Codex project context in sync.
+Its existing usage reference remains below in this README. It syncs two conventions:
 
 - Claude Code: `CLAUDE.md`, `.claude/`
 - Codex: `AGENTS.md`, `.codex/`
 
-The recommended deployment model is one central tool directory per machine, not one full script copy per project. Each project only receives generated bridge files and mirrored config directories.
+For context sync, the recommended deployment model is one central tool directory per machine, not one full script copy per project. Each project only receives generated bridge files and mirrored config directories.
 
 ## Files
 

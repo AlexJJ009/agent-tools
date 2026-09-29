@@ -36,7 +36,9 @@ questions without asking the user to approve a report.
    that same task directory. A pre-registration draft or placeholder report has
    an older snapshot and cannot satisfy freshness, even for an interim report.
 
-Default output is project `docs/work-reports/` with local Git exclusion. External
+Default output is this worktree's `docs/_local/reports/` with Git exclusion.
+Reuse an existing request and canonical state under `docs/_local/tasks/<task-id>/`
+when present; reporting does not require another PRD or task checklist. External
 experiment/model storage is not automatically a report location. Use
 `--output-root` only when the user specified a report location. Do not create a
 report merely to clear a candidate or ask for approval of local ignore rules.

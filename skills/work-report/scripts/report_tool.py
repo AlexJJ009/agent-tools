@@ -408,7 +408,9 @@ def validate_context_required(context: dict[str, Any]) -> list[dict[str, str]]:
 def cmd_init(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     script_path = Path(__file__).resolve()
     workspace = canonical_workspace(safe_absolute(Path(args.workspace)))
-    output_root = safe_absolute(Path(args.output_root), include_leaf=True) if args.output_root else workspace / "docs" / "work-reports"
+    output_root = safe_absolute(Path(args.output_root), include_leaf=True) if args.output_root else workspace / "docs" / "_local" / "reports"
+    if args.task_dir and not args.output_root:
+        output_root = safe_absolute(Path(args.task_dir), include_leaf=True).parent
     reject_symlinks(output_root, include_leaf=True)
     request_path = safe_absolute(Path(args.request))
     request_text, request_hash = read_small_text(request_path, "request")

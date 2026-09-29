@@ -169,9 +169,12 @@ def require_task_dir_policy(task_dir: Path, workspace: Path) -> tuple[Path, Path
     root = git_root(workspace)
     if git_root(task_dir) != root:
         raise RuntimeFailure("task_dir_git_mismatch", "task-dir must belong to the workspace Git root")
-    reports_root = (root / "docs" / "work-reports").resolve()
+    reports_root = (root / "docs" / "_local" / "reports").resolve()
+    legacy_root = (root / "docs" / "work-reports").resolve()
+    if task_dir.parent.resolve() == legacy_root:
+        reports_root = legacy_root
     if task_dir.parent.resolve() != reports_root or not is_relative_to(task_dir, reports_root):
-        raise RuntimeFailure("task_dir_outside_reports", "task-dir must be directly under docs/work-reports")
+        raise RuntimeFailure("task_dir_outside_reports", "task-dir must be directly under docs/_local/reports (or an existing docs/work-reports task)")
     tracked = run_git(["ls-files", "--", git_relative(root, task_dir)], root)
     staged = run_git(["diff", "--cached", "--name-only", "--", git_relative(root, task_dir)], root)
     if tracked.returncode != 0 or staged.returncode != 0:
@@ -181,7 +184,7 @@ def require_task_dir_policy(task_dir: Path, workspace: Path) -> tuple[Path, Path
         raise RuntimeFailure("git_tracked_output", "task-dir contains tracked or staged files")
     ignored = run_git(["check-ignore", "-q", "--", str(task_dir / ".work-report-runtime-probe")], root)
     if ignored.returncode == 1:
-        raise RuntimeFailure("git_ignore_missing", "docs/work-reports task paths must be effectively ignored")
+        raise RuntimeFailure("git_ignore_missing", "work-report task paths must be effectively ignored")
     if ignored.returncode != 0:
         raise RuntimeFailure("git_policy_check_failed", ignored.stderr.strip() or "git check-ignore failed")
     return root, reports_root
@@ -263,7 +266,7 @@ def safe_session_id(value: Any) -> str:
 
 
 def pending_root(workspace_root: Path) -> Path:
-    return workspace_root / "docs" / "work-reports" / ".pending"
+    return workspace_root / "docs" / "_local" / "reports" / ".pending"
 
 
 def pending_path(workspace_root: Path, session_id: Any) -> Path:
@@ -295,7 +298,7 @@ def ensure_pending_git_policy(workspace_root: Path) -> None:
         exclude = (workspace_root / exclude_proc.stdout.strip()).resolve()
         reject_symlinks(exclude, include_leaf=False)
         existing = exclude.read_text(encoding="utf-8") if exclude.exists() else ""
-        rule = "/docs/work-reports/"
+        rule = "/docs/_local/"
         if rule not in existing.splitlines():
             with exclude.open("a", encoding="utf-8") as fh:
                 if existing and not existing.endswith("\n"):
@@ -303,7 +306,7 @@ def ensure_pending_git_policy(workspace_root: Path) -> None:
                 fh.write(rule + "\n")
         ignored = run_git(["check-ignore", "-q", "--", str(root / ".probe")], workspace_root)
     if ignored.returncode != 0:
-        raise RuntimeFailure("git_ignore_missing", "pending work-report prompts must be under ignored docs/work-reports")
+        raise RuntimeFailure("git_ignore_missing", "pending work-report prompts must be under ignored docs/_local/reports")
 
 
 def write_pending_prompt(workspace_root: Path, event: dict[str, Any]) -> dict[str, Any] | None:
@@ -367,7 +370,7 @@ def bump_pending_stop(workspace_root: Path, session_id: Any) -> dict[str, Any] |
             data["notified_at"] = iso_now()
             atomic_write_json(path, data)
             atomic_write_json(
-                workspace_root / "docs" / "work-reports" / ".pending" / f"{safe_session_id(session_id)}.failure.json",
+                workspace_root / "docs" / "_local" / "reports" / ".pending" / f"{safe_session_id(session_id)}.failure.json",
                 {
                     "schema_version": "work-report.pending.failure/1",
                     "session_id": str(session_id or ""),
@@ -956,7 +959,8 @@ def maybe_block_for_interim_resume(
 
 
 def reporting_manifest_paths(root: Path) -> list[Path]:
-    return sorted((root / "docs" / "work-reports").glob("*/reporting.json"))
+    return sorted([*(root / "docs" / "_local" / "reports").glob("*/reporting.json"),
+                   *(root / "docs" / "work-reports").glob("*/reporting.json")])
 
 
 def stop_manifest_pass(

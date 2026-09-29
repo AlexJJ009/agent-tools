@@ -43,3 +43,7 @@ For Zotero library operations, adding a paper, formal close reading, or ZotLit n
 - Separate verified evidence from provisional explanations.
 - Never write inside ZotLit `%%zt-managed%%` regions when editing ReadPapers notes.
 - Do not present a polished learning artifact before the learner has reconstructed core KCs or explicitly requested direct mode. A request for direct manuscript drafting belongs to `academic-writing` and requires no learner check.
+
+### Current delivery binding
+
+When the user requests a teaching artifact, bind only that artifact for Stop validation. With an existing route, include its exact output path in `output_targets`, then run `learning-workflow bind --record <record> --session-id <native-session-id> --workspace <workspace> --teaching-artifact <path>`. Repeat the artifact option for each requested teaching output. Rebind after classifying new input; unbind when the delivery ends. For direct validation without a route, run `scripts/stop_validate.py --artifact <path>` with the current hook payload. Missing paths still fail. Historical examples, material references, ordinary reports, and ordinary conversation do not establish teaching delivery obligations. If a requested artifact cannot be located, report that specific gap instead of searching transcript history for a replacement.

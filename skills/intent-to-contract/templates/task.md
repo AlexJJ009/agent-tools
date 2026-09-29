@@ -28,6 +28,11 @@ source:
 
 ## Code Handoff
 
+Link current repository usage/interface guides; record only this task's recovery
+point here. Re-read process handles on their original host before reuse.
+
+- system_documentation: "<repository guide link>"
+
 - branch: "<branch>"
 - base_sha: "<sha-or-null>"
 - candidate_sha: "<sha-or-null>"

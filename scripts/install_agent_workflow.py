@@ -101,6 +101,10 @@ def managed_launcher_contents(runtime_target: Path) -> set[str]:
 
 def validate_sources() -> dict[str, dict[str, str]]:
     source_hashes: dict[str, dict[str, str]] = {}
+    shared = ROOT / "shared/writing/reader-facing-contract.md"
+    packaged_contract = ROOT / "skills/work-report/references/writing-contract.md"
+    if shared.is_file() and packaged_contract.read_bytes() != shared.read_bytes():
+        raise RuntimeError("packaged writing contract differs from canonical source")
     canonical = ROOT / "skills/work-report/references/writing-contract.md"
     packaged = ROOT / "skills/reviewer-brief/references/writing-contract.md"
     if not packaged.is_file():

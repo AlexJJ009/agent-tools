@@ -84,6 +84,22 @@ class WorkflowTests(unittest.TestCase):
         runtime.write(path, feedback)
         self.cli('approve', '--record', root, '--sha', feedback['candidate_sha'], '--feedback', path, '--simulation')
 
+    def test_local_record_init_is_ignored_and_existing_path_resumes(self):
+        (self.repo / '.gitignore').write_text((ROOT / '.gitignore').read_text())
+        root = self.initialize()
+        self.assertEqual(root.parent, self.repo / 'docs/_local/tasks')
+        task_id = load(root / 'checklist.yaml')['task_id']
+        self.assertEqual(root.name, task_id)
+        ignored = subprocess.run(['git', '-C', str(self.repo), 'check-ignore', '--',
+                                  str(root / 'checklist.yaml')], capture_output=True, text=True)
+        self.assertEqual(ignored.returncode, 0, ignored.stderr)
+        legacy = self.repo / 'docs/agent-workflow/records/existing' / task_id
+        legacy.parent.mkdir(parents=True)
+        root.rename(legacy)
+        self.check(legacy)
+        self.assertEqual(load(legacy / 'checklist.yaml')['task_id'], task_id)
+        self.assertFalse(root.exists())
+
     def test_entrypoint_dirty_change_invalidates(self):
         root = self.authorized()
         # The protected entrypoint is independent of the check adapter scope.

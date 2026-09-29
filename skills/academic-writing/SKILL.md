@@ -1,6 +1,6 @@
 ---
 name: academic-writing
-description: Draft, revise, or review research manuscript prose, proposals, and scientific arguments from supplied evidence; also coach writing practice when the user asks to learn. Direct writing does not require a teaching DAG or learner test.
+description: Draft, revise, or review research manuscript prose, proposals, and scientific arguments from supplied evidence; also coach writing practice when the user asks to learn. Use for an actual writing or argument-review request, not merely reading a paper or discussing a writing mechanism. Direct writing does not require a teaching DAG or learner test.
 ---
 
 # Academic Writing
@@ -16,4 +16,4 @@ Identify the requested genre, audience, section, language, evidence packet, and 
 
 Direct draft, revise, and argument review do not require prerequisites, retrieval checks, or a teaching manifest. When the current activity is guided learning, coordinate with `teaching-reconstruction` and `retrieval-practice` only for the requested exercise. Keep answer text separate from an exercise prompt until the appropriate stage.
 
-Read the packaged [reader-facing contract](../work-report/references/writing-contract.md) for W1–W9 expression principles when available. Those principles adapt to manuscript and teaching genres; Work Report's six sections and Judge do not apply. Normative instructions remain English; the deliverable follows the requested language and genre.
+Read the packaged [reader-facing contract](references/writing-contract.md) for W1–W9 expression principles; it is included in this package. Those principles adapt to manuscript and teaching genres; Work Report's six sections and Judge do not apply. Normative instructions remain English; the deliverable follows the requested language and genre.

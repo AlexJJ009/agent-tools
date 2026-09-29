@@ -5,10 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
+import hashlib
 import sys
 from pathlib import Path
-from typing import Any, Iterable
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
@@ -22,53 +21,34 @@ def _json_stdout(payload: dict[str, object]) -> int:
     return 0
 
 
-def _strings(value: Any) -> Iterable[str]:
-    if isinstance(value, str):
-        yield value
-    elif isinstance(value, dict):
-        for child in value.values():
-            yield from _strings(child)
-    elif isinstance(value, list):
-        for child in value:
-            yield from _strings(child)
-
-
-def _transcript_artifacts(payload: dict[str, Any]) -> list[Path]:
-    transcript_raw = payload.get("transcript_path")
-    if not isinstance(transcript_raw, str):
+def _bound_artifacts(payload, state_root):
+    """Read the exact session/workspace binding, never historical transcript paths."""
+    session=payload.get("session_id")
+    if not isinstance(session,str) or not session:
         return []
-    try:
-        lines = Path(transcript_raw).read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return []
-
-    cwd = Path(str(payload.get("cwd") or ".")).resolve()
-    candidates: list[Path] = []
-    for line in lines:
-        try:
-            record: Any = json.loads(line)
-        except json.JSONDecodeError:
-            record = line
-        for value in _strings(record):
-            raw_candidates = re.findall(r"/[^\r\n\"'<>]*?\.md\b", value)
-            raw_candidates += re.findall(r"(?:^|[\s:])([A-Za-z0-9_./-]+\.md)\b", value)
-            for raw in raw_candidates:
-                path = Path(raw.strip())
-                path = path.resolve() if path.is_absolute() else (cwd / path).resolve()
-                try:
-                    path.relative_to(cwd)
-                except ValueError:
-                    continue
-                if path.is_file() and path not in candidates:
-                    text = path.read_text(encoding="utf-8", errors="replace")
-                    if validator.ANY_MARKER_RE.search(text) or "```json teaching-manifest" in text:
-                        candidates.append(path)
-    return candidates
+    cwd=Path(str(payload.get("cwd") or ".")).resolve()
+    for workspace in (cwd,*cwd.parents):
+        identity=hashlib.sha256((session+"\n"+str(workspace)).encode()).hexdigest()
+        path=state_root/(identity+".json")
+        if not path.is_file():
+            continue
+        binding=json.loads(path.read_text())
+        delivery=binding.get("teaching_delivery")
+        if not delivery:
+            return []
+        if binding["session_id"]!=session or binding["workspace"]!=str(workspace):
+            raise ValueError("teaching binding session/workspace mismatch")
+        record=json.loads((Path(binding["record"])/"routing.json").read_text())
+        if delivery["route_revision"]!=record["route_revision"]:
+            return []
+        return [Path(p) for p in delivery["artifacts"]]
+    return []
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--artifact", action="append", default=[])
+    parser.add_argument("--state-root",type=Path,default=Path.home()/".local/state/learning-workflow/hooks")
     args = parser.parse_args(argv)
 
     try:
@@ -87,7 +67,10 @@ def main(argv: list[str] | None = None) -> int:
         if path not in artifacts:
             artifacts.append(path)
     if not artifacts:
-        artifacts = _transcript_artifacts(payload)
+        try:
+            artifacts = _bound_artifacts(payload,args.state_root)
+        except (OSError,ValueError,KeyError,TypeError) as exc:
+            return _json_stdout({"decision":"block","reason":"Current teaching binding unavailable: "+str(exc)})
 
     if not artifacts:
         return _json_stdout({})

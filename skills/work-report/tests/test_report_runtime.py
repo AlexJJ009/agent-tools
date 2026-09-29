@@ -128,10 +128,10 @@ class ReportRuntimeTests(unittest.TestCase):
         self.git(repo, "commit", "-m", "initial")
         if ignored:
             exclude = repo / ".git" / "info" / "exclude"
-            exclude.write_text(exclude.read_text(encoding="utf-8") + "\n/docs/work-reports/\n", encoding="utf-8")
+            exclude.write_text(exclude.read_text(encoding="utf-8") + "\n/docs/_local/reports/\n", encoding="utf-8")
         request = repo / "request.md"
         request.write_text(request_text, encoding="utf-8")
-        task_dir = repo / "docs" / "work-reports" / "20260906T000000Z-runtime-12345678"
+        task_dir = repo / "docs" / "_local" / "reports" / "20260906T000000Z-runtime-12345678"
         report_dir = task_dir / "20260906T000001Z-progress-abcdef"
         report_dir.mkdir(parents=True)
         context = {
@@ -140,7 +140,7 @@ class ReportRuntimeTests(unittest.TestCase):
             "report_id": report_dir.name,
             "kind": "progress",
             "workspace": str(repo.resolve()),
-            "output_root": str((repo / "docs" / "work-reports").resolve()),
+            "output_root": str((repo / "docs" / "_local" / "reports").resolve()),
             "generated_at": "2026-09-06T00:00:01Z",
             "window_start": "2026-09-06T00:00:01Z",
             "window_end": "2026-09-06T00:00:01Z",
@@ -157,7 +157,7 @@ class ReportRuntimeTests(unittest.TestCase):
         return repo.resolve(), task_dir.resolve(), request.resolve()
 
     def make_additional_task(self, repo, request, request_text, *, task_id, report_id):
-        task_dir = repo / "docs" / "work-reports" / task_id
+        task_dir = repo / "docs" / "_local" / "reports" / task_id
         report_dir = task_dir / report_id
         report_dir.mkdir(parents=True)
         context = {
@@ -166,7 +166,7 @@ class ReportRuntimeTests(unittest.TestCase):
             "report_id": report_dir.name,
             "kind": "progress",
             "workspace": str(repo.resolve()),
-            "output_root": str((repo / "docs" / "work-reports").resolve()),
+            "output_root": str((repo / "docs" / "_local" / "reports").resolve()),
             "generated_at": "2026-09-06T00:00:01Z",
             "window_start": "2026-09-06T00:00:01Z",
             "window_end": "2026-09-06T00:00:01Z",
@@ -268,6 +268,22 @@ class ReportRuntimeTests(unittest.TestCase):
             "--workspace",
             repo,
         )
+
+    def test_existing_legacy_task_remains_registerable(self):
+        repo, task_dir, request = self.make_repo_task()
+        legacy = repo / 'docs/work-reports' / task_dir.name
+        legacy.parent.mkdir(parents=True)
+        task_dir.rename(legacy)
+        self.git(repo, 'config', 'core.excludesFile', '/dev/null')
+        with (repo / '.git/info/exclude').open('a') as handle:
+            handle.write('\n/docs/work-reports/\n')
+        context_path = next(legacy.glob('*/context.json'))
+        context = json.loads(context_path.read_text())
+        context['output_root'] = str(legacy.parent)
+        context_path.write_text(json.dumps(context))
+        decision = self.decision(self.root / 'legacy-decision.json', request.read_text())
+        result = self.data(self.register(repo, legacy, request, decision))
+        self.assertEqual(result['status'], 'registered', result)
 
     def test_register_ignores_none_and_rejects_missing_git_ignore(self):
         text = "Please send an end report."
@@ -1098,7 +1114,7 @@ class ReportRuntimeTests(unittest.TestCase):
             )
         )
         self.assertEqual(cleared["status"], "ignored")
-        self.assertFalse((repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.json").exists())
+        self.assertFalse((repo / "docs" / "_local" / "reports" / ".pending" / f"{self.session_id}.json").exists())
 
     def test_deferred_milestone_resolution_is_recorded_without_scheduling(self):
         text = "完整矩阵结束后给我一份报告。"
@@ -1143,7 +1159,7 @@ class ReportRuntimeTests(unittest.TestCase):
         self.assertEqual(resolution["decision"]["verdict"], "deferred")
         self.assertEqual(resolution["decision"]["evidence_quotes"], ["完整矩阵结束后"])
         self.assertNotIn("resume_after_report", resolution["decision"])
-        self.assertFalse((repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.json").exists())
+        self.assertFalse((repo / "docs" / "_local" / "reports" / ".pending" / f"{self.session_id}.json").exists())
         self.assertEqual(
             self.data(self.run_cli("hook", input=json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id}), cwd=repo)),
             {},
@@ -1242,7 +1258,7 @@ class ReportRuntimeTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(result["status"], "ignored")
         self.assertTrue(Path(result["resolution"]).exists())
-        current_pending = json.loads((repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.json").read_text())
+        current_pending = json.loads((repo / "docs" / "_local" / "reports" / ".pending" / f"{self.session_id}.json").read_text())
         self.assertEqual(current_pending["request_sha256"], self.sha(new_text))
         self.assertEqual(current_pending["prompt"], new_text)
 
@@ -1273,7 +1289,7 @@ class ReportRuntimeTests(unittest.TestCase):
             repo,
         )
         self.assertEqual(self.data(proc)["issues"][0]["code"], "pending_request_mismatch")
-        self.assertTrue((repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.json").exists())
+        self.assertTrue((repo / "docs" / "_local" / "reports" / ".pending" / f"{self.session_id}.json").exists())
 
     def test_confirmed_register_failure_records_one_time_pending_diagnostic(self):
         text = "After this work is complete, send a report."
@@ -1297,7 +1313,7 @@ class ReportRuntimeTests(unittest.TestCase):
         (external_repo / "README.md").write_text("external\n", encoding="utf-8")
         self.git(external_repo, "add", "README.md")
         self.git(external_repo, "commit", "-m", "initial")
-        external_task_dir = external_repo / "docs" / "work-reports" / "20260906T000000Z-runtime-abcdef"
+        external_task_dir = external_repo / "docs" / "_local" / "reports" / "20260906T000000Z-runtime-abcdef"
         external_task_dir.mkdir(parents=True)
         proc = self.run_cli(
             "register",
@@ -1313,7 +1329,7 @@ class ReportRuntimeTests(unittest.TestCase):
             repo,
         )
         self.assertEqual(self.data(proc)["issues"][0]["code"], "task_dir_git_mismatch")
-        pending_path = repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.json"
+        pending_path = repo / "docs" / "_local" / "reports" / ".pending" / f"{self.session_id}.json"
         pending = json.loads(pending_path.read_text())
         self.assertEqual(pending["state"], "register_failed")
         self.assertEqual(pending["last_register_error"]["verdict"], "confirmed")
@@ -1376,7 +1392,7 @@ class ReportRuntimeTests(unittest.TestCase):
         )
         proc = self.register(repo, task_dir, request, different)
         self.assertEqual(self.data(proc)["issues"][0]["code"], "manifest_conflict")
-        pending = json.loads((repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.json").read_text())
+        pending = json.loads((repo / "docs" / "_local" / "reports" / ".pending" / f"{self.session_id}.json").read_text())
         self.assertEqual(pending["state"], "register_failed")
         self.assertEqual(pending["last_register_error"]["code"], "manifest_conflict")
         stop_event = json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id})
@@ -1421,7 +1437,7 @@ class ReportRuntimeTests(unittest.TestCase):
         third = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
         self.assertIn("systemMessage", third)
         self.assertEqual(self.data(self.run_cli("hook", input=stop_event, cwd=repo)), {})
-        self.assertTrue((repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.failure.json").exists())
+        self.assertTrue((repo / "docs" / "_local" / "reports" / ".pending" / f"{self.session_id}.failure.json").exists())
 
     def test_subagent_hook_payload_is_ignored(self):
         repo, _, _ = self.make_repo_task(request_text="irrelevant")
@@ -1435,7 +1451,7 @@ class ReportRuntimeTests(unittest.TestCase):
             }
         )
         self.assertEqual(self.data(self.run_cli("hook", input=event, cwd=repo)), {})
-        self.assertFalse((repo / "docs" / "work-reports" / ".pending" / f"{self.session_id}.json").exists())
+        self.assertFalse((repo / "docs" / "_local" / "reports" / ".pending" / f"{self.session_id}.json").exists())
 
     def test_periodic_tick_and_claim_are_bounded(self):
         text = "Please send periodic report."

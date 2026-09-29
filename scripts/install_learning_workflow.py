@@ -22,6 +22,8 @@ import tempfile
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 SKILLS = (
     "teaching-reconstruction", "teaching-dag-builder", "evidence-anchor",
     "retrieval-practice", "learning-artifact-compiler", "academic-writing", "task-routing",
@@ -75,6 +77,9 @@ def source_files() -> list[tuple[Path, Path]]:
             raise InstallError(f"missing source: {source}")
     if (ROOT / "skills/work-report/references/writing-contract.md").read_bytes() != (ROOT / "shared/writing/reader-facing-contract.md").read_bytes():
         raise InstallError("generated writing contract differs from canonical source")
+    academic = ROOT / "skills/academic-writing/references/writing-contract.md"
+    if not academic.is_file() or academic.read_bytes() != (ROOT / "shared/writing/reader-facing-contract.md").read_bytes():
+        raise InstallError("academic-writing contract is missing or differs from canonical source")
     return sources
 
 
@@ -223,6 +228,9 @@ def update_hooks(data: dict[str, Any], bundle: Path, home: Path, *, remove: bool
                     data["hooks"][event] = kept
                 else:
                     data["hooks"].pop(event, None)
+        elif groups.count(expected) > 1:
+            data["hooks"][event] = [g for g in groups if g != expected] + [expected]
+            changed = True
         elif expected not in groups:
             data["hooks"].setdefault(event, []).append(expected)
             changed = True
@@ -260,6 +268,60 @@ def copy_payload(bundle: Path) -> None:
             "sys.path.insert(0, str(Path(__file__).resolve().parents[1]))\n"
             f"runpy.run_module({module!r}, run_name='__main__')\n", encoding="utf-8")
         (bindir / name).chmod(0o755)
+
+
+WRITING_START = "<!-- agent-tools:reader-facing-contract -->"
+WRITING_END = "<!-- /agent-tools:reader-facing-contract -->"
+
+
+def writing_entry(home: Path, bundle: Path) -> str:
+    contract = bundle / "shared/writing/reader-facing-contract.md"
+    return (f"{WRITING_START}\nFor all reader-facing output, follow the "
+            f"[shared writing contract](<{contract.as_posix()}>). Read it when not "
+            "already in context; this does not activate formal reporting or teaching.\n"
+            f"{WRITING_END}\n")
+
+
+def install_writing_entry(home: Path, bundle: Path) -> dict[str, Any]:
+    path = home / ".codex/AGENTS.md"
+    if not path.parent.resolve().is_relative_to(home):
+        raise InstallError(f"global instructions escape profile: {path}")
+    original = path.read_text(encoding="utf-8") if path.exists() else ""
+    if WRITING_START in original or WRITING_END in original:
+        raise InstallError("reader-facing instruction block already exists; preserve and resolve it")
+    prior = {"existed": path.exists() or path.is_symlink(), "text": original,
+             "symlink": os.readlink(path) if path.is_symlink() else None}
+    block = writing_entry(home, bundle)
+    # Materialize this Codex view; never write through a shared adapter symlink.
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix=".AGENTS.learning-workflow-", dir=path.parent)
+    temp = Path(temporary)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(original + ("\n" if original and not original.endswith("\n") else "") + "\n" + block)
+        temp.replace(path)
+    finally:
+        if temp.exists():
+            temp.unlink()
+    return {**prior, "block": block, "installed": path.read_text(encoding="utf-8")}
+
+
+def remove_writing_entry(home: Path, entry: dict[str, Any]) -> None:
+    path = home / ".codex/AGENTS.md"
+    if path.is_symlink():
+        raise InstallError("global instruction path changed to a symlink; preserve it")
+    current = path.read_text(encoding="utf-8")
+    if current.count(entry["block"]) != 1:
+        raise InstallError("reader-facing instruction block changed; preserve and resolve it")
+    if current == entry["installed"]:
+        path.unlink()
+        if entry["symlink"] is not None:
+            path.symlink_to(entry["symlink"])
+        elif entry["existed"]:
+            path.write_text(entry["text"], encoding="utf-8")
+    else:
+        # Retain unrelated edits made since installation.
+        path.write_text(current.replace(entry["block"], ""), encoding="utf-8")
 
 
 def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | None,
@@ -325,7 +387,13 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
             previous[str(path)] = {"kind": "absent"}
     hooks_path = home / ".codex/hooks.json"
     hooks_preexisting = hooks_path.exists()
+    from learning_workflow import hook_registration
+    teaching_edits = hook_registration.prepare(home, read_papers_root) if with_hooks else []
+    teaching_applied = False
     hook_data = load_hooks(hooks_path) if with_hooks else None
+    for edit in teaching_edits:
+        if edit['path'] == str(hooks_path):
+            hook_data['hooks']['Stop'] = json.loads(json.dumps(edit['after']))
     if hook_data is not None:
         update_hooks(json.loads(json.dumps(hook_data)), bundle, home, remove=False)
     with tempfile.TemporaryDirectory(prefix="learning-workflow-stage-") as temporary:
@@ -346,6 +414,7 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
                 shutil.rmtree(bundle)
             raise
     bridge_split = False
+    writing = None
     try:
         if bridge:
             split_project_bridge(bridge)
@@ -360,21 +429,28 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
             path.symlink_to(target, target_is_directory=path.name != "learning-workflow")
         for path in global_paper_links:
             path.unlink()
+        if teaching_edits:
+            hook_registration.apply(teaching_edits)
+            teaching_applied = True
         if with_hooks and hook_data is not None:
             if update_hooks(hook_data, bundle, home, remove=False):
                 atomic_json(hooks_path, hook_data)
-        manifest = {"schema_version": MARKER, "client": "codex", "bundle": str(bundle), "bundle_digest": payload_digest,
+        writing = install_writing_entry(home, bundle)
+        manifest = {"writing_entry": writing, "schema_version": MARKER, "client": "codex", "bundle": str(bundle), "bundle_digest": payload_digest,
                     "source_digest": {str(relative): digest(source) for source, relative in sources},
                     "links": {str(path): {**prior, "installed_target": str(links[path])}
                               for path, prior in ((Path(k), v) for k, v in previous.items())},
                     "deactivated_global_read_paper": {str(path): target for path, target in global_paper_links.items()},
                     "read_papers_root": str(read_papers_root) if read_papers_root else None,
                     "project_skills_bridge": bridge,
+                    "teaching_hook_edits": teaching_edits,
                     "hooks_installed": with_hooks, "hooks_preexisting": hooks_preexisting,
                     "guard": guard}
         atomic_json(state, manifest)
     except Exception:
-        # The manifest has not yet been published. Restore only links this call replaced.
+        # The manifest has not yet been published. Restore only entries this call replaced.
+        if writing is not None:
+            remove_writing_entry(home, writing)
         for raw, prior in previous.items():
             path = Path(raw)
             if path.is_symlink() and path.resolve(strict=False) == links[path]:
@@ -393,6 +469,8 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
                     hooks_path.unlink()
                 else:
                     atomic_json(hooks_path, current)
+        if teaching_applied:
+            hook_registration.apply(teaching_edits, restore=True)
         if bridge_split:
             restore_project_bridge(bridge)
         shutil.rmtree(bundle)
@@ -434,6 +512,13 @@ def check(home: Path) -> dict[str, Any]:
         raise InstallError("installed runtime cannot start: " + run.stderr.strip())
     if manifest.get("project_skills_bridge"):
         check_project_bridge(manifest["project_skills_bridge"])
+    if manifest.get("writing_entry"):
+        instructions = home / ".codex/AGENTS.md"
+        if not instructions.is_file() or instructions.read_text(encoding="utf-8").count(writing_entry(home, bundle)) != 1:
+            raise InstallError("shared writing contract instruction is missing or changed")
+    from learning_workflow import hook_registration
+    if manifest["hooks_installed"] and hook_registration.prepare(home, manifest.get("read_papers_root")):
+        raise InstallError("legacy teaching registrations still loaded alongside bound learning hook")
     hooks_present = False
     if manifest["hooks_installed"]:
         data = load_hooks(home / ".codex/hooks.json")
@@ -469,15 +554,29 @@ def rollback(home: Path) -> dict[str, Any]:
     bridge = manifest.get("project_skills_bridge")
     if bridge:
         check_project_bridge(bridge)
+    from learning_workflow import hook_registration
+    teaching_edits = manifest.get("teaching_hook_edits", [])
+    if manifest.get("writing_entry"):
+        instruction_path = home / ".codex/AGENTS.md"
+        if not instruction_path.is_file() or instruction_path.read_text(encoding="utf-8").count(manifest["writing_entry"]["block"]) != 1:
+            raise InstallError("reader-facing instruction block changed; preserve and resolve it")
     hooks_path = home / ".codex/hooks.json"
     hook_data = load_hooks(hooks_path) if manifest["hooks_installed"] else None
     if hook_data is not None:
-        update_hooks(json.loads(json.dumps(hook_data)), bundle, home, remove=True)
+        stripped = json.loads(json.dumps(hook_data))
+        update_hooks(stripped, bundle, home, remove=True)
+        for edit in teaching_edits:
+            if edit['path'] == str(hooks_path):
+                if stripped['hooks'].get('Stop', []) != edit['after']:
+                    raise InstallError('teaching Stop registration changed; preserve it')
+            else:
+                hook_registration.check([edit])
     if hook_data is not None and update_hooks(hook_data, bundle, home, remove=True):
         if not manifest.get("hooks_preexisting") and hook_data == {"hooks": {}}:
             hooks_path.unlink()
         else:
             atomic_json(hooks_path, hook_data)
+    hook_registration.apply(teaching_edits, restore=True)
     for raw, prior in manifest["links"].items():
         path = Path(raw)
         path.unlink()
@@ -489,6 +588,8 @@ def rollback(home: Path) -> dict[str, Any]:
         Path(raw).symlink_to(target, target_is_directory=True)
     if bridge:
         restore_project_bridge(bridge)
+    if manifest.get("writing_entry"):
+        remove_writing_entry(home, manifest["writing_entry"])
     shutil.rmtree(bundle)
     state.unlink()
     return {"status": "rolled_back", "links_restored": len(manifest["links"]),

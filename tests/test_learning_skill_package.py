@@ -62,3 +62,7 @@ class LearningSkillPackageTests(unittest.TestCase):
             self.assertNotEqual(run("--check").returncode, 0)
             self.assertEqual(run("--write").returncode, 0)
             self.assertEqual(target.read_bytes(), source.read_bytes())
+            academic = repo / "skills/academic-writing/references/writing-contract.md"
+            self.assertEqual(academic.read_bytes(), source.read_bytes())
+            academic.unlink()
+            self.assertNotEqual(run("--check").returncode, 0)

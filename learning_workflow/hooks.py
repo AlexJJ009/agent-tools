@@ -4,6 +4,7 @@ import argparse
 from contextlib import contextmanager
 import fcntl
 import json
+import subprocess
 from pathlib import Path
 import shlex
 import sys
@@ -29,7 +30,7 @@ def binding_lock(state_root,identity):
         yield root/(identity+'.json')
 
 
-def bind(record,session_id,workspace,state_root=None,on_stop=False):
+def bind(record,session_id,workspace,state_root=None,on_stop=False,teaching_artifacts=None):
     workspace=Path(workspace).resolve()
     with r.locked(record):
         data=r.read(record)
@@ -38,6 +39,12 @@ def bind(record,session_id,workspace,state_root=None,on_stop=False):
         old=r.load(path) if path.exists() else None
         r.require(not old or old['record']==str(Path(record).resolve()),'session already bound to another task; unbind first')
         binding=old or {'session_id':session_id,'workspace':str(workspace),'record':str(Path(record).resolve()),'observations':[],'stop_attempted':False}
+        if teaching_artifacts is not None:
+            targets=[str(r.resolve_target(data,p)) for p in teaching_artifacts]
+            declared={str(r.resolve_target(data,p)) for p in data['decision']['output_targets']}
+            r.require(all(p in declared for p in targets),'teaching artifacts must be current output targets')
+            binding['teaching_delivery']={'route_revision':data['route_revision'],'artifacts':targets}
+        binding['stop_attempted']=False
         binding['on_stop']=on_stop
         r.write(path,binding)
     return {'status':'bound','binding':str(path)}
@@ -103,6 +110,8 @@ def process(event,state_root=None):
                 record=r.read(record_root)
                 r.require(record['session_id']==session and record['workspace_root']==binding['workspace'],'route binding changed')
         except (OSError,ValueError,KeyError,TypeError) as exc:
+            if name=='Stop' and binding.get('teaching_delivery') and not event.get('stop_hook_active'):
+                return {'decision':'block','reason':'Current teaching binding unavailable: '+str(exc)}
             if name=='PreToolUse' and covered(event):
                 return deny('Bound route unavailable: '+str(exc))
             return context(name,'Bound route unavailable; safe reading/recovery may continue: '+str(exc)) if name in {'SessionStart','UserPromptSubmit'} else {}
@@ -128,7 +137,13 @@ def process(event,state_root=None):
         elif name=='PostToolUse' and covered(event):
             binding['observations'].append({'at':r.now(),'tool_use_id':event.get('tool_use_id'),'kind':'covered-tool-result','route_revision':record['route_revision']})
             binding['observations']=binding['observations'][-50:]
-        elif name=='Stop' and binding.get('on_stop') and not binding.get('stop_attempted'):
+        elif name=='Stop' and binding.get('teaching_delivery') and not event.get('stop_hook_active'):
+            delivery=binding['teaching_delivery']
+            if delivery['route_revision']==record['route_revision']:
+                script=Path(__file__).resolve().parents[1]/'skills/teaching-reconstruction/scripts/stop_validate.py'
+                run=subprocess.run([sys.executable,str(script),'--state-root',str(root)],input=json.dumps(event),text=True,capture_output=True)
+                output=json.loads(run.stdout) if run.returncode==0 else {'decision':'block','reason':'Teaching delivery validator could not run: '+run.stderr}
+        if name=='Stop' and not event.get('stop_hook_active') and not output and binding.get('on_stop') and not binding.get('stop_attempted'):
             missing=[p for p in record['decision']['output_targets'] if not r.resolve_target(record,p).exists()]
             pending=any(v['status']=='pending' for v in record['inputs'].values())
             if missing or pending:

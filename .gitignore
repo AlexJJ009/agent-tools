@@ -11,3 +11,6 @@ __pycache__/
 
 # Local verification output is archived outside source control.
 /.tmp/
+
+# Private development agreements, reports, and transient evidence.
+/docs/_local/

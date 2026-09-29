@@ -2,13 +2,16 @@
 
 This is the canonical maintained source for reader-facing work across Work Report,
 reviewer-brief, teaching, and academic writing. Packaged copies in Work Report and
-reviewer-brief are generated so each can be installed independently. Run
+reviewer-brief and academic-writing are generated so each can be installed independently.
+Academic Writing owns the reusable expression methods; Work Report owns report
+content selection, its six-section template, and reporting timing. This contract
+is their single maintained expression source, not another reporting workflow. Run
 `skills/work-report/scripts/sync_writing_contract.py --write` from the repository
 to regenerate them, or `--check` to detect drift.
 
 | ID | Required writing behavior |
 |---|---|
-| W1 | Lead with the current outcome or decision. Supply the background this reader needs to judge it. |
+| W1 | Establish the concrete problem and supply the background this reader needs. Lead a status update with its outcome; let the requested genre determine the opening of a research argument. |
 | W2 | Explain the concrete problem, relevant gap and response where that sequence helps. Give each paragraph a recognizable purpose. |
 | W3 | Connect material claims to actual observations and explain why those observations support the judgment. State qualifications that change the decision or next check. |
 | W4 | Organize sources around the question they answer; preserve meaningful differences. Use chronology when sequence explains change or recovery. |
@@ -17,6 +20,15 @@ to regenerate them, or `--check` to detect drift.
 | W7 | Keep decisive evidence, adverse observations and consequences in the main text. Link logs and identifiers without hiding acceptance-critical facts. |
 | W8 | Read current task state. Separate verified behavior, pending checks, decisions and user acceptance; reconcile material conflicts before claiming completion. |
 | W9 | First reconstruct the goal, main finding and reason, and next decision from the artifact alone. Then check that reconstruction against request, state and evidence. |
+
+Use a **reader model**: identify what the audience already knows and supply the
+missing context needed for its next judgment. Apply **claim–evidence–warrant**:
+state the claim, show the observation, and explain the inferential connection,
+including limits and adverse evidence. A reverse outline can expose missing
+paragraph purposes or transitions during revision. These methods also apply to
+short explanations without activating manuscript drafting, CARS, teaching, a
+formal Work Report, or an independent Judge. Read this contract when it is not
+already in context; reuse it thereafter and judge the actual prose.
 
 A **readback** is an actual observed value or state, not an expected-value echo.
 An **acceptance criterion** is an observable pass condition. **Invalidation**

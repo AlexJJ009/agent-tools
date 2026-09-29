@@ -1,11 +1,11 @@
 ---
 name: intent-to-contract
-description: Turn a user request into a grounded task agreement with readback, acceptance criteria, protocol bindings, and blocker questions before expensive or high-risk agent work.
+description: Create or revise a requested task agreement, or ground requirements and authority before expensive or high-risk work. Use readback and acceptance criteria for the agreed scope; ordinary bug fixes and quick implementations do not require a PRD or checklist.
 ---
 
 # Intent To Contract
 
-Use this skill when a task begins from a natural-language request and the agent must preserve the user's intended goal, scope, key parameters, acceptance criteria, and authorization boundary. The output is Agent-authored context for the runtime plus a task agreement, not an implementation plan that freezes every coding step.
+Use this skill when the user requests a task agreement or when expensive or high-risk work needs grounded requirements and an authorization boundary. Do not invoke it for every natural-language request, ordinary bug fix, quick implementation, or a mention of an old PRD. Create or reuse a PRD and checklist on demand under the user's request or an applicable continuing agreement; their existence is not a prerequisite for ordinary development. The output is Agent-authored context for the runtime plus a task agreement, not an implementation plan that freezes every coding step.
 
 Keep the work moving while the agreement is formed. Ask the user only for facts that would change the target, budget, production effect, or formal experiment. For facts visible in the repository or local environment, investigate and record the evidence instead of asking the user to remember it.
 
@@ -51,7 +51,7 @@ refreshing affected technical evidence. Classify MVP feedback as scoped result
 acceptance, an existing defect, criterion clarification or a future-version
 request. A general positive reaction does not accept the entire checklist.
 
-## Required Outputs
+## Outputs When a Record Is Needed
 
 The runtime does not perform arbitrary natural-language extraction. The Agent supplies a JSON context containing investigated `items`, `facts`, `bindings`, `checks`, formal command/config scope, and review targets. Bindings include ordered override anchors and a `readback_key` into verifier JSON where `{config_key, consumer_symbol, value}` is returned. Optional `protocol_view: true` renders `protocol.md` from the canonical record. See [context example](templates/context.example.json); replace every sample path and value with inspected project facts.
 
@@ -61,7 +61,7 @@ Create or update the record through the installed launcher when available:
 agent-workflow init --query <request.txt> --scenario <algorithm|infra|business|bug_fix|office|learning> --context <context.json> --mode simulation
 ```
 
-The record should follow the fixed directory shape under `docs/agent-workflow/records/`. Use [templates/task.md](templates/task.md) and [templates/checklist.yaml](templates/checklist.yaml) as the local shape when the runtime cannot yet create the file.
+New records use `docs/_local/tasks/<task-id>/` in the current worktree, excluded by the repository rule `/docs/_local/`. Preserve existing task IDs and explicit record paths; resume the existing checklist instead of creating a second status source. Use [templates/task.md](templates/task.md) and [templates/checklist.yaml](templates/checklist.yaml) as the local shape when the runtime cannot yet create the file.
 
 Each extracted requirement should include:
 
@@ -75,6 +75,16 @@ Each extracted requirement should include:
 - linked `checklist` item ID
 
 For protocol-like values, include a binding record with the repository state, definition location, consumer location, override order, readback evidence, and unresolved ambiguity.
+
+## Handoff and Repository Documentation
+
+Keep requirements and success conditions in the local PRD or simple spec, and actual verification status in its one checklist. Agents may update execution status but cannot relax requirements or invent human acceptance. Do not require checklist rewrites or Markdown changes for every commit.
+
+Use task/handoff records for the recovery point, implementation notes, outstanding work and local evidence. Link current repository usage/interface documentation instead of copying it. Process handles belong to their original machine and must be read back before reuse after a handoff.
+
+Repository documentation must explain the implemented system without access to private reports. Extract durable usage, interface facts and important design reasons into maintained documentation or ADRs; do not commit the entire local plan as a substitute. Private reports use `docs/_local/reports/<task-id>/`, and temporary drafts may use `docs/_local/scratch/<task-id>/` only when needed. No local index or duplicate progress register is required.
+
+Before a merge or meaningful delivery commit, state documentation impact in the existing closing note or commit/PR description and update affected system docs. If there is no impact, explain why; a Markdown diff is not mandatory.
 
 ## Completion Boundary
 

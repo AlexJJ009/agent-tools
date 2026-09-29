@@ -97,7 +97,7 @@ class TeachingStopHookTests(unittest.TestCase):
         self.assertEqual(payload.get("decision"), "block")
         self.assertIn("MANAGED_REGION_HEADING", payload.get("reason", ""))
 
-    def test_project_hook_can_infer_artifact_from_transcript(self) -> None:
+    def test_historical_artifact_does_not_become_current_delivery(self) -> None:
         result = run_stop_hook(
             FIXTURES / "bad_cycle.md",
             stop_hook_active=False,
@@ -105,8 +105,7 @@ class TeachingStopHookTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         payload = parse_json_stdout(result)
-        self.assertEqual(payload.get("decision"), "block")
-        self.assertIn("CYCLE", payload.get("reason", ""))
+        self.assertEqual(payload, {})
 
 
 if __name__ == "__main__":

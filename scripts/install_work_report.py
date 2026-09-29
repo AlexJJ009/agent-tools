@@ -57,6 +57,10 @@ def main(argv=None) -> int:
                     'references/legacy/rubric-2.0.1.yaml']:
             if not (source / required).is_file():
                 raise RuntimeError('missing source: ' + required)
+        shared = ROOT / "shared/writing/reader-facing-contract.md"
+        packaged_contract = ROOT / "skills/work-report/references/writing-contract.md"
+        if shared.is_file() and packaged_contract.read_bytes() != shared.read_bytes():
+            raise RuntimeError("packaged writing contract differs from canonical source")
         packaged = ROOT / 'skills/reviewer-brief/references/writing-contract.md'
         if packaged.is_file() and packaged.read_bytes() != (source / 'references/writing-contract.md').read_bytes():
             raise RuntimeError('generated reviewer-brief writing contract differs from canonical source')

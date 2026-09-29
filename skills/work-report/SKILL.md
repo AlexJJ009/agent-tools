@@ -1,6 +1,6 @@
 ---
 name: work-report
-description: Produce local Markdown progress or final work reports with concrete decisions, observations, scope and next steps, machine checks, and independent two-stage reading review. Use for requested work reports, interim reporting followed by resumption, end-report agreements, and scheduled reporting. Do not trigger a full report for a short status fact or ordinary follow-up question.
+description: Produce requested local Markdown progress or final work reports with decisions, evidence, scope and next steps, machine checks, and independent two-stage reading review. Own content, templates and timing for immediate, interim-and-resume, end-report and scheduled reporting requests or ongoing agreements. Do not trigger formal reporting for short explanations, status facts, ordinary follow-up questions, discussions of report implementation, or quoted historical requirements.
 ---
 
 # Work Report
@@ -11,6 +11,16 @@ and [rubric](references/rubric.yaml); generate from the [template](assets/report
 The independent reviewer uses [Judge instructions](references/judge.md). These
 are one standard, not separate opportunities to add business requirements.
 Reports follow the user's language; maintained instructions use English.
+
+Work Report owns content selection, the six-section template and reporting
+timing. The shared writing contract owns reader-facing expression: reader model,
+necessary background, argument structure and claim–evidence–warrant. Its reusable
+principles come from academic-writing; manuscript structures and teaching
+exercises apply only when that activity is requested. Read the contract when it
+is not already in context and reuse it thereafter. Shared writing principles
+apply to short explanations too, without triggering this skill's six sections,
+independent Judge or reporting runtime. Headings and tables cannot substitute
+for explaining why an observation supports a conclusion.
 
 ## Choose the reporting mode
 
@@ -36,6 +46,9 @@ Reports follow the user's language; maintained instructions use English.
   create another reporting obligation unless requested.
 
 No request or existing reporting agreement means no automatic long report.
+Determine applicability from the current activity and authorization. Reading
+an old report, quoting a template or developing reporting infrastructure does
+not create a reporting obligation or make that source a current deliverable.
 A five-step reporting agreement is evaluated at that agreed boundary, not after
 every tool call. Keep important decisions and observations in the canonical
 workflow record as they happen; do not fabricate a retrospective process log.
@@ -47,7 +60,8 @@ isolated script dependencies; do not change the reported project's environment.
 If uv is unavailable, say the tool is not ready instead of claiming checks ran.
 
 Prefer an existing original-request file. If needed, save only the relevant
-verbatim user text as `request.txt` under the project's artifact location, first
+verbatim user text as `request.txt` in the existing local task record under
+`docs/_local/tasks/<task-id>/` (created only when needed), first
 checking that the directory has no tracked files. Do not replace quotes with an
 agent summary or duplicate the whole chat. Preserve later revisions and their
 source. Initialization configures and verifies local Git exclusion.
@@ -74,7 +88,7 @@ batch. A temporary interim report alongside another active obligation gets its
 own task directory and references the original state; do not cancel the earlier
 obligation. Preserve the original goal and resume point in that state.
 
-The default is project `docs/work-reports/`; `--output-root` is only for an
+The default is this worktree's `docs/_local/reports/`; `--output-root` is only for an
 explicitly specified reporting location. Do not silently switch to /tmp, a
 public directory or another workspace after permission, sandbox or Git-policy
 failure. Report the concrete initialization error. Time windows require
@@ -82,6 +96,12 @@ timezone-aware ISO values. Task/report IDs include UTC time and randomness.
 
 Keep working-state.md concise: progress, dated decisions and reasons, failures,
 verification, blockers, next action, and background-job artifact/query references.
+Reuse an existing canonical task state with `--state`; do not create a second
+task checklist for a report. Report-owned state may remain in its report task
+directory. Keep temporary drafts and intermediate files in
+`docs/_local/scratch/<task-id>/` when needed, except report-tool batch files that
+must remain with their bound snapshot. This convention does not require
+creating all three directories, a local index or a transcript of tool output.
 Do not transcribe every tool call or update global memory automatically. A
 report does not terminate background work. New state needs a new snapshot;
 an early placeholder batch cannot stand in for a completed report.
@@ -155,8 +175,10 @@ explicitly paused/canceled, or blocked on genuinely necessary user input.
 
 ## Storage and automation boundary
 
-The tool uses Git info/exclude and checks ignored/untracked status. Do not
-implicitly add, commit, untrack files, or edit project .gitignore. Export a
+The tool retains its Git info/exclude and ignored/untracked checks. The repository
+storage convention is `/docs/_local/` in project `.gitignore`; establishing that
+rule belongs to authorized repository setup, not each report. Do not implicitly
+add, commit, untrack files, or edit project .gitignore while reporting. Export a
 specific report to a tracked location only when asked; otherwise preserve
 excluded artifacts separately before removing a workspace. Do not auto-publish,
 create business PRDs, use Linear, or introduce a global task database.

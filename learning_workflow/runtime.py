@@ -180,7 +180,7 @@ def init(query, decision, workspace, session_id, task_id=None, record=None):
         root = devroot
         request_name = 'routing-request.txt'
     else:
-        root = Path(record).resolve() if record else workspace / 'docs/learning-workflow/records' / stamp.strftime('%Y-%m-%d') / task_id
+        root = Path(record).resolve() if record else workspace / 'docs/_local/tasks' / task_id
         request_name = 'request.txt'
     root.mkdir(parents=True, exist_ok=True)
     with locked(root):

@@ -40,6 +40,7 @@ def parser():
     bind.add_argument('--workspace',type=Path,required=True)
     bind.add_argument('--state-root',type=Path)
     bind.add_argument('--on-stop',action='store_true')
+    bind.add_argument('--teaching-artifact',action='append',default=None,help='current requested teaching output; rebind after route changes')
     unbind = sub.add_parser('unbind',help='remove only this session/workspace hook binding')
     unbind.add_argument('--session-id',required=True)
     unbind.add_argument('--workspace',type=Path,required=True)
@@ -73,7 +74,7 @@ def main(argv=None):
             result = r.curate(args.record,args.source,args.destination,args.title,args.topic,args.base_revision)
         elif args.command in {'bind','unbind'}:
             from . import hooks
-            result = hooks.bind(args.record,args.session_id,args.workspace,args.state_root,args.on_stop) if args.command == 'bind' else hooks.unbind(args.session_id,args.workspace,args.state_root)
+            result = hooks.bind(args.record,args.session_id,args.workspace,args.state_root,args.on_stop,args.teaching_artifact) if args.command == 'bind' else hooks.unbind(args.session_id,args.workspace,args.state_root)
         elif args.command == 'inspect-index':
             result = r.inspect_index(args.index,args.source_root)
         else:

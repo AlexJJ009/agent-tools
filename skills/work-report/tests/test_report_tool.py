@@ -132,6 +132,24 @@ class ReportToolTests(unittest.TestCase):
             self.init_git_repo(workspace)
         return workspace
 
+    def test_default_init_uses_repo_ignore_and_legacy_task_continues(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = self.make_workspace(tmp, git=True)
+            (workspace / '.gitignore').write_text((REPO_ROOT / '.gitignore').read_text())
+            case = self.init_report(workspace)
+            self.assertEqual(case.output_root, workspace / 'docs/_local/reports')
+            ignored = self.git(workspace, 'check-ignore', '-v', '--', str(case.report))
+            self.assertIn('.gitignore:', ignored.stdout)
+            legacy = self.init_report(workspace, output_root=workspace / 'docs/work-reports')
+            result = self.assert_pass(self.run_cli(
+                'init', '--workspace', workspace, '--request', workspace / 'request.md',
+                '--title', 'continued', '--task-dir', legacy.task_dir))
+            report = self.find_report_path(result)
+            self.assertIsNotNone(report)
+            current = json.loads((report.parent / 'context.json').read_text())
+            self.assertEqual(current['task_id'], legacy.task_id)
+            self.assertEqual(Path(current['output_root']), legacy.output_root)
+
     def init_report(self, workspace, *, tool=DEFAULT_TOOL, title="case", output_root=None, state_text=None):
         request = workspace / "request.md"
         request.write_text("Original request: build a factual work report.\n", encoding="utf-8")
@@ -147,7 +165,7 @@ class ReportToolTests(unittest.TestCase):
         data = self.assert_pass(proc)
         report = self.find_report_path(data)
         if report is None:
-            search_root = Path(output_root) if output_root is not None else workspace / "docs" / "work-reports"
+            search_root = Path(output_root) if output_root is not None else workspace / "docs" / "_local" / "reports"
             reports = sorted(search_root.glob("*/**/report.md"))
             self.assertEqual(len(reports), 1, data)
             report = reports[0]
@@ -734,10 +752,10 @@ class ReportToolTests(unittest.TestCase):
     def test_init_rejects_tracked_default_output_root(self):
         with tempfile.TemporaryDirectory() as tmp:
             workspace = self.make_workspace(tmp, git=True)
-            tracked = workspace / "docs" / "work-reports" / "tracked.txt"
+            tracked = workspace / "docs" / "_local" / "reports" / "tracked.txt"
             tracked.parent.mkdir(parents=True)
             tracked.write_text("tracked report output\n", encoding="utf-8")
-            self.git(workspace, "add", "docs/work-reports/tracked.txt")
+            self.git(workspace, "add", "docs/_local/reports/tracked.txt")
             self.git(workspace, "commit", "-m", "track report output")
             request = workspace / "request.md"
             request.write_text("request\n", encoding="utf-8")
@@ -747,10 +765,10 @@ class ReportToolTests(unittest.TestCase):
     def test_init_rejects_staged_default_output_root(self):
         with tempfile.TemporaryDirectory() as tmp:
             workspace = self.make_workspace(tmp, git=True)
-            staged = workspace / "docs" / "work-reports" / "staged.txt"
+            staged = workspace / "docs" / "_local" / "reports" / "staged.txt"
             staged.parent.mkdir(parents=True)
             staged.write_text("staged report output\n", encoding="utf-8")
-            self.git(workspace, "add", "docs/work-reports/staged.txt")
+            self.git(workspace, "add", "docs/_local/reports/staged.txt")
             request = workspace / "request.md"
             request.write_text("request\n", encoding="utf-8")
             proc = self.run_cli("init", "--workspace", workspace, "--title", "staged", "--request", request)

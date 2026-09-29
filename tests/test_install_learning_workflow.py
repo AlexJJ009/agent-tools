@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 import shutil
 import tempfile
@@ -40,7 +43,8 @@ class InstallerTests(unittest.TestCase):
             (path / "SKILL.md").write_text(f"---\nname: {name}\n---\n")
         contract = "W1: readable writing.\n"
         for path in (self.repo / "shared/writing/reader-facing-contract.md",
-                     self.repo / "skills/work-report/references/writing-contract.md"):
+                     self.repo / "skills/work-report/references/writing-contract.md",
+                     self.repo / "skills/academic-writing/references/writing-contract.md"):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(contract)
         adapter = self.repo / "project_adapters/read_papers"
@@ -94,6 +98,34 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual((self.home / ".agents/skills" / name).resolve(), self.old / "skills" / name)
         self.assertFalse((self.home / ".agents/skills/academic-writing").exists())
         self.assertFalse((self.papers / ".agents/skills/read-paper").exists())
+
+    def test_legacy_teaching_double_registration_migrates_and_restores(self):
+        from learning_workflow import hook_registration as reg
+        directory=self.papers/'.codex'; directory.mkdir()
+        handler={'type':'command','command':'/usr/bin/env python3 .codex/teaching_stop_filter.py'}
+        groups=[{'hooks':[handler]}]
+        (directory/'hooks.json').write_text(json.dumps({'hooks':{'Stop':groups}}))
+        (directory/'config.toml').write_text('[features]\nhooks = true\n[hooks]\nStop = '+reg.inline(groups)+'\n')
+        installer.install(self.home,legacy_root=self.old,read_papers_root=self.papers,with_hooks=True)
+        self.assertEqual(reg.prepare(self.home,self.papers),[])
+        self.assertEqual(installer.check(self.home)['status'],'pass')
+        installer.rollback(self.home)
+        self.assertEqual(len(reg.prepare(self.home,self.papers)),2)
+
+    def test_actual_cli_from_unrelated_cwd_with_global_legacy_hooks(self):
+        from learning_workflow import hook_registration as reg
+        isolated_home=self.base/'cli-profile'; directory=isolated_home/'.codex'; directory.mkdir(parents=True)
+        handler={'type':'command','command':'python3 .codex/teaching_stop_filter.py'}
+        groups=[{'hooks':[handler]}]
+        (directory/'hooks.json').write_text(json.dumps({'hooks':{'Stop':groups}}))
+        (directory/'config.toml').write_text('[hooks]\nStop = '+reg.inline(groups)+'\n')
+        env=dict(os.environ,HOME=str(isolated_home))
+        env.pop('PYTHONPATH',None)
+        for flags in (['--with-hooks'],['--check'],['--rollback']):
+            run=subprocess.run([sys.executable,str(SCRIPT),*flags],cwd=self.base,env=env,
+                               capture_output=True,text=True)
+            self.assertEqual(run.returncode,0,run.stderr+run.stdout)
+        self.assertEqual(len(reg.prepare(isolated_home)),2)
 
     def test_unrecognized_link_is_preserved_before_writes(self) -> None:
         link = self.home / ".agents/skills/teaching-reconstruction"

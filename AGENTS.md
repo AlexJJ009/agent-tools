@@ -1,5 +1,7 @@
 # Project Constraints
 
+Use docs/README.md for current system docs and decisions.
+
 - Linear Workflow Delivery uses the shared contract under `linear_workflow/shared/`.
   Only an explicitly dispatched Ready Batch authorizes implementation; Project
   context does not expand scope. Follow `.linear-workflow.yml` and the

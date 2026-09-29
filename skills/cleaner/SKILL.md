@@ -1,6 +1,6 @@
 ---
 name: cleaner
-description: Clean up coder changes while preserving behavior, module boundaries, maintainability, and handoff clarity; use after implementation or before review when diff quality matters.
+description: Clean up coder changes while preserving behavior, module boundaries, maintainability, and handoff clarity; use proportionately before a meaningful stage commit, merge, or delivery, and earlier when patches or alternatives accumulate. Excludes unrelated repository cleanup and worktree retirement.
 ---
 
 # Cleaner
@@ -9,11 +9,18 @@ Use this skill after coding work when the changed area needs a maintainability p
 
 This skill borrows only the two-role mechanism from SwarmForge: coder produces behavior, cleaner follows with a constrained quality pass. SwarmForge prompt text is not copied because no license was verified in the saved snapshot.
 
+A just-reviewed, unchanged diff needs no repeated ceremony. A tiny change may
+need only a short inspection and a no-change rationale. Do not create a task or
+checklist solely to record cleanup.
+
 ## Cleanup Checks
 
 - Re-read the task agreement, allowed paths, forbidden paths, and checklist items before editing.
 - Preserve externally visible behavior and protocol semantics. If a cleanup would change behavior, stop and record it as a proposed scope change.
 - Reduce meaningful duplication, temporary leftovers, hidden side effects, unclear names, broad interfaces, and misplaced responsibilities in changed code.
+- Check documentation impact: update affected usage/interface instructions or explain why no documentation change is needed in the existing closing note or commit/PR description. Handoff links the current guide and records a recovery point; it does not duplicate usage instructions.
+- Check artifact ownership: private task agreements, checklists, reports and receipts belong in ignored `docs/_local/`, not shared source or product input. Preserve reusable test assets and necessary product validation.
+- Preserve significant architectural rationale in the project ADRs (`docs/decisions/`), using the MADR template when adopted. A substantive replacement gets a successor ADR and reciprocal supersession links; typo fixes do not. Do not fabricate alternatives or decisions.
 - Keep dependency direction and module boundaries consistent with the repository.
 - Add or adjust tests only when they verify changed behavior or guard a real cleanup risk.
 - Do not delete failing tests, weaken assertions, lower formal requirements, or merge semantically distinct experiment paths to make checks green.
@@ -38,3 +45,8 @@ Return the cleanup diff or no-change rationale with:
 - behavior-preservation checks run
 - checklist items affected or invalidated
 - remaining risks for `acceptance-gate` or human review
+
+Cleanup does not authorize Git publication or merge. Return a meaningful diff, a
+no-change rationale, or a concrete out-of-scope concern; do not enlarge the task
+to manufacture cleanup. Record any needed notes in the existing local task or
+conversation, retaining user criteria and actual human acceptance.

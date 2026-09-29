@@ -17,6 +17,7 @@ def main() -> None:
     targets = (
         repo / "skills/work-report/references/writing-contract.md",
         repo / "skills/reviewer-brief/references/writing-contract.md",
+        repo / "skills/academic-writing/references/writing-contract.md",
     )
     if not (repo / "scripts/install_agent_workflow.py").is_file() or not source.is_file():
         parser.exit(1, "Regeneration requires the repository source and packaging scripts\n")

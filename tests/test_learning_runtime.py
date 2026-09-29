@@ -23,6 +23,17 @@ class RouteTests(unittest.TestCase):
         self.source=self.work/'lesson.md'; self.source.write_text('# Lesson\n\nAn evidence-bounded note.\n')
         self.state=self.base/'hooks'
 
+    def test_local_default_and_explicit_existing_record(self):
+        self.assertEqual(self.root.parent, self.work / 'docs/_local/tasks')
+        task_id = r.read(self.root)['task_id']
+        legacy = self.work / 'docs/learning-workflow/records/existing'
+        legacy.parent.mkdir(parents=True)
+        self.root.rename(legacy)
+        r.input_record(legacy, 'continuation', self.q)
+        r.classify(legacy, 'continuation', self.decision, 2)
+        self.assertEqual(r.read(legacy)['task_id'], task_id)
+        self.assertFalse(self.root.exists())
+
     def event(self,name,**extra):
         return dict(hook_event_name=name,session_id='session-a',cwd=str(self.work),**extra)
 

@@ -17,7 +17,7 @@ queue result and when the message actually enters the original conversation.
 If only enqueue was observed, say so. Do not concurrently take over an active
 conversation with codex exec resume or interrupt it to simulate immediate delivery.
 
-Use the project's ignored `docs/work-reports/<task>/timer/` or explicitly chosen
+Use the worktree's ignored `docs/_local/tasks/<task-id>/timer/` or explicitly chosen
 artifact directory. Check untracked/unstaged and ignored status first. Do not
 create another business plan or report batch for a timer. The entry is this
 skill's `scripts/report_timer.py`:

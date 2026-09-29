@@ -83,7 +83,7 @@ def init(query, repo, scenario, context=None, mode='local', slug='task'):
     bindings = resolve_bindings(extraction, context)
     stamp = datetime.now(timezone.utc)
     task_id = stamp.strftime('%Y%m%dT%H%M%SZ') + '-' + slug + '-' + uuid.uuid4().hex[:6]
-    root = repo / 'docs/agent-workflow/records' / stamp.strftime('%Y-%m-%d') / task_id
+    root = repo / 'docs/_local/tasks' / task_id
     from . import state as state_core
     schema = context.get('schema_version', 1)
     require(schema in {1, 2}, 'unsupported schema')

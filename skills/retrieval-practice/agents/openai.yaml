@@ -1,0 +1,4 @@
+interface:
+  display_name: "Retrieval Practice"
+  short_description: "Create reconstruction and transfer checks"
+  default_prompt: "Use $retrieval-practice to test this knowledge with reconstruction, transfer, and later-review checks."

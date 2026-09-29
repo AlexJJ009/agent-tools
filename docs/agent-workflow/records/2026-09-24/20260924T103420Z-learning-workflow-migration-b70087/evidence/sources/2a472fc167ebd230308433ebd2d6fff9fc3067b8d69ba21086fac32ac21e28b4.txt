@@ -1,0 +1,9 @@
+{
+  "candidate_sha": "33e982d19173b0e32bfe5f40d97092cad8194fb3",
+  "implementation": "candidate_committed",
+  "code_review": "initial_review_passed_boundary_delta_under_review",
+  "native_validation": "running",
+  "local_activation": "not_started",
+  "human_pilot": "pending actual human feedback",
+  "zotero_test_host": "genuine isolated test service available; native integration running"
+}

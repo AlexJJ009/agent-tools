@@ -1,0 +1,63 @@
+{
+  "captured_at": "2026-09-24T09:41:13.872684+00:00",
+  "repository_head": "6161fe959b06e668876c0aec66812294ae4a0b20",
+  "teaching_worktree_head": "0bef6f345d1899a0d99292ad538ec832d8d4ff89",
+  "files": [
+    {
+      "source": "/home/alex_mercer/.agents/skills/teaching-reconstruction/SKILL.md",
+      "resolved_source": "/home/alex_mercer/projects/_worktrees/agent-tools/codex-teaching-skills-suite/skills/teaching-reconstruction/SKILL.md",
+      "snapshot": "teaching-SKILL.md",
+      "sha256": "3965450b37d402a9beb0399ee75130821ba3af3cc66e0f65af6803bf7904e2c2",
+      "purpose": "Review-only preservation baseline; not an installed or maintained skill copy."
+    },
+    {
+      "source": "/home/alex_mercer/.agents/skills/teaching-reconstruction/scripts/route_teaching_intent.py",
+      "resolved_source": "/home/alex_mercer/projects/_worktrees/agent-tools/codex-teaching-skills-suite/skills/teaching-reconstruction/scripts/route_teaching_intent.py",
+      "snapshot": "teaching-router.py",
+      "sha256": "cd6fc4c7a308487d97717e855928de8eebea5afca0fba27438d465127113d591",
+      "purpose": "Review-only preservation baseline; not an installed or maintained skill copy."
+    },
+    {
+      "source": "/home/alex_mercer/.agents/skills/teaching-reconstruction/references/artifact-contract.md",
+      "resolved_source": "/home/alex_mercer/projects/_worktrees/agent-tools/codex-teaching-skills-suite/skills/teaching-reconstruction/references/artifact-contract.md",
+      "snapshot": "teaching-artifact-contract.md",
+      "sha256": "9c436a4f3ce0c1d39d9cf8778dc2aa8832351b24fdbe2ff8a7b8abeacf2e3656",
+      "purpose": "Review-only preservation baseline; not an installed or maintained skill copy."
+    },
+    {
+      "source": "/home/alex_mercer/.agents/skills/teaching-reconstruction/references/read-paper-adapter.md",
+      "resolved_source": "/home/alex_mercer/projects/_worktrees/agent-tools/codex-teaching-skills-suite/skills/teaching-reconstruction/references/read-paper-adapter.md",
+      "snapshot": "read-paper-adapter.md",
+      "sha256": "2352382e830a3c617cb5c7ba6e9fa0bd9de0a3f2e61199a5b137f64b541aa59f",
+      "purpose": "Review-only preservation baseline; not an installed or maintained skill copy."
+    },
+    {
+      "source": "/home/alex_mercer/.agents/skills/retrieval-practice/SKILL.md",
+      "resolved_source": "/home/alex_mercer/projects/_worktrees/agent-tools/codex-teaching-skills-suite/skills/retrieval-practice/SKILL.md",
+      "snapshot": "retrieval-practice-SKILL.md",
+      "sha256": "89939eb33ff61479293d33fc9eebdc06894eb6bce8f2154c6432570c0d3c89df",
+      "purpose": "Review-only preservation baseline; not an installed or maintained skill copy."
+    },
+    {
+      "source": "/home/alex_mercer/.agents/skills/learning-artifact-compiler/SKILL.md",
+      "resolved_source": "/home/alex_mercer/projects/_worktrees/agent-tools/codex-teaching-skills-suite/skills/learning-artifact-compiler/SKILL.md",
+      "snapshot": "learning-artifact-compiler-SKILL.md",
+      "sha256": "a7f7094583d2ccb1fec6bd745dcc2c3d0afea1a08521af1a0099bee67f99621e",
+      "purpose": "Review-only preservation baseline; not an installed or maintained skill copy."
+    },
+    {
+      "source": "/home/alex_mercer/.codex/skills/read-paper/SKILL.md",
+      "resolved_source": "/home/alex_mercer/projects/.claude/skills/read-paper/SKILL.md",
+      "snapshot": "read-paper-SKILL.md",
+      "sha256": "71655850e736bd4659f71cba87589c72e1219a580f765310b7b68f1b4d2e7d38",
+      "purpose": "Review-only preservation baseline; not an installed or maintained skill copy."
+    },
+    {
+      "source": "/home/alex_mercer/projects/agent-tools/skills/work-report/references/writing-contract.md",
+      "resolved_source": "/home/alex_mercer/projects/agent-tools/skills/work-report/references/writing-contract.md",
+      "snapshot": "writing-contract.md",
+      "sha256": "6496cddbb8b92cfdeb3f1ee53bc927dcfbdfb16bc2b8a6075bd5bcf02f08ad3c",
+      "purpose": "Review-only preservation baseline; not an installed or maintained skill copy."
+    }
+  ]
+}

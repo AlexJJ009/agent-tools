@@ -1,0 +1,4 @@
+interface:
+  display_name: "Teaching Reconstruction"
+  short_description: "Personalize evidence-backed guided learning"
+  default_prompt: "Use $teaching-reconstruction to turn this topic into a personalized, evidence-traceable learning path."

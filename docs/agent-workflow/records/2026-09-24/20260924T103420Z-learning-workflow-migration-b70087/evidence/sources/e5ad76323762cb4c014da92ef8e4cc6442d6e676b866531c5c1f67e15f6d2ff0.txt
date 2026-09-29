@@ -1,0 +1,12 @@
+{
+  "source_candidate": "602b528b2ade668dd736ee01ffccf2dd7b93b3ad",
+  "independent_criterion_summary": {
+    "pass": 20,
+    "pending": 1
+  },
+  "audit": "/home/alex_mercer/projects/_artifacts/agent-tools/codex-learning-workflow-migration/reviews/ac-evidence-audit.json",
+  "audit_sha256": "a926d06c274f6932e799fdbbce07d74a9e24af9dade072fbad7b69c4cc2bc687",
+  "pending": "AC-21 real user feedback",
+  "live_activation": false,
+  "formal_gate_pass_claimed": false
+}

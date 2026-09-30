@@ -22,7 +22,7 @@ FAIL2BAN_SSHD_BANACTION="${FAIL2BAN_SSHD_BANACTION:-iptables-multiport[blocktype
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
 INSTALL_AGENT_WT=1
-INSTALL_LINEAR_WORKFLOW=1
+INSTALL_LINEAR_WORKFLOW=0
 LINEAR_WORKFLOW_ONLY=0
 INSTALL_CC_SWITCH_CLI_UPDATE="${INSTALL_CC_SWITCH_CLI_UPDATE:-1}"
 CC_SWITCH_UPDATE_PROXY_MODE="${CC_SWITCH_UPDATE_PROXY_MODE:-auto}"
@@ -2353,7 +2353,6 @@ usage() {
   cat <<'EOF'
 Usage:
   install.sh [options]
-  install.sh --linear-workflow-only
 
 Options:
   --install-dir PATH       Install/copy tools to PATH. Default: this directory.
@@ -2376,9 +2375,9 @@ Options:
   --no-codex-here          Do not install ~/.local/bin/codex-here.
   --no-agent-wt            Do not install the agent-wt launcher or
                            the current-scope Codex manage-worktrees Skill.
-  --linear-workflow        Install Linear Workflow (default).
-  --linear-workflow-only   Install only Linear Workflow adapters/runtime/plugin.
-  --no-linear-workflow     Do not install Linear Workflow.
+  --linear-workflow        Deprecated: rejected; Linear Workflow is disabled.
+  --linear-workflow-only   Deprecated: rejected; source is retained only.
+  --no-linear-workflow     Keep Linear Workflow disabled (default).
   --no-cc-switch-update    Do not update cc-switch-cli from the latest GitHub
                            release before Codex provider migration.
   --cc-switch-update-proxy MODE
@@ -2460,13 +2459,9 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --linear-workflow)
-      INSTALL_LINEAR_WORKFLOW=1
-      shift
-      ;;
-    --linear-workflow-only)
-      LINEAR_WORKFLOW_ONLY=1
-      shift
+    --linear-workflow|--linear-workflow-only)
+      echo "Linear Workflow is deprecated and disabled; installation is not supported." >&2
+      exit 2
       ;;
     --no-linear-workflow)
       INSTALL_LINEAR_WORKFLOW=0
@@ -2692,6 +2687,7 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   cp "$SOURCE_DIR/install.sh" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/bin" ]] && cp -R "$SOURCE_DIR/bin" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/scripts" ]] && cp -R "$SOURCE_DIR/scripts" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/config" ]] && cp -R "$SOURCE_DIR/config" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/README.md" ]] && cp "$SOURCE_DIR/README.md" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/docs" ]] && cp -R "$SOURCE_DIR/docs" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/experiment_registry" ]] && cp -R "$SOURCE_DIR/experiment_registry" "$INSTALL_REAL/"
@@ -2752,6 +2748,11 @@ if [[ "$INSTALL_AGENT_WT" -eq 1 ]]; then
 fi
 if [[ "$INSTALL_LINEAR_WORKFLOW" -eq 1 ]]; then
   install_linear_workflow_tools
+else
+  select_python_bin
+  "$PYTHON_BIN" "$INSTALL_REAL/scripts/managed_package_installer.py" disable \
+    --descriptor "$INSTALL_REAL/config/managed-packages/linear-workflow.json" \
+    --repo-root "$INSTALL_REAL" --home "$HOME" --platform unix
 fi
 select_python_bin
 
@@ -2874,6 +2875,6 @@ fi
 if [[ "$INSTALL_LINEAR_WORKFLOW" -eq 1 ]]; then
   echo "Linear Workflow: ${LINEAR_WORKFLOW_STATUS}"
 else
-  echo "Linear Workflow not installed (--no-linear-workflow)."
+  echo "Linear Workflow deprecated and disabled; source and historical data retained."
 fi
 echo "Codex Win11 patch safety skill: ${CODEX_PATCH_SAFETY_SKILL_STATUS}"

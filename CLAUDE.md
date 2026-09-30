@@ -29,10 +29,11 @@ The section below is copied verbatim from `AGENTS.md`.
 
 Use docs/README.md for current system docs and decisions.
 
-- Linear Workflow Delivery uses the shared contract under `linear_workflow/shared/`.
-  Only an explicitly dispatched Ready Batch authorizes implementation; Project
-  context does not expand scope. Follow `.linear-workflow.yml` and the
-  repo-resident reviewer brief, and retain human merge authority.
+- Linear Workflow is deprecated and disabled. Do not invoke `linear-plan`,
+  `linear-deliver`, or their plugin/command adapters. Source under
+  `linear_workflow/` remains for historical inspection and compatibility
+  maintenance; old Batch approvals do not reactivate it. Use the current
+  task runtime and the user's task instructions for ongoing work.
 
 - Linux and WSL2 machine bootstrap must persist tmux mouse mode for the Unix
   user running the tools. The durable config is a managed block in

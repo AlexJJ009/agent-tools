@@ -1,5 +1,15 @@
 # Contributing
 
+Linear Workflow is deprecated and disabled. Contributors do not need a Linear
+Batch to work on this repository. Follow the current user-authorized task scope
+and repository checks. Preserve the historical runtime and compatibility tests;
+do not invoke its planning/delivery skills or reactivate it through maintenance.
+
+## Historical Linear Workflow contract
+
+The following describes the retained compatibility contract, not the current
+contribution workflow.
+
 Linear Workflow changes follow the shared [contribution contract](linear_workflow/shared/references/contribution-contract.md), [lifecycle](linear_workflow/shared/references/lifecycle.md), and machine-readable [gate policy](linear_workflow/shared/gate-policy.json).
 
 Use the full `owner/repository`, Linear Batch and Issue IDs, full base/candidate SHAs, and one primary PR per Batch repository. Feature-branch full validation runs through a Pull Request; ordinary feature pushes do not duplicate it. A human retains merge authority, especially for High-risk work.

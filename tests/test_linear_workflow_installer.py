@@ -1,4 +1,6 @@
 import json
+import subprocess
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +17,43 @@ class LinearWorkflowInstallerContractTests(unittest.TestCase):
         only = text.index('if [[ "$LINEAR_WORKFLOW_ONLY" -eq 1 ]]')
         unrelated = text.index("configure_fail2ban_hardening", only)
         self.assertLess(only, unrelated)
+
+    def test_deprecated_unix_flags_reject_before_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "not-created"
+            for flag in ("--linear-workflow", "--linear-workflow-only"):
+                result = subprocess.run(
+                    ["bash", str(ROOT / "install.sh"), flag, "--install-dir", str(target)],
+                    capture_output=True, text=True, errors="replace",
+                )
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("deprecated and disabled", result.stderr)
+                self.assertFalse(target.exists())
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell unavailable")
+    def test_deprecated_win_flag_rejects_before_writing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp) / "not-created"
+            result = subprocess.run(
+                ["pwsh", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ROOT / "scripts/install-win11.ps1"),
+                 "-LinearWorkflow", "-UserHome", str(target), "-CodexHome", str(target / ".codex"),
+                 "-CcSwitchDb", str(target / ".cc-switch/cc-switch.db")],
+                capture_output=True, text=True, errors="replace",
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("deprecated and disabled", result.stderr)
+            self.assertFalse(target.exists())
+
+    def test_defaults_disable_existing_discovery_without_installing(self):
+        unix = (ROOT / "install.sh").read_text()
+        win = (ROOT / "scripts/install-win11.ps1").read_text()
+        self.assertIn("INSTALL_LINEAR_WORKFLOW=0", unix)
+        self.assertNotIn("INSTALL_LINEAR_WORKFLOW=1", unix)
+        self.assertIn("$installLinearWorkflow = $false", win)
+        self.assertNotIn("$installLinearWorkflow = $true", win)
+        self.assertIn('managed_package_installer.py" disable', unix)
+        self.assertIn('managed_package_installer.py") disable', win)
+        self.assertLess(win.index('if ($LinearWorkflow)'), win.index('Install-CodexPatchSafetySkill -RepoRoot $Root'))
 
     def test_prewrite_guard_precedes_installer_dispatch(self):
         unix = (ROOT / "install.sh").read_text(encoding="utf-8")

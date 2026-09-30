@@ -23,3 +23,4 @@ not from creating an ADR. A small change need not create or rewrite any ADR.
 - [One reader-facing writing contract](0003-reader-facing-writing.md)
 - [Task Runtime application storage and owned-artifact closeout](0004-task-runtime-application-storage.md)
 - [Scoped process-material retirement](0005-scoped-process-material-retirement.md)
+- [Retire Linear Workflow while preserving its source](0006-retire-linear-workflow.md)

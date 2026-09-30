@@ -26,7 +26,7 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             "--no-codex-app-fast-mode", "--no-codex-desktop-connection-fast-mode",
             "--no-codex-sqlite-log-guard", "--no-codex-provider-bucket-migration",
             "--codex-proxy-wrapper", "never", "--no-codex-remote-control",
-            "--no-claude-desktop-ssh", "--no-linear-workflow",
+            "--no-claude-desktop-ssh",
             "--no-cron", "--no-registry", "--no-agent-core",
         ]
         return subprocess.run(
@@ -71,6 +71,11 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             self.assertFalse(legacy.exists())
             self.assertFalse(claude.exists())
             self.assertTrue((home / ".local" / "bin" / "agent-wt").exists())
+            for client in (".codex", ".claude"):
+                for skill in ("linear-plan", "linear-deliver"):
+                    self.assertFalse((home / client / "skills" / skill).exists())
+            self.assertFalse((home / ".local/bin/linear-workflow").exists())
+            self.assertTrue((home / "agent-tools-installed/config/managed-packages/linear-workflow.json").is_file())
 
     def test_isolated_unix_install_rejects_legacy_duplicate(self):
         with tempfile.TemporaryDirectory() as temporary:

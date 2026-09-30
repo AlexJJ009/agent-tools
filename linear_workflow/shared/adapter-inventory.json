@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "adapter": "linear-plan",
-  "display_name": "Linear Plan",
-  "short_description": "Plan Linear projects with shared contracts",
-  "default_prompt": "Use $linear-plan to prepare an approval-bound Linear planning preview.",
-  "command_description": "Prepare or revise a Linear PRD, DAG, and Delivery Batch preview without entering Delivery.",
+  "display_name": "Linear Plan (Disabled)",
+  "short_description": "Deprecated and disabled; retained source only",
+  "default_prompt": "$linear-plan is disabled. Explain its retirement and stop.",
+  "command_description": "Deprecated and disabled. Stop without invoking the historical workflow.",
   "argument_hint": "[Linear Issue or Project ID]",
-  "command_body": "Use `$linear-plan` for the supplied Linear Issue or Project. Read the shared contract and candidate repositories, present the complete approval-bound preview, apply only the exact approved preview, and stop before Delivery.",
+  "command_body": "`$linear-plan` is deprecated and disabled. Stop without invoking it, calling Linear, or entering Planning or Delivery. Source is retained only for historical inspection and compatibility maintenance.",
   "workflow_version_source": "linear_workflow/VERSION",
   "canonical_skill_source": "linear_workflow/shared/adapters/linear-plan.skill.md",
   "shared_references": [
@@ -34,8 +34,12 @@
   ],
   "required_command": "linear-workflow plan-check --input <normalized-prd.json>",
   "required_stop_markers": [
+    "Stop: this skill is deprecated and disabled. Do not execute the historical workflow below.",
     "Do not mark your own PRD or decomposition Approved or Ready.",
     "Do not modify implementation code",
     "Delivery requires a new explicit command or session"
-  ]
+  ],
+  "status": "deprecated",
+  "enabled": false,
+  "allow_implicit_invocation": false
 }

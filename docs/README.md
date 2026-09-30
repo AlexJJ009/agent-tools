@@ -9,7 +9,7 @@ private reports describe bounded development work and are not deployment proof.
 - [Learning workflow runtime](LEARNING_WORKFLOW.md): activity routing and scoped actions.
 - [Learning workflow installation](LEARNING_WORKFLOW_INSTALL.md): local Codex installation and rollback.
 - [Architecture decisions](decisions/README.md): adopted choices and their reasons.
-- [Linear workflow](linear-workflow/README.md): shared runtime and explicit dispatch boundaries.
+- [Linear workflow (retired)](linear-workflow/README.md): disabled historical source and compatibility notes.
 - [Work Report](WORK_REPORT.md): report generation, delivery contracts and installation.
 - [Work Report timer](WORK_REPORT_LIGHT_TIMER.md): timed prompts and their delivery limits.
 - [CLI server bootstrap](CLI_SERVER_BOOTSTRAP.md): server setup.

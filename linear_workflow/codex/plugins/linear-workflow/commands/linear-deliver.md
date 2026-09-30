@@ -1,6 +1,6 @@
 ---
-description: Execute one explicitly dispatched Ready Delivery Batch and stop at its merge approval boundary.
+description: Deprecated and disabled. Stop without invoking the historical workflow.
 argument-hint: [Ready Linear Batch ID]
 ---
 
-Use `$linear-deliver` for the supplied Ready Batch ID. Read the shared contract and live Linear/repository facts, execute only the Batch members in DAG order, bind CI and independent review to one candidate, and stop before merge unless a human explicitly approves it.
+`$linear-deliver` is deprecated and disabled. Stop without invoking it, calling Linear, or entering Planning or Delivery. Source is retained only for historical inspection and compatibility maintenance.

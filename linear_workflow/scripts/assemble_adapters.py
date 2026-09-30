@@ -40,6 +40,8 @@ def _openai_yaml(inventory: dict[str, object]) -> str:
   display_name: "{inventory["display_name"]}"
   short_description: "{inventory["short_description"]}"
   default_prompt: "{inventory["default_prompt"]}"
+policy:
+  allow_implicit_invocation: {str(inventory["allow_implicit_invocation"]).lower()}
 '''
 
 
@@ -57,17 +59,17 @@ def _plugin(version: str) -> str:
     value = {
         "name": "linear-workflow",
         "version": version,
-        "description": "Plan and deliver Linear-first software batches with shared deterministic contracts.",
+        "description": "Deprecated and disabled. Historical Linear Workflow source only.",
         "author": {"name": "Local developer"},
         "skills": "./skills/",
         "interface": {
-            "displayName": "Linear Workflow",
-            "shortDescription": "Plan and deliver Linear-first batches.",
-            "longDescription": "Linear Workflow separates approval-bound Planning from Ready-Batch Delivery while sharing one deterministic runtime and contract.",
+            "displayName": "Linear Workflow (Disabled)",
+            "shortDescription": "Deprecated and disabled; retained source only.",
+            "longDescription": "Retained for historical inspection and compatibility maintenance. Do not invoke the workflow.",
             "developerName": "Local developer",
             "category": "Developer Tools",
-            "capabilities": ["Interactive", "Read", "Write"],
-            "defaultPrompt": "Use /linear-plan for Planning or /linear-deliver for an explicitly dispatched Ready Batch.",
+            "capabilities": [],
+            "defaultPrompt": "Linear Workflow is disabled. Explain its retirement and stop.",
         },
     }
     return json.dumps(value, ensure_ascii=False, indent=2) + "\n"
@@ -79,6 +81,8 @@ def _contract_metadata(version: str) -> str:
             "workflow_version": version,
             "schema_version": 1,
             "canonical_contract": "linear_workflow/shared/",
+            "status": "deprecated",
+            "enabled": False,
         },
         indent=2,
     ) + "\n"

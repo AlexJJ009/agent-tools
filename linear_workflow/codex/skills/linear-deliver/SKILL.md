@@ -1,9 +1,17 @@
 ---
 name: linear-deliver
-description: Deliver one explicitly dispatched Ready Linear Batch by reading live Linear, repository, and GitHub facts; executing included Issues in DAG order; and producing candidate-bound CI and independent review evidence. Use only for Delivery of an approved Batch. Do not use for Planning, Project-wide implementation, automatic merge, or release approval.
+description: Deprecated and disabled. Retained only for historical inspection and compatibility maintenance; do not invoke for any task.
 ---
 
-# Linear Deliver
+# Linear Deliver (Deprecated; Disabled)
+
+Stop: this skill is deprecated and disabled. Do not execute the historical workflow below.
+
+Do not call Linear, apply planning changes, dispatch a Batch, or perform delivery through this skill, even if invoked explicitly. Explain that Linear Workflow has been retired. An old Ready Batch or approval does not reactivate it.
+
+The remaining text preserves the former contract for historical inspection and compatibility maintenance only; it is not an executable instruction.
+
+## Historical workflow (inactive)
 
 Execute exactly one human-dispatched Ready Batch. One Batch is one development branch, one candidate validation cycle, and one primary PR per repository.
 

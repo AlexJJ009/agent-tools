@@ -1,4 +1,6 @@
 interface:
-  display_name: "Linear Deliver"
-  short_description: "Deliver one explicitly dispatched Ready Batch"
-  default_prompt: "Use $linear-deliver to execute the supplied Ready Batch within its approved scope."
+  display_name: "Linear Deliver (Disabled)"
+  short_description: "Deprecated and disabled; retained source only"
+  default_prompt: "$linear-deliver is disabled. Explain its retirement and stop."
+policy:
+  allow_implicit_invocation: false

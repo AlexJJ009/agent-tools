@@ -16,3 +16,21 @@
 另一项观察器修复：组合 shell 命令先成功输出 SKILL.md、后续命令失败时，旧检测会漏记读取。
 报告现在核对运行时记录的源哈希及工具输出中的完整 skill 正文；满足时恢复配对资格，不伪造成功事件。
 原始事件和旧 target_load 不改，修订证据另存 measurement-corrections.json。
+
+## 当前评分入口
+
+运行原始题目后，使用下列入口评分和导出；旧入口保留用于复现测量修订前的结果。
+两个 wrapper 的 `score` 接受 `--runs`、`--output`；`report` 接受 `--runs`、`--scored`、`--output`、`--reps`。
+
+- 原子挑战 H01–H10：`python3 evals/skill-suite-corrections/reviewed_challenge_v3.py score` / `report`。
+- 机制题 L01–L04：`python3 evals/skill-suite-corrections/reviewed_mechanisms.py score` / `report`。
+- 来源定位和文档等价题使用各自目录的入口，无须套用上述修订。
+
+H08 原机器检查把 schema 维护与核心 CSV 行为合为一个主分，v3 拆为主能力和护栏。
+H09 不再指定唯一对照例子；新增建议必须与其实际行为一致。Judge 要逐条核对数值声明，
+但首次校准曾漏掉错误建议，所以通过少量控制样本不能证明自动评分在任意产物上可靠。
+L02 不再要求保留帮助文字的逐字副本；机器检查非空记录，语义检查帮助内容是否保留。
+
+所有修订对同题两组和全部重复统一生效；源输入、候选产物和旧评分不覆盖。
+新题先提交再运行。测量错误的修订必须注明理由、做反例校准，并与技能修改分开。
+本轮没有优化目标 skills；未观测到差异的题目不提供技能有效性证据。

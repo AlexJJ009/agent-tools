@@ -309,9 +309,40 @@ def ensure_pending_git_policy(workspace_root: Path) -> None:
         raise RuntimeFailure("git_ignore_missing", "pending work-report prompts must be under ignored docs/_local/reports")
 
 
+def report_candidate_text(prompt: str) -> str:
+    """Exclude selected old-response text from one recognized annotation envelope.
+
+    This only narrows the candidate detector; the Judge still receives the exact
+    original prompt. Unknown or malformed envelopes retain conservative matching.
+    """
+    opening, closing = "<response-annotations>", "</response-annotations>"
+    if prompt.count(opening) != 1 or prompt.count(closing) != 1:
+        return prompt
+    before, _, rest = prompt.partition(opening)
+    payload, _, after = rest.partition(closing)
+    try:
+        items = json.loads(payload)
+    except (ValueError, TypeError):
+        return prompt
+    if not isinstance(items, list):
+        return prompt
+    comments = []
+    for item in items:
+        if (not isinstance(item, dict) or not isinstance(item.get("text"), str)
+                or set(item) - {"text", "annotation", "source"}
+                or item.get("annotation") is not None and not isinstance(item["annotation"], str)):
+            return prompt
+        if item.get("annotation"):
+            comments.append(item["annotation"])
+    return "\n".join([before, *comments, after])
+
+
 def write_pending_prompt(workspace_root: Path, event: dict[str, Any]) -> dict[str, Any] | None:
     prompt = event.get("prompt")
-    if not isinstance(prompt, str) or not PROMPT_REPORT_RE.search(prompt) or not PROMPT_TIMING_RE.search(prompt):
+    if not isinstance(prompt, str):
+        return None
+    candidate = report_candidate_text(prompt)
+    if not PROMPT_REPORT_RE.search(candidate) or not PROMPT_TIMING_RE.search(candidate):
         return None
     ensure_pending_git_policy(workspace_root)
     with locked_pending(workspace_root, event.get("session_id")):

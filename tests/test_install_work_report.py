@@ -48,8 +48,64 @@ class WorkReportInstallTests(unittest.TestCase):
              patch.object(installer.platform, 'system', return_value='Linux'), \
              patch.object(installer.shutil, 'which', return_value='/fixture/uv'), \
              patch.object(installer.subprocess, 'run', side_effect=self.run_command), \
-             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            return installer.main(list(args))
+             contextlib.redirect_stdout(io.StringIO()) as output, contextlib.redirect_stderr(io.StringIO()):
+            result = installer.main(list(args))
+            self.output = output.getvalue()
+            return result
+
+    def test_unchanged_reinstall_creates_no_backup_or_new_directories(self):
+        self.assertEqual(self.install(), 0)
+        before = {str(p.relative_to(self.home)) for p in self.home.rglob('*') if p.is_dir()}
+        target = self.home / '.agents/skills/work-report'
+        inode = target.stat().st_ino
+        self.assertEqual(self.install(), 0)
+        self.assertEqual(target.stat().st_ino, inode)
+        self.assertEqual(before, {str(p.relative_to(self.home)) for p in self.home.rglob('*') if p.is_dir()})
+        self.assertFalse((self.home / '.local/state/work-report/install-backups').exists())
+
+    def test_successful_upgrade_discards_verified_transaction_backup(self):
+        self.assertEqual(self.install(), 0)
+        historic = self.home / '.local/state/work-report/install-backups/historic'
+        historic.mkdir(parents=True)
+        (historic / 'personal.txt').write_text('unverified backup')
+        (self.source / 'SKILL.md').write_text('new source')
+        self.assertEqual(self.install(), 0)
+        self.assertEqual(json.loads(self.output)['preserved_backups'], [])
+        self.assertEqual(self.install(['--check']), 0)
+        self.assertEqual(list(historic.parent.iterdir()), [historic])
+        self.assertEqual((historic / 'personal.txt').read_text(), 'unverified backup')
+
+    def test_symlink_in_old_copy_is_preserved_even_when_bytes_match(self):
+        self.assertEqual(self.install(), 0)
+        target = self.home / '.agents/skills/work-report/SKILL.md'
+        target.unlink()
+        target.symlink_to(self.source / 'SKILL.md')
+        self.assertEqual(self.install(), 0)
+        backup = Path(json.loads(self.output)['preserved_backups'][0]['path'])
+        self.assertTrue((backup / 'SKILL.md').is_symlink())
+        self.assertFalse(target.is_symlink())
+
+    def test_modified_old_install_is_preserved_and_reported(self):
+        self.assertEqual(self.install(), 0)
+        target = self.home / '.agents/skills/work-report'
+        (target / 'SKILL.md').write_text('personal edits')
+        self.assertEqual(self.install(), 0)
+        preserved = json.loads(self.output)['preserved_backups']
+        self.assertEqual(len(preserved), 1)
+        backup = Path(preserved[0]['path'])
+        self.assertEqual((backup / 'SKILL.md').read_text(), 'personal edits')
+        self.assertEqual(self.install(), 0)
+        self.assertTrue(backup.exists())
+
+    def test_state_symlink_outside_profile_is_rejected(self):
+        external = self.base / 'external'
+        external.mkdir()
+        state = self.home / '.local/state'
+        state.mkdir(parents=True)
+        (state / 'work-report').symlink_to(external, target_is_directory=True)
+        self.assertEqual(self.install(), 1)
+        self.assertEqual(list(external.iterdir()), [])
+        self.assertFalse((self.home / '.agents').exists())
 
     def test_guard_failure_writes_nothing(self):
         self.guard_ok = False

@@ -1,4 +1,9 @@
-# Runtime input contract
+# Legacy scenario runtime input contract
+
+This reference applies only to explicitly selected legacy scenario contracts.
+Current persistent task state uses `agent-workflow task`; ordinary task work
+does not require this context schema or a second `checklist.yaml`. Existing
+formal-run and protected-action bindings remain enforceable.
 
 Use `agent-workflow` from the installed user launcher. `init --context` reads JSON, not free-form YAML. It preserves query bytes and initializes every item as unverified with no execution evidence. Do not supply your own checked/confirmed statuses or evidence in the context; only actual runtime checks/feedback create those states.
 

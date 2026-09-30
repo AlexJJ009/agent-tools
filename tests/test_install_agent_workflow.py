@@ -1,6 +1,7 @@
 import contextlib
 import importlib.util
 import io
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -72,8 +73,46 @@ class AgentWorkflowInstallTests(unittest.TestCase):
         with patch.object(installer, "ROOT", self.repo), patch.object(Path, "home", return_value=self.home), \
              patch.object(installer.platform, "system", return_value="Linux"), \
              patch.object(installer.subprocess, "run", side_effect=self.run_command), \
-             contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            return installer.main(list(args))
+             contextlib.redirect_stdout(io.StringIO()) as output, contextlib.redirect_stderr(io.StringIO()):
+            result = installer.main(list(args))
+            self.output = output.getvalue()
+            return result
+
+    def test_unchanged_reinstall_creates_no_backup_or_new_directories(self):
+        self.assertEqual(self.install(), 0)
+        before = {str(p.relative_to(self.home)) for p in self.home.rglob('*') if p.is_dir()}
+        target = self.home / '.agents/skills/cleaner'
+        inode = target.stat().st_ino
+        self.assertEqual(self.install(), 0)
+        self.assertEqual(target.stat().st_ino, inode)
+        self.assertEqual(before, {str(p.relative_to(self.home)) for p in self.home.rglob('*') if p.is_dir()})
+        self.assertFalse((self.home / '.local/state/agent-workflow/install-backups').exists())
+
+    def test_successful_upgrade_discards_verified_transaction_backup(self):
+        self.assertEqual(self.install(), 0)
+        historic = self.home / '.local/state/agent-workflow/install-backups/historic'
+        historic.mkdir(parents=True)
+        (historic / 'personal.txt').write_text('unverified backup')
+        (self.repo / 'agent_workflow/cli.py').write_text('upgraded runtime')
+        (self.repo / 'skills/cleaner/SKILL.md').write_text('upgraded skill')
+        self.assertEqual(self.install(), 0)
+        self.assertEqual(self.install(['--check']), 0)
+        self.assertEqual(list(historic.parent.iterdir()), [historic])
+        self.assertEqual((historic / 'personal.txt').read_text(), 'unverified backup')
+
+    def test_modified_old_install_is_preserved_and_reported(self):
+        self.assertEqual(self.install(), 0)
+        (self.home / '.agents/skills/cleaner/SKILL.md').write_text('personal edits')
+        runtime = self.home / '.local/share/agent-workflow'
+        (runtime / 'personal.txt').write_text('outside runtime manifest')
+        self.assertEqual(self.install(), 0)
+        preserved = json.loads(self.output)['preserved_backups']
+        self.assertEqual(len(preserved), 2)
+        paths = [Path(item['path']) for item in preserved]
+        self.assertTrue(any((p / 'SKILL.md').is_file() and (p / 'SKILL.md').read_text() == 'personal edits' for p in paths))
+        self.assertTrue(any((p / 'personal.txt').is_file() for p in paths))
+        self.assertEqual(self.install(), 0)
+        self.assertTrue(all(p.exists() for p in paths))
 
     def test_guard_failure_writes_nothing(self):
         self.guard_ok = False

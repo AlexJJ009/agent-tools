@@ -9,9 +9,7 @@ SCOPE="all"
 DIRECTION="bidirectional"
 PREFER="none"
 MODE="symlink"
-INSTALL_CRON=1
-INSTALL_REGISTRY=1
-REGISTRY_INIT_DB=0
+INSTALL_CRON=0
 INSTALL_FAIL2BAN_HARDENING="${INSTALL_FAIL2BAN_HARDENING:-auto}"
 FAIL2BAN_SSHD_MAXRETRY="${FAIL2BAN_SSHD_MAXRETRY:-3}"
 FAIL2BAN_SSHD_FINDTIME="${FAIL2BAN_SSHD_FINDTIME:-1h}"
@@ -33,11 +31,11 @@ CC_SWITCH_UPDATE_RETRY_DELAY="${CC_SWITCH_UPDATE_RETRY_DELAY:-2}"
 CC_SWITCH_UPDATE_SPEED_LIMIT="${CC_SWITCH_UPDATE_SPEED_LIMIT:-10240}"
 CC_SWITCH_UPDATE_SPEED_TIME="${CC_SWITCH_UPDATE_SPEED_TIME:-30}"
 CC_SWITCH_UPDATE_PROXY_TEST_URL="${CC_SWITCH_UPDATE_PROXY_TEST_URL:-https://github.com/saladday/cc-switch-cli/releases/latest/download/install.sh}"
-INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=1
+INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=0
 APPLY_CODEX_PROVIDER_BUCKET_MIGRATION="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_APPLY:-1}"
 CODEX_PROVIDER_BUCKET_ALL_NON_TARGET="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALL_NON_TARGET:-1}"
 CODEX_PROVIDER_BUCKET_ALLOW_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALLOW_RUNNING:-0}"
-CODEX_PROVIDER_BUCKET_KILL_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_KILL_RUNNING:-1}"
+CODEX_PROVIDER_BUCKET_KILL_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_KILL_RUNNING:-0}"
 INSTALL_CODEX_PROXY_WRAPPER="${INSTALL_CODEX_PROXY_WRAPPER:-auto}"
 INSTALL_CODEX_REMOTE_CONTROL="${INSTALL_CODEX_REMOTE_CONTROL:-1}"
 INSTALL_CODEX_APP_FAST_MODE="${INSTALL_CODEX_APP_FAST_MODE:-1}"
@@ -2102,9 +2100,7 @@ install_agent_wt() {
   local launcher_source="$INSTALL_REAL/bin/agent-wt"
   local skill_source="$INSTALL_REAL/skills/manage-worktrees"
   local launcher_target="${AGENT_WT_PATH:-$HOME/.local/bin/agent-wt}"
-  local codex_skill_target="$HOME/.agents/skills/manage-worktrees"
-  local legacy_codex_skill_target="${CODEX_HOME:-$HOME/.codex}/skills/manage-worktrees"
-  local current_source=""
+  local codex_skill_target="${CODEX_HOME:-$HOME/.codex}/skills/manage-worktrees"
 
   if [[ ! -x "$launcher_source" ]]; then
     AGENT_WT_STATUS="failed: missing executable $launcher_source"
@@ -2117,31 +2113,19 @@ install_agent_wt() {
     return 1
   fi
 
-  if [[ -e "$legacy_codex_skill_target" || -L "$legacy_codex_skill_target" ]]; then
-    AGENT_WT_STATUS="failed: duplicate legacy Skill at $legacy_codex_skill_target"
-    echo "duplicate manage-worktrees Skill location detected at $legacy_codex_skill_target; remove or migrate it before install" >&2
-    return 1
-  fi
-  if [[ -e "$codex_skill_target" || -L "$codex_skill_target" ]]; then
-    if [[ ! -L "$codex_skill_target" ]]; then
-      AGENT_WT_STATUS="failed: unmanaged Skill at $codex_skill_target"
-      echo "refusing to replace unmanaged manage-worktrees Skill at $codex_skill_target" >&2
-      return 1
-    fi
-    current_source="$(readlink -f -- "$codex_skill_target" 2>/dev/null || true)"
-    if [[ "$current_source" != "$(readlink -f -- "$skill_source")" ]]; then
-      AGENT_WT_STATUS="failed: conflicting Skill symlink at $codex_skill_target"
-      echo "refusing conflicting manage-worktrees Skill symlink: $codex_skill_target -> $current_source" >&2
-      return 1
-    fi
-  fi
-
+  select_python_bin
+  "$PYTHON_BIN" "$skill_source/scripts/install_skill.py" --repo-root "$INSTALL_REAL" \
+    --home "$HOME" --codex-home "${CODEX_HOME:-$HOME/.codex}" --platform unix \
+    --known-source "$SOURCE_DIR/skills/manage-worktrees"
   backup_and_link "$launcher_source" "$launcher_target"
-  backup_and_link "$skill_source" "$codex_skill_target"
   AGENT_WT_STATUS="$launcher_target; Codex=$codex_skill_target"
 }
 
 install_codex_patch_safety_skill() {
+  if ! grep -qi microsoft /proc/version 2>/dev/null; then
+    CODEX_PATCH_SAFETY_SKILL_STATUS="skipped: native Linux; Win11 maintenance Skill is WSL-only"
+    return
+  fi
   local source="$INSTALL_REAL/skills/codex-win11-patch-safety"
   local target="${CODEX_HOME:-$HOME/.codex}/skills/codex-win11-patch-safety"
 
@@ -2155,6 +2139,7 @@ install_codex_patch_safety_skill() {
 }
 
 check_codex_patch_safety_skill_drift() {
+  if ! grep -qi microsoft /proc/version 2>/dev/null; then return 0; fi
   local source="$1/skills/codex-win11-patch-safety"
   local target="${CODEX_HOME:-$HOME/.codex}/skills/codex-win11-patch-safety"
   local expected current
@@ -2390,15 +2375,14 @@ Options:
                            Only migrate inferred cc-switch third-party buckets;
                            default is every non-target bucket, including openai.
   --apply-codex-provider-bucket-migration
-                           Apply Codex provider bucket migration. This is the
-                           default.
+                           Opt in and apply Codex provider bucket migration.
   --dry-run-codex-provider-bucket-migration
                            Scan only and do not write migration changes.
   --allow-running-codex-provider-bucket-migration
                            Allow applying the migration while Codex is running.
   --kill-running-codex-provider-bucket-migration
-                           Terminate running Codex processes before applying.
-                           This is the default.
+                           Opt in and terminate Codex before applying; default
+                           installation never runs migration or kills Codex.
   --no-kill-running-codex-provider-bucket-migration
                            Do not terminate Codex before migration; if Codex is
                            running, apply falls back to dry-run.
@@ -2447,9 +2431,10 @@ Options:
                            Use only after stopping Codex processes.
   --no-claude-desktop-ssh  Do not configure existing Claude Code for Claude
                            Desktop SSH root/bypass compatibility.
-  --no-registry            Do not install experiment-registry links.
-  --registry-init-db       Initialize the local registry DB if missing.
-  --no-cron                Write config but do not install crontab entry.
+  --no-registry            Compatibility no-op; registry installation was removed.
+  --registry-init-db       Rejected; registry installation was removed.
+  --cron                   Install the context-sync cron heartbeat (opt-in).
+  --no-cron                Do not add cron (default); existing jobs are unchanged.
   --no-agent-core          Do not auto-verify or run ~/agent-core/scripts/install.sh.
   --check                  Install nothing. Byte-compare managed skill copies
                            against the source tree; exit 1 on any drift.
@@ -2499,6 +2484,10 @@ while [[ $# -gt 0 ]]; do
       MODE="$2"
       shift 2
       ;;
+    --cron)
+      INSTALL_CRON=1
+      shift
+      ;;
     --no-cron)
       INSTALL_CRON=0
       shift
@@ -2536,10 +2525,12 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --apply-codex-provider-bucket-migration)
+      INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=1
       APPLY_CODEX_PROVIDER_BUCKET_MIGRATION=1
       shift
       ;;
     --dry-run-codex-provider-bucket-migration)
+      INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=1
       APPLY_CODEX_PROVIDER_BUCKET_MIGRATION=0
       shift
       ;;
@@ -2548,6 +2539,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --kill-running-codex-provider-bucket-migration)
+      INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=1
       CODEX_PROVIDER_BUCKET_KILL_RUNNING=1
       APPLY_CODEX_PROVIDER_BUCKET_MIGRATION=1
       shift
@@ -2622,12 +2614,12 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --no-registry)
-      INSTALL_REGISTRY=0
+      :
       shift
       ;;
     --registry-init-db)
-      REGISTRY_INIT_DB=1
-      shift
+      echo "Experiment Registry installation was removed; --registry-init-db is unsupported." >&2
+      exit 2
       ;;
     --no-agent-core)
       INSTALL_AGENT_CORE_ENTRIES=0
@@ -2690,7 +2682,6 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   [[ -d "$SOURCE_DIR/config" ]] && cp -R "$SOURCE_DIR/config" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/README.md" ]] && cp "$SOURCE_DIR/README.md" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/docs" ]] && cp -R "$SOURCE_DIR/docs" "$INSTALL_REAL/"
-  [[ -d "$SOURCE_DIR/experiment_registry" ]] && cp -R "$SOURCE_DIR/experiment_registry" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/linear_workflow" ]] && cp -R "$SOURCE_DIR/linear_workflow" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/skills" ]] && cp -R "$SOURCE_DIR/skills" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/agent_context_sync.config.example.json" ]] && cp "$SOURCE_DIR/agent_context_sync.config.example.json" "$INSTALL_REAL/"
@@ -2703,9 +2694,7 @@ fi
 if [[ -d "$INSTALL_REAL/scripts" ]]; then
   chmod +x "$INSTALL_REAL"/scripts/*
 fi
-if [[ -d "$INSTALL_REAL/experiment_registry" ]]; then
-  chmod +x "$INSTALL_REAL/experiment_registry/install_registry_links.sh" "$INSTALL_REAL/experiment_registry/validate_registry_install.sh"
-fi
+
 mkdir -p "$INSTALL_REAL/logs"
 configure_tmux_mouse_mode
 configure_local_bin_path
@@ -2732,11 +2721,13 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   setup_codex_desktop_connection_fast_mode
   configure_codex_sqlite_log_guard
   configure_codex_project_hooks_features
-  if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
-    run_codex_provider_bucket_migration
-  fi
   configure_codex_proxy_wrapper
   start_codex_remote_control
+  run_codex_target_guard after
+fi
+if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
+  select_python_bin
+  run_codex_provider_bucket_migration
   run_codex_target_guard after
 fi
 if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
@@ -2786,13 +2777,7 @@ if [[ "$INSTALL_CRON" -eq 1 ]]; then
   (crontab -l 2>/dev/null | grep -v 'sync_agent_context_cron.sh' || true; printf '%s %s\n' "$SCHEDULE" "$CRON_CMD") | crontab -
 fi
 
-if [[ "$INSTALL_REGISTRY" -eq 1 && -x "$INSTALL_REAL/experiment_registry/install_registry_links.sh" ]]; then
-  REGISTRY_ARGS=()
-  if [[ "$REGISTRY_INIT_DB" -eq 1 ]]; then
-    REGISTRY_ARGS+=(--init-db)
-  fi
-  "$INSTALL_REAL/experiment_registry/install_registry_links.sh" "${REGISTRY_ARGS[@]}"
-fi
+
 
 echo "Installed agent context sync tools in $INSTALL_REAL"
 echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
@@ -2832,7 +2817,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
     echo "Codex provider bucket migration: target=${CODEX_MODEL_PROVIDER_ID}, apply=${APPLY_CODEX_PROVIDER_BUCKET_MIGRATION}, all_non_target=${CODEX_PROVIDER_BUCKET_ALL_NON_TARGET}"
   else
-    echo "Codex provider bucket migration not run (--no-codex-provider-bucket-migration)."
+    echo "Codex provider bucket migration not run (opt-in only)."
   fi
   echo "Codex proxy wrapper mode: $INSTALL_CODEX_PROXY_WRAPPER"
   echo "Codex proxy port candidates: $CODEX_PROXY_PORTS"
@@ -2860,13 +2845,9 @@ fi
 if [[ "$INSTALL_CRON" -eq 1 ]]; then
   echo "Cron: $SCHEDULE $INSTALL_REAL/sync_agent_context_cron.sh"
 else
-  echo "Cron not installed (--no-cron)."
+  echo "Cron not added (opt in with --cron; existing jobs unchanged)."
 fi
-if [[ "$INSTALL_REGISTRY" -eq 1 ]]; then
-  echo "Experiment registry links checked from: $INSTALL_REAL/experiment_registry"
-else
-  echo "Experiment registry links not installed (--no-registry)."
-fi
+
 if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
   echo "agent-core entries ($AGENT_CORE_DIR): ${AGENT_CORE_ENTRIES_STATUS}"
 else

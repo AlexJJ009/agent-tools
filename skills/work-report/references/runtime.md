@@ -118,7 +118,7 @@ chosen backend rather than migrating or stacking schedules automatically.
 
 Prefer installed, callable native conversation scheduling when that is the
 chosen mechanism. Claim scheduled only after creation succeeds and its task ID
-is read back. Otherwise the supported legacy interval adapter is:
+is read back. Do not fall back to cron for a new scheduling request when the chosen mechanism is unavailable; report that limitation. The following adapter is retained only to maintain an existing explicit legacy interval agreement:
 
 ```text
 python3 <agent-tools>/scripts/install_work_report_schedule.py --task-dir <task-dir>

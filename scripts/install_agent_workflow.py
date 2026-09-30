@@ -131,7 +131,7 @@ def load_marker(path: Path) -> dict[str, object] | None:
         data = json.loads(marker.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
         raise RuntimeError(f"invalid managed marker at {marker}: {exc}") from exc
-    if data.get("suite") != SUITE:
+    if not isinstance(data, dict) or data.get("suite") != SUITE:
         raise RuntimeError(f"managed marker at {marker} does not belong to {SUITE}")
     return data
 
@@ -223,6 +223,18 @@ def replace_tree(staged: Path, target: Path, backup_root: Path) -> Path | None:
     return old
 
 
+def matches_manifest(target: Path, *, runtime: bool = False) -> bool:
+    """Only an intact owned tree may be discarded after successful publication."""
+    marker = load_marker(target)
+    if marker is None or any(p.is_symlink() for p in target.rglob("*")):
+        return False
+    if runtime:
+        if {p.name for p in target.iterdir()} != {MARKER, "agent_workflow"}:
+            return False
+        target = target / "agent_workflow"
+    return isinstance(marker.get("files"), dict) and files(target) == marker["files"]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="read-only source/install consistency check")
@@ -266,10 +278,14 @@ def main(argv: list[str] | None = None) -> int:
             if run.returncode:
                 raise RuntimeError("runtime preflight failed: " + run.stderr)
             backup_root = state / "install-backups"
-            published.append((runtime_target, replace_tree(staged_runtime, runtime_target, backup_root)))
+            if not (runtime_target.is_dir() and matches_manifest(runtime_target, runtime=True)
+                    and runtime_files(runtime_target) == expected["runtime/agent_workflow"]):
+                published.append((runtime_target, replace_tree(staged_runtime, runtime_target, backup_root)))
             for staged, skill in zip(staged_skills, SKILLS):
                 target = home / ".agents/skills" / skill
-                published.append((target, replace_tree(staged, target, backup_root)))
+                if not (target.is_dir() and matches_manifest(target)
+                        and files(target) == expected[f"skills/{skill}"]):
+                    published.append((target, replace_tree(staged, target, backup_root)))
         launcher.parent.mkdir(parents=True, exist_ok=True)
         if launcher.exists():
             old_launcher = launcher.read_bytes()
@@ -278,7 +294,20 @@ def main(argv: list[str] | None = None) -> int:
         launcher.chmod(0o755)
         launcher_written = True
         verify_installed(home, expected, runtime_target, launcher)
-        print(json.dumps({"status": "installed", "runtime": str(runtime_target), "launcher": str(launcher), "skills": list(SKILLS)}))
+        # Readback succeeded: discard only this transaction's intact managed copies.
+        # Cleanup failures must not roll back a verified install after another copy
+        # has already been removed. Modified or unverifiable copies stay recoverable.
+        preserved = []
+        for target, old in published:
+            if old is None:
+                continue
+            try:
+                if not matches_manifest(old, runtime=target == runtime_target):
+                    raise RuntimeError("old installation differs from its managed manifest")
+                shutil.rmtree(old)
+            except (OSError, ValueError, RuntimeError) as cleanup_error:
+                preserved.append({"path": str(old), "reason": str(cleanup_error)})
+        print(json.dumps({"status": "installed", "runtime": str(runtime_target), "launcher": str(launcher), "skills": list(SKILLS), "preserved_backups": preserved}))
         return 0
     except (OSError, ValueError, RuntimeError) as exc:
         for target, old in reversed(published):

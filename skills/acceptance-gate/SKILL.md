@@ -1,15 +1,19 @@
 ---
 name: acceptance-gate
-description: Check checklist schema, evidence anchors, agent_status, human_status, candidate SHA, config digest, command digest, and formal-run authorization before completion claims or protected actions.
+description: Evaluate an explicitly selected existing legacy Agent Workflow formal-run or protected-action contract. Preserve its candidate, command, config and feedback checks; ordinary task completion does not invoke this gate.
 ---
 
 # Acceptance Gate
 
-Use this skill before claiming a task is complete, before a formal experiment, before production or external publishing, and when an action depends on unresolved choices, understanding, execution scope or current evidence.
+Use this skill when an explicitly selected existing legacy record governs the requested formal run or protected action. A task completion claim, ordinary code change, deployment keyword or unresolved question alone does not trigger it. Do not create a legacy record or duplicate checklist to satisfy this skill.
+
+For current task-runtime work, read the selected task with `agent-workflow task read` or `task checklist`; record actual checks with `task result` and scoped user feedback with `task feedback`. Ordinary work without persistent task state uses the existing requirements, code and test evidence. Neither path grants new execution authority.
+
+Keep existing legacy action bindings and user constraints in force. A new task record, imported requirements or a passing test does not remove those controls. If a requested action belongs to such a contract, inspect that actual record and use its existing gate and managed execution entry. Do not infer a new contract merely from the subject matter.
 
 The gate reads the machine record. Natural-language claims do not create gate state.
 
-## Required Status Model
+## Existing legacy record status model
 
 Checklist items use:
 
@@ -19,7 +23,7 @@ Checklist items use:
 
 High-risk items include algorithm method changes, loss/mask/sampling/filtering/scorer behavior, formal experiment budget, training or Agentic infra lifecycle, Docker/Harbor state, billing, permission, production writes, and external publication.
 
-## Gate Commands
+## Existing legacy gate commands
 
 Use the installed launcher outside the checkout:
 
@@ -38,7 +42,7 @@ The following target-bound confirmation describes the retained legacy schema-1 p
 
 Use `revise` for actual user amendments. It preserves the original request, records the amendment source, updates canonical protocol expectations, and invalidates affected checklist items and human confirmations.
 
-## Scoped readiness and completion
+## Scoped readiness within an existing legacy contract
 
 For schema 2, check these conditions separately: an applicable choice or
 explicit delegation; the required explanation and actual scoped feedback or

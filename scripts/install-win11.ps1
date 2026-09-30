@@ -13,6 +13,8 @@ param(
   [switch]$DisableCodexSqliteLogGuard,
   [switch]$CodexSqliteLogGuardVacuum,
   [switch]$NoCodexProviderBucketMigration,
+  [switch]$ApplyCodexProviderBucketMigration,
+  [switch]$KillRunningCodexProviderBucketMigration,
   [switch]$DryRunCodexProviderBucketMigration,
   [switch]$AllowRunningCodexProviderBucketMigration,
   [switch]$NoKillRunningCodexProviderBucketMigration
@@ -165,23 +167,13 @@ function Install-AgentWt {
 
   $sourceSkill = Join-Path $RepoRoot "skills\manage-worktrees"
   $sourceLauncher = Join-Path $RepoRoot "bin\agent-wt.ps1"
-  $targetSkill = Join-Path $TargetHome ".agents\skills\manage-worktrees"
-  $legacySkill = Join-Path $TargetCodexHome "skills\manage-worktrees"
+  $targetSkill = Join-Path $TargetCodexHome "skills\manage-worktrees"
   $targetLauncher = Join-Path $TargetHome ".local\bin\agent-wt.ps1"
-
-  if (-not (Test-Path -LiteralPath (Join-Path $sourceSkill "SKILL.md")) -or
-      -not (Test-Path -LiteralPath $sourceLauncher)) {
-    throw "manage-worktrees source is incomplete under $RepoRoot"
+  if (-not (Test-Path -LiteralPath $sourceLauncher)) {
+    throw "agent-wt launcher missing: $sourceLauncher"
   }
-  if (Test-Path -LiteralPath $legacySkill) {
-    throw "duplicate manage-worktrees Skill location detected at $legacySkill; remove or migrate the legacy copy before install"
-  }
-  if ((Test-Path -LiteralPath $targetSkill) -and
-      -not (Test-Path -LiteralPath (Join-Path $targetSkill ".agent-tools-managed"))) {
-    throw "refusing to replace unmanaged manage-worktrees Skill at $targetSkill"
-  }
-
-  Copy-Managed $sourceSkill $targetSkill
+  Invoke-AgentToolsPython (Join-Path $sourceSkill "scripts\install_skill.py") `
+    --repo-root $RepoRoot --home $TargetHome --codex-home $TargetCodexHome --platform win11
   Copy-Managed $sourceLauncher $targetLauncher
   Write-Host "agent-wt installed: launcher=$targetLauncher; Codex Skill=$targetSkill"
 }
@@ -265,7 +257,7 @@ function Invoke-CodexProviderBucketMigration {
     $args += @("--apply", "--yes")
     if ($AllowRunningCodexProviderBucketMigration) {
       $args += "--allow-running-codex"
-    } elseif (-not $NoKillRunningCodexProviderBucketMigration) {
+    } elseif ($KillRunningCodexProviderBucketMigration -and -not $NoKillRunningCodexProviderBucketMigration) {
       $args += "--kill-running-codex"
     }
   }
@@ -309,8 +301,8 @@ if (-not $NoCodexSqliteLogGuard) {
   Write-Host "Codex SQLite log guard not changed (-NoCodexSqliteLogGuard)."
 }
 
-if (-not $NoCodexProviderBucketMigration) {
+if (-not $NoCodexProviderBucketMigration -and ($ApplyCodexProviderBucketMigration -or $DryRunCodexProviderBucketMigration -or $KillRunningCodexProviderBucketMigration)) {
   Invoke-CodexProviderBucketMigration -RepoRoot $Root -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
 } else {
-  Write-Host "Codex provider bucket migration not run (-NoCodexProviderBucketMigration)."
+  Write-Host "Codex provider bucket migration not run (opt-in only)."
 }

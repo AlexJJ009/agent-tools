@@ -9,6 +9,16 @@ Use it when a task needs persistent state. Short changes and ordinary answers do
 not require a task. It does not intercept ordinary code/document edits, require
 Hooks, schedule external work, or synchronize state between machines.
 
+## Relationship to legacy gates
+
+Current task state does not require a second `checklist.yaml`, scenario context,
+or legacy approval ledger. Reviews and infrastructure checks use the selected
+task's criteria and evidence, or ordinary code/tests when no task is needed.
+`acceptance-gate` is reserved for an explicitly selected existing legacy
+formal-run or protected-action contract. Keep its actual bindings and execution
+controls, including existing Slime contracts; `task feedback`, imported
+requirements and passing checks do not replace its authorization.
+
 ## Entry point and storage
 
 From the source checkout, inspect the command contract with:

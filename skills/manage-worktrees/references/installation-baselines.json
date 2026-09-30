@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "releases": [
+    {
+      "commit": "c05b1c958c8ad17b27b4a3187027bf85a3a121a4",
+      "files": {
+        "SKILL.md": "36a5ed1b0b85a6361d96d61a5bce56c11e16e0bd94bb96f2113774e9a55fa1d9",
+        "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
+        "references/adapters.md": "962184a8ffb4e69ab11edf110dc925ffb1ff4c9187c2ab9998e19c5181733ed6",
+        "references/policies.md": "6d8225c09a4bd721bb31ab0fe46602087a19a76cdcf326c8638b5846087d652d",
+        "scripts/agent_wt.py": "0438764502ac16af4ec6242d64ea672852843e18eeaaf2ae809e86f7ea044532",
+        "tests/test_agent_wt.py": "11d1e3e99064d60906ff7a36d6ffcd8fa90ee9ae49691d08fa48a37a218d5be2"
+      }
+    }
+  ]
+}

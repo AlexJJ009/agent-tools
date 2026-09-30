@@ -2,8 +2,10 @@ $ErrorActionPreference = "Stop"
 
 $repoCore = Join-Path (Split-Path -Parent $PSScriptRoot) "skills/manage-worktrees/scripts/agent_wt.py"
 $installedCore = $null
-if ($env:USERPROFILE) {
-  $installedCore = Join-Path $env:USERPROFILE ".agents/skills/manage-worktrees/scripts/agent_wt.py"
+if ($env:CODEX_HOME) {
+  $installedCore = Join-Path $env:CODEX_HOME "skills/manage-worktrees/scripts/agent_wt.py"
+} elseif ($env:USERPROFILE) {
+  $installedCore = Join-Path $env:USERPROFILE ".codex/skills/manage-worktrees/scripts/agent_wt.py"
 }
 
 if ($installedCore -and (Test-Path -LiteralPath $installedCore)) {

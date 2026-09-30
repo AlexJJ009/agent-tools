@@ -489,9 +489,12 @@ exist. It can fix moved `rollout_path` values, backfill missing
 for cross-machine migration, first transfer the resume data as described in
 `docs/AUTODL_AI_TOOLS_BOOTSTRAP.md`.
 
-`install.sh` runs the same all-non-target migration by default and terminates
-running Codex processes before writing, so a normal install should complete the
-history index migration instead of falling back to a dry-run.
+`install.sh` does not migrate provider history during ordinary installation.
+Use `--dry-run-codex-provider-bucket-migration` for inspection and
+`--apply-codex-provider-bucket-migration` for an explicitly selected repair.
+Stopping running Codex requires the separate
+`--kill-running-codex-provider-bucket-migration` option. These repair options
+remain independent of `--no-codex-config`.
 
 ## Troubleshooting
 

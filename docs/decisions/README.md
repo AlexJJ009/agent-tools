@@ -25,3 +25,4 @@ not from creating an ADR. A small change need not create or rewrite any ADR.
 - [Scoped process-material retirement](0005-scoped-process-material-retirement.md)
 - [Retire Linear Workflow while preserving its source](0006-retire-linear-workflow.md)
 - [Scope installed workflows and retire unused components](0007-scope-installed-workflows.md)
+- [Scope regression checks to maintained consumers](0008-scope-regression-checks.md)

@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import sqlite3
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -281,17 +282,35 @@ class GuardTests(unittest.TestCase):
             self.assertFalse(result["ok"])
             self.assertIn("unapproved CC Switch", "\n".join(result["failures"]))
 
-    def test_snapshot_is_restorable_and_does_not_change_source(self):
+    def test_snapshot_payload_recovers_file_bytes_and_sqlite_rows_without_changing_source(self):
+        # There is no automatic restore API. Verify the snapshot producer emits
+        # recoverable data; this does not exercise native Windows App rollback.
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             home = self.make_home(root)
-            before = guard.build_manifest(home)
+            source_bytes = {path.relative_to(home): path.read_bytes()
+                            for path in home.rglob("*") if path.is_file()}
+            source_rows = {}
+            for relative in source_bytes:
+                if relative.suffix in {".sqlite", ".db"}:
+                    with sqlite3.connect(f"file:{home / relative}?mode=ro", uri=True) as db:
+                        source_rows[relative] = tuple(db.iterdump())
             backup = root / "backup"
             guard.copy_protected(home, backup)
-            after = guard.build_manifest(home)
-            self.assertTrue(guard.compare_manifests(before, after)["ok"])
-            self.assertTrue((backup / "payload" / ".ssh" / "id_ed25519").exists())
-            self.assertTrue((backup / "payload" / ".codex" / "state_5.sqlite").exists())
+            self.assertEqual({path.relative_to(home): path.read_bytes()
+                              for path in home.rglob("*") if path.is_file()}, source_bytes)
+            restored = root / "restored-home"
+            shutil.copytree(backup / "payload", restored)
+            self.assertEqual({path.relative_to(restored) for path in restored.rglob("*")
+                              if path.is_file()}, set(source_bytes))
+            for relative, contents in source_bytes.items():
+                with self.subTest(path=str(relative)):
+                    if relative in source_rows:
+                        with sqlite3.connect(f"file:{restored / relative}?mode=ro", uri=True) as db:
+                            self.assertEqual(db.execute("PRAGMA integrity_check").fetchall(), [("ok",)])
+                            self.assertEqual(tuple(db.iterdump()), source_rows[relative])
+                    else:
+                        self.assertEqual((restored / relative).read_bytes(), contents)
 
     def test_snapshot_rejects_an_unreadable_protected_database(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -353,7 +372,11 @@ class GuardTests(unittest.TestCase):
             home = self.make_home(Path(temp))
             with sqlite3.connect(home / ".codex" / "state_5.sqlite") as db:
                 db.execute("insert into threads values('mock','mock')")
+            before = {path.relative_to(home): path.read_bytes()
+                      for path in home.rglob("*") if path.is_file()}
             result = guard.audit_cc_switch(home, "custom")
+            self.assertEqual({path.relative_to(home): path.read_bytes()
+                              for path in home.rglob("*") if path.is_file()}, before)
             self.assertFalse(result["ok"])
             self.assertEqual(result["stateProviderCounts"]["mock"], 1)
             self.assertEqual(result["commonConfigMissingKeys"], [])

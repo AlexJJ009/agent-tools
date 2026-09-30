@@ -1,4 +1,9 @@
 import importlib.util
+import contextlib
+import io
+import os
+import tomllib
+from unittest.mock import patch
 import sys
 import tempfile
 import unittest
@@ -14,8 +19,6 @@ SPEC.loader.exec_module(MODULE)
 
 
 class ConfigureCodexWin11SubscriptionTests(unittest.TestCase):
-    def test_default_base_url_uses_current_relay(self):
-        self.assertEqual(MODULE.DEFAULT_BASE_URL, "http://15.204.46.107:8080")
 
     def test_patch_config_removes_top_level_stream_keys(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -45,15 +48,15 @@ class ConfigureCodexWin11SubscriptionTests(unittest.TestCase):
                 sandbox_mode="workspace-write",
                 approvals_reviewer="guardian_subagent",
             )
-            text = (codex_home / "config.toml").read_text(encoding="utf-8")
-            preamble, provider = text.split("[model_providers.custom]", 1)
-            self.assertNotIn("stream_idle_timeout_ms", preamble)
-            self.assertNotIn("stream_max_retries", preamble)
-            self.assertIn("model_context_window = 500000", preamble)
-            self.assertIn("model_auto_compact_token_limit = 430000", preamble)
-            self.assertIn('model_auto_compact_token_limit_scope = "total"', preamble)
-            self.assertIn("stream_idle_timeout_ms = 1800000", provider)
-            self.assertIn("stream_max_retries = 20", provider)
+            data = tomllib.loads((codex_home / "config.toml").read_text())
+            self.assertNotIn("stream_idle_timeout_ms", data)
+            self.assertNotIn("stream_max_retries", data)
+            self.assertEqual(data["model_context_window"], 500000)
+            self.assertEqual(data["model_auto_compact_token_limit"], 430000)
+            self.assertEqual(data["model_auto_compact_token_limit_scope"], "total")
+            self.assertEqual(data["model_providers"]["custom"]["stream_idle_timeout_ms"], 1800000)
+            self.assertEqual(data["model_providers"]["custom"]["stream_max_retries"], 20)
+            self.assertTrue(data["features"]["memories"])
 
     def test_cc_switch_provider_config_includes_context_defaults(self):
         text = MODULE.cc_switch_provider_config(
@@ -62,39 +65,33 @@ class ConfigureCodexWin11SubscriptionTests(unittest.TestCase):
             MODULE.DEFAULT_BASE_URL,
             "secret",
         )
-        self.assertIn("model_context_window = 500000", text)
-        self.assertIn("model_auto_compact_token_limit = 430000", text)
-        self.assertIn('model_auto_compact_token_limit_scope = "total"', text)
-        preamble, provider = text.split("[model_providers.custom]", 1)
-        self.assertIn("model_context_window", preamble)
+        data = tomllib.loads(text)
+        self.assertEqual(data["model_context_window"], 500000)
+        self.assertEqual(data["model_auto_compact_token_limit"], 430000)
+        self.assertEqual(data["model_auto_compact_token_limit_scope"], "total")
+        provider = data["model_providers"]["custom"]
         self.assertNotIn("model_context_window", provider)
+        self.assertEqual(provider["base_url"], MODULE.DEFAULT_BASE_URL)
+        self.assertEqual(provider["experimental_bearer_token"], "secret")
+        self.assertTrue(provider["supports_websockets"])
 
-    def test_posix_rejects_wsl_profile_for_win11_script(self):
-        if MODULE.os.name == "nt":
-            self.skipTest("POSIX boundary test")
-        with self.assertRaises(SystemExit):
-            MODULE.validate_win11_target_paths(
-                Path("/home/alex_mercer/.codex"),
-                Path("/home/alex_mercer/.cc-switch/cc-switch.db"),
-            )
-
-    def test_posix_rejects_drvfs_profile_for_win11_script(self):
-        if MODULE.os.name == "nt":
-            self.skipTest("POSIX boundary test")
-        with self.assertRaises(SystemExit):
-            MODULE.validate_win11_target_paths(
-                Path("/mnt/c/Users/Alex Mercer/.codex"),
-                Path("/mnt/c/Users/Alex Mercer/.cc-switch/cc-switch.db"),
-            )
-
-    def test_rejects_mismatched_windows_profiles(self):
-        if MODULE.os.name == "nt":
-            self.skipTest("POSIX boundary test")
-        with self.assertRaises(SystemExit):
-            MODULE.validate_win11_target_paths(
-                Path("/mnt/c/Users/Alex Mercer/.codex"),
-                Path("/mnt/c/Users/Other/.cc-switch/cc-switch.db"),
-            )
+    def test_profile_mismatch_is_rejected_after_native_platform_check(self):
+        # Simulate only host identity. Execute the real shared path guard; this is
+        # not a native Windows installer acceptance test.
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp) / "Alice"
+            other = Path(tmp) / "Bob"
+            guard_globals = MODULE.validate_write_target.__globals__
+            with patch.dict(guard_globals, {"detected_platform": lambda: "win11"}), \
+                 patch.dict(os.environ, {"USERPROFILE": str(home)}):
+                MODULE.validate_win11_target_paths(home / ".codex", home / ".cc-switch/cc-switch.db")
+                with contextlib.redirect_stderr(io.StringIO()) as error:
+                    with self.assertRaises(SystemExit) as refused:
+                        MODULE.validate_win11_target_paths(home / ".codex", other / ".cc-switch/cc-switch.db")
+                self.assertEqual(refused.exception.code, 2)
+                self.assertIn("different profiles", error.getvalue())
+                self.assertNotIn("platform mismatch", error.getvalue())
+                self.assertEqual(list(Path(tmp).iterdir()), [])
 
 
 if __name__ == "__main__":

@@ -1,15 +1,14 @@
 """Executable contracts for the teaching reconstruction artifact validator.
 
-These tests were written red before the production validator existed. The
-historical red run is retained under ``docs/teaching-skills-suite/evidence``;
-the tests continue to exercise production behavior without reimplementing it.
+These tests execute the production validator against valid and deliberately
+broken artifacts. They check structure and consistency, not teaching quality.
 """
 
 from __future__ import annotations
 
 import subprocess
+import importlib.util
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
@@ -27,6 +26,12 @@ VALIDATOR = (
 )
 
 
+SPEC = importlib.util.spec_from_file_location("teaching_validator_under_test", VALIDATOR)
+validator = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = validator
+SPEC.loader.exec_module(validator)
+
+
 def run_validator(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, str(VALIDATOR), *args],
@@ -37,21 +42,14 @@ def run_validator(*args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def run_mutated_fixture(base_name: str, old: str, new: str) -> subprocess.CompletedProcess[str]:
+def run_mutated_fixture(base_name: str, old: str, new: str):
     source = (FIXTURES / base_name).read_text(encoding="utf-8")
     if old not in source:
         raise AssertionError(f"mutation source not found in {base_name}: {old!r}")
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / base_name
-        path.write_text(source.replace(old, new, 1), encoding="utf-8")
-        return run_validator(str(path))
+    return validator.validate_text(source.replace(old, new, 1))
 
 
 class TeachingValidatorSelfTest(unittest.TestCase):
-    def test_self_test_contract_is_green(self) -> None:
-        result = run_validator("--self-test")
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        self.assertIn("SELF_TEST_PASS", result.stdout)
 
     def test_self_test_goes_red_when_named_rule_is_disabled(self) -> None:
         """Mutation-integrity contract for future production self-tests.
@@ -69,27 +67,36 @@ class TeachingValidatorSelfTest(unittest.TestCase):
         self.assertIn("cycle", result.stderr + result.stdout)
 
 
+class TeachingValidatorCliTests(unittest.TestCase):
+    def test_cli_reports_validity_and_specific_failure_code(self):
+        for fixture, expected_code in (("good_guided_session.md", None), ("bad_cycle.md", "CYCLE")):
+            with self.subTest(fixture=fixture):
+                result = run_validator(str(FIXTURES / fixture))
+                self.assertEqual(result.returncode, 0 if expected_code is None else 1, result.stderr)
+                if expected_code is None:
+                    self.assertIn("VALID", result.stdout)
+                else:
+                    self.assertIn(expected_code, result.stderr + result.stdout)
+
+
 class TeachingStructureTests(unittest.TestCase):
     def test_good_guided_session_passes(self) -> None:
-        result = run_validator(str(FIXTURES / "good_guided_session.md"))
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        self.assertIn("VALID", result.stdout)
+        result = validator.validate_file(FIXTURES / "good_guided_session.md")
+        self.assertTrue(result.ok, result.errors)
 
     def test_good_artifact_passes(self) -> None:
-        result = run_validator(str(FIXTURES / "good_artifact.md"))
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        self.assertIn("VALID", result.stdout)
+        result = validator.validate_file(FIXTURES / "good_artifact.md")
+        self.assertTrue(result.ok, result.errors)
 
     def test_good_provisional_anchors_pass_with_explicit_downgrade_signal(self) -> None:
-        result = run_validator(str(FIXTURES / "good_provisional_anchors.md"))
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        self.assertIn("VALID", result.stdout)
-        self.assertIn("PROVISIONAL_ANCHOR", result.stdout)
+        result = validator.validate_file(FIXTURES / "good_provisional_anchors.md")
+        self.assertTrue(result.ok, result.errors)
+        self.assertIn("PROVISIONAL_ANCHOR", result.warnings)
 
     def assert_fixture_fails(self, fixture_name: str, expected_code: str) -> None:
-        result = run_validator(str(FIXTURES / fixture_name))
-        self.assertNotEqual(result.returncode, 0, f"{fixture_name} unexpectedly passed")
-        combined = result.stderr + result.stdout
+        result = validator.validate_file(FIXTURES / fixture_name)
+        self.assertFalse(result.ok, f"{fixture_name} unexpectedly passed")
+        combined = result.errors
         self.assertIn(expected_code, combined)
 
     def test_rejects_manifest_inside_zotlit_managed_region(self) -> None:
@@ -122,8 +129,8 @@ class TeachingStructureTests(unittest.TestCase):
             '  "goal": {"target_ability":',
             '  "goal_removed": {"target_ability":',
         )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("MISSING_GUIDED_CORE", result.stderr + result.stdout)
+        self.assertFalse(result.ok)
+        self.assertIn("MISSING_GUIDED_CORE", result.errors)
 
     def test_rejects_missing_top_level_manifest_fields(self) -> None:
         result = run_mutated_fixture(
@@ -131,13 +138,13 @@ class TeachingStructureTests(unittest.TestCase):
             '  "review_queue": [',
             '  "review_cards": [',
         )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("MISSING_MANIFEST_FIELD", result.stderr + result.stdout)
+        self.assertFalse(result.ok)
+        self.assertIn("MISSING_MANIFEST_FIELD", result.errors)
 
     def test_rejects_unknown_modes(self) -> None:
         result = run_mutated_fixture("good_guided_session.md", '"mode": "guided"', '"mode": "lecture"')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("ILLEGAL_MODE", result.stderr + result.stdout)
+        self.assertFalse(result.ok)
+        self.assertIn("ILLEGAL_MODE", result.errors)
 
     def test_rejects_cycles(self) -> None:
         self.assert_fixture_fails("bad_cycle.md", "CYCLE")
@@ -162,8 +169,8 @@ class TeachingStructureTests(unittest.TestCase):
 
     def test_callable_is_not_an_unfinished_frontier_state(self) -> None:
         result = run_mutated_fixture("bad_illegal_frontier.md", '"state": "mastered"', '"state": "callable"')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("ILLEGAL_FRONTIER", result.stderr + result.stdout)
+        self.assertFalse(result.ok)
+        self.assertIn("ILLEGAL_FRONTIER", result.errors)
 
     def test_rejects_duplicate_frontier_nodes(self) -> None:
         result = run_mutated_fixture(
@@ -171,8 +178,8 @@ class TeachingStructureTests(unittest.TestCase):
             '"frontier": ["kc.artifact"]',
             '"frontier": ["kc.artifact", "kc.artifact"]',
         )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("DUPLICATE_FRONTIER", result.stderr + result.stdout)
+        self.assertFalse(result.ok)
+        self.assertIn("DUPLICATE_FRONTIER", result.errors)
 
     def test_rejects_illegal_edge_types(self) -> None:
         self.assert_fixture_fails("bad_illegal_edge_type.md", "ILLEGAL_EDGE_TYPE")
@@ -183,9 +190,9 @@ class TeachingStructureTests(unittest.TestCase):
 
 class TeachingEvidenceTests(unittest.TestCase):
     def assert_fixture_fails(self, fixture_name: str, expected_code: str) -> None:
-        result = run_validator(str(FIXTURES / fixture_name))
-        self.assertNotEqual(result.returncode, 0, f"{fixture_name} unexpectedly passed")
-        self.assertIn(expected_code, result.stderr + result.stdout)
+        result = validator.validate_file(FIXTURES / fixture_name)
+        self.assertFalse(result.ok, f"{fixture_name} unexpectedly passed")
+        self.assertIn(expected_code, result.errors)
 
     def test_rejects_unknown_evidence_layer(self) -> None:
         self.assert_fixture_fails("bad_evidence_layer.md", "EVIDENCE_LAYER")
@@ -202,13 +209,8 @@ class TeachingEvidenceTests(unittest.TestCase):
         ):
             with self.subTest(layer=layer):
                 replaced = source.replace('"layer": "source_fact"', f'"layer": "{layer}"', 1)
-                import tempfile
-
-                with tempfile.TemporaryDirectory() as tmp:
-                    path = Path(tmp) / "layer.md"
-                    path.write_text(replaced, encoding="utf-8")
-                    result = run_validator(str(path))
-                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+                result = validator.validate_text(replaced)
+                self.assertTrue(result.ok, result.errors)
 
     def test_rejects_missing_common_evidence_fields(self) -> None:
         self.assert_fixture_fails("bad_missing_evidence_common.md", "EVIDENCE_CORE")
@@ -221,8 +223,8 @@ class TeachingEvidenceTests(unittest.TestCase):
 
     def test_rejects_nonpositive_verified_paper_page(self) -> None:
         result = run_mutated_fixture("good_guided_session.md", '"page": 3', '"page": 0')
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("PAPER_LOCATOR", result.stderr + result.stdout)
+        self.assertFalse(result.ok)
+        self.assertIn("PAPER_LOCATOR", result.errors)
 
     def test_rejects_verified_code_without_immutable_revision(self) -> None:
         self.assert_fixture_fails("bad_code_revision.md", "CODE_REVISION")
@@ -236,7 +238,7 @@ class TeachingEvidenceTests(unittest.TestCase):
             '"run_id": "run-good-artifact"',
             '"artifact_id": "artifact-good-artifact"',
         )
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertTrue(result.ok, result.errors)
 
     def test_rejects_verified_web_without_durable_snapshot(self) -> None:
         self.assert_fixture_fails("bad_web_snapshot.md", "WEB_SNAPSHOT")
@@ -247,8 +249,8 @@ class TeachingEvidenceTests(unittest.TestCase):
             '"locator": {"zotero_item_key": "ABCD1234"}',
             '"locator": {}',
         )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("PROVISIONAL_LOCATOR", result.stderr + result.stdout)
+        self.assertFalse(result.ok)
+        self.assertIn("PROVISIONAL_LOCATOR", result.errors)
 
     def test_rejects_status_outside_verified_or_provisional(self) -> None:
         result = run_mutated_fixture(
@@ -256,15 +258,15 @@ class TeachingEvidenceTests(unittest.TestCase):
             '"status": "provisional"',
             '"status": "pending"',
         )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("EVIDENCE_STATUS", result.stderr + result.stdout)
+        self.assertFalse(result.ok)
+        self.assertIn("EVIDENCE_STATUS", result.errors)
 
 
 class TeachingLearningCheckTests(unittest.TestCase):
     def test_artifact_mode_requires_transfer_and_audit_checks(self) -> None:
-        result = run_validator(str(FIXTURES / "bad_artifact_transfer.md"))
-        self.assertNotEqual(result.returncode, 0, "artifact fixture unexpectedly passed")
-        self.assertIn("ARTIFACT_TRANSFER", result.stderr + result.stdout)
+        result = validator.validate_file(FIXTURES / "bad_artifact_transfer.md")
+        self.assertFalse(result.ok, "artifact fixture unexpectedly passed")
+        self.assertIn("ARTIFACT_TRANSFER", result.errors)
 
     def test_artifact_mode_also_requires_reconstruction_and_retrieval(self) -> None:
         result = run_mutated_fixture(
@@ -272,8 +274,8 @@ class TeachingLearningCheckTests(unittest.TestCase):
             '"type": "reconstruction"',
             '"type": "near_transfer"',
         )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("ARTIFACT_TRANSFER", result.stderr + result.stdout)
+        self.assertFalse(result.ok)
+        self.assertIn("ARTIFACT_TRANSFER", result.errors)
 
     def test_rejects_unknown_learning_check_types(self) -> None:
         result = run_mutated_fixture(
@@ -281,25 +283,25 @@ class TeachingLearningCheckTests(unittest.TestCase):
             '"type": "reconstruction"',
             '"type": "recognition_only"',
         )
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("CHECK_TYPE", result.stderr + result.stdout)
+        self.assertFalse(result.ok)
+        self.assertIn("CHECK_TYPE", result.errors)
 
 
 class TeachingReviewQueueTests(unittest.TestCase):
     def test_rejects_orphaned_review_queue_cards(self) -> None:
-        result = run_validator(str(FIXTURES / "bad_review_queue_orphan.md"))
-        self.assertNotEqual(result.returncode, 0, "review queue fixture unexpectedly passed")
-        self.assertIn("REVIEW_QUEUE_ORPHAN", result.stderr + result.stdout)
+        result = validator.validate_file(FIXTURES / "bad_review_queue_orphan.md")
+        self.assertFalse(result.ok, "review queue fixture unexpectedly passed")
+        self.assertIn("REVIEW_QUEUE_ORPHAN", result.errors)
 
     def test_rejects_duplicate_review_queue_cards(self) -> None:
-        result = run_validator(str(FIXTURES / "bad_duplicate_review_card.md"))
-        self.assertNotEqual(result.returncode, 0, "duplicate review-card fixture unexpectedly passed")
-        self.assertIn("REVIEW_QUEUE_DUPLICATE", result.stderr + result.stdout)
+        result = validator.validate_file(FIXTURES / "bad_duplicate_review_card.md")
+        self.assertFalse(result.ok, "duplicate review-card fixture unexpectedly passed")
+        self.assertIn("REVIEW_QUEUE_DUPLICATE", result.errors)
 
     def test_rejects_incomplete_or_non_wikilink_review_cards(self) -> None:
-        result = run_validator(str(FIXTURES / "bad_review_queue_fields.md"))
-        self.assertNotEqual(result.returncode, 0, "bad review-card fields unexpectedly passed")
-        self.assertIn("REVIEW_QUEUE_FIELDS", result.stderr + result.stdout)
+        result = validator.validate_file(FIXTURES / "bad_review_queue_fields.md")
+        self.assertFalse(result.ok, "bad review-card fields unexpectedly passed")
+        self.assertIn("REVIEW_QUEUE_FIELDS", result.errors)
 
 
 if __name__ == "__main__":

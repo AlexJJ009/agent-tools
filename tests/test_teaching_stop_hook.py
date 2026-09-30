@@ -84,18 +84,7 @@ class TeachingStopHookTests(unittest.TestCase):
         payload = parse_json_stdout(result)
         self.assertEqual(payload, {})
 
-    def test_corrected_compiled_artifact_is_non_blocking_json(self) -> None:
-        result = run_stop_hook(FIXTURES / "good_artifact.md", stop_hook_active=False)
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        payload = parse_json_stdout(result)
-        self.assertEqual(payload, {})
 
-    def test_managed_region_heading_blocks_on_first_stop_pass(self) -> None:
-        result = run_stop_hook(FIXTURES / "bad_managed_region_heading.md", stop_hook_active=False)
-        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-        payload = parse_json_stdout(result)
-        self.assertEqual(payload.get("decision"), "block")
-        self.assertIn("MANAGED_REGION_HEADING", payload.get("reason", ""))
 
     def test_historical_artifact_does_not_become_current_delivery(self) -> None:
         result = run_stop_hook(

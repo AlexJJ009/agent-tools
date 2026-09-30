@@ -13,7 +13,7 @@ ROOT = Path(__file__).parents[1]
 
 
 class InstallTargetGuardWiringTests(unittest.TestCase):
-    def run_isolated_unix_install(self, home, *, check=True, extra_args=()):
+    def run_isolated_unix_install(self, home, *, check=True, extra_args=(), source_root=None):
         install_root = home / "agent-tools-installed"
         fake_bin = home / "fake-bin"
         fake_bin.mkdir(exist_ok=True)
@@ -27,9 +27,15 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             "AGENT_TOOLS_HOME": str(install_root),
             "CODEX_HOME": str(home / ".codex"),
             "CC_SWITCH_DB_PATH": str(home / ".cc-switch" / "cc-switch.db"),
+            "TMUX_CONF": str(home / ".tmux.conf"),
+            "CODEX_MODEL_PROVIDER_ID": "custom",
+            "AGENT_TOOLS_CODEX_PROVIDER_BUCKET_APPLY": "1",
+            "AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALL_NON_TARGET": "1",
+            "AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALLOW_RUNNING": "0",
+            "AGENT_TOOLS_CODEX_PROVIDER_BUCKET_KILL_RUNNING": "0",
         })
         command = [
-            "bash", str(ROOT / "install.sh"),
+            "bash", str((source_root or ROOT) / "install.sh"),
             "--root", str(home / "projects"),
             "--no-fail2ban-hardening", "--no-cc-switch-update",
             "--no-codex-config", "--no-codex-here",
@@ -40,31 +46,38 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             "--no-agent-core",
         ]
         return subprocess.run(
-            command + list(extra_args), env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=check
+            command + list(extra_args), env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=check, timeout=60
         )
 
-    def test_linux_installer_defaults_to_native_platform_only(self):
-        text = (ROOT / "install.sh").read_text(encoding="utf-8")
-        self.assertNotIn("goal-plan", text)
-        self.assertIn('${CODEX_HOME:-$HOME/.codex}/skills/manage-worktrees', text)
-        self.assertNotIn('/mnt/c/.agents/skills/manage-worktrees', text)
+    @staticmethod
+    def installation_snapshot(home):
+        # The fake crontab executable is test infrastructure, not installer output.
+        return {
+            str(path.relative_to(home)): (
+                ("link", os.readlink(path)) if path.is_symlink()
+                else ("file", path.read_bytes()) if path.is_file()
+                else ("directory", None)
+            )
+            for path in home.rglob("*")
+            if "fake-bin" not in path.relative_to(home).parts
+        }
 
-    def test_linux_installer_runs_guard_before_skill_or_config_writes(self):
-        text = (ROOT / "install.sh").read_text(encoding="utf-8")
-        shared_guard = text.rindex("run_codex_target_guard")
-        config_write = text.index("if [[ \"$INSTALL_CODEX_CONFIG\" -eq 1 ]]; then", shared_guard)
-        agent_wt_write = text.rindex("install_agent_wt")
-        self.assertLess(shared_guard, config_write)
-        self.assertLess(shared_guard, agent_wt_write)
+    def test_unix_guard_rejects_cross_platform_config_before_any_install_writes(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary)
+            codex = home / ".codex"
+            codex.mkdir()
+            (codex / "config.toml").write_text('model_provider = "custom"\nproject = "C:/Users/Alex/project"\n')
+            (codex / "auth.json").write_text('{"fixture": "preserve authentication"}')
+            (home / ".tmux.conf").write_text("# user settings\n")
+            before = self.installation_snapshot(home)
+            completed = self.run_isolated_unix_install(home, check=False)
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("Windows path pollution", completed.stdout + completed.stderr)
+            self.assertEqual(self.installation_snapshot(home), before)
 
-    def test_win11_installer_runs_native_guard_before_skill_install(self):
-        text = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
-        self.assertIn("function Assert-CodexTargetGuard", text)
-        guard_call = text.rindex("Assert-CodexTargetGuard -RepoRoot $Root")
-        skill_install = text.rindex("Install-AgentWt -RepoRoot $Root")
-        self.assertLess(guard_call, skill_install)
 
-    def test_autodl_bootstrap_uses_target_guard_before_provider_setup(self):
+    def test_static_autodl_installer_before_provider_setup(self):
         text = (ROOT / "scripts" / "bootstrap_autodl_ai_tools.sh").read_text(encoding="utf-8")
         installer = text.index("run_agent_tools_install", text.index("main()"))
         provider = text.index("configure_codex_from_transfer", installer)
@@ -195,7 +208,7 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
                             with self.assertRaises(ValueError):
                                 module.install(ROOT, home, home / ".codex", "win11")
 
-    def test_windows_launcher_and_migration_are_explicit(self):
+    def test_static_windows_launcher_and_migration_wiring(self):
         launcher = (ROOT / "bin/agent-wt.ps1").read_text()
         self.assertNotIn(".agents/skills/manage-worktrees", launcher)
         self.assertIn("$env:CODEX_HOME", launcher)
@@ -211,30 +224,67 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             self.assertIn("17 * * * *", (home / "test-crontab").read_text())
             self.assertIn("sync_agent_context_cron.sh", (home / "test-crontab").read_text())
 
-    def test_defaults_are_opt_in_and_registry_flag_rejects_before_writes(self):
-        text = (ROOT / "install.sh").read_text()
-        self.assertIn("INSTALL_CRON=0", text)
-        self.assertIn("INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=0", text)
-        self.assertNotIn("install_registry_links.sh", text)
-        for flag in ("--apply-codex-provider-bucket-migration", "--dry-run-codex-provider-bucket-migration", "--kill-running-codex-provider-bucket-migration"):
-            self.assertIn(flag + ")\n      INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=1", text)
+    def test_removed_registry_flag_rejects_before_any_install_writes(self):
         with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "not-created"
-            result = subprocess.run(["bash", str(ROOT / "install.sh"), "--registry-init-db", "--install-dir", str(target)], capture_output=True, text=True)
+            home = Path(tmp)
+            (home / "keep.txt").write_text("existing user content")
+            before = self.installation_snapshot(home)
+            result = self.run_isolated_unix_install(home, check=False, extra_args=("--registry-init-db",))
             self.assertEqual(result.returncode, 2)
-            self.assertFalse(target.exists())
+            self.assertIn("Experiment Registry installation was removed", result.stderr)
+            self.assertEqual(self.installation_snapshot(home), before)
 
-    def test_skill_and_guide_keep_v1_harness_and_execution_boundaries(self):
-        skill = (ROOT / "skills" / "manage-worktrees" / "SKILL.md").read_text(encoding="utf-8")
-        guide = (ROOT / "docs" / "GIT_WORKTREE_AND_AGENT_WT_GUIDE.md").read_text(encoding="utf-8")
-        self.assertIn("Ask only when a missing fact would change", skill)
-        self.assertIn("never hand-build a worktree", skill)
-        self.assertIn("Verified harness support is Codex only", skill)
-        self.assertNotIn("--setup", skill)
-        product_guide = guide.split("## 15. DRAGAI-88 Prototype challenge matrix", 1)[0]
-        self.assertNotIn("--setup", product_guide)
-        self.assertIn("recommendation: unsupported", product_guide)
-        self.assertIn("不执行任何 hook/setup", product_guide)
+    @staticmethod
+    def stage_installer_source(destination):
+        # Execute the real installer and guard. Replace only the migration helper:
+        # invoking it with --kill-running-codex would affect the test host.
+        destination.mkdir()
+        for name in (
+            "install.sh", "sync_agent_context.py", "sync_agent_context_cron.sh",
+            "codex_project_memory.py", "agent_context_sync.config.example.json",
+            "bin", "scripts", "config", "skills", "linear_workflow",
+        ):
+            source = ROOT / name
+            if source.is_dir():
+                shutil.copytree(source, destination / name, ignore=shutil.ignore_patterns("__pycache__"))
+            else:
+                shutil.copy2(source, destination / name)
+        (destination / "migrate_codex_provider_bucket.py").write_text(
+            "import json, os, sys\n"
+            "from pathlib import Path\n"
+            "with (Path(os.environ['HOME']) / 'migration-calls.jsonl').open('a') as output:\n"
+            "    output.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+        )
+
+    def test_provider_migration_requires_opt_in_and_passes_only_requested_authority(self):
+        cases = (
+            ((), None),
+            (("--dry-run-codex-provider-bucket-migration",),
+             ["--target", "custom", "--all-non-target-providers"]),
+            (("--apply-codex-provider-bucket-migration",),
+             ["--target", "custom", "--apply", "--yes", "--all-non-target-providers"]),
+            (("--kill-running-codex-provider-bucket-migration",),
+             ["--target", "custom", "--apply", "--yes", "--kill-running-codex", "--all-non-target-providers"]),
+            (("--kill-running-codex-provider-bucket-migration", "--no-kill-running-codex-provider-bucket-migration"),
+             ["--target", "custom", "--apply", "--yes", "--all-non-target-providers"]),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "source"
+            self.stage_installer_source(source)
+            for index, (flags, expected) in enumerate(cases):
+                with self.subTest(flags=flags):
+                    home = Path(temporary) / str(index)
+                    codex = home / ".codex"
+                    codex.mkdir(parents=True)
+                    config = codex / "config.toml"
+                    config.write_text('model_provider = "custom"\n')
+                    self.run_isolated_unix_install(home, extra_args=flags, source_root=source)
+                    calls = home / "migration-calls.jsonl"
+                    if expected is None:
+                        self.assertFalse(calls.exists(), "ordinary installation must not invoke history migration")
+                    else:
+                        self.assertEqual([json.loads(line) for line in calls.read_text().splitlines()], [expected])
+                    self.assertEqual(config.read_text(), 'model_provider = "custom"\n')
 
 
 if __name__ == "__main__":

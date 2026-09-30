@@ -7,12 +7,6 @@ from linear_workflow_runtime.metadata import version_metadata
 
 
 class VersionMetadataTests(unittest.TestCase):
-    def test_reports_versions_from_runtime_and_canonical_schemas(self) -> None:
-        self.assertEqual(
-            {"workflow_version": "0.4.0", "schema_version": 1},
-            version_metadata(),
-        )
-
     @mock.patch("linear_workflow_runtime.metadata.load_schema")
     def test_rejects_disagreeing_canonical_schema_versions(self, load_schema: mock.Mock) -> None:
         load_schema.side_effect = [

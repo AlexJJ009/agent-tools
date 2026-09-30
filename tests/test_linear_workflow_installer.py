@@ -1,5 +1,6 @@
 import json
 import subprocess
+import sys
 import shutil
 import tempfile
 import unittest
@@ -10,13 +11,6 @@ ROOT = Path(__file__).parents[1]
 
 
 class LinearWorkflowInstallerContractTests(unittest.TestCase):
-    def test_unix_flags_and_only_mode_are_wired(self):
-        text = (ROOT / "install.sh").read_text(encoding="utf-8")
-        for flag in ("--linear-workflow", "--linear-workflow-only", "--no-linear-workflow"):
-            self.assertIn(flag, text)
-        only = text.index('if [[ "$LINEAR_WORKFLOW_ONLY" -eq 1 ]]')
-        unrelated = text.index("configure_fail2ban_hardening", only)
-        self.assertLess(only, unrelated)
 
     def test_deprecated_unix_flags_reject_before_writing(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -44,56 +38,65 @@ class LinearWorkflowInstallerContractTests(unittest.TestCase):
             self.assertIn("deprecated and disabled", result.stderr)
             self.assertFalse(target.exists())
 
-    def test_defaults_disable_existing_discovery_without_installing(self):
-        unix = (ROOT / "install.sh").read_text()
-        win = (ROOT / "scripts/install-win11.ps1").read_text()
-        self.assertIn("INSTALL_LINEAR_WORKFLOW=0", unix)
-        self.assertNotIn("INSTALL_LINEAR_WORKFLOW=1", unix)
-        self.assertIn("$installLinearWorkflow = $false", win)
-        self.assertNotIn("$installLinearWorkflow = $true", win)
-        self.assertIn('managed_package_installer.py" disable', unix)
-        self.assertIn('managed_package_installer.py") disable', win)
-        self.assertLess(win.index('if ($LinearWorkflow)'), win.index('Install-CodexPatchSafetySkill -RepoRoot $Root'))
 
-    def test_prewrite_guard_precedes_installer_dispatch(self):
-        unix = (ROOT / "install.sh").read_text(encoding="utf-8")
-        guard = unix.index("run_codex_target_guard before", unix.index("done\n"))
-        dispatch = unix.index("install_linear_workflow_only\n  exit 0", guard)
-        self.assertLess(guard, dispatch)
-        win = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
-        self.assertLess(win.rindex("Assert-CodexTargetGuard -RepoRoot"), win.rindex("Install-LinearWorkflow -RepoRoot"))
 
-    def test_win11_guard_binds_actual_write_home_to_codex_and_cc_switch_profile(self):
-        text = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
-        invocation = "Assert-CodexTargetGuard -RepoRoot $Root -TargetUserHome $UserHome -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb"
-        self.assertIn(invocation, text)
-        self.assertIn("$normalizedUserHome.Equals($codexProfile", text)
-        self.assertIn("$normalizedUserHome.Equals($ccSwitchProfile", text)
-        self.assertIn("must belong to the same native Win11 profile", text)
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell unavailable")
+    def test_win11_installer_rejects_mismatched_write_profiles_before_writes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home, other = root / "home", root / "other"
+            wrapper = root / "capture-installer-error.ps1"
+            wrapper_text = (
+                "param([string]$Installer, [string]$UserHome, [string]$CodexHome, [string]$CcSwitchDb)\n"
+                "$ErrorActionPreference = 'Stop'\n"
+                "try {\n"
+                "  & $Installer -UserHome $UserHome -CodexHome $CodexHome -CcSwitchDb $CcSwitchDb\n"
+                "  exit 0\n"
+                "} catch {\n"
+                "  [Console]::Error.WriteLine($_.Exception.Message)\n"
+                "  exit 1\n"
+                "}\n"
+            )
+            wrapper.write_text(wrapper_text)
+            for codex, database in ((other / ".codex", home / ".cc-switch/cc-switch.db"),
+                                    (home / ".codex", other / ".cc-switch/cc-switch.db")):
+                with self.subTest(codex=codex, database=database):
+                    result = subprocess.run(
+                        ["pwsh", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(wrapper),
+                         "-Installer", "./scripts/install-win11.ps1",
+                         "-UserHome", str(home), "-CodexHome", str(codex), "-CcSwitchDb", str(database)],
+                        cwd=ROOT, text=True, errors="replace", capture_output=True, timeout=20,
+                    )
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertEqual(result.stderr.strip(),
+                                     "UserHome, CodexHome, and CcSwitchDb must belong to the same native Win11 profile")
+                    self.assertEqual(list(root.iterdir()), [wrapper])
+                    self.assertEqual(wrapper.read_text(), wrapper_text)
 
-    def test_win11_flags_and_launcher_contract(self):
-        text = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
-        self.assertIn("[switch]$LinearWorkflow", text)
-        self.assertIn("[switch]$NoLinearWorkflow", text)
-        self.assertNotIn("GoalPlan", text)
-        descriptor = json.loads((ROOT / "config" / "managed-packages" / "linear-workflow.json").read_text())
-        self.assertEqual("linear-workflow.cmd", descriptor["launcher"]["windows_name"])
-
-    def test_wsl_descriptor_targets_cannot_escape_unix_home(self):
-        descriptor = json.loads((ROOT / "config" / "managed-packages" / "linear-workflow.json").read_text())
-        for group in ("codex_targets", "claude_targets", "shared_targets"):
-            for target in descriptor[group]:
-                destination = target["destination"].replace("{version}", "0.4.0")
-                self.assertFalse(destination.startswith(("/mnt/", "C:\\", "\\\\")))
-                self.assertNotIn("..", Path(destination).parts)
-
-    def test_goal_plan_is_absent_from_installers(self):
-        text = (ROOT / "install.sh").read_text(encoding="utf-8")
-        win = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
-        self.assertNotIn("goal-plan", text)
-        self.assertNotIn("GoalPlan", win)
-        self.assertFalse((ROOT / "goal_plan").exists())
-        self.assertFalse((ROOT / "config" / "managed-packages" / "goal-plan.json").exists())
+    def test_disable_rejects_descriptor_path_escape_before_touching_other_profile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home = root / "home"
+            home.mkdir()
+            outside = root / "outside"
+            outside.mkdir()
+            sentinel = outside / "SKILL.md"
+            sentinel.write_text("unrelated user skill")
+            for destination in (str(outside), "../outside"):
+                with self.subTest(destination=destination):
+                    descriptor = json.loads((ROOT / "config/managed-packages/linear-workflow.json").read_text())
+                    descriptor["codex_targets"][0]["destination"] = destination
+                    path = root / "descriptor.json"
+                    path.write_text(json.dumps(descriptor))
+                    result = subprocess.run(
+                        [sys.executable, str(ROOT / "scripts/managed_package_installer.py"), "disable",
+                         "--descriptor", str(path), "--repo-root", str(ROOT), "--home", str(home)],
+                        capture_output=True, text=True, timeout=15,
+                    )
+                    self.assertEqual(result.returncode, 2, result.stderr)
+                    self.assertIn("discovery target escapes home", result.stderr)
+                    self.assertEqual(sentinel.read_text(), "unrelated user skill")
+                    self.assertEqual(list(home.iterdir()), [])
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import io
 import json
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -168,14 +169,18 @@ class AgentWorkflowInstallTests(unittest.TestCase):
         (self.home / ".agents/skills/cleaner/SKILL.md").write_text("changed", encoding="utf-8")
         self.assertEqual(self.install(["--check"]), 1)
 
-    def test_runtime_help_uses_safe_path_and_installed_cwd(self):
+    def test_installed_launcher_ignores_shadow_package_in_caller_cwd(self):
+        (self.repo / "agent_workflow/cli.py").write_text('print("installed runtime")\n')
         self.assertEqual(self.install(), 0)
-        preflight = [call for call in self.calls if "-m agent_workflow.cli" in " ".join(str(x) for x in call[0])]
-        self.assertTrue(any("-P" in call[0] and call[1].get("cwd", "").endswith("/agent-workflow") for call in preflight))
-        launcher_calls = [call for call in self.calls if call[0] and str(call[0][0]).endswith("/agent-workflow")]
-        self.assertTrue(any(call[1].get("cwd") == str(self.home / ".local/share/agent-workflow") for call in launcher_calls))
-        launcher_text = (self.home / ".local/bin/agent-workflow").read_text(encoding="utf-8")
-        self.assertIn(" -P -m agent_workflow.cli", launcher_text)
+        hostile = self.base / "caller"
+        shadow = hostile / "agent_workflow"
+        shadow.mkdir(parents=True)
+        (shadow / "__init__.py").write_text("")
+        (shadow / "cli.py").write_text('raise RuntimeError("caller package executed")\n')
+        result = subprocess.run([str(self.home / ".local/bin/agent-workflow"), "--help"],
+                                cwd=hostile, text=True, capture_output=True, timeout=15)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "installed runtime")
 
     def test_unmanaged_skill_is_preserved(self):
         target = self.home / ".agents/skills/cleaner"

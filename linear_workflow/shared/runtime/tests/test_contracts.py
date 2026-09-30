@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import importlib.util
 import json
-import re
 import tomllib
 import unittest
 from pathlib import Path
@@ -54,15 +52,6 @@ class SchemaContractTests(unittest.TestCase):
         changed["work_references"][0]["base_sha"] = "1234abcd"
         self.assertTrue(validate_schema(changed, "batch"))
 
-    def test_schema_guard_canary_observes_pattern_deletion(self) -> None:
-        schema = load_schema("issue")
-        original = schema["properties"]["repository_full_name"].pop("pattern")
-        try:
-            self.assertNotIn("pattern", schema["properties"]["repository_full_name"])
-            self.assertIsNotNone(re.fullmatch(original, "AlexJJ009/agent-tools"))
-            self.assertIsNone(re.fullmatch(original, "AT"))
-        finally:
-            schema["properties"]["repository_full_name"]["pattern"] = original
 
 
 if __name__ == "__main__":

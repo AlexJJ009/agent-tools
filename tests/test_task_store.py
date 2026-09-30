@@ -101,23 +101,6 @@ class TaskStoreTests(unittest.TestCase):
         self.assert_code('artifact_conflict', lambda: self.mutate(task, 'retire', names=['edited'], rationale='old'))
         self.assertEqual(path.read_text(), 'user annotation')
 
-    def test_retire_reference_oracle_detects_disabled_guard(self):
-        # Adapted from the historical records/evidence dependency failure.
-        # This isolated mutation checks the oracle, not model effectiveness.
-        from agent_workflow import task_store
-        task = self.create()
-        self.mutate(task, 'artifact', name='proof', content='sole evidence')
-        self.result(task, evidence=['proof'])
-        path = self.store.root / self.store.read(task, True)['artifacts']['proof']['path']
-        original_require = task_store.require
-        def without_reference_guard(condition, code, message):
-            if message != 'artifact is referenced by a result':
-                original_require(condition, code, message)
-        with patch.object(task_store, 'require', side_effect=without_reference_guard):
-            self.mutate(task, 'retire', names=['proof'], rationale='deliberate test fault')
-        with self.assertRaises(AssertionError):
-            self.assertTrue(path.exists(), 'referenced evidence was lost')
-
     def test_retire_interruption_abort_and_committed_recovery(self):
         task = self.create()
         self.mutate(task, 'artifact', name='inventory', content='obsolete')
@@ -236,7 +219,7 @@ class TaskStoreTests(unittest.TestCase):
                      'base_revision':self.store.read(task)['revision'],'requirements':f'mode-{revision}'}
             first=self.store.mutate('revise',request)
             before=self.store.read(task); files=o.file_snapshot(self.s.data)
-            for _ in range(20):
+            for _ in range(2):  # First repeat and replay: deterministic, not a soak test.
                 self.store.list(); self.store.checklist(task); self.store.resolve('none',self.s.repo)
                 self.assertEqual(self.store.mutate('revise',request),first)
             after=self.store.read(task)

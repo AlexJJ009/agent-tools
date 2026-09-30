@@ -54,7 +54,7 @@ class ReportSchedulerTests(unittest.TestCase):
                     "path": os.environ.get("PATH", ""),
                     "scheduler": str(SCHEDULER),
                     "runtime": str(self.runtime),
-                    "uid": 1000,
+                    "uid": os.getuid() if hasattr(os, "getuid") else None,
                 }
             ),
             encoding="utf-8",
@@ -165,17 +165,22 @@ class ReportSchedulerTests(unittest.TestCase):
         self.assertTrue(Path(data["snapshot"]).is_file())
         self.assertTrue(self.codex_calls.is_file())
 
-    def test_failed_dispatch_writes_snapshot_and_runtime_caps_retries(self):
+    def test_failed_dispatch_records_snapshot_and_obeys_runtime_stop(self):
+        # The runtime is a protocol stub here; its synthetic retry counter is
+        # not evidence that production retry limits work. Test the scheduler's
+        # responsibility: record failures, then stop dispatching when told.
         self.write_codex(2)
-        first, _ = self.run_scheduler()
+        first, first_data = self.run_scheduler()
         second, data = self.run_scheduler()
+        self.assertTrue(Path(first_data["snapshot"]).is_file())
+        self.assertTrue(Path(data["snapshot"]).is_file())
+        self.assertTrue(self.codex_calls.is_file())
+        self.codex_calls.unlink()
         third, final = self.run_scheduler()
         self.assertEqual((first, second, third), (1, 1, 1))
         self.assertEqual(data["action"], "failed")
         self.assertEqual(final["runtime"]["action"], "failed")
-        manifest = json.loads((self.task / "reporting.json").read_text())
-        self.assertEqual(manifest["periodic"]["state"], "failed")
-        self.assertEqual(manifest["periodic"]["attempts"], 2)
+        self.assertFalse(self.codex_calls.exists(), "runtime stop must prevent another dispatch")
 
     def test_existing_lease_prevents_second_launch(self):
         self.manifest["periodic"]["lease"] = {"owner": "other"}
@@ -192,6 +197,18 @@ class ReportSchedulerTests(unittest.TestCase):
         self.assertEqual(data["action"], "delivered")
         manifest = json.loads((self.task / "reporting.json").read_text())
         self.assertEqual(manifest["periodic"]["state"], "satisfied")
+
+    def test_wrong_scheduler_uid_rejects_before_dispatch(self):
+        metadata_path = self.task / "scheduler.json"
+        metadata = json.loads(metadata_path.read_text())
+        metadata["uid"] = (os.getuid() + 1) if hasattr(os, "getuid") else 1
+        metadata_path.write_text(json.dumps(metadata))
+        manifest_before = (self.task / "reporting.json").read_bytes()
+        rc, data = self.run_scheduler()
+        self.assertEqual(rc, 1)
+        self.assertEqual(data["reason"], "scheduler metadata uid does not match")
+        self.assertFalse(self.codex_calls.exists())
+        self.assertEqual((self.task / "reporting.json").read_bytes(), manifest_before)
 
     def test_optional_tick_positional_is_supported(self):
         rc, data = self.run_scheduler()

@@ -249,19 +249,6 @@ class PlanningRuntimeTests(unittest.TestCase):
         self.assertEqual(0, self.github.create_count)
         self.assertEqual(0, self.linear.write_count)
 
-    def test_new_github_item_can_be_previewed_before_number_is_known(self) -> None:
-        self.assertIsNone(self.plan["issues"][0]["github_issue"])
-        preview = self.preview()
-        self.assertEqual("create_github", self.issue_operation(preview).action)
-        self.assertEqual(0, self.github.create_count)
-        self.add_sync_match()
-        result = self.runtime.apply(
-            preview, PreviewApproval(preview.preview_id, "GongxunLi")
-        )
-        self.assertEqual(
-            "AlexJJ009/agent-tools#100", self.github_mapping(result).github_issue
-        )
-
     def test_exact_identifiable_approval_is_required(self) -> None:
         preview = self.preview()
         for approval in (
@@ -338,6 +325,9 @@ class PlanningRuntimeTests(unittest.TestCase):
         approval = PreviewApproval(preview.preview_id, "GongxunLi")
         first = self.runtime.apply(preview, approval)
         second = self.runtime.apply(preview, approval)
+        # The fixture starts without a GitHub number; creation supplies it.
+        self.assertIsNone(self.plan["issues"][0]["github_issue"])
+        self.assertEqual("AlexJJ009/agent-tools#100", self.github_mapping(first).github_issue)
         self.assertEqual(
             self.github_mapping(first).linear_issue_id,
             self.github_mapping(second).linear_issue_id,
@@ -556,17 +546,6 @@ class PlanningRuntimeTests(unittest.TestCase):
 
 
 class GatewayNormalizationTests(unittest.TestCase):
-    def test_mcp_and_api_projections_normalize_to_the_same_linear_fact(self) -> None:
-        projection = {
-            "id": "DRAGAI-70",
-            "team": "DragAI",
-            "repository_full_name": "AlexJJ009/agent-tools",
-            "github_url": "https://github.com/AlexJJ009/agent-tools/issues/6",
-            "proposal_key": "linear-workflow:dragai-70:abc",
-            "duplicate_of": None,
-        }
-        self.assertEqual(normalize_linear_issue(projection), normalize_linear_issue(dict(projection)))
-
     def test_raw_gateway_failures_are_typed(self) -> None:
         with self.assertRaises(GatewayFailure) as caught:
             normalize_linear_issue({"id": "DRAGAI-70"})

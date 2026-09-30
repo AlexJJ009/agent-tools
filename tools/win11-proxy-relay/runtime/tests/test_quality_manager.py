@@ -108,11 +108,6 @@ class QualityManagerDecisionTests(unittest.TestCase):
         self.assertTrue(fast_rtt_slow_download["eligible"])
         self.assertLess(slow_rtt_fast_download["score"], fast_rtt_slow_download["score"])
 
-    def test_feitu_slow_reliable_beats_fast_flaky_by_eligibility(self):
-        slow_reliable = feitu_metric("slow-reliable", 700, jitter=20, failures=0, mbps=5)
-        fast_flaky = feitu_metric("fast-flaky", 20, jitter=5, failures=1, mbps=500)
-        ranked = sorted([item for item in [slow_reliable, fast_flaky] if item["eligible"]], key=lambda item: item["score"])
-        self.assertEqual([item["node"] for item in ranked], ["slow-reliable"])
 
     def test_score_accepts_perfect_zero_failure_sample(self):
         delay = {

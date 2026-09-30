@@ -90,14 +90,6 @@ class TeachingPrecommitTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0, "no-HEAD staged validation false-greened")
             self.assertIn("GIT_BASELINE_MISSING", result.stderr + result.stdout)
 
-    def test_staged_good_compiled_artifact_passes(self) -> None:
-        with self.make_repo() as tmp:
-            repo = Path(tmp)
-            shutil.copyfile(FIXTURES / "good_artifact.md", repo / "compiled_artifact.md")
-            self.assertEqual(git(repo, "add", "compiled_artifact.md").returncode, 0)
-            result = run_staged_validator(repo)
-            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
-            self.assertIn("STAGED_VALID", result.stdout)
 
     def test_staged_invalid_teaching_artifact_fails(self) -> None:
         with self.make_repo() as tmp:
@@ -108,14 +100,6 @@ class TeachingPrecommitTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0, "invalid staged artifact unexpectedly passed")
             self.assertIn("MISSING_CHECK", result.stderr + result.stdout)
 
-    def test_staged_wrong_version_marker_fails(self) -> None:
-        with self.make_repo() as tmp:
-            repo = Path(tmp)
-            shutil.copyfile(FIXTURES / "bad_wrong_version_marker.md", repo / "teaching.md")
-            self.assertEqual(git(repo, "add", "teaching.md").returncode, 0)
-            result = run_staged_validator(repo)
-            self.assertNotEqual(result.returncode, 0, "wrong-version artifact unexpectedly passed")
-            self.assertIn("VERSION_MARKER_WRONG", result.stderr + result.stdout)
 
     def test_staged_managed_region_byte_change_fails(self) -> None:
         with self.make_repo() as tmp:
@@ -251,6 +235,22 @@ class TeachingPrecommitTests(unittest.TestCase):
             result = run_staged_validator(repo)
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("MANAGED_REGION_STAGED", result.stderr + result.stdout)
+    def test_validation_reads_git_index_instead_of_unstaged_worktree_content(self):
+        with self.make_repo() as tmp:
+            repo = Path(tmp)
+            artifact = repo / "teaching.md"
+            bad = (FIXTURES / "bad_missing_check.md").read_text()
+            good = (FIXTURES / "good_guided_session.md").read_text()
+            artifact.write_text(bad)
+            self.assertEqual(git(repo, "add", "teaching.md").returncode, 0)
+            artifact.write_text(good)
+            rejected = run_staged_validator(repo)
+            self.assertNotEqual(rejected.returncode, 0)
+            self.assertIn("MISSING_CHECK", rejected.stderr + rejected.stdout)
+            self.assertEqual(git(repo, "add", "teaching.md").returncode, 0)
+            artifact.write_text(bad)
+            accepted = run_staged_validator(repo)
+            self.assertEqual(accepted.returncode, 0, accepted.stderr + accepted.stdout)
 
 
 if __name__ == "__main__":

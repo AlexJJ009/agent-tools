@@ -1,0 +1,350 @@
+{
+  "schema_version": "skill-suite-source-discovery/1",
+  "status": "authorized_predeclared_paired_followup",
+  "source_case": "H06",
+  "planned_trials": 8,
+  "execution_plan": {
+    "case_ids": [
+      "S01",
+      "S02"
+    ],
+    "variants": [
+      "skills",
+      "control"
+    ],
+    "reps": 2,
+    "only_variable_between_S01_S02": "source location specificity in final user utterance",
+    "freeze_before_candidate_execution": true
+  },
+  "interpretation_predeclared": [
+    {
+      "pattern": "Both location variants complete concrete correct questions in both arms",
+      "interpretation": "Original failure is consistent with missing project grounding; no finally/practice capability gap established."
+    },
+    {
+      "pattern": "Project-only variants repeatedly do not inspect source, while explicit-path variants inspect it and pass",
+      "interpretation": "Evidence of weak proactive source discovery under underspecified location. Not evidence of weak finally knowledge."
+    },
+    {
+      "pattern": "Source is inspected in either variant but exercise is incorrect or nondiscriminative",
+      "interpretation": "Inspect downstream practice construction or source reasoning; file discovery no longer explains that failure."
+    },
+    {
+      "pattern": "Even explicit-path variants fail to inspect available source and ask user to paste it",
+      "interpretation": "Source use/execution failure despite a clear locator. Do not classify as demonstrated semantic misunderstanding without inspecting a substantive answer."
+    },
+    {
+      "pattern": "Both arms show same failure pattern",
+      "interpretation": "Shared agent behavior or shared context limit; do not claim target skill caused the failure or provides an incremental effect."
+    },
+    {
+      "pattern": "Only one arm differs across two repetitions",
+      "interpretation": "Local paired evidence only; insufficient for stable causal effect without further equivalent-case replication."
+    }
+  ],
+  "cases": [
+    {
+      "id": "S01",
+      "title": "给出项目线索后的源码发现",
+      "provenance": "predeclared_H06_source_location_followup",
+      "approval_status": "authorized_pilot",
+      "source_cases": [
+        "H06"
+      ],
+      "flow": "practice",
+      "primary_dimension": "contrast_finally_control_flow",
+      "primary_check_id": "S01.1",
+      "primary_atomic_check": "提出一题具体对照：假定work抛异常、close正常返回，要求区分close_only异常外传与close_and_default返回fallback；两个函数必须都进入判断，不能只问finally会不会执行。",
+      "target_skill": "retrieval-practice",
+      "target_skills": [
+        "retrieval-practice"
+      ],
+      "capability": "contrast_finally_control_flow",
+      "negative_control": false,
+      "prompt": "今天精力不多，继续带我练一下，用当前项目里的这两个函数就行。先让我选，不要先揭答案。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "我总觉得只要执行了finally，前面的异常就会被吞掉。想练习分清这件事。"
+        },
+        {
+          "role": "assistant",
+          "content": "是否覆盖异常取决于finally里有没有新的控制流退出，而不是finally有没有执行。接下来可以结合具体代码辨别。"
+        },
+        {
+          "role": "user",
+          "content": "今天精力不多，继续带我练一下，用当前项目里的这两个函数就行。先让我选，不要先揭答案。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "cleanup.py": "def close_only(work, close):\n    try:\n        return work()\n    finally:\n        close()\n\ndef close_and_default(work, close):\n    try:\n        return work()\n    finally:\n        close()\n        return \"fallback\"\n"
+        },
+        "generation_spec": "原样写入全新隔离Git仓库；技能与control共享输入、共同写作规范与工具，grader_side和checks绝不进入被测环境。"
+      },
+      "checks": [
+        {
+          "id": "S01.1",
+          "criterion": "提出一题具体对照：假定work抛异常、close正常返回，要求区分close_only异常外传与close_and_default返回fallback；两个函数必须都进入判断，不能只问finally会不会执行。",
+          "result": null
+        },
+        {
+          "id": "S01.2",
+          "criterion": "采用轻量选择/匹配作答，不提前泄答案；条件说明close正常以排除新的异常，不能把精力不足当作跳过或掌握。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": []
+      },
+      "grader_side": {
+        "oracle": null,
+        "known_good_text": "假设work()抛ValueError，close()正常返回。两个函数的结果是哪组？A. close_only抛ValueError；close_and_default返回\"fallback\"。B. 两个都返回\"fallback\"。C. 两个都抛ValueError。你选哪组？",
+        "known_bad_text": "finally总会执行，所以两个函数都会吞异常返回fallback。请记住这个规律。",
+        "expected_observations": [
+          "contrast both functions under same explicit work/close outcomes",
+          "no pre-answer explanation identifying correct choice"
+        ],
+        "oracle_is_exhaustive": false
+      },
+      "skill_association": {
+        "strength": "direct_contract",
+        "attribution_limit": "每题两组各两次，观察局部差异与可复现缺口；并不证明稳定技能增益或长期学习效果。"
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "retrieval-practice",
+        "shared_skills": [],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          },
+          {
+            "source": "skills/teaching-reconstruction/references/portable-learning-record.md",
+            "destination": "skills/teaching-reconstruction/references/portable-learning-record.md"
+          }
+        ]
+      },
+      "followup_design": {
+        "source_case_id": "H06",
+        "source_grader_case_id": "H06",
+        "manipulation": "final_user_source_location_only",
+        "location_level": "project",
+        "reps_per_arm": 2,
+        "arms": [
+          "skills",
+          "control"
+        ],
+        "source_discovery_is_diagnostic_not_extra_scoring_requirement": true,
+        "primary_criterion_unchanged": true,
+        "allowed_input_changes": [
+          "case identity/title/provenance metadata",
+          "final user utterance in prompt and turns"
+        ],
+        "source_ambiguity_boundary": "Original H06 did not identify a project or file for “these two functions”; failure there cannot establish finally reasoning weakness."
+      }
+    },
+    {
+      "id": "S02",
+      "title": "给出文件路径后的源码使用",
+      "provenance": "predeclared_H06_source_location_followup",
+      "approval_status": "authorized_pilot",
+      "source_cases": [
+        "H06"
+      ],
+      "flow": "practice",
+      "primary_dimension": "contrast_finally_control_flow",
+      "primary_check_id": "S02.1",
+      "primary_atomic_check": "提出一题具体对照：假定work抛异常、close正常返回，要求区分close_only异常外传与close_and_default返回fallback；两个函数必须都进入判断，不能只问finally会不会执行。",
+      "target_skill": "retrieval-practice",
+      "target_skills": [
+        "retrieval-practice"
+      ],
+      "capability": "contrast_finally_control_flow",
+      "negative_control": false,
+      "prompt": "今天精力不多，继续带我练一下，用当前项目cleanup.py里的两个函数就行。先让我选，不要先揭答案。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "我总觉得只要执行了finally，前面的异常就会被吞掉。想练习分清这件事。"
+        },
+        {
+          "role": "assistant",
+          "content": "是否覆盖异常取决于finally里有没有新的控制流退出，而不是finally有没有执行。接下来可以结合具体代码辨别。"
+        },
+        {
+          "role": "user",
+          "content": "今天精力不多，继续带我练一下，用当前项目cleanup.py里的两个函数就行。先让我选，不要先揭答案。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "cleanup.py": "def close_only(work, close):\n    try:\n        return work()\n    finally:\n        close()\n\ndef close_and_default(work, close):\n    try:\n        return work()\n    finally:\n        close()\n        return \"fallback\"\n"
+        },
+        "generation_spec": "原样写入全新隔离Git仓库；技能与control共享输入、共同写作规范与工具，grader_side和checks绝不进入被测环境。"
+      },
+      "checks": [
+        {
+          "id": "S02.1",
+          "criterion": "提出一题具体对照：假定work抛异常、close正常返回，要求区分close_only异常外传与close_and_default返回fallback；两个函数必须都进入判断，不能只问finally会不会执行。",
+          "result": null
+        },
+        {
+          "id": "S02.2",
+          "criterion": "采用轻量选择/匹配作答，不提前泄答案；条件说明close正常以排除新的异常，不能把精力不足当作跳过或掌握。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": []
+      },
+      "grader_side": {
+        "oracle": null,
+        "known_good_text": "假设work()抛ValueError，close()正常返回。两个函数的结果是哪组？A. close_only抛ValueError；close_and_default返回\"fallback\"。B. 两个都返回\"fallback\"。C. 两个都抛ValueError。你选哪组？",
+        "known_bad_text": "finally总会执行，所以两个函数都会吞异常返回fallback。请记住这个规律。",
+        "expected_observations": [
+          "contrast both functions under same explicit work/close outcomes",
+          "no pre-answer explanation identifying correct choice"
+        ],
+        "oracle_is_exhaustive": false
+      },
+      "skill_association": {
+        "strength": "direct_contract",
+        "attribution_limit": "每题两组各两次，观察局部差异与可复现缺口；并不证明稳定技能增益或长期学习效果。"
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "retrieval-practice",
+        "shared_skills": [],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          },
+          {
+            "source": "skills/teaching-reconstruction/references/portable-learning-record.md",
+            "destination": "skills/teaching-reconstruction/references/portable-learning-record.md"
+          }
+        ]
+      },
+      "followup_design": {
+        "source_case_id": "H06",
+        "source_grader_case_id": "H06",
+        "manipulation": "final_user_source_location_only",
+        "location_level": "explicit_path",
+        "reps_per_arm": 2,
+        "arms": [
+          "skills",
+          "control"
+        ],
+        "source_discovery_is_diagnostic_not_extra_scoring_requirement": true,
+        "primary_criterion_unchanged": true,
+        "allowed_input_changes": [
+          "case identity/title/provenance metadata",
+          "final user utterance in prompt and turns"
+        ],
+        "source_ambiguity_boundary": "Original H06 did not identify a project or file for “these two functions”; failure there cannot establish finally reasoning weakness."
+      }
+    },
+    {
+      "id": "S03",
+      "title": "明确学习记录路径后继续同一未答练习",
+      "provenance": "predeclared_skill_mechanism_fixture",
+      "approval_status": "authorized_pilot",
+      "source_cases": [],
+      "flow": "practice",
+      "primary_dimension": "resume_pending_frontier",
+      "primary_check_id": "S03.1",
+      "primary_atomic_check": "依据源码和已有learning-record继续kc-copy前沿的未答check-copy-transfer，允许压缩成易答选择，但仍检查original的嵌套tags变化与顶层count保留、working的count变化；不跳到闭包或建立另一个重复题/队列。",
+      "target_skill": "retrieval-practice",
+      "target_skills": [
+        "retrieval-practice"
+      ],
+      "capability": "resume_pending_frontier",
+      "negative_control": false,
+      "prompt": "继续当前项目 learning-record.json 记录的这轮学习吧。我今天只够做一个短小的尝试。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "继续当前项目 learning-record.json 记录的这轮学习吧。我今天只够做一个短小的尝试。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "copy_example.py": "def revise(original):\n    working = original.copy()\n    working[\"tags\"].append(\"new\")\n    working[\"count\"] = 2\n    return working\n",
+          "learning-record.json": "{\n  \"schema_version\": \"learning-record/1\",\n  \"goal\": \"能自己判断浅拷贝后嵌套修改与顶层赋值分别影响哪个对象\",\n  \"mode\": \"guided\",\n  \"source_refs\": [\n    {\n      \"kind\": \"code\",\n      \"repository\": \"fixture://copy-study\",\n      \"revision\": \"fixture-v1\",\n      \"path\": \"copy_example.py\",\n      \"lines\": \"1-5\",\n      \"status\": \"provisional\"\n    }\n  ],\n  \"learner_state\": {\n    \"assumptions\": [\n      \"会字典取值和函数调用\"\n    ],\n    \"observed_attempts\": [\n      {\n        \"attempt_id\": \"a-dict-1\",\n        \"check_id\": \"check-dict-1\",\n        \"target_id\": \"kc-dict\",\n        \"result\": \"independent_pass\",\n        \"assistance\": [],\n        \"response\": \"字典用键访问对应的值。\"\n      },\n      {\n        \"attempt_id\": \"a-copy-1\",\n        \"check_id\": \"check-copy-1\",\n        \"target_id\": \"kc-copy\",\n        \"result\": \"hinted_pass\",\n        \"assistance\": [\n          \"指出嵌套列表仍共享后答对\"\n        ],\n        \"response\": \"两个字典引用同一个tags列表。\"\n      }\n    ]\n  },\n  \"knowledge_components\": [\n    {\n      \"id\": \"kc-dict\",\n      \"ability\": \"跟踪字典键取值\",\n      \"status\": \"independent_pass\"\n    },\n    {\n      \"id\": \"kc-copy\",\n      \"ability\": \"区分浅拷贝的嵌套共享与顶层赋值\",\n      \"status\": \"hinted_pass\"\n    },\n    {\n      \"id\": \"kc-closure\",\n      \"ability\": \"跟踪闭包持有的可变状态\",\n      \"status\": \"untested\"\n    }\n  ],\n  \"teaching_edges\": [\n    {\n      \"from\": \"kc-dict\",\n      \"to\": \"kc-copy\",\n      \"reason\": \"需要区分字典与其值\"\n    },\n    {\n      \"from\": \"kc-copy\",\n      \"to\": \"kc-closure\",\n      \"reason\": \"需要先理解共享对象\"\n    }\n  ],\n  \"frontier\": [\n    \"kc-copy\"\n  ],\n  \"learning_checks\": [\n    {\n      \"id\": \"check-copy-transfer\",\n      \"target_id\": \"kc-copy\",\n      \"status\": \"pending\",\n      \"prompt\": \"original={\\\"tags\\\":[\\\"old\\\"],\\\"count\\\":1}，运行working=revise(original)后，original的tags和count分别是什么？working的count是什么？\",\n      \"source_ref\": \"copy_example.py:1-5\",\n      \"next_review\": \"next_learning_session\"\n    }\n  ],\n  \"next_action\": \"继续尚未作答的check-copy-transfer；目前没有独立迁移通过证据。\"\n}\n",
+          "session-notes.md": "上次已开始浅拷贝练习，用户尚未回答最后的迁移题。现在的记录在learning-record.json。另一份教程推荐闭包作为下一章，但不是本学习者的掌握证据。\n",
+          "next-chapter.md": "General curriculum: next chapter is closures. This is a general course outline, not an individual assessment.\n"
+        },
+        "generation_spec": "原样写入独立临时仓库。题目定义、checks、grader_side不挂载到被测环境。"
+      },
+      "checks": [
+        {
+          "id": "S03.1",
+          "criterion": "依据源码和已有learning-record继续kc-copy前沿的未答check-copy-transfer，允许压缩成易答选择，但仍检查original的嵌套tags变化与顶层count保留、working的count变化；不跳到闭包或建立另一个重复题/队列。",
+          "result": null
+        },
+        {
+          "id": "S03.2",
+          "criterion": "在当前回复实际呈现可答题目并留作答机会，不泄答案；既有attempt/assistance和KC状态不被改成独立掌握、失败或已完成。题目文本可以轻量改写，稳定check ID和pending状态应保留。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": [],
+        "state_contract": "portable learning-record/1 JSON file; no backend validation or scheduler is claimed"
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "retrieval-practice",
+        "shared_skills": [],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          },
+          {
+            "source": "skills/teaching-reconstruction/references/portable-learning-record.md",
+            "destination": "skills/teaching-reconstruction/references/portable-learning-record.md"
+          }
+        ]
+      },
+      "grader_side": {
+        "oracle": null,
+        "known_good_text": "接着上次还没回答的那题，今天只做这一小步：original={\"tags\":[\"old\"],\"count\":1}，执行working=revise(original)。你选哪组？A. original的tags为[\"old\",\"new\"]、count为1，working的count为2；B. original的tags为[\"old\"]、count为1，working的count为2；C. original的tags为[\"old\",\"new\"]、count为2，working的count为2。",
+        "known_bad_text": "你已经会浅拷贝了，按下一章目录直接学习闭包；我新建三道复习题并把浅拷贝标为掌握。",
+        "expected_observations": [
+          "evidence of reading source and learning-record",
+          "same check-copy-transfer target and pending status retained",
+          "no duplicate learning-check/queue; no fabricated new attempt",
+          "actual current response asks discriminative pending question without answer"
+        ],
+        "oracle_is_exhaustive": false
+      },
+      "skill_association": {
+        "strength": "workflow_mechanism",
+        "attribution_limit": "单题配对用来定位机制执行缺口；正确不证明长期学习收益或稳定增益。"
+      },
+      "skill_sources": [
+        "skills/retrieval-practice/SKILL.md:12",
+        "skills/retrieval-practice/SKILL.md:17",
+        "skills/retrieval-practice/references/review-follow-through.md:9",
+        "skills/retrieval-practice/references/review-follow-through.md:21"
+      ],
+      "followup_design": {
+        "source_case_id": "L01",
+        "source_grader_case_id": "L01",
+        "source_grader_suite": "mechanisms",
+        "changed_variable": "explicit existing learning record path",
+        "prediction": "若同一能力在显式路径后通过，原失败定位到源/状态发现环节；不能推断浅拷贝知识或题型构造不懂。未定位时擅自用写作规则例子代替学习主题仍是可观察的来源混淆。"
+      }
+    }
+  ]
+}

@@ -4,10 +4,6 @@ Date: 2026-09-30
 
 Status: Accepted
 
-Superseded by: [ADR 0008](0008-scope-regression-checks.md) only for automatic
-execution of historical compatibility tests. Retirement and source retention
-remain in force.
-
 ## Context and Problem Statement
 
 The user retired Linear Workflow from active use. Its planning and delivery
@@ -29,10 +25,17 @@ stops without entering the historical workflow. An old approval or Ready Batch
 does not reactivate it. Current contributions use the authorized task scope
 and repository checks, without mandatory Linear identities.
 
-Keep the runtime, schemas, contracts, validators and compatibility CI. Their
+Keep the runtime, schemas, contracts, validators and compatibility tests. Their
 continued presence supports historical inspection and maintenance; it does not
 authorize workflow execution. Reactivation requires an explicit new decision.
 This decision does not retire the local task runtime or unrelated Linear access.
+Historical tests run only on explicit request; current regression and CI policy
+belongs in [CONTRIBUTING.md](../../CONTRIBUTING.md).
+
+Apply the same ownership distinction to installed workflows: an existing legacy
+contract retains its selected controls, but ordinary tasks must not acquire a
+second checklist or a retired planning gate. Installation does not migrate live
+task state. Component-specific installation options belong in their guides.
 
 ### Consequences
 

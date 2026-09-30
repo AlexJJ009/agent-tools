@@ -105,12 +105,18 @@ class RouteTests(unittest.TestCase):
         self.assertEqual(hooks.process(self.event('PreToolUse',tool_name='Bash',tool_input={'command':'cat lesson.md'}),self.state),{})
 
     def test_request_integrity_and_symlink_output_escape(self):
-        (self.work/'notes').symlink_to(self.base/'outside',target_is_directory=True)
-        # Resolved declared outputs follow the same location; authority is path based.
-        # A narrower declared file cannot authorize its sibling.
-        data=r.read(self.root); data['decision']['output_targets']=['allowed/result.md']; r.save(self.root,data)
-        with self.assertRaisesRegex(r.RouteError,'outside declared'):
-            r.curate(self.root,self.source,'notes','Lesson','test',1)
+        allowed = self.work / 'allowed'
+        allowed.mkdir()
+        outside = self.base / 'outside'
+        outside.mkdir()
+        (allowed / 'escape').symlink_to(outside, target_is_directory=True)
+        data = r.read(self.root)
+        data['decision']['output_targets'] = ['allowed']
+        r.save(self.root, data)
+        # Lexically inside the declared root, but physically outside it.
+        with self.assertRaisesRegex(r.RouteError, 'outside declared'):
+            r.curate(self.root, self.source, 'allowed/escape', 'Lesson', 'test', 1)
+        self.assertEqual(list(outside.iterdir()), [])
         (self.root/'request.txt').write_text('tampered')
         with self.assertRaisesRegex(r.RouteError,'snapshot changed'):
             r.read(self.root)

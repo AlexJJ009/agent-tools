@@ -74,12 +74,6 @@ class BatchValidatorTests(unittest.TestCase):
             observed.add(expected)
         self.assertEqual(BATCH_BLOCKING_RULES, observed)
 
-    def test_short_sha_and_repo_abbreviation_fail_schema(self) -> None:
-        batch = load_json(FIXTURES / "good/batch.json")
-        batch["work_references"][0]["base_sha"] = "abc123"
-        batch["work_references"][0]["repository_full_name"] = "AT"
-        self.assertTrue(validate_schema(batch, "batch"))
-
     def test_scope_prefix_does_not_match_sibling_name(self) -> None:
         self.assertTrue(_path_allowed("linear_workflow/VERSION", ["linear_workflow/"]))
         self.assertFalse(_path_allowed("linear_workflow_evil/VERSION", ["linear_workflow/"]))

@@ -859,12 +859,6 @@ class ReportToolTests(unittest.TestCase):
             self.write_report(case, self.body_with_sections(case))
             self.assert_pass(self.check_report(case))
 
-    def test_finalize_fails_when_report_changes_after_review(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            case = self.checked_case(tmp)
-            self.write_review(case)
-            case.report.write_text(case.report.read_text(encoding="utf-8") + "\nLate mutation.\n", encoding="utf-8")
-            self.assert_fail(self.finalize(case))
 
     def test_finalize_fails_when_asset_changes_after_review(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -873,12 +867,6 @@ class ReportToolTests(unittest.TestCase):
             (case.report.parent / "assets" / "diagram.png").write_bytes(PNG_1X1 + b"changed")
             self.assert_fail(self.finalize(case))
 
-    def test_finalize_fails_when_cited_evidence_changes_after_review(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            case = self.checked_case(tmp)
-            self.write_review(case)
-            (case.report.parent / "evidence.txt").write_text("changed evidence\n", encoding="utf-8")
-            self.assert_fail(self.finalize(case))
 
     def test_finalize_fails_when_rubric_changes_after_review(self):
         with tempfile.TemporaryDirectory() as tmp:

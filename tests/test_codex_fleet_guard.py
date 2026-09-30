@@ -1,4 +1,7 @@
 import importlib.util
+import contextlib
+import io
+from types import SimpleNamespace
 import json
 import subprocess
 import sys
@@ -29,45 +32,8 @@ TARGET = {
 
 
 class CodexFleetGuardTests(unittest.TestCase):
-    def test_path_only_is_forwarded_for_skill_scoped_preflight(self):
-        target = {
-            "id": "server",
-            "platform": "linux",
-            "transport": "ssh",
-            "ssh_alias": "server",
-            "expected_user": "root",
-            "codex_home": "/root/.codex",
-            "cc_switch_db": "/root/.cc-switch/cc-switch.db",
-        }
-        args = MODULE.guard_args(target, None, path_only=True)
-        self.assertIn("--path-only", args)
-        self.assertIn("--allow-missing-config", args)
-        self.assertIn("--skip-cc-switch-read-check", args)
 
-    def test_remote_guard_uses_manifest_python_without_shell_interpolation(self):
-        target = {
-            "id": "legacy-host",
-            "platform": "linux",
-            "transport": "ssh",
-            "ssh_alias": "legacy-host",
-            "expected_user": "root",
-            "codex_home": "/root/.codex",
-            "cc_switch_db": "/root/.cc-switch/cc-switch.db",
-            "python_bin": "/root/.local/share/uv/python/cpython-3.12/bin/python3.12",
-        }
-        with mock.patch.object(MODULE, "run") as run:
-            run.return_value = subprocess.CompletedProcess([], 0, "{}", "")
-            MODULE.run_guard(target, None, path_only=True)
-        remote_command = run.call_args.args[0][-1]
-        self.assertIn("exec /root/.local/share/uv/python/cpython-3.12/bin/python3.12", remote_command)
-        self.assertNotIn("exec python3", remote_command)
 
-    def test_ssh_transport_is_batch_only_without_tty(self):
-        command = MODULE.ssh_base(TARGET)
-        self.assertIn("BatchMode=yes", command)
-        self.assertIn("RequestTTY=no", command)
-        self.assertNotIn("-t", command)
-        self.assertNotIn("-tt", command)
 
     def test_manifest_requires_safe_target_identity(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -87,30 +53,8 @@ class CodexFleetGuardTests(unittest.TestCase):
                 with self.assertRaisesRegex(MODULE.FleetFailure, "invalid Unix profile paths"):
                     MODULE.load_manifest(manifest)
 
-    def test_wrong_platform_canary_is_opposite(self):
-        self.assertEqual(MODULE.opposite_platform("linux"), "win11")
-        self.assertEqual(MODULE.opposite_platform("win11"), "linux")
 
-    def test_remote_command_uses_home_expansion_only_on_remote_side(self):
-        command = MODULE.remote_helper_relative_path()
-        self.assertFalse(command.startswith("/mnt/"))
-        self.assertFalse(command.startswith("C:"))
 
-    def test_remote_guard_uses_batch_ssh_and_profile_home(self):
-        captured = []
-        original = MODULE.run
-        try:
-            def fake_run(command, check=True, input_text=None):
-                captured.append(command)
-                return MODULE.subprocess.CompletedProcess(command, 0, "{}", "")
-
-            MODULE.run = fake_run
-            MODULE.run_guard(TARGET, "http://15.204.46.107:8080")
-        finally:
-            MODULE.run = original
-        self.assertIn("BatchMode=yes", captured[0])
-        self.assertIn("RequestTTY=no", captured[0])
-        self.assertIn('/home/ubuntu/.local/lib/agent-tools/codex_target_guard.py', captured[0][-1])
 
     def test_sync_uses_profile_home_when_ssh_starts_elsewhere(self):
         target = dict(TARGET, codex_home="/data_storage/yl_test/lgx/home/.codex")
@@ -147,6 +91,55 @@ class CodexFleetGuardTests(unittest.TestCase):
                 MODULE.sync_target(TARGET)
         self.assertEqual(run.call_count, 1)
         self.assertEqual(run.call_args.kwargs["input_text"], MODULE.REMOTE_HELPER.read_text())
+    def test_remote_dispatch_preserves_profile_arguments_and_batch_transport(self):
+        for path_only in (False, True):
+            with self.subTest(path_only=path_only), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                home = str(root / "operator profile")
+                # The generated remote shell command runs locally against a harmless
+                # executable. A JSON/double-quoted filename would expand $() in sh;
+                # shlex.split alone cannot detect that error.
+                recorder = root / "python $(touch quote-expanded)"
+                recorder.write_text(f"#!{sys.executable}\nimport json, sys\nprint(json.dumps(sys.argv[1:]))\n")
+                recorder.chmod(0o755)
+                endpoint = "https://relay.example.invalid/$(touch endpoint-expanded)"
+                target = dict(TARGET, codex_home=home + "/.codex",
+                              cc_switch_db=home + "/.cc-switch/cc-switch.db", python_bin=str(recorder))
+                with mock.patch.object(MODULE, "run") as run:
+                    run.return_value = subprocess.CompletedProcess([], 0, '{"status":"PASS"}', "")
+                    MODULE.run_guard(target, endpoint, path_only=path_only)
+                command = run.call_args.args[0]
+                self.assertIn("BatchMode=yes", command)
+                self.assertIn("RequestTTY=no", command)
+                self.assertNotIn("-t", command)
+                self.assertNotIn("-tt", command)
+                result = subprocess.run(["sh", "-c", command[-1]], cwd=root,
+                                        text=True, capture_output=True, timeout=5)
+                self.assertFalse((root / "quote-expanded").exists(), "interpreter path triggered shell substitution")
+                self.assertFalse((root / "endpoint-expanded").exists(), "argument triggered shell substitution")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                remote = json.loads(result.stdout)
+                self.assertEqual(remote[0], home + "/.local/lib/agent-tools/codex_target_guard.py")
+                self.assertEqual(remote[remote.index("--codex-home") + 1], target["codex_home"])
+                self.assertEqual(remote[remote.index("--cc-switch-db") + 1], target["cc_switch_db"])
+                self.assertEqual(remote[remote.index("--expect-base-url") + 1], endpoint)
+                for flag in ("--path-only", "--allow-missing-config", "--skip-cc-switch-read-check"):
+                    self.assertEqual(flag in remote, path_only)
+
+    def test_preflight_canary_actually_dispatches_opposite_platform_and_rejects_false_green(self):
+        args = SimpleNamespace(command="preflight", manifest=Path("unused"), target=[],
+                               expect_base_url=None, path_only=True, canary_reject=True)
+        for canary_rc in (2, 0):
+            with self.subTest(canary_rc=canary_rc):
+                responses = [subprocess.CompletedProcess([], 0, '{"status":"PASS"}', ""),
+                             subprocess.CompletedProcess([], canary_rc, "{}", "")]
+                with mock.patch.object(MODULE, "parse_args", return_value=args), \
+                     mock.patch.object(MODULE, "load_manifest", return_value=[TARGET]), \
+                     mock.patch.object(MODULE, "run_guard", side_effect=responses) as guard, \
+                     contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    result = MODULE.main()
+                self.assertEqual(result, 0 if canary_rc else 2)
+                self.assertEqual(guard.call_args_list[1], mock.call(TARGET, None, "win11", path_only=True))
 
 
 if __name__ == "__main__":

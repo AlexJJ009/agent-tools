@@ -362,16 +362,26 @@ class AgentWtTests(unittest.TestCase):
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("invalid choice", completed.stderr)
 
-    def test_cli_has_only_five_commands_and_no_dependency_execution_flag(self):
-        help_result = run([sys.executable, str(SCRIPT), "--help"], self.repo, env=self.env)
-        for command in ("inspect", "decide", "create", "list", "doctor"):
-            self.assertIn(command, help_result.stdout)
-        for excluded in ("remove", "prune", "merge", "push", "delete-branch"):
-            self.assertNotIn(f"  {excluded}", help_result.stdout)
-        create_help = run(
-            [sys.executable, str(SCRIPT), "create", "--help"], self.repo, env=self.env
-        )
-        self.assertNotIn("--setup", create_help.stdout)
+    def test_cli_rejects_unsupported_mutations_without_writes(self):
+        before_worktrees = run(["git", "worktree", "list", "--porcelain"], self.repo).stdout
+        before_files = {str(p.relative_to(self.base)): p.read_bytes()
+                        for p in self.base.rglob("*") if p.is_file()}
+        before_directories = {str(p.relative_to(self.base))
+                              for p in self.base.rglob("*") if p.is_dir()}
+        for argv in [("prune",), ("merge",), ("push",), ("delete-branch",),
+                     ("create", "codex/unwanted-setup", "--setup")]:
+            with self.subTest(argv=argv):
+                completed = run([sys.executable, str(SCRIPT), "-C", str(self.repo), *argv],
+                                self.repo, env=self.env, check=False)
+                self.assertEqual(completed.returncode, 2, completed.stderr)
+                self.assertIn("unrecognized arguments" if "--setup" in argv else "invalid choice",
+                              completed.stderr)
+        self.assertEqual(run(["git", "worktree", "list", "--porcelain"], self.repo).stdout,
+                         before_worktrees)
+        self.assertEqual({str(p.relative_to(self.base)): p.read_bytes()
+                          for p in self.base.rglob("*") if p.is_file()}, before_files)
+        self.assertEqual({str(p.relative_to(self.base))
+                          for p in self.base.rglob("*") if p.is_dir()}, before_directories)
 
     def test_windows_state_path_and_override_contract(self):
         home = Path("C:/Users/Alex")
@@ -414,11 +424,15 @@ class AgentWtTests(unittest.TestCase):
         self.assertEqual(json.loads(path.read_text())["worktrees"][0]["branch"], "two")
         self.assertEqual(list(state.glob("tmp*")), [])
 
-    def test_subprocess_arguments_remain_an_argv_vector(self):
-        completed = subprocess.CompletedProcess([], 0, "ok", "")
-        with mock.patch.object(agent_wt.subprocess, "run", return_value=completed) as called:
-            agent_wt.run(["git", "show", "branch with spaces"], cwd=self.repo)
-        self.assertEqual(called.call_args.args[0], ["git", "show", "branch with spaces"])
+    def test_subprocess_arguments_remain_literal_during_execution(self):
+        arguments = ["branch with spaces", "$(touch must-not-exist)",
+                     "; touch must-not-exist", "quote ' and \" double"]
+        completed = agent_wt.run(
+            [sys.executable, "-c", "import json, sys; print(json.dumps(sys.argv[1:]))", *arguments],
+            cwd=self.repo, env=self.env,
+        )
+        self.assertEqual(json.loads(completed.stdout), arguments)
+        self.assertFalse((self.repo / "must-not-exist").exists())
 
 
 if __name__ == "__main__":

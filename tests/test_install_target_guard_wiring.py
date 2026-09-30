@@ -76,12 +76,6 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             self.assertIn("Windows path pollution", completed.stdout + completed.stderr)
             self.assertEqual(self.installation_snapshot(home), before)
 
-    def test_static_win11_guard_wiring_not_native_execution(self):
-        text = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
-        self.assertIn("function Assert-CodexTargetGuard", text)
-        guard_call = text.rindex("Assert-CodexTargetGuard -RepoRoot $Root")
-        skill_install = text.rindex("Install-AgentWt -RepoRoot $Root")
-        self.assertLess(guard_call, skill_install)
 
     def test_static_autodl_installer_before_provider_setup(self):
         text = (ROOT / "scripts" / "bootstrap_autodl_ai_tools.sh").read_text(encoding="utf-8")

@@ -54,7 +54,7 @@ class ReportSchedulerTests(unittest.TestCase):
                     "path": os.environ.get("PATH", ""),
                     "scheduler": str(SCHEDULER),
                     "runtime": str(self.runtime),
-                    "uid": 1000,
+                    "uid": os.getuid() if hasattr(os, "getuid") else None,
                 }
             ),
             encoding="utf-8",
@@ -197,6 +197,18 @@ class ReportSchedulerTests(unittest.TestCase):
         self.assertEqual(data["action"], "delivered")
         manifest = json.loads((self.task / "reporting.json").read_text())
         self.assertEqual(manifest["periodic"]["state"], "satisfied")
+
+    def test_wrong_scheduler_uid_rejects_before_dispatch(self):
+        metadata_path = self.task / "scheduler.json"
+        metadata = json.loads(metadata_path.read_text())
+        metadata["uid"] = (os.getuid() + 1) if hasattr(os, "getuid") else 1
+        metadata_path.write_text(json.dumps(metadata))
+        manifest_before = (self.task / "reporting.json").read_bytes()
+        rc, data = self.run_scheduler()
+        self.assertEqual(rc, 1)
+        self.assertEqual(data["reason"], "scheduler metadata uid does not match")
+        self.assertFalse(self.codex_calls.exists())
+        self.assertEqual((self.task / "reporting.json").read_bytes(), manifest_before)
 
     def test_optional_tick_positional_is_supported(self):
         rc, data = self.run_scheduler()

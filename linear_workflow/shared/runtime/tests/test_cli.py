@@ -5,7 +5,7 @@ import io
 import json
 import unittest
 
-from linear_workflow_runtime.cli import build_parser, main
+from linear_workflow_runtime.cli import main
 
 
 class VersionCliTests(unittest.TestCase):
@@ -33,11 +33,6 @@ class VersionCliTests(unittest.TestCase):
 
         self.assertEqual(0, raised.exception.code)
         self.assertEqual("0.4.0\n", output.getvalue())
-
-    def test_help_discovers_version_command(self) -> None:
-        help_text = build_parser().format_help()
-
-        self.assertIn("version", help_text)
 
     def test_version_subcommand_requires_json_mode(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:

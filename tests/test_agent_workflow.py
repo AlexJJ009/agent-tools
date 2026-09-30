@@ -326,7 +326,10 @@ class WorkflowTests(unittest.TestCase):
         self.gate(root)
 
     def test_s07_valid_simulated_approval(self):
-        root = self.authorized()
+        root = self.initialize(change=lambda c: c.update(formal_run_policy='sandbox_allowed', run_class='short_smoke'))
+        self.gate(root)  # Never-checked input cannot execute.
+        self.check(root)
+        self.approve(root)
         self.gate(root, expected=0)
         self.gate(root, simulation=False)
 
@@ -373,10 +376,6 @@ class WorkflowTests(unittest.TestCase):
         self.gate(root)
         self.assertTrue(all(c['agent_status']=='checked' for c in load(root/'checklist.yaml')['checklist']))
         self.assertTrue(all(c['human_status']=='not_requested' for c in load(root/'checklist.yaml')['checklist']))
-
-    def test_no_agent_check_no_approval(self):
-        root = self.initialize(change=lambda c: c.update(formal_run_policy='sandbox_allowed', run_class='short_smoke'))
-        self.gate(root)
 
     def test_cannot_launder_simulated_evidence(self):
         root = self.authorized()

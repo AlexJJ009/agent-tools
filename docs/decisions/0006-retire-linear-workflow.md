@@ -4,6 +4,10 @@ Date: 2026-09-30
 
 Status: Accepted
 
+Superseded by: [ADR 0008](0008-scope-regression-checks.md) only for automatic
+execution of historical compatibility tests. Retirement and source retention
+remain in force.
+
 ## Context and Problem Statement
 
 The user retired Linear Workflow from active use. Its planning and delivery

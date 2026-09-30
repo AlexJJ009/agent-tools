@@ -35,6 +35,40 @@ in the calling test; no runtime implementation is embedded here:
 
 `tests/test_task_runtime_cases.py` proves positive controls and injected broken
 results are distinguished, including lost requirements, stale validity, omitted
-constraints, repeated append, wrong deletion and refusing all cleanup. It does
-not yet prove runtime integration or real Agent usability, and cannot establish
+constraints, repeated append, wrong deletion and refusing all cleanup. Runtime integration is exercised separately in `tests/test_task_store.py`.
+Fixture-only checks do not prove real Agent usability, and cannot establish
 GPU training, remote recovery, native Hook delivery or model benefit.
+
+## Initial execution (2026-09-30)
+
+The runtime tests exercise H02–H04 state/query mechanisms. H01/H05 fixture tests
+exercise CPU behavior and the records-to-test-fixture migration with negative
+controls. They are not five native model implementation trials.
+
+An independent Cleaner agent also used an isolated copy of this repository,
+its current Cleaner instructions and real runtime calls: two owned disposable
+materials were removed at closeout; project documents, a user untracked file,
+another task and a second worktree remained unchanged. Acceptance of that
+fixture task was simulated, not the user's acceptance of this MVP. An unsupported
+installation claim in a disposable report was not promoted into project docs.
+
+A serial H03 native comparison used gpt-6-astra, medium effort, with equal task
+state in JSON (A) versus the runtime interface (B), ordered A/B/B/A. Independent
+review found all four answers preserved both pending criteria, exclusions and
+the CPU-tests-before-implementation next step without inventing user acceptance.
+Recorded durations were 47.89/49.64/57.78/42.87 seconds. This is no evidence of
+an accuracy or token-efficiency advantage. The earlier unequal-information
+pilot was excluded.
+
+Limitations: B2's recorded task-read output was empty despite exit 0, so its
+answer does not establish successful retrieval from that trace. B2 and B3 had
+different task_store.py hashes due to write-request validation changes during
+the run; read behavior was unchanged, but the candidate was not fully frozen.
+These are exploratory interface observations, not a controlled efficacy result.
+The committed runner records hashes, separates mechanical checks from semantic
+review, and has subsequently hardened setup failure and Git/child isolation;
+those harness changes have offline regression checks, not a new model trial.
+
+Raw traces and protected-file snapshots are local evaluation data outside Git,
+under the evaluation output directory. Future runs must freeze candidate bytes,
+inspect successful read outputs and review answer semantics before comparing.

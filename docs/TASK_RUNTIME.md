@@ -386,3 +386,22 @@ Deterministic tests establish software behavior in their fixtures. Simplified
 historical cases establish only those cases, and recorded external checks remain
 external observations. These results do not establish model-performance gains,
 production/GPU behavior, native Hook execution or installation on another host.
+
+## Repeatable evaluation
+
+Run deterministic checks with `python3 -m unittest discover -s tests -v`.
+The reduced H01–H05 cases and negative controls live under
+`tests/fixtures/task_runtime/`; they avoid the original server workspaces.
+
+For an explicitly budgeted native H03 comparison, run
+`python3 scripts/evaluate_task_runtime.py --native --output /absolute/new/eval-directory`.
+This uses the local Codex auth/provider configuration in temporary isolated
+profiles, four serial A/B/B/A runs with a 180-second limit each, and records
+answers, commands, trajectories, tool hashes and usage outside the checkout.
+A reads equivalent current state from JSON; B reads it through the runtime.
+No native hooks are installed. Copied auth/config files are removed on normal
+exit and handled failures; an uncatchable process or host failure still requires
+removing the private evaluation profiles before sharing output. Never publish
+uninspected raw traces. The mechanical verdict does not judge the meaning of
+`next_step`: independent review must check CPU tests precede implementation.
+This probes cold recovery, not implementation quality or general model benefit.

@@ -74,6 +74,31 @@ checklist just to record this activity.
 - Follow existing project retention and documentation conventions. Maintain
   useful information in existing code, tests, usage documentation or a necessary
   ADR. No durable information means no new document is needed.
+- Always preserve the latest finalized survey document for each subject in the
+  owning project's scope. Identify finality from its content and delivery/version
+  evidence, not modification time or a filename; keep the last final while a new
+  draft is unfinished. Survey documents are learning deliverables even when
+  stored under report paths. Do not copy, move or delete another project's survey.
+  Superseded versions may be retired only after preserving unique citations,
+  annotations and evidence needed by the retained version.
+- Assess the survey itself and its cited learning materials separately for Zotero
+  retention. Record the decision briefly in existing task state; do not require
+  another checklist or catalog. ReadPapers owns library lookup/import and deduplication;
+  a cleanup request does not authorize those operations. A library handoff does
+  not replace preserving the project's latest survey. Keep the only source or
+  attachment until any selected transfer is confirmed. Prefer original URL/DOI
+  and version/locator references over duplicate downloads where sufficient.
+- Lack of learning value is not deletion authority. Preserve code, required test
+  inputs, licenses, ADRs, current project docs, user-retained material, unresolved
+  delivery/recovery state and irreplaceable evidence. Reconcile stale status with
+  actual receipts and consumers; a pending label alone neither proves active work
+  nor permits deletion. Unknown ownership, active references or unverified
+  replacement/transfer mean preserve until resolved.
+  If inspection cannot resolve a material deletion decision, ask the user with
+  the exact candidates, what is uncertain, likely impact and a recommended
+  keep/archive/delete disposition. Batch related questions; retain those items
+  until answered while continuing clear, authorized cleanup. Do not ask again
+  for decisions already covered by the user's instructions.
 - Inspect known references and actual script dependencies before retiring
   process material. Move lasting test inputs into project fixtures and verify
   the consumers; tests must not depend on records scheduled for deletion.

@@ -4,6 +4,10 @@ Date: 2026-09-30
 
 Status: Accepted
 
+Superseded by: [ADR 0005](0005-scoped-process-material-retirement.md) only for
+the runtime-owned-only deletion boundary. Application
+storage, task identity and scoped acceptance decisions remain in force.
+
 Supersedes: [ADR 0001](0001-local-development-records.md) only for Task Runtime's
 authoritative state and managed artifacts. Its rules for other private local
 records and maintained system documentation remain in force.

@@ -22,3 +22,4 @@ not from creating an ADR. A small change need not create or rewrite any ADR.
 - [Current delivery scope for teaching validation](0002-current-delivery-validation.md)
 - [One reader-facing writing contract](0003-reader-facing-writing.md)
 - [Task Runtime application storage and owned-artifact closeout](0004-task-runtime-application-storage.md)
+- [Scoped process-material retirement](0005-scoped-process-material-retirement.md)

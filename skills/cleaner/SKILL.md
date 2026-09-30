@@ -1,11 +1,11 @@
 ---
 name: cleaner
-description: Clean up coder changes while preserving behavior, module boundaries, maintainability, and handoff clarity; use proportionately before a meaningful stage commit, merge, or delivery, and earlier when patches or alternatives accumulate. Also use for explicit task closeout after scoped user acceptance to maintain durable project information and clean owned process materials. Excludes unrelated repository cleanup and automatic worktree retirement.
+description: Clean up coder changes while preserving behavior, module boundaries, maintainability, and handoff clarity; use proportionately before a meaningful stage commit, merge, or delivery, and earlier when patches or alternatives accumulate. Also use for authorized process-material retirement during active work and task closeout after scoped user acceptance. Excludes unrelated repository cleanup and automatic worktree retirement.
 ---
 
 # Cleaner
 
-Choose the applicable activity: a code cleanup pass, or task closeout. Neither activity implicitly requests the other. For task closeout, use the dedicated section below; do not add formatter, lint, code-style or wider engineering work.
+Choose the applicable activity: code cleanup, process-material retirement, or task closeout. One activity does not authorize the others. For material retirement and closeout, use the sections below without adding unrelated code cleanup.
 
 Use a code cleanup pass after coding work when the changed area needs a maintainability pass. The cleaner owns behavior-preserving cleanup of the current diff and directly related code. It does not own new features, changed methods, changed scoring policy, changed experiment semantics, or wider refactors.
 
@@ -54,17 +54,18 @@ no-change rationale, or a concrete out-of-scope concern; do not enlarge the task
 to manufacture cleanup. Record any needed notes in the existing local task or
 conversation, retaining user criteria and actual human acceptance.
 
-## Task closeout
+## Process-material review
 
-Use this activity only when the user has accepted the relevant results and the
-completion scope is clear. Stop events, a chat ending, successful tests, a report
-filename, and Agent self-assessment are not user acceptance. Partial acceptance
-updates only the accepted criteria; it does not close the whole task.
+Review materials when authorized cleanup is useful, including during active
+work. Reuse existing scoped user authorization; do not wait for whole-task
+acceptance or ask again for an already decided disposition. Task closeout has
+separate acceptance requirements below. Git ignored/untracked status is a
+technical prerequisite for external-file cleanup, not semantic permission.
 
 Read the same task through `agent-workflow task read` and `task checklist`.
 Consult `agent-workflow task --help` and the selected command's help for CLI
 options; consult the runtime's `docs/TASK_RUNTIME.md` for JSON packet fields.
-Use `python -m agent_workflow.cli task` when running from the source checkout.
+Use `python3 -m agent_workflow.cli task` when running from the source checkout.
 Queries default to stdout. Do not create a closeout report, index or second
 checklist just to record this activity.
 
@@ -102,6 +103,39 @@ checklist just to record this activity.
 - Inspect known references and actual script dependencies before retiring
   process material. Move lasting test inputs into project fixtures and verify
   the consumers; tests must not depend on records scheduled for deletion.
+
+## Retire reviewed materials
+
+- For runtime-owned artifacts on an open task, use `task retire --input PATH`
+  with the usual task/operation/base-revision envelope plus exact logical
+  `names` and a `rationale`. It preserves task state; every result reference,
+  including withdrawn criteria, and every user-preserved artifact blocks
+  retirement. Closed non-retained tasks use `task prune`.
+- For reviewed legacy process outputs, caches and obsolete state outside the
+  artifact store, use `task process-cleanup --input PATH`. The guide defines
+  the packet: explicit workspace, task/operation identity, actual authorization
+  quote/source, reviewed process roots and exact file paths, hashes, categories
+  and `archive`/`delete` dispositions. Keep protected material out of the packet.
+  The tool accepts only ignored, untracked regular files; it does not discover
+  candidates, recurse through directories or decide whether content is obsolete.
+- This separate cleanup journal does not close or revise the SQLite task.
+  Recover by replaying the unchanged packet; inspect with
+  `task process-cleanup-status --task TASK_ID --operation OP`. Before commit,
+  `task process-cleanup-abort --task TASK_ID --operation OP` restores quarantine.
+  Do not use the SQLite operation's `task abort` for this journal.
+- Archive copies are hash-verified before originals enter local quarantine.
+  Cross-filesystem work is recoverable, not one atomic move. Check the returned
+  state before reporting completion. There is no timer, TTL or automatic archive
+  deletion: archives still occupy storage and must not be described as no
+  accumulation. Do not retire old archives without separately authorized scope.
+
+## Task closeout
+
+Use closeout only after scoped user acceptance and a clear completion scope.
+Stop events, an ended chat, passing tests and Agent self-assessment do not supply
+acceptance. Partial acceptance does not close the whole task. Apply the material
+review and protection rules above first.
+
 - Recheck behavior affected by closeout edits before submitting closeout.
   Recording a new `task result` resets that criterion's acceptance to pending.
   Equivalent fixture relocation or documentation maintenance can leave original
@@ -113,7 +147,8 @@ checklist just to record this activity.
   feedback cannot approve that change.
 - Submit exact artifact dispositions to `task closeout`: `keep` or `delete` for every owned artifact. Project handoff is a normal
   project edit/copy followed by verification, before disposing of the managed
-  copy; the MVP has no external-file adoption or handoff disposition. The
+  copy. External process files use the separate reviewed cleanup operation;
+  closeout does not adopt them. The
   runtime checks ownership, revision, references, paths and content. A report
   is eligible process material, but never delete a report still awaiting this
   turn's delivery or a user-retained file. Project documents and other tasks'

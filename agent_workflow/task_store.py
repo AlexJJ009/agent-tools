@@ -452,13 +452,16 @@ class Store:
         elif action == 'artifact-policy':
             require(q.get('name') in task['artifacts'] and type(q.get('preserve')) is bool and q.get('quote') and q.get('source_ref'), 'invalid_input', 'explicit user retention instruction required')
             task['artifacts'][q['name']]['preserve'] = q['preserve']
-        elif action == 'prune':
-            require(task['state'] == 'closed' and not task['retained'], 'invalid_state', 'prune is for closed, non-retained task artifacts')
+        elif action in ('prune', 'retire'):
+            if action == 'prune':
+                require(task['state'] == 'closed' and not task['retained'], 'invalid_state', 'prune is for closed, non-retained task artifacts')
             require(q.get('rationale') and q.get('names'), 'invalid_input', 'explicit artifact names and rationale required')
             for name in q['names']:
                 require(name in task['artifacts'], 'not_found', 'artifact not found')
                 a = task['artifacts'][name]
                 require(not a.get('preserve'), 'cleanup_blocked', 'release user retention before deletion')
+                require(not any(name in (c.get('result') or {}).get('evidence', []) for c in task['criteria']),
+                        'cleanup_blocked', 'artifact is referenced by a result')
                 deletes.append(a)
             task['artifacts'] = {n: a for n, a in task['artifacts'].items() if n not in q['names']}
         elif action == 'forget':

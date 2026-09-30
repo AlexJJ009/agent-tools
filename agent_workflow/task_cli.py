@@ -5,23 +5,24 @@ import json
 from pathlib import Path
 import sqlite3
 import sys
-from .task_store import Store, TaskError, fingerprint, workspace_info
+from .task_store import Store, TaskError, fingerprint, workspace_info, require
+from .process_cleanup import run_cleanup, read_cleanup, abort_cleanup, workspace_info as cleanup_workspace_info
 
 ACTIONS = ('create', 'revise', 'result', 'submit', 'feedback', 'artifact', 'bind',
-           'rebind', 'closeout', 'reopen', 'import', 'forget', 'prune', 'artifact-policy')
+           'rebind', 'closeout', 'reopen', 'import', 'forget', 'prune', 'artifact-policy', 'retire')
 
 
 def parser():
     p = argparse.ArgumentParser(description=__doc__)
     commands = p.add_subparsers(dest='action', required=True)
-    for name in (*ACTIONS, 'list', 'read', 'checklist', 'resolve', 'recover', 'fingerprint', 'artifact-read', 'location', 'abort'):
+    for name in (*ACTIONS, 'list', 'read', 'checklist', 'resolve', 'recover', 'fingerprint', 'artifact-read', 'location', 'abort', 'process-cleanup', 'process-cleanup-status', 'process-cleanup-abort'):
         c = commands.add_parser(name)
         c.add_argument('--data-root', type=Path, help='absolute application data directory; overrides user config')
-        if name in ACTIONS:
+        if name in ACTIONS or name == 'process-cleanup':
             c.add_argument('--input', required=True, type=Path, help='JSON operation packet; see docs/TASK_RUNTIME.md')
         if name in ('read', 'checklist', 'artifact-read'):
             c.add_argument('--task', required=True)
-        if name == 'abort':
+        if name in ('abort', 'process-cleanup-status', 'process-cleanup-abort'):
             c.add_argument('--task', required=True)
             c.add_argument('--operation', required=True)
         if name == 'recover':
@@ -67,6 +68,25 @@ def main(argv=None):
         store = Store(args.data_root)
         if args.action in ACTIONS:
             output = store.mutate(args.action, json.loads(args.input.read_text()))
+        elif args.action == 'process-cleanup':
+            request = json.loads(args.input.read_text())
+            require(isinstance(request, dict), 'invalid_input', 'request must be an object')
+            # A journal is a separate file operation, never an implicit closeout.
+            try:
+                read_cleanup(store.root, request['task_id'], request['operation_id'])
+            except TaskError as exc:
+                if exc.code != 'operation_missing':
+                    raise
+                task = store.read(request['task_id'])
+                require(cleanup_workspace_info(request['workspace']) == task['workspace'],
+                        'workspace_mismatch', 'cleanup must use the task current workspace')
+            # An existing journal keeps its original workspace after task rebind.
+            # run_cleanup checks the full request hash and recorded Git identity.
+            output = run_cleanup(store.root, request)
+        elif args.action == 'process-cleanup-status':
+            output = read_cleanup(store.root, args.task, args.operation)
+        elif args.action == 'process-cleanup-abort':
+            output = abort_cleanup(store.root, args.task, args.operation)
         elif args.action == 'list':
             output = store.list(args.workspace)
         elif args.action == 'read':

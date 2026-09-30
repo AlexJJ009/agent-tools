@@ -1,81 +1,75 @@
-# Keep Task Runtime State in Local Application Storage
+# Keep Task State and Process Materials in Local Application Storage
 
 Date: 2026-09-30
 
 Status: Accepted
 
-Superseded by: [ADR 0005](0005-scoped-process-material-retirement.md) only for
-the runtime-owned-only deletion boundary. Application
-storage, task identity and scoped acceptance decisions remain in force.
-
-Supersedes: [ADR 0001](0001-local-development-records.md) only for Task Runtime's
-authoritative state and managed artifacts. Its rules for other private local
-records and maintained system documentation remain in force.
+Consolidated on 2026-09-30 from records 0001, 0004 and 0005. Earlier rationale
+and the original runtime-owned-only deletion boundary remain in Git history;
+this consolidation preserves the adopted behavior, not a new runtime change.
 
 ## Context and Problem Statement
 
-ADR 0001 kept development records under ignored worktree-local paths and
-deliberately avoided another progress database. Task Runtime now provides a
-task identity independent of a conversation or working directory, with current
-requirements, criterion results and scoped user feedback. These records must
-survive replacement of the runtime installation and an explicit workspace
-rebind without creating competing writable copies in each project.
-
-Task-owned process files also need explicit ownership and retention decisions.
-A filename, passing test or ended conversation does not establish permission
-to delete a file or evidence of user acceptance.
+Worktree-local plans and reports mixed task recovery with maintained project
+knowledge. A task can span conversations and working directories; duplicating
+its current requirements in each checkout creates competing authorities.
+Reinstalling software must not erase task state. Obsolete process materials can
+also accumulate before the business task is accepted, so material retirement
+cannot depend on closing the whole task.
 
 ## Considered Options
 
-- The worktree-local record arrangement adopted in ADR 0001.
-- The application-data store implemented by Task Runtime, with explicit import
-  of selected legacy records.
+- Keep authoritative task records in each worktree's ignored local directory.
+- Keep task state in local application storage, initially deleting only its
+  registered artifacts.
+- Extend that store with explicitly scoped retirement of reviewed external
+  process materials, separately from task completion.
 
-These describe the previous and current adopted arrangements. This record does
-not reconstruct an undocumented evaluation of other storage technologies.
+These describe the adopted evolution, not an evaluation of undocumented storage
+technologies or a requirement to migrate all legacy records.
 
 ## Decision Outcome
 
-Keep one authoritative Task Runtime record in a configured local application
-data root, separate from installed software and project checkouts. SQLite holds
-task state and operation metadata; runtime-assigned paths hold registered
-artifacts. The [Task Runtime guide](../TASK_RUNTIME.md) owns the current path
-precedence, command packets and recovery procedures.
+Use one local application-data store, separate from installed software and
+project checkouts. SQLite holds task state and operation metadata; managed paths
+hold task artifacts. Stable task and criterion IDs, revision checks and
+idempotent requests support continuation across conversations and explicit
+workspace rebinds. There is no cross-machine synchronization. Keep observations,
+their validity for current inputs and scoped user acceptance distinct.
 
-Use stable task and criterion IDs, revision checks and idempotent operation
-requests to continue work across conversations. Keep observed verification,
-its validity for current inputs and scoped user acceptance distinct. The Agent
-supplies semantic requirements and reports external checks; storing a report
-does not prove that the runtime executed or evaluated the check.
+The Agent and Cleaner own semantic requirements, retention and authorization
+judgments. Runtime enforces declared scope and recoverable operations; neither a
+passing test, filename, ignore rule nor elapsed time supplies deletion authority.
+Task closeout requires scoped user acceptance and reviewed artifact dispositions.
+Separately authorized material retirement may proceed while a task stays open.
+Project documents, latest finalized surveys, required fixtures and unresolved
+recovery evidence remain protected; uncertainty about disposition requires
+clarification. This does not authorize automatic worktree retirement.
 
-Closeout requires explicit scoped user acceptance, current evidence and a
-reviewed disposition for every registered artifact. Finish project edits,
-verification and applicable feedback recording before closeout. File publication
-and cleanup use recoverable operations because the database and filesystem do
-not share a transaction. Only runtime-owned paths enter its deletion set;
-project documents, unknown files and worktrees remain outside that set.
+Database and filesystem operations do not share an atomic transaction. Keep
+external process cleanup in a recoverable journal, with exact reviewed paths and
+content verification. Expose compact task receipts and journal metadata through
+one history/recovery interface. Distinguish database commit from completed
+physical cleanup; pending cleanup blocks closeout and forget. Application
+archives have their own explicit retirement scope, not automatic expiry.
 
-Existing explicit legacy records remain usable. Import is deliberate, assigns
-a new runtime task ID and starts with unverified criteria and pending
-acceptance. Installation and ordinary startup do not migrate or delete those
-records. Avoid concurrent writable authorities for the same task.
+Existing legacy records remain valid; import is deliberate and does not inherit
+verification or acceptance. Private material outside Task Runtime may remain in
+ignored local paths. Maintain durable usage in project guides and significant
+rationale in ADRs, without copying task reports or making them product inputs.
+The [system documentation index](../README.md) owns documentation placement; the
+[Task Runtime guide](../TASK_RUNTIME.md) owns paths, commands and recovery rules.
 
 ### Consequences
 
-- Tasks can continue across conversations on one machine without treating a
-  branch name, chat ID or current directory as their identity. This does not
-  synchronize task state between machines.
-- The application data root needs its own retention and backup decisions;
-  replacing software or checking out Git does not restore that data.
-- Closeout can discard full task content by default while retaining a small
-  closed-task record and explicitly kept artifacts. Reopening requires explicit
-  full-task retention; keeping one report alone is insufficient.
-- Interrupted file operations require recovery or an applicable abort. A
-  committed database record does not by itself establish completed cleanup.
-- SQLite schema compatibility, platform support and installation evidence
-  remain bounded by the current implementation and guide. This decision does
-  not establish plugin packaging, native Hook execution or another host's
-  installation readiness.
-- Private development material outside Task Runtime still uses the ignored
-  local paths from ADR 0001. Shared documentation continues to describe current
-  usage and architectural rationale rather than private progress snapshots.
+- A task's identity survives a conversation or worktree change, but Git and
+  software reinstallations do not back up its application data.
+- The separate cleanup journal preserves recoverability without claiming a
+  cross-filesystem transaction. Consumers must read completion state; explicit
+  task forgetting does not erase independently retained process journals.
+- Cleanup can remove obsolete process material without claiming business
+  acceptance. Archives still require review and authorization to retire.
+- Shared source contains current interfaces, reusable tests and design rationale;
+  private progress does not become another maintained documentation set.
+- These storage and ownership decisions do not prove native Hook execution,
+  remote installation readiness or plugin packaging.

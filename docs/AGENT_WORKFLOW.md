@@ -45,6 +45,11 @@ Create a legacy record only for an explicitly requested legacy scenario contract
 
 The installer copies the runtime to `~/.local/share/agent-workflow`, creates the launcher `~/.local/bin/agent-workflow`, and installs the five skills to `~/.agents/skills/`. It runs `scripts/codex_target_guard.py` before any write, rejects unmanaged collisions, and does not edit Codex config, auth, CC Switch databases, history, or existing conversations. `--check` is read-only and verifies installed files against the repository source.
 
+Agent Workflow and Work Report package installers keep unchanged managed copies
+and retire their verified old package copies only after successful readback.
+Changed or unrecognized copies remain for review; failed publication rolls back.
+This does not remove task data, Hook backups or unrelated application backups.
+
 Use `main` as the deployment source after reviewed development branches are merged.
 Installation does not bind to a branch name or fixed commit. Legacy task records bind
 formal-run approval to the task repository's current commit: a merge or squash

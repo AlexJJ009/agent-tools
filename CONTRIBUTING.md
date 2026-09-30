@@ -6,19 +6,14 @@ running its historical internals on every PR.
 
 ## Reconcile documentation before delivery
 
-Before merging or handing off a meaningful change, compare the resulting behavior
-with affected system guides and accepted [ADRs](docs/decisions/README.md). Update
-usage in its owning guide. For a substantive change to an accepted decision,
-add a successor ADR and reciprocal, explicitly scoped supersession links;
-preserve the original rationale. Record a newly adopted significant decision
-when no existing ADR covers it. Follow the project's MADR format.
-
-State the ADR impact briefly in the existing PR description or closing response,
-including when no decision changed. Do not create another checklist, report or
-ADR for routine repairs, test counts or machine reinstallation. The Agent owns
-this semantic comparison; Task Runtime and Hooks do not automatically infer or
-write architectural decisions. Reuse existing authorization and do not treat
-an ADR edit as a new approval gate.
+Update affected usage in its owning guide. Consult [ADRs](docs/decisions/README.md)
+when changing a durable architectural choice: state ownership, component
+responsibilities, cross-component contracts or a costly-to-reverse dependency.
+Routine fixes, test/CI maintenance and reinstalls normally need no ADR or
+"no ADR change" declaration. A diff touching an ADR-related component alone is
+not a trigger. When a significant decision changes, explain its rationale and
+trade-offs using the existing project format; do not turn each PR into a record.
+The Agent makes this judgment; runtime and Hooks do not infer decisions.
 
 ## Keep failure coverage, not a fixed test inventory
 

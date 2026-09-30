@@ -444,8 +444,8 @@ quarantine cleanup, and `complete` means that cleanup finished. Journals and
 archive copies live under the data root's `cleanup/<task-id>/<operation-digest>/`,
 separate from SQLite task records. There is no timer, TTL or automatic archive deletion.
 Archives still consume storage; existing archives require an explicitly
-authorized, reviewed cleanup scope. [ADR 0005](decisions/0005-scoped-process-material-retirement.md)
-records this extension's boundary.
+authorized, reviewed cleanup scope. [ADR 0004](decisions/0004-task-runtime-application-storage.md)
+records the storage and retirement boundary.
 
 ## Cleaner task closeout
 

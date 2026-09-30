@@ -11,18 +11,37 @@ It is retained verbatim, with upstream's [license declaration](MADR-LICENSE)
 retain the template's Consequences section. No ADR tool or generated index is
 required.
 
-Use `NNNN-short-title.md` and an English title. Drafts may change. For a
-substantive replacement of an accepted decision, create a successor and link
-both records with `Supersedes`/`Superseded by`; preserve the original rationale.
-Fixing a typo or link needs no successor. Record only actual decisions and
-known alternatives; label unknown history. Authorization comes from the task,
-not from creating an ADR. A small change need not create or rewrite any ADR.
+## When a decision needs a record
 
-- [Local development records and maintained system docs](0001-local-development-records.md)
+Keep an ADR for a durable choice about state ownership, component responsibilities,
+cross-component contracts or a costly-to-reverse dependency. Its rationale and
+trade-offs should help a future maintainer choose safely when code and usage
+instructions alone do not explain why the boundary exists. Importance, not the
+number of PRs or changed files, determines whether a record is needed.
+
+Routine fixes, test cases, CI selection, installation options, cleanup runs and
+release results belong in code, guides or PRs. They need neither an ADR nor a
+mandatory "no ADR change" statement. Such work needs an ADR only if it actually
+changes one of the architectural choices above. Do not create an ADR to enforce
+ADR maintenance.
+
+Use `NNNN-short-title.md` and an English title. For a genuine reversal of an
+accepted architectural choice, retain its rationale and link a successor with
+`Supersedes`/`Superseded by`. Clarifications and operational details do not require
+successors. Redundant records on the same topic may be consolidated: preserve
+material rationale and trade-offs, repair current links, and retain the original
+text in Git history rather than a duplicate archive. Keep surviving identifiers;
+do not renumber records or reuse retired numbers. Authorization comes from the
+task, not from writing an ADR. Record actual decisions, not invented alternatives.
+
+## Current records
+
 - [Current delivery scope for teaching validation](0002-current-delivery-validation.md)
 - [One reader-facing writing contract](0003-reader-facing-writing.md)
-- [Task Runtime application storage and owned-artifact closeout](0004-task-runtime-application-storage.md)
-- [Scoped process-material retirement](0005-scoped-process-material-retirement.md)
+- [Task state, application storage and process-material retirement](0004-task-runtime-application-storage.md)
 - [Retire Linear Workflow while preserving its source](0006-retire-linear-workflow.md)
-- [Scope installed workflows and retire unused components](0007-scope-installed-workflows.md)
-- [Scope regression checks to maintained consumers](0008-scope-regression-checks.md)
+
+The 2026-09-30 consolidation folded 0001 and 0005 into 0004. Operational content
+from 0007 and 0008 remains in component guides and CONTRIBUTING; the applicable
+legacy/current workflow distinction is retained in 0006. Original records are
+available in Git history before this consolidation, not a second maintained set.

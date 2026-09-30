@@ -36,12 +36,12 @@ Keep each detailed fact in one maintained source and link to it from the entry
 points. A component guide's ordinary edit does not require rewriting both
 README files. Keep release/deployment claims tied to actual verification;
 source implementation and historical acceptance do not establish installation
-on another host. This division clarifies [ADR 0001](decisions/0001-local-development-records.md)
-and does not create a new document pack or ADR for every documentation edit.
+on another host. This division does not create a new document pack or ADR for every
+documentation edit.
 
 Task Runtime stores its state and managed artifacts in the configured application
 data root; see its guide above and [ADR 0004](decisions/0004-task-runtime-application-storage.md).
-That decision supersedes ADR 0001's storage rule only for Task Runtime.
+That decision also records the boundary for scoped process-material retirement.
 Existing explicit local records remain valid.
 Private development material outside that runtime belongs in ignored `docs/_local/`,
 created only when needed: `tasks/<task-id>/`, `reports/<task-id>/`, or `scratch/<task-id>/`.

@@ -1,10 +1,10 @@
 {
   "schema_version": "skill-suite-design/1",
-  "status": "design_only_unapproved",
+  "status": "authorized_pilot",
   "source_revision": "168906a4e4471a814a15a3a851cebcc6093c4005",
   "invoked_skill": ".agents/skills/build-eval/SKILL.md",
-  "scope": "BuildEval Step 0/1 的候选设计；未运行模型、未评分、未优化任何skill。评分方法仅供审阅。",
-  "dataset_status": "synthesized_from_contract/unapproved",
+  "scope": "用户授权一次隔离试跑；修复评测设施问题后继续。评分以程序检查和模型Judge为主，不请求用户标签，不优化被测skill。",
+  "dataset_status": "synthesized_from_contract/authorized_pilot",
   "flows": [
     {
       "id": "workflow",
@@ -27,7 +27,7 @@
       "first_pilot_recommendation": false
     }
   ],
-  "no_suite_total": "各flow单独批准和执行，不加权生成agent-tools总分。一个case只指定一个主要诊断维度，其他检查是约束。",
+  "no_suite_total": "分别呈现各flow与逐题结果；不将合成小题成功率解释为agent-tools整体能力或Agentic RL效果。",
   "dimensions": [
     {
       "id": "W1",
@@ -289,15 +289,15 @@
     {
       "id": "W6",
       "flow": "workflow",
-      "name": "授权内查清根因并修复",
+      "name": "自主发现有价值的清理项",
       "source": {
-        "path": "skills/intent-to-contract/SKILL.md",
-        "line": 10
+        "path": "skills/cleaner/SKILL.md",
+        "line": 22
       },
-      "observable": "主动沿当前症状检查相关调用链并修复根因，完成可验证结果",
-      "counterexample": "只改报错文字；或顺手重写无关模块",
-      "grading": "隐藏边界输入的端到端结果 + 实际diff范围 + 语义审阅",
-      "limitation": "先隔离模拟本地故障，不代表PHAl/ReadPapers真实事故已复现",
+      "observable": "检查当前代码引用和材料用途，清掉重复实现与已替代试验，保留活跃依赖及去留未决内容",
+      "counterexample": "什么也不清、只列建议等催促，或按scratch目录名全删",
+      "grading": "文件/符号处置、受保护内容哈希、行为测试及语义评分",
+      "limitation": "固定合成小仓库的清理发现能力；不能代表真实大仓库、运行时托管产物清理或根因bug修复",
       "candidate_case_ids": [
         "C05"
       ],
@@ -393,7 +393,7 @@
     }
   ],
   "entrypoint_plan": {
-    "actual_entry": "Codex CLI原生新会话 + 被测项目/用户指令和实际skill发现；现有runtime入口保留，不重写同等API。",
+    "actual_entry": "Codex CLI原生新会话，隔离工具工作区内注入目标skill及必要依赖；本轮为显式加载内容效果试跑，不声称测试宿主自动发现路径。",
     "execution_adapter": ".agents/skills/build-eval/shared/codex-cli.md",
     "per_trial": "独立(case,rep,variant)临时工作区及runtime数据根；只放prompt和fixture，不放本设计、checks、评审答案或git历史答案。",
     "comparisons": "每次只比较一个明确改变：当前完整环境与移除目标skill，或旧/新skill；其他规则、模型请求、工具和预算一致。全局规则重复覆盖必须记录为归因限制。",
@@ -401,43 +401,20 @@
     "subscription": "复用现有Codex ChatGPT登录；不改持久配置；run数、实际tokens与wall-clock记录，订阅金额/余额不作0。"
   },
   "human_preference_protocol": {
-    "allowed_labels": [
-      "A",
-      "B",
-      "tie",
-      "both_bad",
-      "skip"
-    ],
-    "default": null,
-    "blind": "运行后冻结baseline输出，按固定seed随机A/B顺序；variant映射放评审不可见侧；交换部分位置检查位置偏差。",
-    "record": [
-      "choice",
-      "reason",
-      "applicable_context",
-      "evidence_spans",
-      "assistance_to_reviewer",
-      "timestamp",
-      "reviewer",
-      "output_a_sha256",
-      "output_b_sha256",
-      "source_revision",
-      "case_revision_sha256",
-      "blind_mapping_ref"
-    ],
-    "boundary": "只记录用户实际选择，按场景保存；一次偏好不自动改写全局永久偏好，不自动训练/改skill。",
-    "decision": "行为正确性和偏好分开；双方有错仍允许both_bad，没判断用skip，不将skip折算失败。",
-    "mapping_storage": "blind_mapping_ref只指向评审不可见映射；绑定实际A/B输出哈希和题版本，复评/修改输出不得沿用旧标签。当前均null。"
+    "enabled": false,
+    "reason": "本轮用户明确要求直接评分，无需用户标注；关注写作规范是否遵循及是否在正确时机触发。",
+    "legacy_fields": "cases中的user_preference空字段仅用于旧版结构兼容，不参与本轮评分。"
   },
   "grader_calibration_plan": [
-    "每个程序判定先用已知合格输出和故意错误输出验证可红可绿；空输出、错题答案、只宣称成功不能通过。",
-    "人工先审少量实际输出并写理由，再校准模型judge；独立Codex仍有同模型偏好，不能称独立模型验证。",
-    "允许不同正确实现和表达；不锁定工具调用序列、章节标题、固定字数或与示例原文匹配。",
-    "基础设施故障、输出截断、评分器故障单列，不伪装质量0分；失败尝试及用量保留。"
+    "程序检查使用已知合格/错误fixture验证能红能绿；空输出、无实际执行的成功声称不能通过。",
+    "语义与写作规则由独立模型Judge按证据直接评分；无需用户标记。未经过真人校准，不声称准确预测用户喜好。",
+    "允许不同正确实现和表达，不锁固定标题、长度或措辞。",
+    "基础设施、输出截断和评分器错误单列，修复后重跑；不能当成被测能力失败。"
   ],
   "report_plan": {
     "primary": "逐题观察/证据 + 每flow分维度结果，不生成尚不存在的分数。",
     "classification": "正负场景分别报告正确响应和误触发；不靠always refuse/always teach获高分。",
-    "precision_limit": "19个设计样例分4个flow且每维度很少，只适合发现明显问题，不能宣称百分点收益；实际样本/重复数/最小有用提升需用户确定后估计区间。",
+    "precision_limit": "19道合成题分4个flow且每维度很少，本轮各一次只适合发现明显问题；不估计稳定提升区间，不宣称百分点收益。后续统计比较需预设样本与重复数。",
     "holdout": "候选全部已暴露为开发样例，不能再叫未见测试集；正式优化前另收真实场景并按场景家族分组保留未见任务，防近似改写泄漏。"
   },
   "real_learning_outcome_followup": {
@@ -446,14 +423,13 @@
     "causal_limit": "一位用户少量题只能提供个人局部证据；需匹配难度、练习顺序和先前水平，偏好/满意度不等同学习提升。"
   },
   "next_decisions": [
-    "用户提供2–3真实好/坏案例及难点，确认可保留的匿名化材料。",
-    "选一个flow，审核实际输入和反例；明确批准后才形成dataset。",
-    "看少量人工评分实例，批准评分方法，再确定模型、重复数和正式运行范围。"
+    "完成本轮启用skills的基线运行并检查失败证据；无用户标签义务。",
+    "若要归因skill增量，另做同模型同环境、移除目标skill的对照；本次单臂试跑不作增量结论。"
   ],
   "approvals": {
-    "inputs": null,
-    "grading": null,
-    "run": null
+    "inputs": "user_authorized_pilot_with_C05_correction",
+    "grading": "user_requested_direct_scoring_without_labels",
+    "run": "现在就帮我启动这个 evaluation 测一遍，测的时候如果运行不通、有问题，那就修好了再继续测。"
   },
   "results": null,
   "reported_feedback": [
@@ -520,5 +496,9 @@
       "source": "本聊天 2026-09-30 用户异步回复，由主线程逐字转交",
       "status": "reported_not_verified"
     }
-  ]
+  ],
+  "reported_correction": {
+    "C05": "用户指的是授权范围内发现需要清理的东西，不能改写成泛化的关键bug修复。",
+    "grading": "直接评分；写作风格与触发遵循已有规范，本轮不收用户偏好标签。"
+  }
 }

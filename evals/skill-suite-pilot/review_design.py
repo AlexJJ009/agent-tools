@@ -12,7 +12,7 @@ ROOT = HERE.parents[1]
 def validate(design, packet):
     dimensions = {d['id']: d for d in design['dimensions']}
     assert len(dimensions) == len(design['dimensions']), 'duplicate dimension'
-    assert all(v is None for v in design['approvals'].values()), 'draft has approval'
+    assert design['status'] in {'design_only_unapproved', 'authorized_pilot'}, 'unknown design status'
     for d in dimensions.values():
         p = (ROOT / d['source']['path']).resolve()
         assert p.is_relative_to(ROOT) and p.is_file(), d['id']
@@ -23,7 +23,10 @@ def validate(design, packet):
         seen.add(c['id'])
         assert c['primary_dimension'] in dimensions, c['id']
         assert c['flow'] == dimensions[c['primary_dimension']]['flow'], c['id']
-        assert c['approval_status'] == 'unapproved' and c['scores'] is None, c['id']
+        assert c['approval_status'] in {'unapproved', 'authorized_pilot'} and c['scores'] is None, c['id']
+        assert isinstance(c.get('target_skills'), list), c['id']
+        for name in c['target_skills']:
+            assert (ROOT / 'skills' / name / 'SKILL.md').is_file(), (c['id'], name)
         assert c['prompt'].strip() and c['checks'], c['id']
         assert all(x['result'] is None for x in c['checks']), c['id']
         assert c['user_preference']['choice'] is None, c['id']
@@ -48,11 +51,11 @@ def fenced(text, language=''):
 def render(design, packet):
     dimensions = validate(design, packet)
     out = ['# BuildEval 候选题审阅', '',
-           '这是任务与评分设计草案；所有题未批准、未运行、未评分。用户真实反馈用于选题，'
+           '用户已授权隔离试跑并要求直接评分；本文件记录题目而非运行成绩。用户真实反馈用于选题，'
            '场景材料仍是合成改编，不代表已经复现旧问题。', '',
            f"本版有 {len(dimensions)} 个候选维度、{len(packet['cases'])} 道题。"
            '先看哪些任务值得测，再看每题的输入与判定是否一致。没有对应题的维度留待后续。', '',
-           '建议先看 C05（抓根因）、C11（清理与交接）、C18（必要 ADR）、C19（自然触发练习）。'
+           '建议先看 C05（自主发现清理项）、C11（清理与交接）、C18（必要 ADR）、C19（自然触发练习）。'
            'C18 有明确请求及项目约定，不能证明无提醒的主动维护。', '',
            '评分不是强迫某个工具调用顺序；接受达到同样目标的不同正确做法。'
            '学习收益需要真实人的后续表现，不能由文稿质量或偏好选择替代。', '',
@@ -65,21 +68,19 @@ def render(design, packet):
             '不得连同答案一起交给被测 Agent。']
     for c in packet['cases']:
         out += ['', '<details>', f"<summary>{c['id']} · {c['title']}</summary>", '',
-                f"维度：{c['primary_dimension']}；来源：{c['provenance']}；状态：未批准。", '',
+                f"维度：{c['primary_dimension']}；来源：{c['provenance']}；状态：{c['approval_status']}。", '',
+                f"目标技能：{', '.join(c['target_skills']) or 'agent-workflow runtime（非独立skill）'}。", '',
+                c['skill_association']['attribution_limit'], '',
                 '**用户请求**', '', fenced(c['prompt'])]
         if len(c['turns']) > 1:
             out += ['', '**后续轮次（按顺序）**', '', fenced(json.dumps(c['turns'], ensure_ascii=False, indent=2), 'json')]
         out += ['', '**环境材料**', '', c['fixtures']['generation_spec']]
         for path, body in c['fixtures']['files'].items():
             out += ['', f'`{path}`', '', fenced(body)]
-        out += ['', '**拟定判定条件**', '']
+        out += ['', '**实际运行时另行提供的项目规则**', '', fenced('\n'.join(c['execution']['injected_rules']) or '无额外项目规则；加载target_skills及共同写作规范。'), '', '**拟定判定条件**', '']
         out += [f"- {check['criterion']}" for check in c['checks']]
         out += ['', '</details>']
-    out += ['', '## 需要用户判断的部分', '',
-            '这些输入是否代表你在意的任务？哪一题漏掉了关键目标，或判定超出了请求？'
-            '确认题目之后才采集少量真实输出，再单独校准评分。', '',
-            '实际 A/B 产出出现后，标注允许 A / B / 同样好 / 都不好 / 跳过，并记录原因与场景。'
-            '现在没有产出可选，偏好字段保持为空。', '']
+    out += ['', '## 本轮评分范围', '', '文件结果和行为由程序检查；表达、任务边界和触发时机由模型Judge直接判定，不请求用户标记。共享写作规范用于所有题，但不以固定篇幅代替是否符合请求。', '', '这是启用skills的一次试跑；没有无skill对照，不能把通过归因为skill增益，也不能由讲解质量推断真实学习提升。', '']
     return '\n'.join(out)
 
 
@@ -91,4 +92,4 @@ if __name__ == '__main__':
         (HERE / 'REVIEW.md').write_text(text)
     elif sys.argv[1:]:
         raise SystemExit('usage: review_design.py [--write]')
-    print(f"Design checks passed: {len(design['dimensions'])} dimensions, {len(packet['cases'])} unapproved cases")
+    print(f"Design checks passed: {len(design['dimensions'])} dimensions, {len(packet['cases'])} pilot cases")

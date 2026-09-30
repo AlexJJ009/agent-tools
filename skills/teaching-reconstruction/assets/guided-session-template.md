@@ -12,8 +12,10 @@ Replace this paragraph with the target ability and success signal.
 
 ## Teaching Map
 
-The manifest below is the durable local DAG. Keep the learner-facing view to
-the current frontier, one teaching unit, and one check.
+The manifest below is the legacy v1 durable local DAG. Adapt the learner-facing
+scope to the request and feedback; the single unit below is a schema example,
+not a requirement to teach one tiny unit per turn. Complete drafts can precede
+practice, and retention may focus on up to three abilities across the material.
 
 ## Current Frontier
 

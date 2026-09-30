@@ -18,3 +18,11 @@ Use this small `learning-record/1` JSON document for new durable learning in cod
 ```
 
 Use only fields needed for the actual learning task. A source reference must distinguish verified observations from provisional ones and give a recheckable locator. Keep attempts and assistance separate; only observed user behavior supports a learner-state change. A plain short answer needs no durable record. ReadPapers notes may continue to use the v1 envelope where its Zotero and Obsidian fields are meaningful.
+
+For authorized later review, follow the sibling `retrieval-practice` skill's
+`references/review-follow-through.md`. Reuse `learner_state.observed_attempts`,
+`learning_checks`, and the existing owning queue rather than duplicating answers
+in several stores. Keep material review and reading progress separate from
+attempt results; a complete document may have no observed attempts. Additional
+follow-up fields are optional conventions, not a new runtime-validated schema
+or automatic scheduler. Do not retrofit them into frozen v1 manifests.

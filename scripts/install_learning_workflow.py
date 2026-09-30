@@ -27,6 +27,7 @@ if str(ROOT) not in sys.path:
 SKILLS = (
     "teaching-reconstruction", "teaching-dag-builder", "evidence-anchor",
     "retrieval-practice", "learning-artifact-compiler", "academic-writing", "task-routing",
+    "knowledge-deposition-doc",
 )
 OLD_SKILLS = SKILLS[:5]
 EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop")
@@ -86,8 +87,10 @@ def source_files() -> list[tuple[Path, Path]]:
 def link_plan(home: Path, bundle: Path, read_papers_root: Path | None) -> dict[Path, Path]:
     links = {home / ".local/bin/learning-workflow": bundle / "bin/learning-workflow"}
     for name in SKILLS:
-        for base in (home / ".agents/skills",):
-            links[base / name] = bundle / "skills" / name
+        # Keep the legacy name at its existing Codex discovery location so
+        # migration replaces one entry rather than loading both owners.
+        base = home / (".codex/skills" if name == "knowledge-deposition-doc" else ".agents/skills")
+        links[base / name] = bundle / "skills" / name
     if read_papers_root is not None:
         if not read_papers_root.is_dir():
             raise InstallError(f"ReadPapers project does not exist: {read_papers_root}")
@@ -167,15 +170,25 @@ def restore_project_bridge(bridge: dict[str, Any]) -> None:
     path.symlink_to(bridge["previous_target"], target_is_directory=True)
 
 
-def legacy_target(path: Path, home: Path, legacy_root: Path | None) -> bool:
+def legacy_target(path: Path, home: Path, legacy_root: Path | None,
+                  legacy_knowledge_source: Path | None = None) -> bool:
     if not path.is_symlink():
         return False
+    if path == home / ".codex/skills/knowledge-deposition-doc":
+        return (legacy_knowledge_source is not None
+                and path.resolve(strict=False) == legacy_knowledge_source.resolve(strict=False))
     name = path.name
     if name not in OLD_SKILLS or legacy_root is None:
         return False
     if path.parent != home / ".agents/skills":
         return False
     return path.resolve(strict=False) == (legacy_root / "skills" / name).resolve(strict=False)
+
+
+def check_knowledge_alias_location(home: Path) -> None:
+    duplicate = home / ".agents/skills/knowledge-deposition-doc"
+    if duplicate.exists() or duplicate.is_symlink():
+        raise InstallError(f"duplicate knowledge-deposition-doc entry preserved; resolve the duplicate: {duplicate}")
 
 
 def managed_group(event: str, bundle: Path, home: Path) -> dict[str, Any]:
@@ -328,8 +341,10 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
             legacy_read_paper_dir: Path | None = None,
             legacy_global_read_paper_source: Path | None = None,
             legacy_project_skills_source: Path | None = None,
+            legacy_knowledge_source: Path | None = None,
             with_hooks: bool) -> dict[str, Any]:
     guard = target_guard(home)
+    check_knowledge_alias_location(home)
     sources = source_files()
     bundle = home / ".local/share/agent-tools/learning-workflow"
     state = home / ".local/state/learning-workflow/install.json"
@@ -373,7 +388,7 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
         if path.is_symlink() and path.resolve(strict=False) == target:
             raise InstallError(f"untracked candidate link exists: {path}")
         if path.exists() or path.is_symlink():
-            if legacy_target(path, home, legacy_root):
+            if legacy_target(path, home, legacy_root, legacy_knowledge_source):
                 previous[str(path)] = {"kind": "symlink", "target": os.readlink(path)}
             elif (legacy_read_paper_dir is not None and path == legacy_read_paper_dir
                   and read_papers_root is not None and path.name == "read-paper"
@@ -495,6 +510,8 @@ def installed_manifest(home: Path) -> tuple[Path, dict[str, Any]]:
 def check(home: Path) -> dict[str, Any]:
     guard = target_guard(home)
     _, manifest = installed_manifest(home)
+    if str(home / ".codex/skills/knowledge-deposition-doc") in manifest["links"]:
+        check_knowledge_alias_location(home)
     bundle = Path(manifest["bundle"])
     if not bundle.is_dir() or digest(bundle) != manifest["bundle_digest"]:
         raise InstallError("installed bundle is missing or changed")
@@ -603,6 +620,8 @@ def main(argv: list[str] | None = None) -> int:
     mode.add_argument("--check", action="store_true")
     mode.add_argument("--rollback", action="store_true")
     parser.add_argument("--legacy-root", type=Path, help="exact old teaching suite checkout whose five skill links may be replaced")
+    parser.add_argument("--legacy-knowledge-source", type=Path,
+                        help="exact Agent Core knowledge-deposition-doc source of the Codex symlink to replace")
     parser.add_argument("--read-papers-root", type=Path, help="explicit local ReadPapers project for its read-paper adapter")
     parser.add_argument("--legacy-read-paper-dir", type=Path,
                         help="exact existing ReadPapers read-paper skill directory to back up and replace")
@@ -622,6 +641,7 @@ def main(argv: list[str] | None = None) -> int:
             report = rollback(home)
         else:
             report = install(home, legacy_root=args.legacy_root.resolve() if args.legacy_root else None,
+                             legacy_knowledge_source=args.legacy_knowledge_source.resolve() if args.legacy_knowledge_source else None,
                              read_papers_root=args.read_papers_root.resolve() if args.read_papers_root else None,
                              legacy_read_paper_dir=args.legacy_read_paper_dir.resolve() if args.legacy_read_paper_dir else None,
                              legacy_global_read_paper_source=args.legacy_global_read_paper_source.resolve() if args.legacy_global_read_paper_source else None,

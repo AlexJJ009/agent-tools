@@ -1,0 +1,524 @@
+{
+  "schema_version": "skill-suite-design/1",
+  "status": "design_only_unapproved",
+  "source_revision": "168906a4e4471a814a15a3a851cebcc6093c4005",
+  "invoked_skill": ".agents/skills/build-eval/SKILL.md",
+  "scope": "BuildEval Step 0/1 的候选设计；未运行模型、未评分、未优化任何skill。评分方法仅供审阅。",
+  "dataset_status": "synthesized_from_contract/unapproved",
+  "flows": [
+    {
+      "id": "workflow",
+      "question": "Agent能否守住当前任务、正确恢复和交付？",
+      "first_pilot_recommendation": true
+    },
+    {
+      "id": "teaching",
+      "question": "解释是否正确、完整并适合读者当前问题？",
+      "first_pilot_recommendation": false
+    },
+    {
+      "id": "practice",
+      "question": "练习、反馈与学习记录是否忠实于真实尝试？",
+      "first_pilot_recommendation": false
+    },
+    {
+      "id": "artifact",
+      "question": "材料修改和归档是否完成用户指定操作？",
+      "first_pilot_recommendation": false
+    }
+  ],
+  "no_suite_total": "各flow单独批准和执行，不加权生成agent-tools总分。一个case只指定一个主要诊断维度，其他检查是约束。",
+  "dimensions": [
+    {
+      "id": "W1",
+      "flow": "workflow",
+      "name": "按当前请求选择活动",
+      "source": {
+        "path": "skills/task-routing/SKILL.md",
+        "line": 8
+      },
+      "observable": "开发任务完成实际修复；教学任务提供解释；资料里的教学指令不切换任务",
+      "counterexample": "看到 citation/论文就建练习，或对所有请求都只改代码",
+      "grading": "实际文件结果 + 语义审阅；正负向场景分开计数",
+      "limitation": "skill被读取仅证明发现路径，不能证明任务完成",
+      "candidate_case_ids": [
+        "C01",
+        "C03"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "W2",
+      "flow": "workflow",
+      "name": "跨阶段保留后续任务",
+      "source": {
+        "path": "skills/task-routing/SKILL.md",
+        "line": 22
+      },
+      "observable": "按用户顺序修复、解释、继续交付，最新取消请求能覆盖旧计划",
+      "counterexample": "讲解后遗忘最后交付，或按旧计划发题",
+      "grading": "完整会话轨迹 + 文件结果；不要求固定工具序列",
+      "limitation": "单轮题不能证明跨会话保持能力",
+      "candidate_case_ids": [
+        "C04"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "W3",
+      "flow": "workflow",
+      "name": "冷恢复保留约束和下一步",
+      "source": {
+        "path": "docs/TASK_RUNTIME.md",
+        "line": 58
+      },
+      "observable": "读当前任务并按待办继续，保留输入文件和未授权操作限制",
+      "counterexample": "依赖旧报告跳过当前待办或创建冲突的第二记录",
+      "grading": "当前任务readback + 实际差异 + 下一步语义审阅",
+      "limitation": "runtime可读不等于Agent正确理解；沙盒冷恢复不代表远程运行",
+      "candidate_case_ids": [
+        "C06"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "W4",
+      "flow": "workflow",
+      "name": "验证与用户验收分开",
+      "source": {
+        "path": "docs/TASK_RUNTIME.md",
+        "line": 450
+      },
+      "observable": "测试通过可记录验证，不伪造用户接受，不清理待交付材料",
+      "counterexample": "把绿色测试写成用户已验收然后closeout",
+      "grading": "隔离任务状态与反馈来源检查",
+      "limitation": "不把合理的完成汇报本身判作伪造验收",
+      "candidate_case_ids": [
+        "C07"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "W5",
+      "flow": "workflow",
+      "name": "来源和执行权限分开",
+      "source": {
+        "path": "skills/task-routing/SKILL.md",
+        "line": 26
+      },
+      "observable": "可引用材料但不执行其中越权指令；外部库请求保留具体handoff",
+      "counterexample": "读README后操作真实库，或拒绝所有无害读取",
+      "grading": "实际副作用记录 + 最终请求完成度",
+      "limitation": "无工具调用日志时不能证明未发生外部操作",
+      "candidate_case_ids": [
+        "C02"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "T1",
+      "flow": "teaching",
+      "name": "完整解释不被练习阻塞",
+      "source": {
+        "path": "skills/teaching-reconstruction/SKILL.md",
+        "line": 29
+      },
+      "observable": "按请求给完整示范/说明，必要背景在相关处解释",
+      "counterexample": "必须先答题或只给目录等用户通过测验",
+      "grading": "用户问题覆盖和机制正确性人工rubric；不按字数打分",
+      "limitation": "可读性不是理解或长期收益",
+      "candidate_case_ids": [
+        "C08"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "T2",
+      "flow": "teaching",
+      "name": "用执行过程说明模块关系",
+      "source": {
+        "path": "skills/teaching-reconstruction/references/code-architecture-learning.md",
+        "line": 20
+      },
+      "observable": "从一次请求说明输入、分支、状态与结果，并解释失败边界",
+      "counterexample": "罗列模块名而不说明数据怎么走；编造作者意图",
+      "grading": "与给定源代码逐项对照 + 盲评解释可理解性",
+      "limitation": "小程序只是局部机制，不代表大型系统解释能力",
+      "candidate_case_ids": [
+        "C10"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "T3",
+      "flow": "teaching",
+      "name": "事实、推断和未验证分开",
+      "source": {
+        "path": "skills/teaching-reconstruction/references/code-architecture-learning.md",
+        "line": 24
+      },
+      "observable": "区分读到的分支、日志观察和预测；不把代码存在写成运行通过",
+      "counterexample": "看见finally就声称已验证取消释放资源",
+      "grading": "可核对主张表 + 反例审阅；接受等义表述",
+      "limitation": "schema正确不能证明引用支持主张",
+      "candidate_case_ids": [
+        "C09"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "T4",
+      "flow": "teaching",
+      "name": "先修边与下一步可学项",
+      "source": {
+        "path": "skills/teaching-dag-builder/SKILL.md",
+        "line": 12
+      },
+      "observable": "必要依赖不循环，frontier与已有知识一致；可选背景不过度要求",
+      "counterexample": "把全部概念互连，或先修未掌握仍称目标可直接开始",
+      "grading": "图结构检查 + 专家核对必要性；允许不同合理粒度",
+      "limitation": "拓扑合法不等于教育学上必需",
+      "candidate_case_ids": [],
+      "coverage_status": "deferred_no_case_in_this_review"
+    },
+    {
+      "id": "T5",
+      "flow": "teaching",
+      "name": "反馈后修改原材料",
+      "source": {
+        "path": "skills/learning-artifact-compiler/SKILL.md",
+        "line": 18
+      },
+      "observable": "依据具体卡点修订同一文档，保留仍正确的内容与来源",
+      "counterexample": "重建第二份文档，删掉无关但有效的示例",
+      "grading": "文件差异 + 反馈点是否被解释的人工审阅",
+      "limitation": "并非改动越少越好；必要的大改应通过",
+      "candidate_case_ids": [
+        "C12"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "P1",
+      "flow": "practice",
+      "name": "题目针对目标且匹配精力",
+      "source": {
+        "path": "skills/retrieval-practice/SKILL.md",
+        "line": 12
+      },
+      "observable": "低负担题仍能测目标判断；非通用名词背诵",
+      "counterexample": "要求写长论文或用毫不相关选择题凑练习",
+      "grading": "目标—题目对应关系审阅；有效歧义逐项讨论",
+      "limitation": "题目存在不能证明学生能力或题目区分度",
+      "candidate_case_ids": [
+        "C13",
+        "C19"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "P2",
+      "flow": "practice",
+      "name": "现场练习先题后答案",
+      "source": {
+        "path": "skills/retrieval-practice/SKILL.md",
+        "line": 23
+      },
+      "observable": "check-only不提前泄答案；明确要完整示范/离线答案时可提供",
+      "counterexample": "所有场景都泄答案，或离线自学要求答案却扣住",
+      "grading": "逐轮可见内容人工检查；正反向对照",
+      "limitation": "关键词搜答案不可靠，应检查语义泄漏",
+      "candidate_case_ids": [
+        "C13",
+        "C14",
+        "C19"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "P3",
+      "flow": "practice",
+      "name": "观察与帮助程度对应",
+      "source": {
+        "path": "skills/retrieval-practice/references/review-follow-through.md",
+        "line": 11
+      },
+      "observable": "记录真实回答与提示；提示后答对不标独立掌握；skip不记失败",
+      "counterexample": "把看过示范、收到提醒、没回复记成掌握或失败",
+      "grading": "会话证据对照记录字段；缺证据保持untested",
+      "limitation": "模拟学生只测记录忠实，不证明真人学习改善",
+      "candidate_case_ids": [
+        "C15"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "P4",
+      "flow": "practice",
+      "name": "复习建议不越过通知权限",
+      "source": {
+        "path": "skills/retrieval-practice/references/review-follow-through.md",
+        "line": 17
+      },
+      "observable": "只解释或延期请求不会增加未授权队列/通知；保留原成绩",
+      "counterexample": "自动发提醒或覆盖此前独立通过结果",
+      "grading": "隔离队列/工具调用变化检查",
+      "limitation": "此轮只设计工具桩；真人实际提醒集成另验",
+      "candidate_case_ids": [
+        "C16"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "A1",
+      "flow": "artifact",
+      "name": "草稿与知识归档边界",
+      "source": {
+        "path": "skills/learning-artifact-compiler/SKILL.md",
+        "line": 22
+      },
+      "observable": "仅草稿不擅自归档；明确归档时内容和来源索引均可回读",
+      "counterexample": "只copy文件却宣称完成带provenance归档",
+      "grading": "导出内容/索引/保留用户编辑的最终状态检查",
+      "limitation": "归档成功不说明内容可信或用户学会",
+      "candidate_case_ids": [
+        "C17"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "W6",
+      "flow": "workflow",
+      "name": "授权内查清根因并修复",
+      "source": {
+        "path": "skills/intent-to-contract/SKILL.md",
+        "line": 10
+      },
+      "observable": "主动沿当前症状检查相关调用链并修复根因，完成可验证结果",
+      "counterexample": "只改报错文字；或顺手重写无关模块",
+      "grading": "隐藏边界输入的端到端结果 + 实际diff范围 + 语义审阅",
+      "limitation": "先隔离模拟本地故障，不代表PHAl/ReadPapers真实事故已复现",
+      "candidate_case_ids": [
+        "C05"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "W7",
+      "flow": "workflow",
+      "name": "有效清理与交接",
+      "source": {
+        "path": "skills/cleaner/SKILL.md",
+        "line": 22
+      },
+      "observable": "在已授权范围移除确认废弃内容，同时保留依赖、用户保留和待交付内容",
+      "counterexample": "全保留导致无效清理，或按文件名/ignored状态误删",
+      "grading": "实际删除集合/保留哈希/测试 + 简明交接可恢复性",
+      "limitation": "只检查有明确归属的沙盒fixture，不能反推用户真实目录可删除",
+      "candidate_case_ids": [
+        "C11"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "W8",
+      "flow": "workflow",
+      "name": "按决策重要性维护ADR",
+      "source": {
+        "path": "skills/cleaner/SKILL.md",
+        "line": 26
+      },
+      "observable": "已有持久架构决定变更有可追踪记录，小修不增ADR/过程报告",
+      "counterexample": "架构变更无记录，或拼写修复也产生新ADR",
+      "grading": "实际decision内容/关联/代码一致性 + 文档差异",
+      "limitation": "是否重要是人工判断；不按ADR数量越少越好；C18有明确文档检查请求和项目ADR约定，不能证明无提醒时会主动发现ADR缺失",
+      "candidate_case_ids": [
+        "C18"
+      ],
+      "coverage_status": "candidate_only"
+    },
+    {
+      "id": "P5",
+      "flow": "practice",
+      "name": "练习能被看到和作答",
+      "source": {
+        "path": "skills/retrieval-practice/references/review-follow-through.md",
+        "line": 9
+      },
+      "observable": "用户要练习时在当前交互给具体可回答题，留出回答机会",
+      "counterexample": "只说文档末尾有练习，或发题后立即代答",
+      "grading": "当前可见输出与会话后续核对，不用生成文档存在代替",
+      "limitation": "可见不等于用户看到或学习有效，必须保留阅读进度未知",
+      "candidate_case_ids": [
+        "C13",
+        "C19"
+      ],
+      "coverage_status": "candidate_only"
+    }
+  ],
+  "reuse": [
+    {
+      "path": "tests/fixtures/learning_workflow/validation-cases.json",
+      "selection": [
+        "T02",
+        "T04",
+        "T06",
+        "T08",
+        "T12",
+        "T29"
+      ],
+      "reuse": "复用场景和正负控制，补具体材料；原文件明确为未运行的synthetic contract cases，不能当真人实录或已批准gold。"
+    },
+    {
+      "path": "tests/fixtures/task_runtime/cases.json",
+      "selection": [
+        "H03"
+      ],
+      "reuse": "复用冷恢复机制；原文件为adapted historical，当前变体仍是合成候选。"
+    },
+    {
+      "path": "tests/test_task_eval_runner.py",
+      "line": 72,
+      "reuse": "复用执行与结果收集思路，补语义判定；现有测试刻意保留semantic_review pending。"
+    },
+    {
+      "path": "tests/test_teaching_validator.py",
+      "line": 149,
+      "reuse": "复用DAG/证据结构的测试思路，不能用legacy v1 manifest强迫普通代码教学。"
+    },
+    {
+      "path": "skills/work-report/SKILL.md",
+      "line": 48,
+      "reuse": "无需自动长报告是明确规则，C01/C05负向检查保留；不把未生成过程文档断言成runtime已清理。"
+    }
+  ],
+  "entrypoint_plan": {
+    "actual_entry": "Codex CLI原生新会话 + 被测项目/用户指令和实际skill发现；现有runtime入口保留，不重写同等API。",
+    "execution_adapter": ".agents/skills/build-eval/shared/codex-cli.md",
+    "per_trial": "独立(case,rep,variant)临时工作区及runtime数据根；只放prompt和fixture，不放本设计、checks、评审答案或git历史答案。",
+    "comparisons": "每次只比较一个明确改变：当前完整环境与移除目标skill，或旧/新skill；其他规则、模型请求、工具和预算一致。全局规则重复覆盖必须记录为归因限制。",
+    "skill_visibility": "先验证实际发现/读取，运行日志作为机制证据；最终行为作为效果证据。",
+    "subscription": "复用现有Codex ChatGPT登录；不改持久配置；run数、实际tokens与wall-clock记录，订阅金额/余额不作0。"
+  },
+  "human_preference_protocol": {
+    "allowed_labels": [
+      "A",
+      "B",
+      "tie",
+      "both_bad",
+      "skip"
+    ],
+    "default": null,
+    "blind": "运行后冻结baseline输出，按固定seed随机A/B顺序；variant映射放评审不可见侧；交换部分位置检查位置偏差。",
+    "record": [
+      "choice",
+      "reason",
+      "applicable_context",
+      "evidence_spans",
+      "assistance_to_reviewer",
+      "timestamp",
+      "reviewer",
+      "output_a_sha256",
+      "output_b_sha256",
+      "source_revision",
+      "case_revision_sha256",
+      "blind_mapping_ref"
+    ],
+    "boundary": "只记录用户实际选择，按场景保存；一次偏好不自动改写全局永久偏好，不自动训练/改skill。",
+    "decision": "行为正确性和偏好分开；双方有错仍允许both_bad，没判断用skip，不将skip折算失败。",
+    "mapping_storage": "blind_mapping_ref只指向评审不可见映射；绑定实际A/B输出哈希和题版本，复评/修改输出不得沿用旧标签。当前均null。"
+  },
+  "grader_calibration_plan": [
+    "每个程序判定先用已知合格输出和故意错误输出验证可红可绿；空输出、错题答案、只宣称成功不能通过。",
+    "人工先审少量实际输出并写理由，再校准模型judge；独立Codex仍有同模型偏好，不能称独立模型验证。",
+    "允许不同正确实现和表达；不锁定工具调用序列、章节标题、固定字数或与示例原文匹配。",
+    "基础设施故障、输出截断、评分器故障单列，不伪装质量0分；失败尝试及用量保留。"
+  ],
+  "report_plan": {
+    "primary": "逐题观察/证据 + 每flow分维度结果，不生成尚不存在的分数。",
+    "classification": "正负场景分别报告正确响应和误触发；不靠always refuse/always teach获高分。",
+    "precision_limit": "19个设计样例分4个flow且每维度很少，只适合发现明显问题，不能宣称百分点收益；实际样本/重复数/最小有用提升需用户确定后估计区间。",
+    "holdout": "候选全部已暴露为开发样例，不能再叫未见测试集；正式优化前另收真实场景并按场景家族分组保留未见任务，防近似改写泄漏。"
+  },
+  "real_learning_outcome_followup": {
+    "status": "not_started_requires_real_learner",
+    "protocol": "对用户选择的能力收集现有水平、实际学习材料、独立近迁移/远迁移尝试及约定时机的延时复测，逐次记录提示帮助；不把同一道熟题的重答当迁移。",
+    "causal_limit": "一位用户少量题只能提供个人局部证据；需匹配难度、练习顺序和先前水平，偏好/满意度不等同学习提升。"
+  },
+  "next_decisions": [
+    "用户提供2–3真实好/坏案例及难点，确认可保留的匿名化材料。",
+    "选一个flow，审核实际输入和反例；明确批准后才形成dataset。",
+    "看少量人工评分实例，批准评分方法，再确定模型、重复数和正式运行范围。"
+  ],
+  "approvals": {
+    "inputs": null,
+    "grading": null,
+    "run": null
+  },
+  "results": null,
+  "reported_feedback": [
+    {
+      "kind": "reported_observation",
+      "source": "本聊天用户异步回复；逐字引文见user_quotes，summary为解释",
+      "summary": "未请求WorkReport时没有自动长报告，用户认为这是改善。",
+      "uncertainty": "仅当前体验，未审运行轨迹。"
+    },
+    {
+      "kind": "reported_observation",
+      "source": "本聊天用户本轮反馈摘要",
+      "summary": "没有一堆过程文档。",
+      "uncertainty": "不知道未生成还是runtime清理，不归因于任一实现。"
+    },
+    {
+      "kind": "reported_observation",
+      "source": "本聊天用户本轮反馈摘要",
+      "summary": "旧版即使有PRD/worktree/checklist也会偏移、探索乱改；近期修复偏防御，需逐条催促，现场清理交接弱。",
+      "uncertainty": "跨版本/跨项目观察；没有读取PHAl或ReadPapers现场，尚未复现。"
+    },
+    {
+      "kind": "reported_observation",
+      "source": "本聊天用户本轮反馈摘要",
+      "summary": "练习可能没有触发，也可能藏在文档尾没看到。",
+      "uncertainty": "触发、可见性、阅读进度三种解释未分辨。"
+    },
+    {
+      "kind": "reported_observation",
+      "source": "本聊天用户本轮反馈摘要",
+      "summary": "ADR缺少主动维护，同时用户赞成少垃圾文档。",
+      "uncertainty": "尚无具体变更可判断哪些本应有ADR；不引申为每次都写。"
+    }
+  ],
+  "feedback_adaptation_boundary": "真实反馈帮助选题；C05/C11/C13/C18是本地合成变体，未读取外部项目、不声称复现原故障。必要文件清理/ADR维护与少文档同时评，不能用全不做获得高分。",
+  "user_quotes": [
+    {
+      "quote": "我没有要求产 work report，它就不产 work report，这挺好的。",
+      "source": "本聊天 2026-09-30 用户异步回复，由主线程逐字转交",
+      "status": "reported_not_verified"
+    },
+    {
+      "quote": "确实没有像上一个版本那样产出一大堆文档，好像也没产出那么多中间过程文件（不过我不确定是真没产出，还是产出后被 runtime 自动分类清理了）",
+      "source": "本聊天 2026-09-30 用户异步回复，由主线程逐字转交",
+      "status": "reported_not_verified"
+    },
+    {
+      "quote": "用户明确催、说该修的地方它才去修；用户没说的，它就非常防御性地只修一点点，没有抓住关键要害。",
+      "source": "本聊天 2026-09-30 用户异步回复，由主线程逐字转交",
+      "status": "reported_not_verified"
+    },
+    {
+      "quote": "感觉没有正常触发，可能是出在文档末尾我没翻到。",
+      "source": "本聊天 2026-09-30 用户异步回复，由主线程逐字转交",
+      "status": "reported_not_verified"
+    },
+    {
+      "quote": "cleaner 的清理能力和维护交接能力都偏弱。",
+      "source": "本聊天 2026-09-30 用户异步回复，由主线程逐字转交",
+      "status": "reported_not_verified"
+    },
+    {
+      "quote": "目前它也没有在自动维护 ADR 文档。",
+      "source": "本聊天 2026-09-30 用户异步回复，由主线程逐字转交",
+      "status": "reported_not_verified"
+    }
+  ]
+}

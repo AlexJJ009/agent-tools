@@ -1,9 +1,9 @@
 # Agent Tools Task Runtime MVP PRD
 
-日期：2026-09-30  
-版本：v5（需求校对稿；回退代码质量规范扩展，恢复任务材料与工作现场整理范围）  
-状态：待用户校对；本文不是实施、安装、部署或付费模型实验授权。  
-代码观察基线：`ddddf3495122cbf5081f75c76709298add617ca2`。  
+日期：2026-09-30
+版本：v5（需求校对稿；回退代码质量规范扩展，恢复任务材料与工作现场整理范围）
+状态：用户已授权按本文开发、验收、消融调试并合并 main；不包含远端部署。产品验收仍与技术检查分开记录。
+代码观察基线：`ddddf3495122cbf5081f75c76709298add617ca2`。
 维护方式：本文件是本次 MVP 的唯一 PRD，后续原位修订，不按阶段复制 PRD、checklist、索引或交接文档。
 
 ## 1. 要解决的问题
@@ -319,4 +319,3 @@ Skill 保留语义判断和写作规范；plugin 负责包装与分发；runtime
 - [Git worktree](https://git-scm.com/docs/git-worktree)：识别实际工作树与共享仓库，不把分支名当永久身份。
 - [Unit of Work](https://www.cosmicpython.com/book/chapter_06_uow)：一次业务修改作为提交单位；不意味着数据库事务能包住文件删除。
 - [pytest temporary directories](https://docs.pytest.org/en/stable/how-to/tmp_path.html)：隔离测试存储与项目副本。
-

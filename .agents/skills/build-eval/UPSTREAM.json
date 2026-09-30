@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/anthropics/skills",
+  "revision": "8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4",
+  "files": {
+    "shared/evals/cost-hillclimb.md": "fe15b3bcce81613a98c80b309ddfba7881d5778e339dbb19e95aded5ca84283a",
+    "shared/evals/eval-audit.md": "a013f8eb0452c51c5a31860df0fb47219dcdb4da507092fc98867225095026ba",
+    "shared/evals/build-eval.md": "50e3381b55b7bb913f84c2645a409802084c5caf01bab2d271d6bef0090dbd6c",
+    "shared/evals/eval-hillclimb.md": "6e2c829294c6bfcc0b544352bca66d5e4c10e8de5a63b66d5e0ac9a861de8710",
+    "shared/evals/report/SCHEMA.md": "9a83404a9b3c413113df39d9bdf08e003ff4d6a75386f4010887da3298766687",
+    "shared/evals/report/build-report-lite.mjs": "af79ca5fa5f06747dbcaa1d40017c8c8e81e0aa11cb8e32b848043893cdb03c7",
+    "shared/evals/report/runner-scaffold.mjs": "c3a87ba4b94b3018b83c075d5148ba7760580aa447699d513d45ab55b82a531a",
+    "LICENSE.txt": "bc6b3af2f331cbc7fb0da1344efb2cbe5877a31498b4d70dbc7000f3405a1362"
+  }
+}

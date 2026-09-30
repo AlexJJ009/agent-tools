@@ -47,3 +47,21 @@ Private development material outside that runtime belongs in ignored `docs/_loca
 created only when needed: `tasks/<task-id>/`, `reports/<task-id>/`, or `scratch/<task-id>/`.
 Existing task identifiers and agreements remain valid. A handoff records the
 recovery point and links these guides; it does not maintain a second user manual.
+
+## Survey retention
+
+Always preserve the latest finalized survey for each subject owned by this
+project, including its necessary source provenance. Surveys are dated learning
+material, not current operating instructions. Keep the previous final until a
+replacement is finalized; older versions can retire after unique annotations,
+citations and evidence are accounted for. File extension and report-directory
+placement do not determine whether a document is disposable. No duplicate
+Markdown/PDF export or extra index is required solely for retention.
+
+Surveys owned outside this project remain with their owner. Assess both the
+survey itself and cited learning material for Zotero retention; ReadPapers owns
+library lookup, deduplication and authorized import. A Zotero copy does not
+replace the project's retained final survey. Preserve a sole attachment until
+any selected transfer is confirmed. Cleaner applies these boundaries during
+scoped cleanup; lack of learning value does not override code, test, license,
+ADR, user-retention, evidence or recovery dependencies.

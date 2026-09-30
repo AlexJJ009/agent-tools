@@ -1,0 +1,242 @@
+{
+  "schema_version": "skill-suite-artifact-followup/1",
+  "status": "authorized_predeclared_paired_followup",
+  "execution_plan": {
+    "case_ids": [
+      "A01",
+      "A02"
+    ],
+    "variants": [
+      "skills",
+      "control"
+    ],
+    "reps": 2,
+    "planned_trials": 8,
+    "freeze_before_candidate_execution": true
+  },
+  "primary_rubric_basis": "Correctness of the requested revision, allowing equivalent explanatory examples. Optional advice is not required; if supplied, it must be correct.",
+  "interpretation_predeclared": [
+    "Incorrect optional advice recurring across equivalent variants supports a reproducible content-verification gap; inspect whether executed checks covered that new advice.",
+    "Absence of optional advice is a valid response, not an avoidance penalty. No program run is required when reasoning is correct.",
+    "If both arms show the same issue, do not attribute it to the target skill. If only one arm differs in this small sample, report local evidence and uncertainty rather than a stable causal effect.",
+    "If the issue does not recur, retain original H09 skills-1 as a confirmed isolated error; do not force a capability-gap conclusion.",
+    "Do not classify failure merely for choosing infinity or another source-supported example instead of a missing-key example."
+  ],
+  "cases": [
+    {
+      "id": "A01",
+      "title": "标识符重命名后的定点材料修订",
+      "provenance": "predeclared_equivalent_H09_artifact_followup",
+      "approval_status": "authorized_pilot",
+      "source_cases": [
+        "H09"
+      ],
+      "flow": "artifact",
+      "primary_dimension": "local_revision_with_causal_prerequisite",
+      "primary_check_id": "A01.1",
+      "primary_atomic_check": "在原note.md的保护段，正确补出除法先于or求值、or不捕获异常的因果链，并给能展示该边界的正确例子，使读者可以追踪代码；允许缺键、成功除法的假值结果等源码支持的对照，不限定特定示例。若新增解释或可选修复建议，其代码真实行为必须与声称结果一致，不能引入新的错误结论；不要求额外修复建议或必须运行程序。",
+      "target_skill": "learning-artifact-compiler",
+      "target_skills": [
+        "learning-artifact-compiler"
+      ],
+      "capability": "local_revision_with_causal_prerequisite",
+      "negative_control": false,
+      "prompt": "note.md前后的两段我已看懂，只是“保护”那段和ratio.py对不上。请修订原文这段，补上能让我追踪代码的必要前提和例子；其他正确部分原样保留，不另写一篇。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "note.md前后的两段我已看懂，只是“保护”那段和ratio.py对不上。请修订原文这段，补上能让我追踪代码的必要前提和例子；其他正确部分原样保留，不另写一篇。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "note.md": "# 默认值为何没有保护零分母\n\n## 已理解：取值\n`settings.get(\"divisor\", 1)` 仅在键不存在时返回1。配置里已经有值时返回该值。\n\n## 卡住：保护\n`or 1` 是备用值，因此这里设置0也会安全返回1。\n\n## 已理解：输出\n结果以数字返回给调用者，没有写入文件或改变settings。\n",
+          "ratio.py": "def ratio(settings):\n    return 10 / settings.get(\"divisor\", 1) or 1\n"
+        },
+        "generation_spec": "原样写入全新隔离Git仓库；技能与control共享输入、共同写作规范与工具，grader_side和checks绝不进入被测环境。"
+      },
+      "checks": [
+        {
+          "id": "A01.1",
+          "criterion": "在原note.md的保护段，正确补出除法先于or求值、or不捕获异常的因果链，并给能展示该边界的正确例子，使读者可以追踪代码；允许缺键、成功除法的假值结果等源码支持的对照，不限定特定示例。若新增解释或可选修复建议，其代码真实行为必须与声称结果一致，不能引入新的错误结论；不要求额外修复建议或必须运行程序。",
+          "result": null
+        },
+        {
+          "id": "A01.2",
+          "criterion": "已理解的取值和输出两节原字节保留；不改ratio.py、不另起替代文档，不附加练习或声称已掌握。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": []
+      },
+      "grader_side": {
+        "oracle": {
+          "write": {
+            "note.md": "# 默认值为何没有保护零分母\n\n## 已理解：取值\n`settings.get(\"divisor\", 1)` 仅在键不存在时返回1。配置里已经有值时返回该值。\n\n## 卡住：保护\n先执行除法，再求`or`：它不是异常处理。若settings={\"divisor\":0}，get返回0，10/0先抛ZeroDivisionError，程序没有机会计算or的备用值。若键缺失，get返回1，除法得到10.0，or保留这个真值。只有除法已经正常返回假值时，or才选择右侧1。\n\n## 已理解：输出\n结果以数字返回给调用者，没有写入文件或改变settings。\n"
+          },
+          "delete": []
+        },
+        "known_good_text": "# 默认值为何没有保护零分母\n\n## 已理解：取值\n`settings.get(\"divisor\", 1)` 仅在键不存在时返回1。配置里已经有值时返回该值。\n\n## 卡住：保护\n先执行除法，再求`or`：它不是异常处理。若settings={\"divisor\":0}，get返回0，10/0先抛ZeroDivisionError，程序没有机会计算or的备用值。若键缺失，get返回1，除法得到10.0，or保留这个真值。只有除法已经正常返回假值时，or才选择右侧1。\n\n## 已理解：输出\n结果以数字返回给调用者，没有写入文件或改变settings。\n",
+        "known_bad_text": "原代码会先做除法，所以零分母先报错，or不能接住异常。若想让0返回1，只要先取d=settings.get(\"divisor\",1) or 1，再计算10/d即可。",
+        "expected_observations": [
+          "note protection section adds correct evaluation order and exception boundary with a suitable correct example",
+          "source ratio.py and two originally correct sections preserved",
+          "optional new recommendations evaluated only when present: predicted output must match proposed code",
+          "no prescribed missing-key example and no required optional repair or runtime execution"
+        ],
+        "oracle_is_exhaustive": false
+      },
+      "skill_association": {
+        "strength": "direct_contract",
+        "attribution_limit": "每题两组各两次，观察局部差异与可复现缺口；并不证明稳定技能增益或长期学习效果。"
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "learning-artifact-compiler",
+        "shared_skills": [],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          },
+          {
+            "source": "skills/teaching-reconstruction/references/portable-learning-record.md",
+            "destination": "skills/teaching-reconstruction/references/portable-learning-record.md"
+          }
+        ]
+      },
+      "followup_design": {
+        "source_case_id": "H09",
+        "source_grader_case_id": "H09",
+        "manipulation": "identifiers",
+        "reps_per_arm": 2,
+        "arms": [
+          "skills",
+          "control"
+        ],
+        "original_user_prompt_unchanged": true,
+        "changes": {
+          "identifiers": [
+            "config -> settings",
+            "denominator -> divisor"
+          ]
+        },
+        "predeclared_observation": "Only H09 skills repetition 1 introduced a wrong optional correction; repetition 2 and both control outputs did not. This follow-up checks recurrence, not a proven stable or skill-caused defect.",
+        "additional_diagnostics_not_automatic_failures": [
+          "whether optional correction advice was added",
+          "whether its claimed behavior is correct",
+          "whether actual validation covers the proposed advice or only original source"
+        ]
+      }
+    },
+    {
+      "id": "A02",
+      "title": "分子常量变化后的定点材料修订",
+      "provenance": "predeclared_equivalent_H09_artifact_followup",
+      "approval_status": "authorized_pilot",
+      "source_cases": [
+        "H09"
+      ],
+      "flow": "artifact",
+      "primary_dimension": "local_revision_with_causal_prerequisite",
+      "primary_check_id": "A02.1",
+      "primary_atomic_check": "在原note.md的保护段，正确补出除法先于or求值、or不捕获异常的因果链，并给能展示该边界的正确例子，使读者可以追踪代码；允许缺键、成功除法的假值结果等源码支持的对照，不限定特定示例。若新增解释或可选修复建议，其代码真实行为必须与声称结果一致，不能引入新的错误结论；不要求额外修复建议或必须运行程序。",
+      "target_skill": "learning-artifact-compiler",
+      "target_skills": [
+        "learning-artifact-compiler"
+      ],
+      "capability": "local_revision_with_causal_prerequisite",
+      "negative_control": false,
+      "prompt": "note.md前后的两段我已看懂，只是“保护”那段和ratio.py对不上。请修订原文这段，补上能让我追踪代码的必要前提和例子；其他正确部分原样保留，不另写一篇。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "note.md前后的两段我已看懂，只是“保护”那段和ratio.py对不上。请修订原文这段，补上能让我追踪代码的必要前提和例子；其他正确部分原样保留，不另写一篇。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "note.md": "# 默认值为何没有保护零分母\n\n## 已理解：取值\n`config.get(\"denominator\", 1)` 仅在键不存在时返回1。配置里已经有值时返回该值。\n\n## 卡住：保护\n`or 1` 是备用值，因此这里设置0也会安全返回1。\n\n## 已理解：输出\n结果以数字返回给调用者，没有写入文件或改变config。\n",
+          "ratio.py": "def ratio(config):\n    return 24 / config.get(\"denominator\", 1) or 1\n"
+        },
+        "generation_spec": "原样写入全新隔离Git仓库；技能与control共享输入、共同写作规范与工具，grader_side和checks绝不进入被测环境。"
+      },
+      "checks": [
+        {
+          "id": "A02.1",
+          "criterion": "在原note.md的保护段，正确补出除法先于or求值、or不捕获异常的因果链，并给能展示该边界的正确例子，使读者可以追踪代码；允许缺键、成功除法的假值结果等源码支持的对照，不限定特定示例。若新增解释或可选修复建议，其代码真实行为必须与声称结果一致，不能引入新的错误结论；不要求额外修复建议或必须运行程序。",
+          "result": null
+        },
+        {
+          "id": "A02.2",
+          "criterion": "已理解的取值和输出两节原字节保留；不改ratio.py、不另起替代文档，不附加练习或声称已掌握。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": []
+      },
+      "grader_side": {
+        "oracle": {
+          "write": {
+            "note.md": "# 默认值为何没有保护零分母\n\n## 已理解：取值\n`config.get(\"denominator\", 1)` 仅在键不存在时返回1。配置里已经有值时返回该值。\n\n## 卡住：保护\n先执行除法，再求`or`：它不是异常处理。若config={\"denominator\":0}，get返回0，24/0先抛ZeroDivisionError，程序没有机会计算or的备用值。若键缺失，get返回1，除法得到24.0，or保留这个真值。只有除法已经正常返回假值时，or才选择右侧1。\n\n## 已理解：输出\n结果以数字返回给调用者，没有写入文件或改变config。\n"
+          },
+          "delete": []
+        },
+        "known_good_text": "# 默认值为何没有保护零分母\n\n## 已理解：取值\n`config.get(\"denominator\", 1)` 仅在键不存在时返回1。配置里已经有值时返回该值。\n\n## 卡住：保护\n先执行除法，再求`or`：它不是异常处理。若config={\"denominator\":0}，get返回0，24/0先抛ZeroDivisionError，程序没有机会计算or的备用值。若键缺失，get返回1，除法得到24.0，or保留这个真值。只有除法已经正常返回假值时，or才选择右侧1。\n\n## 已理解：输出\n结果以数字返回给调用者，没有写入文件或改变config。\n",
+        "known_bad_text": "原代码会先做除法，所以零分母先报错，or不能接住异常。若想让0返回1，只要先取d=config.get(\"denominator\",1) or 1，再计算24/d即可。",
+        "expected_observations": [
+          "note protection section adds correct evaluation order and exception boundary with a suitable correct example",
+          "source ratio.py and two originally correct sections preserved",
+          "optional new recommendations evaluated only when present: predicted output must match proposed code",
+          "no prescribed missing-key example and no required optional repair or runtime execution"
+        ],
+        "oracle_is_exhaustive": false
+      },
+      "skill_association": {
+        "strength": "direct_contract",
+        "attribution_limit": "每题两组各两次，观察局部差异与可复现缺口；并不证明稳定技能增益或长期学习效果。"
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "learning-artifact-compiler",
+        "shared_skills": [],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          },
+          {
+            "source": "skills/teaching-reconstruction/references/portable-learning-record.md",
+            "destination": "skills/teaching-reconstruction/references/portable-learning-record.md"
+          }
+        ]
+      },
+      "followup_design": {
+        "source_case_id": "H09",
+        "source_grader_case_id": "H09",
+        "manipulation": "numerator",
+        "reps_per_arm": 2,
+        "arms": [
+          "skills",
+          "control"
+        ],
+        "original_user_prompt_unchanged": true,
+        "changes": {
+          "numerator": "10 -> 24"
+        },
+        "predeclared_observation": "Only H09 skills repetition 1 introduced a wrong optional correction; repetition 2 and both control outputs did not. This follow-up checks recurrence, not a proven stable or skill-caused defect.",
+        "additional_diagnostics_not_automatic_failures": [
+          "whether optional correction advice was added",
+          "whether its claimed behavior is correct",
+          "whether actual validation covers the proposed advice or only original source"
+        ]
+      }
+    }
+  ]
+}

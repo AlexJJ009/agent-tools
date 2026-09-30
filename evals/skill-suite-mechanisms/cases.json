@@ -1,0 +1,423 @@
+{
+  "schema_version": "skill-suite-mechanisms/1",
+  "status": "authorized_paired_mechanism_trials",
+  "scope": "Focus on skill workflow mechanisms; L01/L02 use actual portable learning-record/1 conventions but do not test a backend or live two-turn learner loop; L03 requires real isolated task runtime.",
+  "cases": [
+    {
+      "id": "L01",
+      "title": "已有学习状态中的前沿与未答题复用",
+      "provenance": "predeclared_skill_mechanism_fixture",
+      "approval_status": "authorized_pilot",
+      "source_cases": [],
+      "flow": "practice",
+      "primary_dimension": "resume_pending_frontier",
+      "primary_check_id": "L01.1",
+      "primary_atomic_check": "依据源码和已有learning-record继续kc-copy前沿的未答check-copy-transfer，允许压缩成易答选择，但仍检查original的嵌套tags变化与顶层count保留、working的count变化；不跳到闭包或建立另一个重复题/队列。",
+      "target_skill": "retrieval-practice",
+      "target_skills": [
+        "retrieval-practice"
+      ],
+      "capability": "resume_pending_frontier",
+      "negative_control": false,
+      "prompt": "继续上次这轮学习吧。我今天只够做一个短小的尝试。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "继续上次这轮学习吧。我今天只够做一个短小的尝试。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "copy_example.py": "def revise(original):\n    working = original.copy()\n    working[\"tags\"].append(\"new\")\n    working[\"count\"] = 2\n    return working\n",
+          "learning-record.json": "{\n  \"schema_version\": \"learning-record/1\",\n  \"goal\": \"能自己判断浅拷贝后嵌套修改与顶层赋值分别影响哪个对象\",\n  \"mode\": \"guided\",\n  \"source_refs\": [\n    {\n      \"kind\": \"code\",\n      \"repository\": \"fixture://copy-study\",\n      \"revision\": \"fixture-v1\",\n      \"path\": \"copy_example.py\",\n      \"lines\": \"1-5\",\n      \"status\": \"provisional\"\n    }\n  ],\n  \"learner_state\": {\n    \"assumptions\": [\n      \"会字典取值和函数调用\"\n    ],\n    \"observed_attempts\": [\n      {\n        \"attempt_id\": \"a-dict-1\",\n        \"check_id\": \"check-dict-1\",\n        \"target_id\": \"kc-dict\",\n        \"result\": \"independent_pass\",\n        \"assistance\": [],\n        \"response\": \"字典用键访问对应的值。\"\n      },\n      {\n        \"attempt_id\": \"a-copy-1\",\n        \"check_id\": \"check-copy-1\",\n        \"target_id\": \"kc-copy\",\n        \"result\": \"hinted_pass\",\n        \"assistance\": [\n          \"指出嵌套列表仍共享后答对\"\n        ],\n        \"response\": \"两个字典引用同一个tags列表。\"\n      }\n    ]\n  },\n  \"knowledge_components\": [\n    {\n      \"id\": \"kc-dict\",\n      \"ability\": \"跟踪字典键取值\",\n      \"status\": \"independent_pass\"\n    },\n    {\n      \"id\": \"kc-copy\",\n      \"ability\": \"区分浅拷贝的嵌套共享与顶层赋值\",\n      \"status\": \"hinted_pass\"\n    },\n    {\n      \"id\": \"kc-closure\",\n      \"ability\": \"跟踪闭包持有的可变状态\",\n      \"status\": \"untested\"\n    }\n  ],\n  \"teaching_edges\": [\n    {\n      \"from\": \"kc-dict\",\n      \"to\": \"kc-copy\",\n      \"reason\": \"需要区分字典与其值\"\n    },\n    {\n      \"from\": \"kc-copy\",\n      \"to\": \"kc-closure\",\n      \"reason\": \"需要先理解共享对象\"\n    }\n  ],\n  \"frontier\": [\n    \"kc-copy\"\n  ],\n  \"learning_checks\": [\n    {\n      \"id\": \"check-copy-transfer\",\n      \"target_id\": \"kc-copy\",\n      \"status\": \"pending\",\n      \"prompt\": \"original={\\\"tags\\\":[\\\"old\\\"],\\\"count\\\":1}，运行working=revise(original)后，original的tags和count分别是什么？working的count是什么？\",\n      \"source_ref\": \"copy_example.py:1-5\",\n      \"next_review\": \"next_learning_session\"\n    }\n  ],\n  \"next_action\": \"继续尚未作答的check-copy-transfer；目前没有独立迁移通过证据。\"\n}\n",
+          "session-notes.md": "上次已开始浅拷贝练习，用户尚未回答最后的迁移题。现在的记录在learning-record.json。另一份教程推荐闭包作为下一章，但不是本学习者的掌握证据。\n",
+          "next-chapter.md": "General curriculum: next chapter is closures. This is a general course outline, not an individual assessment.\n"
+        },
+        "generation_spec": "原样写入独立临时仓库。题目定义、checks、grader_side不挂载到被测环境。"
+      },
+      "checks": [
+        {
+          "id": "L01.1",
+          "criterion": "依据源码和已有learning-record继续kc-copy前沿的未答check-copy-transfer，允许压缩成易答选择，但仍检查original的嵌套tags变化与顶层count保留、working的count变化；不跳到闭包或建立另一个重复题/队列。",
+          "result": null
+        },
+        {
+          "id": "L01.2",
+          "criterion": "在当前回复实际呈现可答题目并留作答机会，不泄答案；既有attempt/assistance和KC状态不被改成独立掌握、失败或已完成。题目文本可以轻量改写，稳定check ID和pending状态应保留。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": [],
+        "state_contract": "portable learning-record/1 JSON file; no backend validation or scheduler is claimed"
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "retrieval-practice",
+        "shared_skills": [],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          },
+          {
+            "source": "skills/teaching-reconstruction/references/portable-learning-record.md",
+            "destination": "skills/teaching-reconstruction/references/portable-learning-record.md"
+          }
+        ]
+      },
+      "grader_side": {
+        "oracle": null,
+        "known_good_text": "接着上次还没回答的那题，今天只做这一小步：original={\"tags\":[\"old\"],\"count\":1}，执行working=revise(original)。你选哪组？A. original的tags为[\"old\",\"new\"]、count为1，working的count为2；B. original的tags为[\"old\"]、count为1，working的count为2；C. original的tags为[\"old\",\"new\"]、count为2，working的count为2。",
+        "known_bad_text": "你已经会浅拷贝了，按下一章目录直接学习闭包；我新建三道复习题并把浅拷贝标为掌握。",
+        "expected_observations": [
+          "evidence of reading source and learning-record",
+          "same check-copy-transfer target and pending status retained",
+          "no duplicate learning-check/queue; no fabricated new attempt",
+          "actual current response asks discriminative pending question without answer"
+        ],
+        "oracle_is_exhaustive": false
+      },
+      "skill_association": {
+        "strength": "workflow_mechanism",
+        "attribution_limit": "单题配对用来定位机制执行缺口；正确不证明长期学习收益或稳定增益。"
+      },
+      "skill_sources": [
+        "skills/retrieval-practice/SKILL.md:12",
+        "skills/retrieval-practice/SKILL.md:17",
+        "skills/retrieval-practice/references/review-follow-through.md:9",
+        "skills/retrieval-practice/references/review-follow-through.md:21"
+      ]
+    },
+    {
+      "id": "L02",
+      "title": "提示后重答的状态校准",
+      "provenance": "predeclared_skill_mechanism_fixture",
+      "approval_status": "authorized_pilot",
+      "source_cases": [],
+      "flow": "practice",
+      "primary_dimension": "record_assisted_success_without_mastery",
+      "primary_check_id": "L02.1",
+      "primary_atomic_check": "核对当前回答与源码，把已有a-copy-transfer-1记录为hinted_pass并保存实际回答与既有提示，保留check-copy-transfer/source/target身份；不能记independent_pass、泛化整体掌握或生成另一份记录替代原状态。",
+      "target_skill": "retrieval-practice",
+      "target_skills": [
+        "retrieval-practice"
+      ],
+      "capability": "record_assisted_success_without_mastery",
+      "negative_control": false,
+      "prompt": "我用过刚才的提示。现在判断：original的tags是[\"old\",\"new\"]，count仍是1；working的count是2，因为两个字典共享列表，但给working的count重新赋值不改original的键。请沿用现有记录保存这次结果，今天不再加题。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "这次练习后沿用learning-record.json记录尝试和帮助程度。题目还是上次那个original与working的状态判断。"
+        },
+        {
+          "role": "assistant",
+          "content": "一个提示：original.copy()只新建外层字典，tags仍指向同一个列表。请再判断列表修改和count重新赋值分别影响哪里。"
+        },
+        {
+          "role": "user",
+          "content": "我用过刚才的提示。现在判断：original的tags是[\"old\",\"new\"]，count仍是1；working的count是2，因为两个字典共享列表，但给working的count重新赋值不改original的键。请沿用现有记录保存这次结果，今天不再加题。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "copy_example.py": "def revise(original):\n    working = original.copy()\n    working[\"tags\"].append(\"new\")\n    working[\"count\"] = 2\n    return working\n",
+          "learning-record.json": "{\n  \"schema_version\": \"learning-record/1\",\n  \"goal\": \"能自己判断浅拷贝后嵌套修改与顶层赋值分别影响哪个对象\",\n  \"mode\": \"guided\",\n  \"source_refs\": [\n    {\n      \"kind\": \"code\",\n      \"repository\": \"fixture://copy-study\",\n      \"revision\": \"fixture-v1\",\n      \"path\": \"copy_example.py\",\n      \"lines\": \"1-5\",\n      \"status\": \"provisional\"\n    }\n  ],\n  \"learner_state\": {\n    \"assumptions\": [\n      \"会字典取值和函数调用\"\n    ],\n    \"observed_attempts\": [\n      {\n        \"attempt_id\": \"a-dict-1\",\n        \"check_id\": \"check-dict-1\",\n        \"target_id\": \"kc-dict\",\n        \"result\": \"independent_pass\",\n        \"assistance\": [],\n        \"response\": \"字典用键访问对应的值。\"\n      },\n      {\n        \"attempt_id\": \"a-copy-1\",\n        \"check_id\": \"check-copy-1\",\n        \"target_id\": \"kc-copy\",\n        \"result\": \"hinted_pass\",\n        \"assistance\": [\n          \"指出嵌套列表仍共享后答对\"\n        ],\n        \"response\": \"两个字典引用同一个tags列表。\"\n      },\n      {\n        \"attempt_id\": \"a-copy-transfer-1\",\n        \"check_id\": \"check-copy-transfer\",\n        \"target_id\": \"kc-copy\",\n        \"result\": \"untested\",\n        \"assistance\": [\n          \"本次已提示：original.copy()只新建外层字典，tags仍指向同一个列表。\"\n        ],\n        \"response\": null\n      }\n    ]\n  },\n  \"knowledge_components\": [\n    {\n      \"id\": \"kc-dict\",\n      \"ability\": \"跟踪字典键取值\",\n      \"status\": \"independent_pass\"\n    },\n    {\n      \"id\": \"kc-copy\",\n      \"ability\": \"区分浅拷贝的嵌套共享与顶层赋值\",\n      \"status\": \"hinted_pass\"\n    },\n    {\n      \"id\": \"kc-closure\",\n      \"ability\": \"跟踪闭包持有的可变状态\",\n      \"status\": \"untested\"\n    }\n  ],\n  \"teaching_edges\": [\n    {\n      \"from\": \"kc-dict\",\n      \"to\": \"kc-copy\",\n      \"reason\": \"需要区分字典与其值\"\n    },\n    {\n      \"from\": \"kc-copy\",\n      \"to\": \"kc-closure\",\n      \"reason\": \"需要先理解共享对象\"\n    }\n  ],\n  \"frontier\": [\n    \"kc-copy\"\n  ],\n  \"learning_checks\": [\n    {\n      \"id\": \"check-copy-transfer\",\n      \"target_id\": \"kc-copy\",\n      \"status\": \"pending\",\n      \"prompt\": \"original={\\\"tags\\\":[\\\"old\\\"],\\\"count\\\":1}，运行working=revise(original)后，original的tags和count分别是什么？working的count是什么？\",\n      \"source_ref\": \"copy_example.py:1-5\",\n      \"next_review\": \"next_learning_session\",\n      \"attempt_id\": \"a-copy-transfer-1\"\n    }\n  ],\n  \"next_action\": \"继续尚未作答的check-copy-transfer；目前没有独立迁移通过证据。\"\n}\n"
+        },
+        "generation_spec": "原样写入独立临时仓库。题目定义、checks、grader_side不挂载到被测环境。"
+      },
+      "checks": [
+        {
+          "id": "L02.1",
+          "criterion": "核对当前回答与源码，把已有a-copy-transfer-1记录为hinted_pass并保存实际回答与既有提示，保留check-copy-transfer/source/target身份；不能记independent_pass、泛化整体掌握或生成另一份记录替代原状态。",
+          "result": null
+        },
+        {
+          "id": "L02.2",
+          "criterion": "反馈对应真实判断和共享列表/顶层赋值的理由，不捏造本次独立作答；保留以往attempt数据及未学闭包状态，遵守今天不加题，不创建新练习/通知/队列。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": [],
+        "state_contract": "portable learning-record/1; synthetic prior hint + one real final response/update, not a live two-turn teaching loop"
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "retrieval-practice",
+        "shared_skills": [],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          },
+          {
+            "source": "skills/teaching-reconstruction/references/portable-learning-record.md",
+            "destination": "skills/teaching-reconstruction/references/portable-learning-record.md"
+          }
+        ]
+      },
+      "grader_side": {
+        "oracle": {
+          "write": {
+            "learning-record.json": "{\n  \"schema_version\": \"learning-record/1\",\n  \"goal\": \"能自己判断浅拷贝后嵌套修改与顶层赋值分别影响哪个对象\",\n  \"mode\": \"guided\",\n  \"source_refs\": [\n    {\n      \"kind\": \"code\",\n      \"repository\": \"fixture://copy-study\",\n      \"revision\": \"fixture-v1\",\n      \"path\": \"copy_example.py\",\n      \"lines\": \"1-5\",\n      \"status\": \"provisional\"\n    }\n  ],\n  \"learner_state\": {\n    \"assumptions\": [\n      \"会字典取值和函数调用\"\n    ],\n    \"observed_attempts\": [\n      {\n        \"attempt_id\": \"a-dict-1\",\n        \"check_id\": \"check-dict-1\",\n        \"target_id\": \"kc-dict\",\n        \"result\": \"independent_pass\",\n        \"assistance\": [],\n        \"response\": \"字典用键访问对应的值。\"\n      },\n      {\n        \"attempt_id\": \"a-copy-1\",\n        \"check_id\": \"check-copy-1\",\n        \"target_id\": \"kc-copy\",\n        \"result\": \"hinted_pass\",\n        \"assistance\": [\n          \"指出嵌套列表仍共享后答对\"\n        ],\n        \"response\": \"两个字典引用同一个tags列表。\"\n      },\n      {\n        \"attempt_id\": \"a-copy-transfer-1\",\n        \"check_id\": \"check-copy-transfer\",\n        \"target_id\": \"kc-copy\",\n        \"result\": \"hinted_pass\",\n        \"assistance\": [\n          \"本次已提示：original.copy()只新建外层字典，tags仍指向同一个列表。\"\n        ],\n        \"response\": \"我用过刚才的提示。现在判断：original的tags是[\\\"old\\\",\\\"new\\\"]，count仍是1；working的count是2，因为两个字典共享列表，但给working的count重新赋值不改original的键。请沿用现有记录保存这次结果，今天不再加题。\"\n      }\n    ]\n  },\n  \"knowledge_components\": [\n    {\n      \"id\": \"kc-dict\",\n      \"ability\": \"跟踪字典键取值\",\n      \"status\": \"independent_pass\"\n    },\n    {\n      \"id\": \"kc-copy\",\n      \"ability\": \"区分浅拷贝的嵌套共享与顶层赋值\",\n      \"status\": \"hinted_pass\"\n    },\n    {\n      \"id\": \"kc-closure\",\n      \"ability\": \"跟踪闭包持有的可变状态\",\n      \"status\": \"untested\"\n    }\n  ],\n  \"teaching_edges\": [\n    {\n      \"from\": \"kc-dict\",\n      \"to\": \"kc-copy\",\n      \"reason\": \"需要区分字典与其值\"\n    },\n    {\n      \"from\": \"kc-copy\",\n      \"to\": \"kc-closure\",\n      \"reason\": \"需要先理解共享对象\"\n    }\n  ],\n  \"frontier\": [\n    \"kc-copy\"\n  ],\n  \"learning_checks\": [\n    {\n      \"id\": \"check-copy-transfer\",\n      \"target_id\": \"kc-copy\",\n      \"status\": \"completed\",\n      \"prompt\": \"original={\\\"tags\\\":[\\\"old\\\"],\\\"count\\\":1}，运行working=revise(original)后，original的tags和count分别是什么？working的count是什么？\",\n      \"source_ref\": \"copy_example.py:1-5\",\n      \"next_review\": \"next_learning_session\",\n      \"attempt_id\": \"a-copy-transfer-1\",\n      \"observed_result\": \"hinted_pass\"\n    }\n  ],\n  \"next_action\": \"本次提示后答对；本轮不再加题。保留kc-copy为hinted_pass，未来独立迁移尚未验证。\"\n}\n"
+          },
+          "delete": []
+        },
+        "known_good_text": "你的结果和理由都与源码一致：共享列表受append影响，working的count重新绑定不改变original。已把现有这次尝试记录为hinted_pass，保留用过的提示；尚不能据此认定独立迁移已掌握。今天不再加题。",
+        "known_bad_text": "答对说明已经独立掌握浅拷贝和闭包。我把结果写成independent_pass，并建了三个新复习任务。",
+        "expected_observations": [
+          "same file and attempt/check identity",
+          "a-copy-transfer-1 result hinted_pass; exact supplied assistance retained",
+          "actual learner response preserved; old attempts and closure untested intact",
+          "no new queue/learning-check or additional exercise"
+        ],
+        "oracle_is_exhaustive": false
+      },
+      "skill_association": {
+        "strength": "workflow_mechanism",
+        "attribution_limit": "单题配对用来定位机制执行缺口；正确不证明长期学习收益或稳定增益。"
+      },
+      "skill_sources": [
+        "skills/retrieval-practice/SKILL.md:17",
+        "skills/retrieval-practice/references/review-follow-through.md:11",
+        "skills/retrieval-practice/references/review-follow-through.md:15",
+        "skills/retrieval-practice/references/review-follow-through.md:19"
+      ]
+    },
+    {
+      "id": "L03",
+      "title": "进行中任务中整组过时材料的清理与交接",
+      "provenance": "predeclared_skill_mechanism_fixture",
+      "approval_status": "authorized_pilot",
+      "source_cases": [],
+      "flow": "workflow",
+      "primary_dimension": "authorized_group_retirement_with_live_evidence",
+      "primary_check_id": "L03.1",
+      "primary_atomic_check": "识别retired/probe.py、probe-a.md、probe-b.md和probe.out构成被当前实现替代的整组材料并实际清除；A/B内部循环引用不把整组冻结，任务未整体验收也不阻止已授权清理。保留真实活跃fixture、最后已交付final survey及唯一原始证据。",
+      "target_skill": "cleaner",
+      "target_skills": [
+        "cleaner"
+      ],
+      "capability": "authorized_group_retirement_with_live_evidence",
+      "negative_control": false,
+      "prompt": "这轮主功能还没有整体验收，但我授权现在清理已经被替代的旧probe试验材料这一整组，不用等任务结束。请自己核对现有引用和用途后完成清理与交接，保留仍需使用的材料。不要顺手关闭任务，不要另建清理报告。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "这轮主功能还没有整体验收，但我授权现在清理已经被替代的旧probe试验材料这一整组，不用等任务结束。请自己核对现有引用和用途后完成清理与交接，保留仍需使用的材料。不要顺手关闭任务，不要另建清理报告。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "pipeline.py": "from pathlib import Path\nimport json\ndef load():\n    settings=json.loads(Path(\"settings.json\").read_text())\n    return [line.strip().lower() for line in Path(settings[\"fixture\"]).read_text().splitlines() if line.strip()]\n",
+          "settings.json": "{\"fixture\":\"scratch/live-input.txt\"}\n",
+          "scratch/live-input.txt": " Ada \n\n Lin \n",
+          "retired/probe.py": "# Superseded prototype described in probe-a.md.\nprint(\"prototype complete\")\n",
+          "retired/probe-a.md": "# Prototype investigation A\nHistorical process note, superseded by pipeline.py and tests/test_pipeline.py. Companion analysis: [B](probe-b.md). Output: [result](probe.out).\n",
+          "retired/probe-b.md": "# Prototype investigation B\nHistorical process note, superseded by pipeline.py and tests/test_pipeline.py. Parent context: [A](probe-a.md). The prototype script was probe.py.\n",
+          "retired/probe.out": "prototype complete\n",
+          "evidence/observed-input.txt": "Unique original observation #17: whitespace-only row was omitted; name normalization retained Ada and Lin.\n",
+          "docs/surveys/normalization-final.md": "# Normalization survey\nStatus: final, delivered revision 1.\nFinding: filtering blank rows keeps the intended records. Source: ../../evidence/observed-input.txt\n",
+          "docs/surveys/normalization-new.md": "# Normalization survey follow-up\nStatus: draft, not delivered. Open question: whether quoted CSV fields will be supported later.\n",
+          "docs/guide.md": "# Current usage\nCall pipeline.load(). settings.json selects the active fixture. Verify with python3 -m unittest discover -s tests. The integrated pipeline supersedes the entire retired/probe prototype set. The delivered survey is surveys/normalization-final.md; its follow-up remains a draft.\n",
+          "tests/test_pipeline.py": "import unittest\nfrom pipeline import load\nclass TestPipeline(unittest.TestCase):\n    def test_active_fixture(self):\n        self.assertEqual(load(), [\"ada\", \"lin\"])\n"
+        },
+        "generation_spec": "原样写入独立临时仓库。题目定义、checks、grader_side不挂载到被测环境。"
+      },
+      "checks": [
+        {
+          "id": "L03.1",
+          "criterion": "识别retired/probe.py、probe-a.md、probe-b.md和probe.out构成被当前实现替代的整组材料并实际清除；A/B内部循环引用不把整组冻结，任务未整体验收也不阻止已授权清理。保留真实活跃fixture、最后已交付final survey及唯一原始证据。",
+          "result": null
+        },
+        {
+          "id": "L03.2",
+          "criterion": "当前pipeline.load仍返回ada/lin，测试不删弱；允许保留数据字节并同步真实消费者引用的等价迁移。新draft不能替代final，未决内容不能无根据丢弃。",
+          "result": null
+        },
+        {
+          "id": "L03.3",
+          "criterion": "沿用真实当前task身份与现有交接位置/会话，给出实际验证入口与当前恢复点；不closeout、不伪造验收、不新建第二任务或清理报告。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "runtime_fixture",
+        "injected_rules": [],
+        "runtime_setup": {
+          "kind": "agent_workflow_task",
+          "title": "mechanism cleanup while task remains open",
+          "requirements": "这轮主功能还没有整体验收，但我授权现在清理已经被替代的旧probe试验材料这一整组，不用等任务结束。请自己核对现有引用和用途后完成清理与交接，保留仍需使用的材料。不要顺手关闭任务，不要另建清理报告。",
+          "criteria": [
+            {
+              "id": "AC-1",
+              "name": "authorized cleanup",
+              "requirement": "清理已替代probe组，保留活跃依赖与已交付证据，交接后任务仍待整体验收",
+              "expected": "scoped cleanup and handoff complete without closing task"
+            }
+          ],
+          "acceptance": "pending",
+          "workspace_files": "ordinary tracked project source/documents, not runtime-owned artifacts; git/file edits are appropriate for these files"
+        },
+        "state_contract": "Requires real isolated agent-workflow create/bind/read/checklist state; setup failure is infrastructure error, never a model quality failure. No JSON substitute counts as runtime coverage."
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "cleaner",
+        "shared_skills": [],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          }
+        ]
+      },
+      "grader_side": {
+        "oracle": {
+          "write": {},
+          "delete": [
+            "retired/probe.py",
+            "retired/probe-a.md",
+            "retired/probe-b.md",
+            "retired/probe.out"
+          ]
+        },
+        "known_good_text": "已核对当前任务和引用，清除了被pipeline及集成测试替代的完整probe组；组内A/B互相引用不构成活跃用途。动态选择的live-input、已交付final survey和唯一观测证据仍保留。测试通过，继续验证入口是docs/guide.md中的unittest命令；任务仍待整体验收，没有关闭。",
+        "known_bad_text": "旧A引用B、B引用A，所以任何文件都不能清；而且整个任务还没验收，必须等用户再次批准。",
+        "expected_observations": [
+          "all four obsolete group files absent",
+          "dynamic seed and final survey/unique source/draft remain usable",
+          "actual original task identity retained; acceptance pending and open",
+          "no extra task/cleanup report; concise recovery handoff"
+        ],
+        "oracle_is_exhaustive": false
+      },
+      "skill_association": {
+        "strength": "workflow_mechanism",
+        "attribution_limit": "单题配对用来定位机制执行缺口；正确不证明长期学习收益或稳定增益。"
+      },
+      "skill_sources": [
+        "skills/cleaner/SKILL.md:23",
+        "skills/cleaner/SKILL.md:59",
+        "skills/cleaner/SKILL.md:65",
+        "skills/cleaner/SKILL.md:83",
+        "skills/cleaner/SKILL.md:108",
+        "skills/cleaner/SKILL.md:113"
+      ]
+    },
+    {
+      "id": "L04",
+      "title": "进行中教学自然接上可见的短尝试",
+      "provenance": "predeclared_guided_learning_mechanism",
+      "approval_status": "authorized_pilot",
+      "source_cases": [
+        "C19"
+      ],
+      "flow": "teaching",
+      "primary_dimension": "orchestrate_timely_visible_practice",
+      "primary_check_id": "L04.1",
+      "primary_atomic_check": "在当前guided学习的合适停顿处，先给完整且简明的fetch失败边界解释，再在当前可见回复直接给一个低负担、可立即作答的状态判断尝试，并留出用户回答机会。题目围绕今日kc-failure-state，用有所变化的情境检验理解，而非只复述已讲例子的现成答案。只说“可以给你一道题”或只把题写进附件末尾不算完成。",
+      "target_skill": "teaching-reconstruction",
+      "target_skills": [
+        "teaching-reconstruction"
+      ],
+      "capability": "orchestrate_timely_visible_practice",
+      "negative_control": false,
+      "prompt": "命中和正常返回这条主线我看懂了。fetch失败这个边界我还没串起来，继续带我学；今天就把判断缓存状态这个目标收住。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "这轮我想学会自己判断缓存函数每次请求后留下什么状态。今天只学这一个目标。请先讲正常主链，再继续看失败边界。"
+        },
+        {
+          "role": "assistant",
+          "content": "get先看key是否已在cache里；命中就直接返回。未命中时调用fetch，拿到返回值后写入cache[key]再返回。比如初始cache={}，fetch(\"a\")正常返回7，第一次请求后cache是{\"a\":7}，第二次同key就不再调用fetch。"
+        },
+        {
+          "role": "user",
+          "content": "命中和正常返回这条主线我看懂了。fetch失败这个边界我还没串起来，继续带我学；今天就把判断缓存状态这个目标收住。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "cache.py": "def get(cache, key, fetch):\n    if key in cache:\n        return cache[key]\n    value = fetch(key)\n    cache[key] = value\n    return value\n",
+          "learning-record.json": "{\n  \"schema_version\": \"learning-record/1\",\n  \"goal\": \"独立判断这段缓存函数在一次正常请求或失败请求后留下什么状态\",\n  \"mode\": \"guided\",\n  \"source_refs\": [\n    {\n      \"kind\": \"code\",\n      \"repository\": \"fixture://cache-guided\",\n      \"revision\": \"fixture-v1\",\n      \"path\": \"cache.py\",\n      \"lines\": \"1-6\",\n      \"status\": \"provisional\"\n    }\n  ],\n  \"learner_state\": {\n    \"assumptions\": [\n      \"会Python字典、函数调用和raise；不熟悉异常中断后哪些赋值已发生\"\n    ],\n    \"reading_progress\": \"用户说正常命中/未命中主链已看懂；这不是独立作答证据\",\n    \"observed_attempts\": []\n  },\n  \"knowledge_components\": [\n    {\n      \"id\": \"kc-hit-miss\",\n      \"ability\": \"追踪正常命中与未命中路径\",\n      \"status\": \"untested\",\n      \"reading\": \"user_reported_understood\"\n    },\n    {\n      \"id\": \"kc-failure-state\",\n      \"ability\": \"判断fetch失败后缓存的状态边界\",\n      \"status\": \"untested\"\n    }\n  ],\n  \"teaching_edges\": [\n    {\n      \"from\": \"kc-hit-miss\",\n      \"to\": \"kc-failure-state\",\n      \"reason\": \"在主链基础上定位异常中断位置\"\n    }\n  ],\n  \"frontier\": [\n    \"kc-failure-state\"\n  ],\n  \"learning_checks\": [],\n  \"next_action\": \"继续今天尚未完成的失败边界学习；今日只保留判断缓存状态这一个目标。\"\n}\n",
+          "source-context.md": "本练习中fetch可能正常返回或抛TimeoutError；fetch不访问cache，不通过闭包或全局引用修改cache，只有get内的赋值会写入它。没有并发写者、异常捕获或重试机制。\n"
+        },
+        "generation_spec": "同两组全新隔离仓库。既有正常主链讲解是合成对话，不冒称这次执行。checks/grader_side不暴露。"
+      },
+      "checks": [
+        {
+          "id": "L04.1",
+          "criterion": "在当前guided学习的合适停顿处，先给完整且简明的fetch失败边界解释，再在当前可见回复直接给一个低负担、可立即作答的状态判断尝试，并留出用户回答机会。题目围绕今日kc-failure-state，用有所变化的情境检验理解，而非只复述已讲例子的现成答案。只说“可以给你一道题”或只把题写进附件末尾不算完成。",
+          "result": null
+        },
+        {
+          "id": "L04.2",
+          "criterion": "解释正确：此处fetch没有接收cache引用，fixture明确无其他cache写者/闭包副作用；调用抛错时后续cache[key]=value不执行、异常外传，原有条目保留。练习条件充分且答案可由源码判定，不提前给正确选择、答案或代替用户作答。",
+          "result": null
+        },
+        {
+          "id": "L04.3",
+          "criterion": "不把用户看懂主链、收到讲解或生成题目记成已掌握；现有learning-record的observed_attempts仍不伪造结果，不修改代码、不创建无请求教程或通知；本轮只有一个短尝试，不堆多个问题。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": [],
+        "state_contract": "Portable learning-record/1 context. This is one real continuation response after supplied history, not a multi-turn learner-outcome test.",
+        "ablation_contract": "Both arms have retrieval-practice and identical whitelisted reference resources. Control lacks target teaching-reconstruction SKILL.md/metadata/orchestration instructions; resource-only files may exist under its directory."
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "teaching-reconstruction",
+        "shared_skills": [
+          "retrieval-practice"
+        ],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          }
+        ]
+      },
+      "grader_side": {
+        "oracle": null,
+        "known_good_text": "失败发生在value=fetch(key)这一步：fetch没有正常返回，后面的cache[key]=value就不会执行，异常会传给get的调用者。这里fetch本身不会改cache，所以原来的缓存内容保留；不能从“请求失败”推出缓存被清空。\n\n接着用一个不同初始状态判断一下：cache原来是{\"stable\":9}，调用get(cache,\"new\",fetch)，这次fetch抛TimeoutError。哪项成立？A. stable仍为9，没有new条目；B. stable被清空，new写入None；C. stable仍为9，new写入None。你选哪项？",
+        "known_bad_text": "fetch失败会中断后续赋值，cache保持原状，异常外传。你已经掌握这个目标了。如果你需要，我之后可以再给练习。",
+        "expected_observations": [
+          "source and learner-state inspected",
+          "complete failure explanation followed by an immediately answerable short changed-scenario check",
+          "not mere offer, artifact-only exercise, same-example answer repetition, leaked answer, or fabricated mastery",
+          "shared retrieval-practice available equally in skills and control; only teaching orchestrator differs"
+        ],
+        "oracle_is_exhaustive": false
+      },
+      "skill_association": {
+        "strength": "orchestration_trigger",
+        "attribution_limit": "Only evaluates this specified active guided session with clear target, sufficient prerequisites and no pending exercise/exclusions. Does not impose a quiz on every explanation or measure real learner mastery."
+      },
+      "skill_sources": [
+        "skills/teaching-reconstruction/SKILL.md:29",
+        "skills/teaching-reconstruction/SKILL.md:35",
+        "skills/retrieval-practice/references/review-follow-through.md:9",
+        "skills/retrieval-practice/references/review-follow-through.md:11"
+      ],
+      "applicability_evidence": {
+        "active_guided_session": "First user explicitly requests learning one ability; current user asks to continue after understanding normal path.",
+        "useful_practice_point": "Normal path explained; only failure-state boundary remains; current explanation can complete the prerequisites for a short judgment.",
+        "no_conflicting_exclusion": "No explanation-only, defer-practice, complete-document-first request, fatigue barrier, or existing unanswered exercise.",
+        "not_universal_rule": "Do not apply this expectation to ordinary code answers or all teaching responses. It tests the documented next move at this deliberately chosen point."
+      }
+    }
+  ]
+}

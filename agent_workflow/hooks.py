@@ -198,7 +198,7 @@ def process(event, *, state_root=None):
         output = {}
         if name == 'SessionStart':
             current = runtime.status(root)
-            output = context(name, f'Workflow restored for this session: {root}. Phase: {binding["phase"]}. '
+            output = context(name, f'Workflow restored for this session: {root}. Phase: {current["phase"]}. '
                              f'State revision: {current["revision"]}; unclassified inputs: {list(current["pending_inputs"])}. '
                              'Read this current record before dependent work; background job status remains an observation.')
         elif name == 'UserPromptSubmit':

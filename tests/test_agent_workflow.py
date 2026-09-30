@@ -233,6 +233,8 @@ class WorkflowTests(unittest.TestCase):
         data = load(root / 'checklist.yaml')
         self.assertTrue(all(c['agent_status'] == 'checked' for c in data['checklist']))
         self.assertTrue(all(c['evidence']['level'] == 'simulated' for c in data['checklist']))
+        self.assertFalse((root / 'reviews/human-review.md').exists())
+        self.cli('review-brief', '--record', root)
         self.assertTrue((root / 'reviews/human-review.md').is_file())
         self.gate(root)
 

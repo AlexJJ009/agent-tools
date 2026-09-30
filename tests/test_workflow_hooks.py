@@ -84,6 +84,15 @@ class HookTests(unittest.TestCase):
         with self.assertRaises(ContractError):
             hooks.bind('session-a', self.base, self.root, state_root=self.state)
 
+    def test_resume_reports_current_phase_without_moving_stop_obligation(self):
+        hooks.bind('session-a', self.repo, self.root, state_root=self.state, on_stop=True)
+        self.update('phase.define', {'id': 'repair', 'required_checklist_items': ['VALUE-001']})
+        self.update('phase.set', {'id': 'repair'})
+        output = self.call('SessionStart', source='resume')['hookSpecificOutput']['additionalContext']
+        self.assertIn('Phase: repair.', output)
+        binding = json.loads(next(self.state.glob('*.json')).read_text())
+        self.assertEqual(binding['stop_obligation']['phase'], 'baseline')
+
     def test_explicit_unbind_removes_only_session_binding(self):
         hooks.bind('session-b', self.repo, self.root, state_root=self.state)
         self.assertTrue(hooks.unbind('session-a', self.repo, state_root=self.state)['binding_removed'])

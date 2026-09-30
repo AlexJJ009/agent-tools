@@ -139,7 +139,7 @@ def init(query, repo, scenario, context=None, mode='local', slug='task'):
         'Original query: [request.txt](request.txt). Do not change expectations to hide failures.\n\n'
         f'## code_handoff\n\nRepository: `{repo}`\nBranch: `{state["branch"]}`\nBase: `{state["base_sha"]}`\n'
         f'Working tree: `{state["working_tree"]}`. Re-read Git diff and untracked files before resuming.\n\n'
-        '## work_record\n\nNo checks executed. Investigate bindings and run applicable verifiers.\n\n'
+        '## work_record\n\nKeep only current recovery notes here; verification status is rendered below.\n\n'
         '## current_state\n\n<!-- workflow-state:start -->\nRunning tasks: none started by init. Human review: not requested.\n'
         'Next action: inspect current project facts, finish unresolved requirements, then check.\n'
         '<!-- workflow-state:end -->\n\nCleanup result: not yet assessed.\n')
@@ -252,6 +252,7 @@ def check(root, selected=None):
     for item in record['checklist']:
         if item['id'] not in selected:
             continue
+        result_path = None
         try:
             require(item['human_status'] != 'confirmed' or item.get('human_receipt'), f'{item["id"]}: confirmed without human receipt')
             if item['agent_status'] == 'checked':
@@ -291,7 +292,6 @@ def check(root, selected=None):
                                       timeout=verifier.get('timeout_seconds', 30))
                 result = {'argv': argv, 'returncode': proc.returncode, 'stdout': proc.stdout, 'stderr': proc.stderr}
                 result_path = root / 'evidence' / (uuid.uuid4().hex + '-readback.json')
-                write(result_path, dict(result, at=now(), object_digest=obj))
                 require(proc.returncode == 0, f'{item["id"]}: verifier exit {proc.returncode}; {result_path}')
                 output = json.loads(proc.stdout)
                 observed = output
@@ -319,6 +319,8 @@ def check(root, selected=None):
             item['agent_status'] = 'checked'
             item['invalidated_by'] = []
         except (ContractError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
+            if result_path is not None:
+                write(result_path, dict(result, at=now(), object_digest=obj))
             item['agent_status'] = 'failed'
             if item['human_status'] == 'confirmed':
                 item['human_status'] = 'invalidated'
@@ -336,7 +338,8 @@ def check(root, selected=None):
             f[key] = target[key]
     record['code_state'] = git_state(record['repo'])
     commit(root, record, 'check', 'fail' if errors else 'pass', {'selected': sorted(selected), 'errors': errors})
-    review_brief(root, record)
+    if (root / 'reviews/human-review.md').exists():
+        review_brief(root, record)
     return errors
 
 
@@ -538,6 +541,10 @@ def refresh_views(root, record):
         text = ('<!-- workflow-state:start -->\n' + '\n'.join(rows + extra) + '\n<!-- workflow-state:end -->')
     task = root / 'task.md'
     previous = task.read_text() if task.exists() else '# Task agreement and work record\n\n'
+    # Retire only the exact initializer paragraph; preserve authored recovery notes.
+    previous = previous.replace(
+        '## work_record\n\nNo checks executed. Investigate bindings and run applicable verifiers.\n\n',
+        '## work_record\n\nKeep only current recovery notes here; verification status is rendered below.\n\n', 1)
     if '<!-- workflow-state:start -->' in previous:
         previous = re.sub(r'<!-- workflow-state:start -->.*?<!-- workflow-state:end -->', lambda _: text, previous, flags=re.S)
     else:

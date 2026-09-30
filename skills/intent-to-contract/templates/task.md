@@ -22,6 +22,9 @@ source:
 
 ## Work Record
 
+Update this section in place. Keep current recovery notes and links to necessary
+evidence; replace superseded summaries rather than appending phase histories.
+
 - current_approach: "<implementation and investigation notes>"
 - open_questions: []
 - latest_evidence: []

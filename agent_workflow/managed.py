@@ -153,7 +153,6 @@ def gate_action(root, action_id, *, phase=None, simulation=False):
     with runtime.locked(root) as root:
         record = runtime.read_record(root)
         result = evaluate(root, record, action_id, phase=phase, simulation=simulation)
-        runtime.append_event(root, 'managed-gate', result['status'], result)
         return result
 
 

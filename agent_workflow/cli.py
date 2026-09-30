@@ -50,6 +50,7 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    query_only = False
     try:
         if args.command == 'init':
             record = runtime.init(args.query, args.repo, args.scenario, load(args.context) if args.context else None, args.mode, args.slug)
@@ -59,6 +60,7 @@ def main(argv=None):
             print(json.dumps(output, ensure_ascii=False))
             return 0 if output['status'] == 'pass' else 1
         elif args.command == 'gate' and runtime.read_record(args.record).get('schema_version') == 2:
+            query_only = True
             record = runtime.read_record(args.record)
             output = managed.gate_action(args.record, args.action, phase=args.phase or record['phase'], simulation=args.simulation)
             print(json.dumps(output, ensure_ascii=False))
@@ -109,7 +111,7 @@ def main(argv=None):
         return 0
     except (ContractError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
         output = {'status': 'error', 'command': args.command, 'error': str(exc)}
-        if hasattr(args, 'record') and (args.record / 'checklist.yaml').is_file():
+        if not query_only and hasattr(args, 'record') and (args.record / 'checklist.yaml').is_file():
             runtime.append_event(args.record, args.command, 'error', output)
         print(json.dumps(output, ensure_ascii=False))
         return 1

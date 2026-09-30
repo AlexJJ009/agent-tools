@@ -80,6 +80,8 @@ For protocol-like values, include a binding record with the repository state, de
 
 Keep requirements and success conditions in the local PRD or simple spec, and actual verification status in its one checklist. Agents may update execution status but cannot relax requirements or invent human acceptance. Do not require checklist rewrites or Markdown changes for every commit.
 
+Update the existing recovery note in place when the stage changes; replace superseded current-state prose instead of appending another phase summary. Keep source requirements and evidence by reference. A check, review or handoff does not need its own Markdown file, index or narrative receipt.
+
 Use task/handoff records for the recovery point, implementation notes, outstanding work and local evidence. Link current repository usage/interface documentation instead of copying it. Process handles belong to their original machine and must be read back before reuse after a handoff.
 
 Repository documentation must explain the implemented system without access to private reports. Extract durable usage, interface facts and important design reasons into maintained documentation or ADRs; do not commit the entire local plan as a substitute. Private reports use `docs/_local/reports/<task-id>/`, and temporary drafts may use `docs/_local/scratch/<task-id>/` only when needed. No local index or duplicate progress register is required.

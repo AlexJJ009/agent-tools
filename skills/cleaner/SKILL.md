@@ -1,11 +1,13 @@
 ---
 name: cleaner
-description: Clean up coder changes while preserving behavior, module boundaries, maintainability, and handoff clarity; use proportionately before a meaningful stage commit, merge, or delivery, and earlier when patches or alternatives accumulate. Excludes unrelated repository cleanup and worktree retirement.
+description: Clean up coder changes while preserving behavior, module boundaries, maintainability, and handoff clarity; use proportionately before a meaningful stage commit, merge, or delivery, and earlier when patches or alternatives accumulate. Also use for explicit task closeout after scoped user acceptance to maintain durable project information and clean owned process materials. Excludes unrelated repository cleanup and automatic worktree retirement.
 ---
 
 # Cleaner
 
-Use this skill after coding work when the changed area needs a maintainability pass. The cleaner owns behavior-preserving cleanup of the current diff and directly related code. It does not own new features, changed methods, changed scoring policy, changed experiment semantics, or wider refactors.
+Choose the applicable activity: a code cleanup pass, or task closeout. Neither activity implicitly requests the other. For task closeout, use the dedicated section below; do not add formatter, lint, code-style or wider engineering work.
+
+Use a code cleanup pass after coding work when the changed area needs a maintainability pass. The cleaner owns behavior-preserving cleanup of the current diff and directly related code. It does not own new features, changed methods, changed scoring policy, changed experiment semantics, or wider refactors.
 
 This skill borrows only the two-role mechanism from SwarmForge: coder produces behavior, cleaner follows with a constrained quality pass. SwarmForge prompt text is not copied because no license was verified in the saved snapshot.
 
@@ -20,7 +22,7 @@ checklist solely to record cleanup.
 - Reduce meaningful duplication, temporary leftovers, hidden side effects, unclear names, broad interfaces, and misplaced responsibilities in changed code.
 - Check documentation impact: update affected usage/interface instructions or explain why no documentation change is needed in the existing closing note or commit/PR description. Handoff links the current guide and records a recovery point; it does not duplicate usage instructions.
 - Check task-record freshness when the task record is changed: consolidate competing current-state summaries, preserve user constraints, and link necessary historical evidence instead of copying it. Do not create another cleanup report to describe this check.
-- Check artifact ownership: private task agreements, checklists, reports and receipts belong in ignored `docs/_local/`, not shared source or product input. Preserve reusable test assets and necessary product validation.
+- Check artifact ownership: task-runtime state and owned process artifacts use its application data root; existing explicit local records remain valid. Do not create duplicate state under `docs/_local/`. Private material does not become shared source or product input. Preserve reusable test assets and necessary product validation.
 - Preserve significant architectural rationale in the project ADRs (`docs/decisions/`), using the MADR template when adopted. A substantive replacement gets a successor ADR and reciprocal supersession links; typo fixes do not. Do not fabricate alternatives or decisions.
 - Keep dependency direction and module boundaries consistent with the repository.
 - Add or adjust tests only when they verify changed behavior or guard a real cleanup risk.
@@ -51,3 +53,66 @@ Cleanup does not authorize Git publication or merge. Return a meaningful diff, a
 no-change rationale, or a concrete out-of-scope concern; do not enlarge the task
 to manufacture cleanup. Record any needed notes in the existing local task or
 conversation, retaining user criteria and actual human acceptance.
+
+## Task closeout
+
+Use this activity only when the user has accepted the relevant results and the
+completion scope is clear. Stop events, a chat ending, successful tests, a report
+filename, and Agent self-assessment are not user acceptance. Partial acceptance
+updates only the accepted criteria; it does not close the whole task.
+
+Read the same task through `agent-workflow task read` and `task checklist`.
+Consult `agent-workflow task --help` and the selected command's help for inputs;
+use `python -m agent_workflow.cli task` when running from the source checkout.
+Queries default to stdout. Do not create a closeout report, index or second
+checklist just to record this activity.
+
+- Read current requirements, recorded user feedback, necessary evidence and the
+  task's managed artifacts. Recheck its workspace and actual Git state; a
+  worktree is a working location, not the task's identity.
+- Follow existing project retention and documentation conventions. Maintain
+  useful information in existing code, tests, usage documentation or a necessary
+  ADR. No durable information means no new document is needed.
+- Inspect known references and actual script dependencies before retiring
+  process material. Move lasting test inputs into project fixtures and verify
+  the consumers; tests must not depend on records scheduled for deletion.
+- Submit exact artifact dispositions to `task closeout`: `keep` or `delete` for every owned artifact. Project handoff is a normal
+  project edit/copy followed by verification, before disposing of the managed
+  copy; the MVP has no external-file adoption or handoff disposition. The
+  runtime checks ownership, revision, references, paths and content. A report
+  is eligible process material, but never delete a report still awaiting this
+  turn's delivery or a user-retained file. Project documents and other tasks'
+  files are outside deletion scope. Unknown ownership means preserve it.
+- Recheck behavior affected by closeout edits. Equivalent fixture relocation or
+  documentation maintenance can preserve the original acceptance scope after
+  verification; changed accepted behavior or requirements return the same task
+  to active work for negotiation, checks and scoped user acceptance.
+- Use `task recover` after interrupted publication or cleanup, following the
+  returned operation state. Retry the same operation packet and operation ID;
+  do not bypass a conflict with an unrelated deletion command. If changed inputs
+  invalidate an uncommitted plan, use `task abort --task TASK_ID --operation OP`
+  to restore its quarantine, then read current state and issue corrected work
+  under a new operation ID. Abort is not rollback of a committed result.
+  Pending cleanup reports `recovery_pending`; completion requires the commit
+  and remaining garbage removal, not just the committed metadata.
+
+A closeout packet passed to `task closeout --input PATH` has the shape
+`{"task_id":"TASK_ID","operation_id":"closeout-1","base_revision":7,
+"documents_reviewed":true,"rationale":"Actual disposition rationale",
+"retain_task":false,"dispositions":{"scratch-report":"delete"}}`.
+Use actual task/revision values and every owned logical artifact name, each with
+`keep` or `delete`; no artifacts means an empty object. This packet cannot
+substitute for recorded user feedback. Use `retain_task: true` when the user
+requests retention of the complete task; retained evidence references must
+remain intact. A kept report alone does not retain a reopenable task.
+
+Existing-task mutations use an explicit task ID, operation ID and base revision. Read the
+latest state after a revision conflict, preserve intervening input, and then
+submit a new operation for the revised intent. Replaying the same request is a
+retry; changing a request under its old operation ID is not.
+
+Inspect the associated worktree for remaining work or handoff needs, but do not
+remove worktrees or branches as a side effect of artifact cleanup. Their removal
+requires explicit scope and the existing worktree-management capability. Closing
+a task and forgetting its stored contents are separate actions; do not invoke
+`task forget` merely because closeout succeeded.

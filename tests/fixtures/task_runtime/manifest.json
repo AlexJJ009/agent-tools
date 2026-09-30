@@ -1,0 +1,8 @@
+{
+  "docs/unrelated.md": "c9ca7cd446ef758acb4b1eb0f04554e4bd4d2eef57696293f9f4826d08310ae9",
+  "docs/usage.md": "73ef43f07f6158d5c6139159af7f7e0394c098c1898d3482fc06f3252d0b372d",
+  "input.txt": "a1a5cb18ec0a7ae920e9cfb4d503d826b28236d68dbbf019deb6e0b07377ba9b",
+  "records/input.json": "7f54a2617d14b073ce74daf4b05af0ea7c9af24d958fba1f025e5d7c1e9bffca",
+  "tests/test_transform.py": "0ee293b09ff18f5135fcc083f74f4ade8f5148427515b48f1d440323847f7550",
+  "transform.py": "c2cf1c4e030e0b758350beb7430d3377f052b11436d164e002027fd4d886e166"
+}

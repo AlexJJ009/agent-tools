@@ -5,6 +5,7 @@ import argparse
 import json
 from pathlib import Path
 import subprocess
+import sys
 
 from .contracts import ContractError, SCENARIOS, digest, load
 from . import runtime, managed
@@ -13,6 +14,7 @@ from . import runtime, managed
 def parser():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest='command', required=True)
+    sub.add_parser('task', help='local task state, checklist queries and owned artifact closeout')
     init = sub.add_parser('init', help='preserve query and Agent-authored extraction/context')
     init.add_argument('--query', type=Path, required=True)
     init.add_argument('--repo', type=Path, default=Path.cwd())
@@ -49,6 +51,10 @@ def parser():
 
 
 def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if argv and argv[0] == "task":
+        from .task_cli import main as task_main
+        return task_main(argv[1:])
     args = parser().parse_args(argv)
     query_only = False
     try:

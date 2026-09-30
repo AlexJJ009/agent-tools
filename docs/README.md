@@ -4,6 +4,7 @@ Use the guides below for implemented behavior. Repository code and its current
 usage/interface documentation describe the system; task PRDs, checklists and
 private reports describe bounded development work and are not deployment proof.
 
+- [Task runtime](TASK_RUNTIME.md): local task state, checklist queries, continuation and owned-artifact closeout.
 - [Agent workflow](AGENT_WORKFLOW.md): development agreements, readback and acceptance.
 - [Learning workflow runtime](LEARNING_WORKFLOW.md): activity routing and scoped actions.
 - [Learning workflow installation](LEARNING_WORKFLOW_INSTALL.md): local Codex installation and rollback.
@@ -37,7 +38,9 @@ source implementation and historical acceptance do not establish installation
 on another host. This division clarifies [ADR 0001](decisions/0001-local-development-records.md)
 and does not create a new document pack or ADR for every documentation edit.
 
-Private development material belongs in ignored `docs/_local/`, created only
-when needed: `tasks/<task-id>/`, `reports/<task-id>/`, or `scratch/<task-id>/`.
+Task Runtime stores its state and managed artifacts in the configured application
+data root; see its guide above. Existing explicit local records remain valid.
+Private development material outside that runtime belongs in ignored `docs/_local/`,
+created only when needed: `tasks/<task-id>/`, `reports/<task-id>/`, or `scratch/<task-id>/`.
 Existing task identifiers and agreements remain valid. A handoff records the
 recovery point and links these guides; it does not maintain a second user manual.

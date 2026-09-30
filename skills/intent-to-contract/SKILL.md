@@ -51,7 +51,66 @@ refreshing affected technical evidence. Classify MVP feedback as scoped result
 acceptance, an existing defect, criterion clarification or a future-version
 request. A general positive reaction does not accept the entire checklist.
 
-## Outputs When a Record Is Needed
+## Current task state and continuation
+
+Use the task runtime when persistent requirements and checklist state are
+needed across conversations. Do not create a task just to answer a status
+question, handle a short change, or record that this skill was read. A session
+or worktree name is not a task ID.
+
+Use `agent-workflow task resolve` with the current session and workspace, or
+`task list` for candidate metadata. If several tasks match, return the relevant
+candidates rather than guessing. Read the selected task with `task read` and
+query its checklist through `task checklist`: whole list, individual status,
+individual details, or name/content search. Select an item by its stable ID;
+ordinal position only locates that ID in the current revision. Read evidence
+only as needed and verify current code and jobs from the actual workspace.
+
+For example, `agent-workflow task checklist --task TASK_ID --item AC-001
+--detail` reads one criterion; `--search text` searches current names and
+requirements. Append `--data-root /absolute/root` consistently when overriding
+the application root. A revision packet passed to `task revise --input PATH`
+can be `{"task_id":"TASK_ID","operation_id":"clarify-1","base_revision":3,
+"criteria":[{"id":"AC-001","expected":"The corrected expected outcome"}]}`.
+Replace placeholders with the selected task's current values and the actual
+agreed change; do not overwrite requirements merely to update progress.
+
+Use `agent-workflow task --help` and command-specific help for the JSON packet
+contract. From a source checkout, the equivalent entry is
+`python -m agent_workflow.cli task`. Create only on demand; `task revise`
+updates the same task when requirements change. The Agent supplies requirements
+and check points; runtime maintains checklist state and revisions. Do not keep
+a second writable Markdown PRD/checklist beside the runtime's current state.
+Queries and human-readable views go to stdout unless an export is requested.
+Use `task read` or `task checklist` with `--format markdown` for a human summary;
+use JSON with `--detail` for full fields.
+
+Keep verification, result validity and user acceptance separate. Record actual
+checks with `task result`, identifying external checks as external; record
+necessary user wording, source and accepted/rejected scope with `task feedback`.
+A passing test or positive reaction does not accept the entire task. Use
+`task bind` to associate another session at the current workspace, or `task rebind`
+to change the task workspace explicitly; reassociation does not make stale
+checks current. Existing-task mutations carry a task ID, operation ID and
+base revision; create/import assign the ID. Retry unchanged packets with the same operation ID. On revision
+conflict, read current state before constructing a new mutation.
+
+A selected legacy record may be imported with `task import`; do not scan or
+migrate every old record. The MVP imports requirements only, with checks unverified and acceptance
+pending. Verify imported state and provenance before retiring its source. The new runtime does not replace existing formal-run
+permission or acceptance-gate contracts. After scoped user acceptance, use
+Cleaner's task-closeout activity for owned process material and durable project
+information; code cleanup is a separate activity.
+
+## Existing scenario records
+
+Keep existing scenario records and their explicit paths when continuing the
+legacy workflow below. This interface still supplies formal command/config
+bindings and readback checks; task-state storage does not loosen those gates.
+Do not create both interfaces' checklists for the same state merely to satisfy
+this skill.
+
+## Outputs When a Legacy Scenario Record Is Needed
 
 The runtime does not perform arbitrary natural-language extraction. The Agent supplies a JSON context containing investigated `items`, `facts`, `bindings`, `checks`, formal command/config scope, and review targets. Bindings include ordered override anchors and a `readback_key` into verifier JSON where `{config_key, consumer_symbol, value}` is returned. Optional `protocol_view: true` renders `protocol.md` from the canonical record. See [context example](templates/context.example.json); replace every sample path and value with inspected project facts.
 
@@ -61,7 +120,7 @@ Create or update the record through the installed launcher when available:
 agent-workflow init --query <request.txt> --scenario <algorithm|infra|business|bug_fix|office|learning> --context <context.json> --mode simulation
 ```
 
-New records use `docs/_local/tasks/<task-id>/` in the current worktree, excluded by the repository rule `/docs/_local/`. Preserve existing task IDs and explicit record paths; resume the existing checklist instead of creating a second status source. Use [templates/task.md](templates/task.md) and [templates/checklist.yaml](templates/checklist.yaml) as the local shape when the runtime cannot yet create the file.
+New legacy scenario records use `docs/_local/tasks/<task-id>/` in the current worktree, excluded by the repository rule `/docs/_local/`. Preserve existing task IDs and explicit record paths; resume the existing checklist instead of creating a second status source. Use [templates/task.md](templates/task.md) and [templates/checklist.yaml](templates/checklist.yaml) as the local shape when the runtime cannot yet create the file.
 
 Each extracted requirement should include:
 
@@ -78,7 +137,7 @@ For protocol-like values, include a binding record with the repository state, de
 
 ## Handoff and Repository Documentation
 
-Keep requirements and success conditions in the local PRD or simple spec, and actual verification status in its one checklist. Agents may update execution status but cannot relax requirements or invent human acceptance. Do not require checklist rewrites or Markdown changes for every commit.
+Keep requirements and success conditions in the selected canonical task store or existing local PRD/simple spec, and actual verification status in its one runtime-maintained checklist. Agents may update execution status but cannot relax requirements or invent human acceptance. Do not require checklist rewrites or Markdown changes for every commit.
 
 Update the existing recovery note in place when the stage changes; replace superseded current-state prose instead of appending another phase summary. Keep source requirements and evidence by reference. A check, review or handoff does not need its own Markdown file, index or narrative receipt.
 

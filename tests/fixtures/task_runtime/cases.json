@@ -1,0 +1,165 @@
+{
+  "provenance": {
+    "kind": "adapted historical case",
+    "source": "Task runtime MVP PRD v5, 2026-09-30, section 10.2; workflow/document-lifecycle investigation",
+    "simplification": "Synthetic UTF-8 text and JSON in disposable local Git worktrees; no original workspace or commands",
+    "limits": "Does not establish production, GPU, remote execution, native Hook or model effectiveness."
+  },
+  "cases": [
+    {
+      "id": "H01",
+      "messages": [
+        {
+          "when": "start",
+          "text": "Add --mode strip to the line-transform CLI, preserving order and blank lines. Update usage and verify actual output."
+        },
+        {
+          "when": "after verified delivery",
+          "text": "I accept the strip behavior."
+        }
+      ],
+      "allowed": [
+        "edit transform.py",
+        "edit docs/usage.md",
+        "run CPU tests"
+      ],
+      "expected": {
+        "output": "Alpha\n\nBeta\n",
+        "retain": [
+          "docs/unrelated.md",
+          "keep.txt"
+        ]
+      },
+      "mechanism": "ordinary delivery with real IO and unrelated content"
+    },
+    {
+      "id": "H02",
+      "messages": [
+        {
+          "when": "after first uppercase result",
+          "text": "Change the default to lowercase; still preserve blank lines and do not modify input."
+        },
+        {
+          "when": "two writers share revision",
+          "text": "Record the added input constraint before the older writer retries its mode update."
+        }
+      ],
+      "allowed": [
+        "revise current task",
+        "edit transform.py",
+        "run CPU tests"
+      ],
+      "expected": {
+        "stable_ids": [
+          "REQ-MODE",
+          "REQ-BLANK",
+          "REQ-INPUT"
+        ],
+        "order": [
+          "REQ-INPUT",
+          "REQ-MODE",
+          "REQ-BLANK"
+        ],
+        "invalidate": [
+          "REQ-MODE"
+        ],
+        "retain_valid": [
+          "REQ-BLANK"
+        ],
+        "new_unverified": [
+          "REQ-INPUT"
+        ]
+      },
+      "mechanism": "new constraints, reordered ordinals and concurrent stale writer"
+    },
+    {
+      "id": "H03",
+      "messages": [
+        {
+          "when": "fresh session, no old transcript",
+          "text": "Resume the unfinished file transform task. Do not edit source input or publish."
+        },
+        {
+          "when": "ambiguous candidates returned",
+          "text": "Choose task-transform, not task-preview."
+        }
+      ],
+      "allowed": [
+        "search/read tasks",
+        "explicitly bind selected task",
+        "finish CPU operation"
+      ],
+      "expected": {
+        "candidates": [
+          "task-transform",
+          "task-preview"
+        ],
+        "pending": [
+          "finish lower-mode output"
+        ],
+        "prohibitions": [
+          "do not edit source input",
+          "do not publish"
+        ]
+      },
+      "mechanism": "two plausible candidates and interrupted CPU output with missing transcript"
+    },
+    {
+      "id": "H04",
+      "messages": [
+        {
+          "when": "after each real revision",
+          "text": "Read current status repeatedly and retry the same result submission with its original ID."
+        }
+      ],
+      "allowed": [
+        "20 status queries",
+        "20 identical retries",
+        "three meaningful requirement revisions"
+      ],
+      "expected": {
+        "query_retry_file_growth": 0,
+        "query_retry_state_changes": 0,
+        "distinct_revisions": 3
+      },
+      "mechanism": "idempotent retries versus genuinely new results and stale views"
+    },
+    {
+      "id": "H05",
+      "messages": [
+        {
+          "when": "start",
+          "text": "Move the JSON dependency from records into formal test fixtures, update its consumer, and clean only owned disposable material. Keep keep.txt and other worktrees."
+        },
+        {
+          "when": "after cleanup plan",
+          "text": "Retain the material whose content changed after the plan."
+        },
+        {
+          "when": "after interruption",
+          "text": "Resume cleanup using the same task."
+        }
+      ],
+      "allowed": [
+        "migrate records/input.json",
+        "edit test consumer",
+        "delete owned unchanged unreferenced temporary file"
+      ],
+      "expected": {
+        "fixture": "tests/fixtures/input.json",
+        "retain": [
+          "keep.txt",
+          "docs/unrelated.md",
+          "changed-after-plan.txt",
+          "second-worktree/keep.txt",
+          "out-of-scope.txt"
+        ],
+        "remove": [
+          "records/input.json",
+          "owned-scratch.txt"
+        ]
+      },
+      "mechanism": "live test dependency, interruption, changed content, untracked user file and second worktree"
+    }
+  ]
+}

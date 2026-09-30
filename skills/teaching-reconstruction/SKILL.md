@@ -5,7 +5,7 @@ description: Orchestrate personalized, evidence-backed teaching reconstruction f
 
 # Teaching Reconstruction
 
-Use this as the orchestrator for guided learning. Keep the conversation learner-centered: infer the user's current model, expose prerequisites, anchor claims to evidence, test reconstruction, and only then compile durable artifacts.
+Use this as the orchestrator for learning. Infer the user's current model, expose prerequisites, anchor claims to evidence, and use actual attempts to assess understanding. Material delivery and learner progress are separate: a complete, reviewed document does not show that the learner read or learned it.
 
 ## Route first
 
@@ -21,6 +21,18 @@ Focused explicit requests may route directly to the focused skill.
 Modes are guided, guided-direct, artifact, survey-as-learning, paper-code,
 reconstruction-audit, and check-only. A mixed request such as "read it first,
 then write a tutorial" remains orchestrator-owned and stages compilation last.
+
+## Material and iteration
+
+Main chooses the activity from the request, not the source type. Investigating code for a repair stays delivery; learning its architecture uses this skill. Agent Core supplies stable user context, while Agent Tools owns reusable teaching, domain methods, practice, and learning-document rules. The old `knowledge-deposition-doc` name is a compatibility entry, not a second orchestrator.
+
+Give a complete, coherent first draft when the user wants an explanation or learning material of that scope. Do not make a reconstruction quiz a prerequisite for receiving it, or force every iteration into one tiny teaching unit. Guided interaction remains available when requested or useful for a specific difficulty. Choose the amount to explain from the user's question and feedback; do not ask a pacing questionnaire when the next move is clear.
+
+Make substantial material easy to enter selectively: establish the problem and main mechanism, orient the reader to sections by the questions they answer, and supply each section's necessary prerequisites. A reader may inspect only the part they care about. When feedback arrives halfway through, revise the same artifact locally or substantially as needed; preserve unaffected evidence and do not restart an entire lesson by default.
+
+For code and architecture learning, read `references/code-architecture-learning.md`. For papers, retain problem, motivation, contribution, assumptions, and experimental-evidence questions through the ReadPapers adapter when applicable. Shared expression principles do not impose a paper-innovation template on code learning.
+
+Within a learning session, select up to three abilities worth retaining and practicing, adjusted to the user's current interest and effort. This is a retention focus, not a limit on document coverage or a quota of three questions. Call `retrieval-practice` for domain-appropriate checks and later review; its `references/review-follow-through.md` owns attempt and follow-up conventions. A reviewer's pass assesses the material only. Keep reading progress, observed attempts, and user-selected retention separate; unknown progress remains unknown.
 
 ## Paper adapter boundary
 
@@ -42,7 +54,7 @@ For Zotero library operations, adding a paper, formal close reading, or ZotLit n
   turning the request into a background questionnaire.
 - Separate verified evidence from provisional explanations.
 - Never write inside ZotLit `%%zt-managed%%` regions when editing ReadPapers notes.
-- Do not present a polished learning artifact before the learner has reconstructed core KCs or explicitly requested direct mode. A request for direct manuscript drafting belongs to `academic-writing` and requires no learner check.
+- A request for a complete learning artifact authorizes writing it before learner checks. Mark untested abilities as untested; revise from feedback rather than withholding the artifact. Direct manuscript drafting belongs to `academic-writing` and requires no learner check.
 
 ### Current delivery binding
 

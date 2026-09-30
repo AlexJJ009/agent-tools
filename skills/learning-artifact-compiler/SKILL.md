@@ -1,19 +1,21 @@
 ---
 name: learning-artifact-compiler
-description: Compile already-verified teaching session state into a standalone tutorial, blog, note, or review artifact. Use when explicitly asked to compile, package, publish-ready draft, or convert verified learning state into an artifact.
+description: Write or revise requested standalone learning material such as a tutorial, study note, blog, or retrospective from inspected sources or existing learning state. Learner exercises need not be completed first; ordinary explanations do not require a saved artifact.
 ---
 
 # Learning Artifact Compiler
 
-Turn verified guided-learning state into durable writing without inventing new evidence or hiding uncertainty.
+This is Agent Tools' learning-document capability, normally selected by Main or `teaching-reconstruction`. The user does not need to know this internal name. Turn inspected sources or existing learning state into requested durable writing without inventing evidence or treating polished prose as learner mastery.
 
 ## Workflow
 
-1. For a compiled learning artifact, confirm the relevant prerequisite path, evidence anchors, and checks exist or mark the gaps. Direct manuscript drafting and revision belong to `academic-writing` and do not need teaching state.
+1. Reuse relevant learning state when it exists; a first complete draft may instead start from inspected sources and stated reader assumptions. Supply the necessary prerequisites and mark evidence gaps. Do not require a prior learning session or completed checks. Direct manuscript drafting and revision belong to `academic-writing`.
 2. Choose artifact form: tutorial, blog, study note, review memo, or audit report.
 3. Preserve source boundaries and provisional labels.
-4. Include reconstruction and transfer checks unless the user explicitly asks for prose only.
+4. Select domain-appropriate practice through `retrieval-practice` when it serves the learning request; respect prose-only or deferred-practice requests. Focus retention on up to three abilities without imposing a fixed question mixture. Keep answers separate in live practice; an offline self-study document may include a separate or folded key.
 5. When the request includes curation into a knowledge directory, follow the curation procedure below; a saved Markdown file alone does not complete that request.
+
+Deliver a coherent full first draft at the requested scope, with a clear entry into the problem and sections organized around useful questions. The learner may read selectively and request a rewrite after only part of the material. Revise the same artifact at the appropriate scale; retain valid evidence and adapt the explanation to the feedback rather than enforcing tiny iterations. Separate material review, known reading progress, actual practice results, and the learner's choice of what to retain. A document can be ready while all its checks remain unattempted.
 
 ## Explicit Curation
 

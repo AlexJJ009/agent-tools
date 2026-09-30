@@ -9,7 +9,31 @@ See [installation and rollback](LEARNING_WORKFLOW_INSTALL.md) for the supported 
 
 ## Ownership
 
-The seven reusable skills (`task-routing`, `academic-writing`, `teaching-reconstruction`, `teaching-dag-builder`, `evidence-anchor`, `retrieval-practice`, `learning-artifact-compiler`) belong at user scope. The packaged `read-paper` adapter is installed only in an explicitly selected ReadPapers project; that project owns its library configuration, notes, ZotLit regions and reader data. Packaging the adapter does not authorize library operations in other projects. Development acceptance and Work Report retain their own contracts.
+The seven reusable skills (`task-routing`, `academic-writing`, `teaching-reconstruction`, `teaching-dag-builder`, `evidence-anchor`, `retrieval-practice`, `learning-artifact-compiler`) belong at user scope. Agent Tools also owns `knowledge-deposition-doc` as a compatibility entry for the former Agent Core workflow, not an eighth independent teaching process. The packaged `read-paper` adapter is installed only in an explicitly selected ReadPapers project; that project owns its library configuration, notes, ZotLit regions and reader data. Packaging the adapter does not authorize library operations in other projects. Development acceptance and Work Report retain their own contracts.
+
+Agent Core provides stable user/collaboration context. Main selects the current
+activity; learning uses the teaching orchestrator and domain methods, while
+ordinary code investigation stays delivery. Code learning covers problem
+solving, task decomposition, module decoupling, architecture/ownership, control
+flow, and engineering trade-offs. Paper learning retains motivation, problem,
+contribution, assumptions, and experimental evidence. Both use one shared
+writing contract and one practice owner.
+
+`learning-artifact-compiler` means writing or revising a requested standalone
+learning document. It can work from inspected sources without a previous
+teaching session or completed exercises. Full initial drafts and substantial
+feedback-driven revisions are supported; small interactive units are an option,
+not a universal requirement. Retention/practice normally focuses on up to three
+abilities per learning session, without limiting the document's coverage.
+Material review, reading progress, actual attempts, and selected retention remain
+separate. See [the ownership decision](decisions/0009-learning-domain-ownership.md).
+
+Practice follow-through is an Agent instruction, not a background service. The
+current runtime does not schedule review, deliver notifications, capture answers,
+or synchronize calendar events. Existing queues remain with their owning project;
+calendar writes use the authorized calendar capability, never the teaching
+manifest validator. Old v2 design notes are historical proposals, not proof that
+their scheduler/state services exist.
 
 ## Minimal use
 

@@ -144,6 +144,66 @@ class InstallerTests(unittest.TestCase):
             installer.rollback(self.home)
         self.assertTrue(bundle.exists())
 
+    def test_core_learning_alias_migrates_relocates_and_rolls_back(self) -> None:
+        source = self.base / "agent-core/skills/knowledge-deposition-doc"
+        source.mkdir(parents=True)
+        (source / "SKILL.md").write_text("legacy teaching rules\n")
+        alias = self.home / ".codex/skills/knowledge-deposition-doc"
+        alias.parent.mkdir(parents=True)
+        alias.symlink_to(os.path.relpath(source, alias.parent))
+        claude_alias = self.home / ".claude/skills/knowledge-deposition-doc"
+        claude_alias.symlink_to(os.path.relpath(source, claude_alias.parent))
+        original = os.readlink(alias)
+        installer.install(self.home, legacy_root=self.old, read_papers_root=None,
+                          legacy_knowledge_source=source, with_hooks=False)
+        bundle = self.home / ".local/share/agent-tools/learning-workflow"
+        self.assertEqual(alias.resolve(), bundle / "skills/knowledge-deposition-doc")
+        self.assertFalse((self.home / ".agents/skills/knowledge-deposition-doc").exists())
+        self.assertEqual(os.readlink(claude_alias), original)
+        self.assertEqual((source / "SKILL.md").read_text(), "legacy teaching rules\n")
+        self.repo.rename(self.base / "moved-source")
+        installer.ROOT = self.base / "moved-source"
+        self.assertEqual(installer.check(self.home)["status"], "pass")
+        self.assertTrue((alias / "SKILL.md").is_file())
+        installer.rollback(self.home)
+        self.assertEqual(os.readlink(alias), original)
+        self.assertEqual(os.readlink(claude_alias), original)
+
+    def test_core_alias_replacement_requires_exact_explicit_source(self) -> None:
+        source = self.base / "agent-core/skills/knowledge-deposition-doc"
+        source.mkdir(parents=True)
+        alias = self.home / ".codex/skills/knowledge-deposition-doc"
+        alias.parent.mkdir(parents=True)
+        alias.symlink_to(source)
+        for supplied in (None, self.base / "another-core/skills/knowledge-deposition-doc"):
+            with self.subTest(source=supplied):
+                with self.assertRaisesRegex(installer.InstallError, "unmanaged target preserved"):
+                    installer.install(self.home, legacy_root=self.old, read_papers_root=None,
+                                      legacy_knowledge_source=supplied, with_hooks=False)
+                self.assertEqual(alias.resolve(), source)
+                self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
+
+    def test_duplicate_core_alias_is_preserved_before_install(self) -> None:
+        alias = self.home / ".agents/skills/knowledge-deposition-doc"
+        alias.mkdir()
+        (alias / "SKILL.md").write_text("user-owned rules\n")
+        with self.assertRaisesRegex(installer.InstallError, "duplicate knowledge-deposition-doc"):
+            installer.install(self.home, legacy_root=self.old, read_papers_root=None,
+                              with_hooks=False)
+        self.assertEqual((alias / "SKILL.md").read_text(), "user-owned rules\n")
+        self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
+
+    def test_check_detects_new_duplicate_without_removing_it(self) -> None:
+        installer.install(self.home, legacy_root=self.old, read_papers_root=None,
+                          with_hooks=False)
+        alias = self.home / ".agents/skills/knowledge-deposition-doc"
+        alias.symlink_to(self.base / "stale-core-source")
+        with self.assertRaisesRegex(installer.InstallError, "duplicate knowledge-deposition-doc"):
+            installer.check(self.home)
+        self.assertTrue(alias.is_symlink())
+        installer.rollback(self.home)
+        self.assertTrue(alias.is_symlink())
+
     def test_changed_managed_hook_blocks_rollback_without_removing_settings(self) -> None:
         installer.install(self.home, legacy_root=self.old, read_papers_root=None, with_hooks=True)
         path = self.home / ".codex/hooks.json"

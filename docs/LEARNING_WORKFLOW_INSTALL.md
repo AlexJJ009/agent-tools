@@ -1,7 +1,7 @@
 # Learning workflow installation and rollback
 
 Use Python 3.11+ for this installer and its TOML Hook registration support. It handles one Linux/WSL user profile. It copies the Python
-runtime, seven reusable skills, the ReadPapers adapter resource tree, and the
+runtime, seven reusable skills plus the legacy `knowledge-deposition-doc` entry, the ReadPapers adapter resource tree, and the
 reader-facing writing contract into
 `~/.local/share/agent-tools/learning-workflow`. Installed skill links point to
 that copy and survive relocation of the source checkout. It does not run the
@@ -12,8 +12,25 @@ Run `python3 scripts/install_learning_workflow.py --help` in the source
 checkout. The installer always calls `scripts/codex_target_guard.py` before
 writing profile state. To replace the five known teaching-suite symlinks, pass
 the exact old checkout with `--legacy-root`; any different occupied target is
-preserved and aborts installation. The reusable skills are installed under
-`~/.agents/skills` for Codex. Claude entries are not managed. An explicit
+preserved and aborts installation. The seven reusable skills are installed under
+`~/.agents/skills` for Codex. The compatibility entry is installed only at
+`~/.codex/skills/knowledge-deposition-doc`, replacing its old discovery location
+instead of adding a duplicate. If that location is an Agent Core symlink, pass
+`--legacy-knowledge-source /exact/agent-core/skills/knowledge-deposition-doc`.
+Only a symlink to that exact source may be replaced; a directory, another target,
+or a duplicate entry in `~/.agents/skills` is preserved with an error. Check also
+detects a duplicate created after installation, including a broken symlink. Rollback
+restores the original link text. The old source and Claude aliases are untouched.
+Core's corresponding installer change must also be adopted so a later Core
+install does not overwrite this entry. This installer does not deploy Core's
+source changes or manage Claude/native Win11 entries.
+
+An existing managed bundle must pass its old check/rollback before reinstall;
+this is not an in-place updater. Preserve its recorded project/legacy paths and
+hook choices when preparing the replacement. Do not infer a live deployment
+from a source edit or a disposable-profile test.
+
+An explicit
 `--read-papers-root /absolute/project/path` additionally installs the
 `read-paper` adapter only in that project's `.agents/skills`. It does not install the project adapter globally.
 It also creates a managed `~/.local/bin/learning-workflow` link to the copied

@@ -65,3 +65,8 @@ replace the project's retained final survey. Preserve a sole attachment until
 any selected transfer is confirmed. Cleaner applies these boundaries during
 scoped cleanup; lack of learning value does not override code, test, license,
 ADR, user-retention, evidence or recovery dependencies.
+
+If inspection leaves a material deletion decision uncertain, Cleaner presents
+specific candidates, the uncertainty and recommended dispositions to the user.
+Those items remain until answered; clear authorized cleanup can continue.
+Existing user decisions do not require repeated confirmation.

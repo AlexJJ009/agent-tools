@@ -94,6 +94,11 @@ checklist just to record this activity.
   actual receipts and consumers; a pending label alone neither proves active work
   nor permits deletion. Unknown ownership, active references or unverified
   replacement/transfer mean preserve until resolved.
+  If inspection cannot resolve a material deletion decision, ask the user with
+  the exact candidates, what is uncertain, likely impact and a recommended
+  keep/archive/delete disposition. Batch related questions; retain those items
+  until answered while continuing clear, authorized cleanup. Do not ask again
+  for decisions already covered by the user's instructions.
 - Inspect known references and actual script dependencies before retiring
   process material. Move lasting test inputs into project fixtures and verify
   the consumers; tests must not depend on records scheduled for deletion.

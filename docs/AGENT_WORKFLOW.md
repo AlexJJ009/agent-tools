@@ -1,5 +1,17 @@
 # Agent Workflow Suite
 
+For current persistent task state use the [task runtime](TASK_RUNTIME.md):
+`agent-workflow task read`, `task checklist`, `task result` and `task feedback`.
+Ordinary changes may use existing requirements, code and test evidence without
+a task record. Do not create a legacy checklist merely for completion, review
+or infrastructure verification.
+
+The non-`task` commands below preserve existing legacy scenario contracts,
+including formal-run and registered protected-action controls. Those controls
+remain applicable to their actual bound workloads; task-state migration does
+not disable them. `acceptance-gate` is explicit-only for a selected existing
+legacy contract, not a default gate before every completion claim.
+
 The workflow uses six English-language skills. The workflow installer packages
 the first five; Work Report retains its existing separate installer.
 
@@ -8,14 +20,14 @@ the first five; Work Report retains its existing separate installer.
 | `intent-to-contract` | Intent to Contract | Read back the task, preserve source quotes, ground parameters, and seed checklist items. |
 | `infra-verification` | Infrastructure Verification | Collect readback evidence for training, Agentic, Docker, Harbor, GPU, mount, network, lifecycle, and cleanup behavior. |
 | `cleaner` | Cleaner | Check proportional cleanup, documentation impact and local artifact ownership before meaningful delivery. |
-| `acceptance-gate` | Acceptance Gate | Enforce current evidence, scoped choices and execution authority. |
+| `acceptance-gate` | Acceptance Gate | Check an explicitly selected existing legacy formal-run or protected-action contract. |
 | `reviewer-brief` | Reviewer Brief | Produce bounded human review and independent reviewer briefs. |
 | `work-report` | Work Report | Produce requested reports from task state with independent cold reading and source verification. |
 
 The runtime is installed as `agent-workflow` for use outside this checkout. The six scenario profiles are `algorithm`, `infra`, `business`, `bug_fix`, `office`, and `learning`.
 
-The following commands describe the retained schema-1 interface. New contexts
-can set `schema_version: 2`; use the scoped commands below for that interface.
+The following commands describe the retained schema-1 interface. Explicitly requested legacy contexts
+can set `schema_version: 2`; this is separate from the current task interface.
 
 ```text
 agent-workflow init --query <request.txt> --scenario <scenario> --context <context.json> --mode simulation
@@ -29,7 +41,7 @@ agent-workflow gate --record <record-dir> --action formal-run --simulation
 
 Use `--simulation` only for simulation records. A simulation record can support sandbox checks, but it cannot authorize a real formal experiment or production action. For local non-simulation records, omit `--simulation`.
 
-Create records when requested or needed for the applicable expensive/high-risk agreement; ordinary fixes do not require a PRD or checklist. New records live under ignored `docs/_local/tasks/<task-id>/` and contain `request.txt`, `task.md`, `checklist.yaml`, optional `protocol.md`, optional `reviews/human-review.md`, and `evidence/`.
+Create a legacy record only for an explicitly requested legacy scenario contract; an expensive/high-risk topic alone does not select this storage model. These legacy records live under ignored `docs/_local/tasks/<task-id>/` and contain `request.txt`, `task.md`, `checklist.yaml`, optional `protocol.md`, optional `reviews/human-review.md`, and `evidence/`.
 
 The installer copies the runtime to `~/.local/share/agent-workflow`, creates the launcher `~/.local/bin/agent-workflow`, and installs the five skills to `~/.agents/skills/`. It runs `scripts/codex_target_guard.py` before any write, rejects unmanaged collisions, and does not edit Codex config, auth, CC Switch databases, history, or existing conversations. `--check` is read-only and verifies installed files against the repository source.
 
@@ -39,7 +51,7 @@ formal-run approval to the task repository's current commit: a merge or squash
 that changes that commit requires fresh checks and any required human review.
 Changing only the branch name at the same commit does not invalidate the target.
 
-## Context API
+## Legacy scenario context API
 
 The runtime validates Agent-supplied context. It does not infer arbitrary requirements from prose. The Agent investigates the repository and then supplies:
 
@@ -66,7 +78,7 @@ The suite is a local workflow aid. It is not a tamper-proof identity system, a p
 
 Simulation evidence can support local reasoning, but it never authorizes a real formal experiment or production action. Formal runs bind the current candidate SHA, config digest, command digest, agent checks, and required human confirmation.
 
-Review briefs reuse Work Report's existing rubric/template discipline for evidence presentation and local path:line link conventions. The runtime does not run the Work Report Judge as acceptance, does not duplicate Work Report state, and does not let a Work Report quality pass approve code or update gate state.
+Review briefs reuse the shared writing contract for evidence presentation and local path:line links, without requiring Work Report's template or rubric. The runtime does not run the Work Report Judge as acceptance, does not duplicate Work Report state, and does not let a Work Report quality pass approve code or update gate state.
 
 ## Attribution
 

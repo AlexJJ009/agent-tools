@@ -5,7 +5,7 @@ description: Create or revise a requested task agreement, or ground requirements
 
 # Intent To Contract
 
-Use this skill when the user requests a task agreement or when expensive or high-risk work needs grounded requirements and an authorization boundary. Do not invoke it for every natural-language request, ordinary bug fix, quick implementation, or a mention of an old PRD. Create or reuse a PRD and checklist on demand under the user's request or an applicable continuing agreement; their existence is not a prerequisite for ordinary development. The output is Agent-authored context for the runtime plus a task agreement, not an implementation plan that freezes every coding step.
+Use this skill when the user requests a task agreement or when expensive or high-risk work needs grounded requirements and an authorization boundary. Do not invoke it for every natural-language request, ordinary bug fix, quick implementation, or a mention of an old PRD. Create or reuse a PRD and checklist on demand under the user's request or an applicable continuing agreement; their existence is not a prerequisite for ordinary development. The output is the requested task agreement, recorded in the existing task when persistence is needed; it does not freeze every coding step or require legacy runtime context.
 
 Keep the work moving while the agreement is formed. Ask the user only for facts that would change the target, budget, production effect, or formal experiment. For facts visible in the repository or local environment, investigate and record the evidence instead of asking the user to remember it.
 
@@ -21,7 +21,7 @@ Keep the work moving while the agreement is formed. Ask the user only for facts 
 
 Use [acceptance profiles](references/acceptance-profiles.md) when selecting scenario checks; read only the applicable profile.
 
-Before constructing CLI context, read the [runtime input contract](references/runtime-api.md) for field enums, path scope and observation/readback distinctions.
+Only when continuing an explicitly selected legacy scenario contract, read the [legacy runtime input contract](references/runtime-api.md) for its field enums, path scope and observation/readback distinctions. Current task-runtime work uses the task commands below; ordinary work need not create either record.
 
 ## Discover choices before dependent work
 
@@ -110,17 +110,17 @@ bindings and readback checks; task-state storage does not loosen those gates.
 Do not create both interfaces' checklists for the same state merely to satisfy
 this skill.
 
-## Outputs When a Legacy Scenario Record Is Needed
+## Continuing an explicitly selected legacy scenario contract
 
 The runtime does not perform arbitrary natural-language extraction. The Agent supplies a JSON context containing investigated `items`, `facts`, `bindings`, `checks`, formal command/config scope, and review targets. Bindings include ordered override anchors and a `readback_key` into verifier JSON where `{config_key, consumer_symbol, value}` is returned. Optional `protocol_view: true` renders `protocol.md` from the canonical record. See [context example](templates/context.example.json); replace every sample path and value with inspected project facts.
 
-Create or update the record through the installed launcher when available:
+The following initialization syntax is retained for explicitly requested legacy scenario work, not the default for new task agreements. Continue an existing record at its exact path; do not initialize a replacement to obtain newer status fields:
 
 ```text
 agent-workflow init --query <request.txt> --scenario <algorithm|infra|business|bug_fix|office|learning> --context <context.json> --mode simulation
 ```
 
-New legacy scenario records use `docs/_local/tasks/<task-id>/` in the current worktree, excluded by the repository rule `/docs/_local/`. Preserve existing task IDs and explicit record paths; resume the existing checklist instead of creating a second status source. Use [templates/task.md](templates/task.md) and [templates/checklist.yaml](templates/checklist.yaml) as the local shape when the runtime cannot yet create the file.
+Only explicitly requested new legacy scenario records use `docs/_local/tasks/<task-id>/` in the current worktree, excluded by the repository rule `/docs/_local/`. Preserve existing task IDs and explicit record paths; resume the existing checklist instead of creating a second status source. Use [templates/task.md](templates/task.md) and [templates/checklist.yaml](templates/checklist.yaml) as the local shape when the runtime cannot yet create the file.
 
 Each extracted requirement should include:
 

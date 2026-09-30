@@ -110,13 +110,22 @@ continuations before recording a visible failure. Interim delivery also prompts
 resumption when no subsequent original-task activity is observed. `Interrupt`
 cancels the session's reporting obligations and respects the user's stop.
 
+For a recognized `<response-annotations>` JSON envelope, candidate detection
+uses user annotation comments and surrounding request text, excluding selected
+old-response text and source metadata. Malformed or unknown envelopes retain
+conservative matching. The original prompt bytes and digest remain unchanged
+for the intent Judge; candidate filtering does not decide user intent.
+
 Registration errors do not imply delivery or erase a real Judge call. Preserve
 the pending diagnostics, repair the reported cause, and continue independently
 authorized work. Do not fabricate context, normalize request bytes or delete
 pending state to bypass a failed registration. Without loaded and trusted hooks,
 these process instructions do not provide an automatic Stop guarantee.
 
-The legacy interval adapter uses `scripts/install_work_report_schedule.py
+The legacy interval adapter is only for existing explicit interval agreements,
+not the fallback for new scheduling requests. If the chosen timer or native
+mechanism is unavailable, report that limitation rather than creating cron.
+The retained adapter uses `scripts/install_work_report_schedule.py
 --task-dir <task-dir>` after a confirmed interval registration; `--check` verifies
 the registration and `--remove` removes its schedule. Cron checks each minute,
 while `reporting.json` owns the actual interval. Its worker is a bounded separate

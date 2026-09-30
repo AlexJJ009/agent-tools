@@ -81,8 +81,6 @@ For context sync, the recommended deployment model is one central tool directory
 - `scripts/verify_codex_fast_mode_runtime.py` — runtime verifier that queries
   sub2api `usage_logs` by time window or `request_id` and checks whether the
   request was really billed as Fast/priority.
-- `experiment_registry/` — canonical SQLite experiment registry tooling,
-  schema, queries, validation scripts, and the `experiment-registry` skill.
 - `AGENTS.md` — project constraints for future agent changes.
 - `docs/CODEX_AUTOREVIEW_DEFAULT.md` — runbook for Codex defaults, including
   AutoReview without Full Access and stream timeout/retry defaults.
@@ -211,7 +209,7 @@ For a full repeatable server setup that also installs the latest Codex CLI,
 Claude Code, GitHub CLI, `cc-switch-cli`, `ripgrep`, and Codex API providers
 from fresh keys/Base URLs, follow `docs/CLI_SERVER_BOOTSTRAP.md`.
 
-The installer writes `agent_context_sync.config.json` using the actual paths on the current machine and installs a cron heartbeat by default. It also installs experiment registry symlinks when `experiment_registry/` is present. The local SQLite database is not created unless `--registry-init-db` is passed.
+The installer writes `agent_context_sync.config.json` using the actual paths on the current machine. Context synchronization is manual by default; use `--cron` only to explicitly enable an hourly heartbeat. Experiment Registry has been removed.
 
 On ordinary Linux hosts with `sshd`, the installer also checks `fail2ban` in
 auto mode. If it is missing and a supported package manager is available, it
@@ -314,35 +312,6 @@ Run the full restart helper manually when Codex App is already sluggish:
 C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1
 ```
 
-## Experiment Registry
-
-`agent-tools/experiment_registry` is the canonical source for registry code and
-the `experiment-registry` skill. Project directories should link to it instead
-of maintaining independent copies:
-
-```text
-/path/to/dpo-experiment/experiment_registry -> agent-tools/experiment_registry
-/path/to/dpo-experiment/.codex/skills/experiment-registry -> agent-tools/experiment_registry/skills/experiment-registry
-/path/to/verl/.codex/skills/experiment-registry -> agent-tools/experiment_registry/skills/experiment-registry
-```
-
-The actual SQLite database is machine-local runtime state and should not be
-committed to Git:
-
-```text
-/data-1/experiment_registry/experiment_registry.sqlite
-```
-
-Initialize or verify registry links explicitly:
-
-```bash
-./experiment_registry/install_registry_links.sh --init-db
-./experiment_registry/validate_registry_install.sh
-```
-
-Use `--force` with `install_registry_links.sh` only when replacing an existing
-copy with the canonical symlink is intended.
-
 ## Machine Defaults
 
 Every Linux/WSL2 install must persist tmux mouse mode for the Unix user running
@@ -419,14 +388,13 @@ Before running the Codex provider-bucket migration, the installer updates
 `--no-cc-switch-update` only when the target machine cannot or should not reach
 GitHub during install.
 
-By default, the installer also applies the Codex provider-bucket migration for
-all non-`custom` history buckets, including older `openai`, `openai-no-ws`,
-`subrouter`, and provider-specific names. It terminates running Codex processes
-before rewriting the history index so the install can complete in one pass. Use
-`--no-kill-running-codex-provider-bucket-migration` only when you intentionally
-want to keep Codex running and accept a dry-run fallback. Use
-`--codex-provider-bucket-trusted-sources-only` to keep the older behavior that
-only migrates inferred cc-switch third-party buckets.
+Provider-bucket migration is a separate, explicit repair operation. Ordinary
+installation neither migrates history nor terminates running Codex processes.
+Use `--dry-run-codex-provider-bucket-migration` to inspect a proposed migration,
+then `--apply-codex-provider-bucket-migration` when that repair is intended.
+Stopping running Codex additionally requires
+`--kill-running-codex-provider-bucket-migration`. These options also work with
+`--no-codex-config`; model configuration and history repair are separate.
 
 This combines three default sets:
 
@@ -495,8 +463,8 @@ The temporary SQLite log guard is controlled separately:
 (`enable|disable|status`), `CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS`
 (`auto|always|never`), and `CODEX_SQLITE_LOG_GUARD_VACUUM` (`0|1`).
 
-`--no-codex-config` skips the broader default rewrite, provider migration, proxy
-wrapper, and remote-control start. It does not skip the small Codex App Fast
+`--no-codex-config` skips the broader default rewrite, proxy wrapper and
+remote-control start. Explicit provider-migration options remain independent. It does not skip the small Codex App Fast
 config patch; add `--no-codex-app-fast-mode` when that should also be disabled.
 
 When Codex config patching is enabled, the installer also scans existing
@@ -594,7 +562,7 @@ python sync_agent_context.py sync /path/to/project --direction bidirectional --p
 
 ## Cron
 
-The installer adds one crontab entry like:
+Only an explicit `--cron` installation adds an entry like:
 
 ```cron
 17 * * * * /absolute/path/to/agent-tools/sync_agent_context_cron.sh

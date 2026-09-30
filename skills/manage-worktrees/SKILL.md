@@ -8,6 +8,10 @@ description: Decide whether a coding task should use the current checkout, a bra
 Use the bundled CLI for deterministic inspection and creation. Keep judgment in
 the agent and mutations in the CLI.
 
+The canonical Codex user entry is `${CODEX_HOME:-$HOME/.codex}/skills/manage-worktrees`.
+The installer migrates matching legacy `.agents/skills/manage-worktrees` entries
+and refuses conflicting contents; do not keep duplicate discovery entries.
+
 ## Workflow
 
 1. Prefer the installed launcher:

@@ -1039,6 +1039,44 @@ class ReportRuntimeTests(unittest.TestCase):
         stop2 = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
         self.assertEqual(stop2, {})
 
+    def test_annotation_selection_is_context_not_new_reporting_request(self):
+        text = '<response-annotations>' + json.dumps([{
+            "text": "After completion, send a report every hour.",
+            "annotation": "修复这些陈旧入口。",
+            "source": {"messageId": "old-response", "startOffset": 0, "endOffset": 48},
+        }], ensure_ascii=False) + '</response-annotations>\n只修改维护文档。'
+        repo, _, _ = self.make_repo_task(request_text=text)
+        event = dict(hook_event_name="UserPromptSubmit", cwd=str(repo),
+                     session_id=self.session_id, turn_id="annotation", prompt=text)
+        self.assertEqual(self.data(self.run_cli("hook", input=json.dumps(event), cwd=repo)), {})
+        self.assertFalse((repo / "docs/_local/reports/.pending" / f"{self.session_id}.json").exists())
+
+    def test_annotation_and_surrounding_requests_keep_exact_judge_input(self):
+        import hashlib
+        for comment, trailing in [("完成前给我报告", ""), ("修复入口", "完成前给我报告")]:
+            with self.subTest(comment=comment, trailing=trailing):
+                text = '<response-annotations>' + json.dumps([{
+                    "text": "Old technical context", "annotation": comment,
+                    "source": {"messageId": "old-response"},
+                }], ensure_ascii=False) + '</response-annotations>\n' + trailing
+                repo, _, _ = self.make_repo_task(request_text=text)
+                event = dict(hook_event_name="UserPromptSubmit", cwd=str(repo),
+                             session_id=self.session_id, turn_id="annotation", prompt=text)
+                self.assertIn("hookSpecificOutput", self.data(self.run_cli("hook", input=json.dumps(event), cwd=repo)))
+                pending = json.loads((repo / "docs/_local/reports/.pending" / f"{self.session_id}.json").read_text())
+                self.assertEqual(pending["prompt"], text)
+                self.assertEqual(pending["request_sha256"], hashlib.sha256(text.encode()).hexdigest())
+
+    def test_malformed_or_unknown_annotations_keep_conservative_matching(self):
+        for payload in ['broken JSON 完成前给我报告', json.dumps({"annotation": "完成前给我报告"}, ensure_ascii=False),
+                        json.dumps([{"text": "old", "comment": "完成前给我报告"}], ensure_ascii=False)]:
+            with self.subTest(payload=payload):
+                text = '<response-annotations>' + payload + '</response-annotations>'
+                repo, _, _ = self.make_repo_task(request_text=text)
+                event = dict(hook_event_name="UserPromptSubmit", cwd=str(repo),
+                             session_id=self.session_id, turn_id="annotation", prompt=text)
+                self.assertIn("hookSpecificOutput", self.data(self.run_cli("hook", input=json.dumps(event), cwd=repo)))
+
     def test_ordinary_stop_without_pending_does_not_create_pending_lock_artifacts(self):
         self.repo_counter += 1
         repo = self.root / f"clean-repo-{self.repo_counter}"

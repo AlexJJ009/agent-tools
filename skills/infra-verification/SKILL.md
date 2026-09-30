@@ -5,7 +5,7 @@ description: Verify training, evaluation, Docker, Harbor, GPU, mount, network, l
 
 # Infra Verification
 
-Use this skill for training infra, evaluation infra, Agentic episode infrastructure, launcher/config plumbing, Docker or Harbor environments, GPU allocation, mounts, network setup, checkpoint/recovery, cancellation, retries, and resource cleanup. These tasks default to `infra_heavy` when they can affect formal experiments, shared resources, or long-running jobs.
+Use this skill for training infra, evaluation infra, Agentic episode infrastructure, launcher/config plumbing, Docker or Harbor environments, GPU allocation, mounts, network setup, checkpoint/recovery, cancellation, retries, and resource cleanup. Investigate only the relevant effects and existing authorization. `infra_heavy` is a retained legacy profile, not a requirement to create a scenario record for every infrastructure change.
 
 ## Verification Focus
 
@@ -21,7 +21,7 @@ Check the parts that match the current change:
 
 ## Evidence Levels
 
-Use these levels in `checklist.yaml`:
+Use these distinctions to describe the evidence. For a selected task-runtime task, read `task checklist` and record actual observed checks through `task result`, keeping verification, validity and user acceptance separate. Otherwise use the existing tests, logs and closing explanation; do not create a task or checklist just to classify evidence. Only an existing legacy record stores these levels in `checklist.yaml`:
 
 - `none`: no evidence yet
 - `static`: source, config, manifest, or local file inspection only
@@ -47,6 +47,6 @@ scoped delegation do not reopen merely because a SHA changed.
 
 ## Failure Feedback
 
-When a check fails, report the checklist ID, expected value, observed value, code or environment location, command/readback evidence, and the smallest next probe. Feed this back to the coder without changing the agreed target.
+When a check fails, report the applicable criterion or test, expected value, observed value, code or environment location, command/readback evidence, and the smallest next probe. Feed this back to the coder without changing the agreed target.
 
-Formal experiments, production writes, and expensive runs remain blocked until `acceptance-gate` confirms current agent checks, relevant choices and understanding or delegation, applicable execution scope, and current candidate/config/command evidence. Keep these conditions separate; no check fabricates user acceptance.
+Formal experiments, production writes and expensive runs must stay within the actual user authorization, budget and project controls. Where an existing legacy formal-run or protected-action contract applies, use `acceptance-gate` and its managed execution entry with current candidate/config/command evidence; preserve existing bindings. Ordinary infrastructure verification and task-runtime records do not automatically require this legacy gate. They also cannot replace or bypass a gate that actually applies. No check fabricates user acceptance.

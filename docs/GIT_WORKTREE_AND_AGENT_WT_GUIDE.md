@@ -490,7 +490,7 @@ the prototype branch was not merged.
 | `README.md` | revise | Keep the discoverability entry, but describe only the approved five commands and Codex support boundary. |
 | `bin/agent-wt` | revise | Keep a thin Unix launcher; make interpreter discovery and errors deterministic. |
 | `docs/GIT_WORKTREE_AND_AGENT_WT_GUIDE.md` | revise | Keep the teaching-first structure and server audit, but remove dependency-execution and verified-portability claims that exceed v1. |
-| `install.sh` | revise | Keep guarded launcher/Skill wiring; install exactly one Codex user Skill at `.agents/skills/manage-worktrees`, and reject unmanaged duplicate legacy installs. Do not install a Claude copy. |
+| `install.sh` | revise | Keep guarded launcher/Skill wiring; install exactly one Codex user Skill at `.codex/skills/manage-worktrees`; migrate verified matching `.agents` entries and reject conflicting contents. Do not install a Claude copy. |
 | `skills/manage-worktrees/SKILL.md` | revise | Keep intent interpretation; return unsupported clone guidance at permission boundaries and never run dependency setup. |
 | `skills/manage-worktrees/agents/openai.yaml` | retain | The display metadata and default prompt match the approved Skill boundary. |
 | `skills/manage-worktrees/references/policies.md` | revise | Keep the decision matrix; rename clone as guidance rather than a v1 execution mode and document all path-policy layers. |

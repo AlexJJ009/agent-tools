@@ -24,6 +24,14 @@ def files(root: Path) -> dict[str, str]:
             and '__pycache__' not in p.parts and p.name != MARKER and p.suffix != '.pyc'}
 
 
+def matches_manifest(target: Path) -> bool:
+    marker = json.loads((target / MARKER).read_text())
+    return (isinstance(marker, dict) and marker.get('skill') == 'work-report'
+            and isinstance(marker.get('files'), dict)
+            and not any(p.is_symlink() for p in target.rglob('*'))
+            and files(target) == marker['files'])
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='read-only source/install consistency check')
@@ -73,7 +81,7 @@ def main(argv=None) -> int:
             if target.is_symlink() or not (target / MARKER).is_file():
                 raise RuntimeError(f'unmanaged Codex skill exists: {target}')
             marker = json.loads((target / MARKER).read_text())
-            if marker.get('skill') != 'work-report':
+            if not isinstance(marker, dict) or marker.get('skill') != 'work-report':
                 raise RuntimeError('invalid managed marker')
         for parent in (target.parent, claude.parent):
             if not parent.resolve().is_relative_to(home):
@@ -94,6 +102,12 @@ def main(argv=None) -> int:
         if not uv:
             raise RuntimeError('uv is required; no project dependencies were changed')
         state = home / '.local/state/work-report'
+        if state.is_symlink() or not state.resolve().is_relative_to(home):
+            raise RuntimeError(f'state directory escapes the current Unix profile: {state}')
+        backups = state / 'install-backups'
+        if backups.is_symlink() or not backups.resolve().is_relative_to(home):
+            raise RuntimeError(f'backup directory escapes the current Unix profile: {backups}')
+        unchanged = target.is_dir() and matches_manifest(target) and files(target) == expected
         state.mkdir(parents=True, exist_ok=True)
         state.chmod(0o700)
         with tempfile.TemporaryDirectory(prefix='install-', dir=state) as temporary:
@@ -107,14 +121,14 @@ def main(argv=None) -> int:
             (staged / MARKER).write_text(json.dumps({'skill': 'work-report', 'source': str(source),
                                                     'files': expected}, indent=2) + '\n')
             target.parent.mkdir(parents=True, exist_ok=True)
-            if target.exists():
-                backups = state / 'install-backups'
+            if target.exists() and not unchanged:
                 backups.mkdir(exist_ok=True)
                 old = backups / datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
                 target.rename(old)
             try:
-                staged.rename(target)
-                published = True
+                if not unchanged:
+                    staged.rename(target)
+                    published = True
             except OSError:
                 if old is not None and not target.exists():
                     old.rename(target)
@@ -130,7 +144,18 @@ def main(argv=None) -> int:
             raise RuntimeError('installed tool cannot start: ' + run.stderr)
         if files(target) != expected:
             raise RuntimeError('readback differs from source')
+        if not matches_manifest(target):
+            raise RuntimeError('readback differs from managed manifest')
+        preserved = []
+        if old is not None:
+            try:
+                if not matches_manifest(old):
+                    raise RuntimeError('old installation differs from its managed manifest')
+                shutil.rmtree(old)
+            except (OSError, ValueError, RuntimeError) as cleanup_error:
+                preserved.append({'path': str(old), 'reason': str(cleanup_error)})
         print(json.dumps({'status': 'installed', 'codex_skill': str(target), 'claude_skill': str(claude),
+                          'preserved_backups': preserved,
                           'invocation': '$work-report (Codex); /work-report (Claude Code)',
                           'scope': 'current Linux/WSL user; no hooks, schedules, publishing or model config changes'}))
         return 0
@@ -141,10 +166,13 @@ def main(argv=None) -> int:
                 target.rename(rejected)
                 if old is not None:
                     old.rename(target)
-                if created_claude and claude.is_symlink():
-                    claude.unlink()
             except OSError as rollback_error:
                 exc = RuntimeError(f'{exc}; rollback incomplete: {rollback_error}')
+        if created_claude and claude.is_symlink():
+            try:
+                claude.unlink()
+            except OSError as rollback_error:
+                exc = RuntimeError(f'{exc}; Claude link rollback incomplete: {rollback_error}')
         print(json.dumps({'status': 'error', 'error': str(exc)}), file=sys.stderr)
         return 1
 

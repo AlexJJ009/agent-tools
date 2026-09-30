@@ -45,17 +45,33 @@ class LinearWorkflowInstallerContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             home, other = root / "home", root / "other"
+            wrapper = root / "capture-installer-error.ps1"
+            wrapper_text = (
+                "param([string]$Installer, [string]$UserHome, [string]$CodexHome, [string]$CcSwitchDb)\n"
+                "$ErrorActionPreference = 'Stop'\n"
+                "try {\n"
+                "  & $Installer -UserHome $UserHome -CodexHome $CodexHome -CcSwitchDb $CcSwitchDb\n"
+                "  exit 0\n"
+                "} catch {\n"
+                "  [Console]::Error.WriteLine($_.Exception.Message)\n"
+                "  exit 1\n"
+                "}\n"
+            )
+            wrapper.write_text(wrapper_text)
             for codex, database in ((other / ".codex", home / ".cc-switch/cc-switch.db"),
                                     (home / ".codex", other / ".cc-switch/cc-switch.db")):
                 with self.subTest(codex=codex, database=database):
                     result = subprocess.run(
-                        ["pwsh", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(ROOT / "scripts/install-win11.ps1"),
+                        ["pwsh", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(wrapper),
+                         "-Installer", "./scripts/install-win11.ps1",
                          "-UserHome", str(home), "-CodexHome", str(codex), "-CcSwitchDb", str(database)],
-                        text=True, errors="replace", capture_output=True, timeout=20,
+                        cwd=ROOT, text=True, errors="replace", capture_output=True, timeout=20,
                     )
-                    self.assertNotEqual(result.returncode, 0)
-                    self.assertIn("must belong to the same native Win11 profile", result.stderr)
-                    self.assertEqual(list(root.iterdir()), [])
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertEqual(result.stderr.strip(),
+                                     "UserHome, CodexHome, and CcSwitchDb must belong to the same native Win11 profile")
+                    self.assertEqual(list(root.iterdir()), [wrapper])
+                    self.assertEqual(wrapper.read_text(), wrapper_text)
 
     def test_disable_rejects_descriptor_path_escape_before_touching_other_profile(self):
         with tempfile.TemporaryDirectory() as tmp:

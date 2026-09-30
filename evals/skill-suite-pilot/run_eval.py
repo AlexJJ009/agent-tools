@@ -10,6 +10,7 @@ import threading
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import signal
@@ -186,13 +187,90 @@ def runtime_read(base, task):
     p=subprocess.run(base+['python3','-m','agent_workflow.cli','task','read','--data-root','/data','--task',task,'--detail'],capture_output=True,text=True,timeout=30)
     return json.loads(p.stdout) if p.returncode==0 else {'error':p.stderr+p.stdout}
 
+def skill_plan(case, variant):
+    setup=case.get('skill_setup')
+    if setup is None:
+        names=sorted(set(case.get('target_skills',[]))|{'work-report','retrieval-practice','task-routing','evidence-anchor','learning-artifact-compiler','teaching-dag-builder'}) if variant=='skills' else []
+        return {'mode':'pilot','packages':names,'resources':[],'target':None}
+    if setup.get('mode')!='target_ablation':raise ValueError('unsupported skill_setup mode')
+    target=setup['target_skill'];shared=setup.get('shared_skills',[])
+    if target in shared:raise ValueError('target cannot be shared')
+    for name in [target,*shared]:
+        if '/' in name or name in ('.','..') or not (ROOT/'skills'/name/'SKILL.md').is_file():raise ValueError('unknown/unsafe skill name')
+    resources=list(setup.get('shared_resources',[]))
+    # Direct sibling reference files are neutral common resources, not discoverable skills.
+    for name in [target,*shared]:
+        body=(ROOT/'skills'/name/'SKILL.md').read_text()
+        for relative in re.findall(r'`(\.\./[^`]+)`',body):
+            resource=(ROOT/'skills'/name/relative).resolve()
+            if resource.is_file() and resource.is_relative_to(ROOT/'skills') and resource.name!='SKILL.md':
+                source=str(resource.relative_to(ROOT))
+                if source not in {r['source'] for r in resources}:resources.append({'source':source,'destination':source})
+    for resource in resources:
+        src=Path(resource['source']);dst=Path(resource['destination'])
+        if src.is_absolute() or dst.is_absolute() or '..' in src.parts or '..' in dst.parts:raise ValueError('unsafe resource path')
+        if dst.parts[:2]==('skills',target) or dst.name=='SKILL.md':raise ValueError('shared resource leaks target metadata')
+        if src.parts[:2]==('skills',target) or not (ROOT/src).is_file():raise ValueError('resource must be existing non-target file')
+        if not (ROOT/src).resolve().is_relative_to(ROOT):raise ValueError('resource escapes repository')
+    return {'mode':'target_ablation','packages':sorted(shared+([target] if variant=='skills' else [])),'resources':resources,'target':target}
+
+def source_manifest(case, variant):
+    plan=skill_plan(case,variant)
+    paths=[ROOT/'shared/writing/reader-facing-contract.md',ROOT/'docs/TASK_RUNTIME.md',ROOT/'scripts/codex_target_guard.py']
+    for module in RUNTIME_MODULES:paths.extend((ROOT/module).rglob('*'))
+    for name in plan['packages']:paths.extend((ROOT/'skills'/name).rglob('*'))
+    if plan['mode']=='pilot' and variant=='skills':paths.extend((ROOT/'shared').rglob('*'))
+    for resource in plan['resources']:paths.append(ROOT/resource['source'])
+    hashes={str(path.relative_to(ROOT)):hashlib.sha256(path.read_bytes()).hexdigest() for path in paths if path.is_file() and '__pycache__' not in path.parts and path.suffix!='.pyc'}
+    cli=Path(shutil.which('codex')).resolve()
+    hashes['@codex_binary']=hashlib.sha256(cli.read_bytes()).hexdigest()
+    return hashes
+
+def setup_skills(case,variant,home):
+    plan=skill_plan(case,variant);skillroot=home/'.agents/skills';ch=home/'.codex'
+    if plan['mode']=='target_ablation':
+        skillroot.mkdir(parents=True,exist_ok=True)
+        for name in plan['packages']:shutil.copytree(ROOT/'skills'/name,skillroot/name,symlinks=False,ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
+        for resource in plan['resources']:
+            dst=home/'.agents'/resource['destination'];dst.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/resource['source'],dst)
+        catalog_names=plan['packages']
+        instruction='Available common capabilities; use when relevant.'
+        if variant=='skills':instruction+=' 本任务必须先读取并遵循目标 skill：/home/eval/.agents/skills/'+plan['target']+'/SKILL.md。这是显式调用。'
+    elif variant=='skills':
+        skillroot.mkdir(parents=True,exist_ok=True)
+        for name in plan['packages']:
+            src=ROOT/'skills'/name
+            if src.exists():shutil.copytree(src,skillroot/name,symlinks=False,ignore=shutil.ignore_patterns('__pycache__'))
+        shutil.copytree(ROOT/'shared',home/'.agents/shared')
+        catalog_names=case.get('target_skills',[]);instruction='Available task capabilities. Read and apply the relevant skill when the task matches its description.'
+    else:return plan
+    catalog='\n'.join('- '+n+': '+next((line.removeprefix('description: ') for line in (skillroot/n/'SKILL.md').read_text().splitlines() if line.startswith('description: ')), '')+' (file: /home/eval/.agents/skills/'+n+'/SKILL.md)' for n in catalog_names)
+    if catalog or plan['mode']=='target_ablation':
+        with (ch/'AGENTS.md').open('a') as stream:stream.write('\n'+instruction+'\n'+catalog+'\n')
+    return plan
+
+def observed_target_read(events,target):
+    if not target:return {'status':'not_applicable','event_ids':[]}
+    body=(ROOT/'skills'/target/'SKILL.md').read_text()
+    samples=[body[i:i+120] for i in range(0,min(len(body),1000),120) if len(body[i:i+120])==120]
+    matches=[]
+    for event in events:
+        item=event.get('item',{})
+        if event.get('type')=='item.completed' and item.get('type')=='command_execution' and item.get('exit_code')==0 and any(sample in item.get('aggregated_output','') for sample in samples):matches.append(item.get('id'))
+    return {'status':'read_output_observed' if matches else 'not_observed','event_ids':matches,'limitation':'Observes skill text in successful tool output; does not prove attention or compliance.'}
+
 def run_case(case, variant, rep, output, model, timeout=300, effort='medium'):
     run=Path(output)/f"{case['id']}-{variant}-{rep}"
     case_hash=hashlib.sha256(json.dumps(case,ensure_ascii=False,sort_keys=True).encode()).hexdigest()
     harness_hash=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
-    if (run/'result.json').exists():
-        prior=json.loads((run/'result.json').read_text())
-        if prior.get('status')=='ok' and prior.get('case_sha256')==case_hash and prior.get('harness_sha256')==harness_hash and prior.get('model_requested')==model:return prior
+    sources=source_manifest(case,variant)
+    reuse_key={'case_sha256':case_hash,'harness_sha256':harness_hash,'model':model,'effort':effort,'timeout':timeout,'variant':variant,'rep':rep,'source_files':sources}
+    reuse_hash=hashlib.sha256(json.dumps(reuse_key,sort_keys=True).encode()).hexdigest()
+    candidates=[run,*sorted(run.parent.glob(run.name+'-attempt*'))] if run.parent.exists() else []
+    for candidate in candidates:
+        if (candidate/'result.json').exists():
+            prior=json.loads((candidate/'result.json').read_text())
+            if prior.get('status')=='ok' and prior.get('reuse_sha256')==reuse_hash:return prior
     if run.exists():
         attempt=2
         while run.with_name(run.name+f'-attempt{attempt}').exists():attempt+=1
@@ -211,15 +289,7 @@ def run_case(case, variant, rep, output, model, timeout=300, effort='medium'):
         p.parent.mkdir(parents=True,exist_ok=True);p.write_text(content)
     if case['id']=='C06': (work/'old-report.md').write_text('旧版本历史报告（非当前状态）：strip已完成。\n')
     target_skills=case.get('target_skills',[])
-    if variant=='skills':
-        skillroot=home/'.agents/skills';skillroot.mkdir(parents=True)
-        # Copy package dependencies, but only list selected skills in the runtime instruction.
-        for name in sorted(set(target_skills)|{'work-report','retrieval-practice','task-routing','evidence-anchor','learning-artifact-compiler','teaching-dag-builder'}):
-            src=ROOT/'skills'/name
-            if src.exists(): shutil.copytree(src,skillroot/name,symlinks=False,ignore=shutil.ignore_patterns('__pycache__'))
-        shutil.copytree(ROOT/'shared',home/'.agents/shared')
-        catalog='\n'.join(f'- {n}: '+next((l.removeprefix('description: ') for l in (skillroot/n/'SKILL.md').read_text().splitlines() if l.startswith('description: ')), '')+f' (file: /home/eval/.agents/skills/{n}/SKILL.md)' for n in target_skills if (skillroot/n/'SKILL.md').exists())
-        (ch/'AGENTS.md').write_text((ch/'AGENTS.md').read_text()+'\nAvailable task capabilities. Read and apply the relevant skill when the task matches its description.\n'+catalog+'\n')
+    plan=setup_skills(case,variant,home)
     injected=case.get('execution',{}).get('injected_rules')
     if injected:
         text=injected if isinstance(injected,str) else '\n'.join(injected)
@@ -279,7 +349,7 @@ def run_case(case, variant, rep, output, model, timeout=300, effort='medium'):
             observation['after']={'workspace':snapshot(work),'runtime_data':snapshot(data)}
     messages=[e['item'].get('text','') for e in events if e.get('type')=='item.completed' and e.get('item',{}).get('type')=='agent_message']
     completed=[e for e in events if e.get('type')=='turn.completed']
-    result={'case_id':case['id'],'variant':variant,'rep':rep,'workspace':str(work),'status':status,'error':error,'exit_code':exit_code,'seconds':round(time.monotonic()-start,2),'output':messages[-1] if messages else '', 'events':events,'usage':completed[-1].get('usage') if completed else None,'model_requested':model,'model_observed':completed[-1].get('model') if completed else None,'target_skills':target_skills,'installed_skills':sorted(p.name for p in (home/'.agents/skills').iterdir()) if (home/'.agents/skills').exists() else [],'instruction_hashes':{str(p.relative_to(home)):hashlib.sha256(p.read_bytes()).hexdigest() for p in home.rglob('*.md') if p.is_file()},'before':before,'after':snapshot(work),'task_id':task,'runtime_before':rb,'runtime_after':runtime_read(base,task),'file_observation':observation,'test_dependencies':dependencies,'case_sha256':case_hash,'harness_sha256':harness_hash,'isolation':{'filesystem':'bubblewrap allowlist; no real HOME/repo/grader mounted','tools':'Codex workspace-write sandbox; network denied','cli_network':'enabled only for subscription transport','auth':'temporary 0600 copy removed after run; trusted CLI context can read it'}}
+    result={'case_id':case['id'],'variant':variant,'rep':rep,'workspace':str(work),'status':status,'error':error,'exit_code':exit_code,'seconds':round(time.monotonic()-start,2),'output':messages[-1] if messages else '', 'events':events,'usage':completed[-1].get('usage') if completed else None,'model_requested':model,'model_observed':completed[-1].get('model') if completed else None,'target_skills':target_skills,'installed_skills':sorted(p.name for p in (home/'.agents/skills').iterdir() if (p/'SKILL.md').is_file()) if (home/'.agents/skills').exists() else [],'instruction_hashes':{str(p.relative_to(home)):hashlib.sha256(p.read_bytes()).hexdigest() for p in home.rglob('*.md') if p.is_file()},'before':before,'after':snapshot(work),'task_id':task,'runtime_before':rb,'runtime_after':runtime_read(base,task),'file_observation':observation,'test_dependencies':dependencies,'case_sha256':case_hash,'harness_sha256':harness_hash,'reuse_sha256':reuse_hash,'effort':effort,'timeout_seconds':timeout,'source_files':sources,'source_revision':subprocess.run(['git','rev-parse','HEAD'],cwd=ROOT,capture_output=True,text=True).stdout.strip(),'skill_setup':plan,'target_load':observed_target_read(events,plan['target']) if variant=='skills' else {'status':'absent_by_design' if plan['mode']=='target_ablation' else 'not_applicable','event_ids':[]},'isolation':{'filesystem':'bubblewrap allowlist; no real HOME/repo/grader mounted','tools':'Codex workspace-write sandbox; network denied','cli_network':'enabled only for subscription transport','auth':'temporary 0600 copy removed after run; trusted CLI context can read it'}}
     (run/'output.txt').write_text(result['output']);write_json(run/'result.json',result)
     print(json.dumps({'case':case['id'],'variant':variant,'status':status,'seconds':result['seconds'],'error':error}),flush=True)
     return result

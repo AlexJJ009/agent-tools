@@ -68,6 +68,7 @@ class TaskHistoryTests(unittest.TestCase):
         with self.assertRaises(Crash): run_cleanup(self.store.root, q, fault=fail)
         view = self.store.read(self.task)
         self.assertTrue(view['recovery_pending'])
+        self.assertTrue(self.store.history(self.task)['recovery_pending'])
         self.assertEqual(view['cleanup']['pending'], ['legacy-cleanup'])
         self.assertTrue(self.store.list()[0]['recovery_pending'])
         event = next(e for e in self.store.history(self.task)['events'] if e['source'] == 'process-cleanup')
@@ -76,6 +77,19 @@ class TaskHistoryTests(unittest.TestCase):
         self.assertFalse(self.store.read(self.task)['recovery_pending'])
         self.assertFalse((self.repo / 'scratch/old.txt').exists())
         self.assertEqual(self.store.read(self.task)['state'], 'draft')
+
+    def test_committed_receipt_reports_pending_physical_cleanup(self):
+        self.mutate('artifact', name='note', content='obsolete')
+        q = dict(task_id=self.task, operation_id='committed-crash', base_revision=self.store.read(self.task)['revision'],
+                 names=['note'], rationale='retire delivered note')
+        def fail(stage):
+            if stage == 'committed': raise Crash()
+        with self.assertRaises(Crash): Store(self.store.root, fault=fail).mutate('retire', q)
+        h = self.store.history(self.task)
+        self.assertTrue(h['recovery_pending'])
+        self.assertEqual(next(e for e in h['events'] if e['operation_id'] == q['operation_id'])['status'], 'done')
+        self.store.recover(self.task)
+        self.assertFalse(self.store.history(self.task)['recovery_pending'])
 
     def test_cancelled_attempt_is_auditable_and_old_receipt_dates_unknown(self):
         self.mutate('artifact', name='note', content='keep on abort')

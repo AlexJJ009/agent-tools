@@ -194,10 +194,12 @@ class Store:
     def history(self, task_id, detail=False, limit=50, offset=0):
         require(type(limit) is int and 1 <= limit <= 1000, 'invalid_input', 'limit must be 1..1000')
         require(type(offset) is int and offset >= 0, 'invalid_input', 'offset must be nonnegative')
-        self.cleanup_summary(task_id)  # Validate scope, including when DB is absent.
+        cleanup = self.cleanup_summary(task_id)
+        recovery_pending = bool(cleanup['pending'])
         events = []
         with self.connection() as db:
             if db:
+                recovery_pending = recovery_pending or bool(self._pending(db, task_id)) or self._has_garbage(db, task_id)
                 for row in db.execute("SELECT * FROM operations WHERE scope=? OR scope LIKE 'create:%'", (task_id,)):
                     result = json.loads(row['result'] or '{}')
                     plan = json.loads(row['plan'])
@@ -223,7 +225,8 @@ class Store:
         if not detail:
             for e in events:
                 e['target_count'] = len(e.pop('targets', []))
-        return {'task_id': task_id, 'events': events, 'total': total, 'offset': offset, 'truncated': total > offset + limit}
+        return {'task_id': task_id, 'events': events, 'total': total, 'offset': offset,
+                'recovery_pending': recovery_pending, 'truncated': total > offset + limit}
 
     def _task(self, db, task_id):
         row = db.execute('SELECT body FROM tasks WHERE id=?', (task_id,)).fetchone() if db else None

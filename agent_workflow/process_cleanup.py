@@ -56,6 +56,14 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _resolve_error(journal):
+    error = journal.get('last_error')
+    if error is not None and 'resolved_at' not in error:
+        error['resolved_at'] = _now()
+        return True
+    return False
+
+
 def _save(path, data):
     data['updated_at'] = _now()
     temporary = path.with_suffix('.tmp')
@@ -248,11 +256,12 @@ def _run_cleanup(data_root, request, *, fault=None):
                     require(archive.exists(), 'archive_missing', 'committed archive missing')
                     require(_hash(archive) == entry['sha256'], 'content_conflict', 'committed archive changed')
         if journal['status'] == 'complete':
-            if journal.pop('last_error', None) is not None:
+            if _resolve_error(journal):
                 _save(journal_path, journal)
             return journal
     if journal is None or journal['status'] == 'rejected':
         created_at = journal.get('created_at') if journal else _now()
+        previous_error = journal.get('last_error') if journal else None
         entries = []
         for i, item in enumerate(request['files']):
             path = _eligible(content_root, item['path'], storage)
@@ -269,6 +278,8 @@ def _run_cleanup(data_root, request, *, fault=None):
                    'workspace': info, 'entries': entries}
         if created_at is not None:
             journal['created_at'] = created_at
+        if previous_error is not None:
+            journal['last_error'] = previous_error
         _retained(request, content_root)
         _save(journal_path, journal)
         checkpoint('planned', -1)
@@ -337,7 +348,7 @@ def _run_cleanup(data_root, request, *, fault=None):
         _save(journal_path, journal)
     journal['status'] = 'complete'
     journal['completed_at'] = _now()
-    journal.pop('last_error', None)
+    _resolve_error(journal)
     _save(journal_path, journal)
     return journal
 
@@ -383,6 +394,8 @@ def abort_cleanup(data_root, task_id, operation_id):
     with _lock(root):
         journal = read_cleanup(data_root, task_id, operation_id)
         if journal['status'] == 'aborted':
+            if _resolve_error(journal):
+                _save(directory / 'journal.json', journal)
             return journal
         require(journal['status'] in ('prepared', 'aborted'), 'already_committed', 'cannot abort committed cleanup')
         workspace = Path(journal['workspace']['path'])
@@ -402,5 +415,6 @@ def abort_cleanup(data_root, task_id, operation_id):
             else:
                 require(path.is_file(), 'source_missing', 'source and quarantine missing during abort')
         journal['status'] = 'aborted'
+        _resolve_error(journal)
         _save(directory / 'journal.json', journal)
         return journal

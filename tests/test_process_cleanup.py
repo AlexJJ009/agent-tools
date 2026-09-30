@@ -345,7 +345,50 @@ class CleanupTests(unittest.TestCase):
         (self.repo/'scratch/a.txt').write_text('scratch/a.txt')
         result = self.run_packet()
         self.assertEqual(result['created_at'], created)
-        self.assertNotIn('last_error', result)
+        self.assertEqual(result['last_error']['code'], 'content_conflict')
+        self.assertIn('resolved_at', result['last_error'])
+        self.assertEqual(self.run_packet(), result)
+
+    def test_error_survives_preparation_and_abort_resolves_it_once(self):
+        (self.repo/'scratch/a.txt').write_text('changed')
+        self.fail('content_conflict')
+        original_error = read_cleanup(self.data, 'task-1', 'cleanup-1')['last_error']
+        (self.repo/'scratch/a.txt').write_text('scratch/a.txt')
+        def fault(stage, index):
+            if stage == 'quarantined':
+                raise Crash()
+        with self.assertRaises(Crash):
+            self.run_packet(fault=fault)
+        self.assertEqual(read_cleanup(self.data, 'task-1', 'cleanup-1')['last_error'], original_error)
+        result = abort_cleanup(self.data, 'task-1', 'cleanup-1')
+        self.assertEqual(result['status'], 'aborted')
+        self.assertEqual(result['last_error']['at'], original_error['at'])
+        self.assertIn('resolved_at', result['last_error'])
+        self.assertEqual(abort_cleanup(self.data, 'task-1', 'cleanup-1'), result)
+
+    def test_complete_recovery_resolves_only_latest_error_and_replay_is_readonly(self):
+        self.run_packet()
+        archive = next(self.data.rglob('*.archive'))
+        archive.write_text('corrupted')
+        self.fail('content_conflict')
+        failure = read_cleanup(self.data, 'task-1', 'cleanup-1')['last_error']
+        self.assertNotIn('resolved_at', failure)
+        archive.write_text('scratch/a.txt')
+        result = self.run_packet()
+        self.assertEqual(result['status'], 'complete')
+        self.assertEqual(result['last_error']['at'], failure['at'])
+        self.assertIn('resolved_at', result['last_error'])
+        path = next(self.data.rglob('journal.json'))
+        before = path.read_bytes()
+        self.assertEqual(self.run_packet(), result)
+        self.assertEqual(path.read_bytes(), before)
+        # A later failure replaces the one bounded record, without event growth.
+        archive.write_text('another failure')
+        self.fail('content_conflict')
+        latest = read_cleanup(self.data, 'task-1', 'cleanup-1')
+        self.assertNotIn('resolved_at', latest['last_error'])
+        self.assertNotEqual(latest['last_error']['at'], failure['at'])
+        self.assertNotIn('events', latest)
 
     def test_old_journal_times_remain_unknown(self):
         result = self.run_packet()

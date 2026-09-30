@@ -103,7 +103,9 @@ a cancelled operation records an attempted change, not proof it was applied.
 For task operations, `completed_at` marks the database commit. Remaining physical
 garbage can still require recovery. Process journals record `created_at`,
 `updated_at`, actual `completed_at` and, on a recorded failure,
-`last_error: {code, message, at}`. New timestamps describe actual events; old
+`last_error: {code, message, at}`. Keep at most the most recent failure; recovery
+or abort adds its `resolved_at` without an unbounded event log. Ordinary replay
+does not change these timestamps. New timestamps describe actual events; old
 missing timestamps are not reconstructed. Journal status is recorded progress,
 not a fresh verification of an archive's current bytes.
 

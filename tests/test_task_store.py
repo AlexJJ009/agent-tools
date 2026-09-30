@@ -453,6 +453,26 @@ class TaskStoreTests(unittest.TestCase):
         self.assertEqual(row['validity'],'stale')
         self.assertEqual(self.store.read(task)['state'],'active')
 
+    def test_active_replacement_pending_is_visible_in_all_current_views(self):
+        from agent_workflow.task_cli import render_markdown
+        task = self.create()
+        self.mutate(task, 'artifact', name='scratch', content='old')
+        request = dict(operation_id='replace-before-gc', task_id=task,
+                       base_revision=self.store.read(task)['revision'], name='scratch', content='new')
+        def crash(point):
+            if point == 'committed':
+                raise Crash()
+        with self.assertRaises(Crash):
+            Store(self.s.data, fault=crash).mutate('artifact', request)
+        for view in (self.store.read(task), self.store.read(task, detail=True),
+                     self.store.checklist(task), self.store.checklist(task, detail=True)):
+            self.assertTrue(view['recovery_pending'])
+            self.assertIn('Recovery pending:', render_markdown(view))
+        self.store.recover(task)
+        for view in (self.store.read(task), self.store.checklist(task)):
+            self.assertFalse(view['recovery_pending'])
+            self.assertNotIn('Recovery pending:', render_markdown(view))
+
     def test_committed_closeout_retry_collects_quarantine_and_clears_pending(self):
         task=self.create(); art=self.mutate(task,'artifact',name='report',content='full private report')
         self.accepted(task)

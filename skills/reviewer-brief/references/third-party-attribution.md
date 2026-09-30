@@ -12,9 +12,4 @@ Copied MIT license texts are in:
 - installed skill copies at `references/licenses/spec-kit-MIT.txt`
 - installed skill copies at `references/licenses/superpowers-MIT.txt`
 
-The original saved MIT license texts are in:
-
-- `docs/work-reports/20260919T072157Z-agent-development-acceptance-research-14f5d150/revisions/20260919-tailored-workflow/reuse/raw/spec-kit/LICENSE`
-- `docs/work-reports/20260919T072157Z-agent-development-acceptance-research-14f5d150/revisions/20260919-tailored-workflow/reuse/raw/superpowers/LICENSE`
-
 SwarmForge was used only as a mechanism reference for a coder followed by a behavior-preserving cleaner. No SwarmForge prompt or source text is copied because the local snapshot did not verify a license.

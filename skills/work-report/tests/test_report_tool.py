@@ -1,5 +1,6 @@
 import json
 import hashlib
+import importlib.util
 import datetime as dt
 import os
 import shutil
@@ -7,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -423,21 +425,50 @@ class ReportToolTests(unittest.TestCase):
             self.assertEqual(result["task_id"], case.task_id)
             self.assertEqual(result["report_id"], case.report_id)
 
-    def test_fixture_bodies_do_not_show_test_answer_keys(self):
-        forbidden = ["expected", "verdict", "expected judge", "judge reading"]
-        report_names = [
-            "empty-but-formatted.md",
-            "hidden-drift.md",
-            "honest-drift.md",
-            "sufficient-scoped-report.md",
-            "wrong-evidence.md",
-            "context.json",
-            "source.md",
-        ]
-        for name in report_names:
-            text = (FIXTURES / name).read_text(encoding="utf-8").lower()
-            for marker in forbidden:
-                self.assertNotIn(marker, text, name)
+    def test_runtime_verifies_real_receipt_and_rejects_changed_cited_evidence(self):
+        # Exercise the runtime/finalizer boundary, not the fake verifier used by
+        # runtime state-machine tests. Reviews remain protocol fixtures: this
+        # does not claim to evaluate writing quality or reviewer independence.
+        with tempfile.TemporaryDirectory() as tmp:
+            case = self.checked_case(tmp)
+            self.write_review(case)
+            self.assert_pass(self.finalize(case))
+            receipt_path = case.report.parent / "delivery.json"
+            receipt_bytes = receipt_path.read_bytes()
+            receipt = json.loads(receipt_bytes)
+            report_bytes = case.report.read_bytes()
+            runtime_path = SKILL_ROOT / "scripts" / "report_runtime.py"
+            spec = importlib.util.spec_from_file_location("report_runtime_bridge_test", runtime_path)
+            runtime = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(runtime)
+
+            # Only replace uv's dependency launcher. Execute the real finalizer
+            # with this test environment's dependencies; no network is needed.
+            launcher = Path(tmp) / "uv"
+            launcher.write_text(
+                f"#!{sys.executable}\n"
+                "import os, sys\n"
+                "assert sys.argv[1:3] == ['run', '--script']\n"
+                "os.execv(sys.executable, [sys.executable, *sys.argv[3:]])\n"
+            )
+            launcher.chmod(0o755)
+            with patch.dict(os.environ, {"WORK_REPORT_UV": str(launcher)}):
+                def verified():
+                    return runtime.verify_delivery_with_report_tool(
+                        case.report, case.task_id, case.workspace,
+                        expected_digest=receipt["artifact_digest"],
+                        expected_report_id=case.report_id,
+                    )
+
+                self.assertTrue(verified(), "real finalizer receipt must satisfy the runtime")
+                evidence = case.report.parent / "evidence.txt"
+                original_evidence = evidence.read_bytes()
+                evidence.write_text("The previously cited check actually failed.\n")
+                self.assertFalse(verified(), "changed cited evidence must invalidate delivery")
+                evidence.write_bytes(original_evidence)
+                self.assertTrue(verified(), "restoring cited evidence restores the same receipt")
+            self.assertEqual(case.report.read_bytes(), report_bytes)
+            self.assertEqual(receipt_path.read_bytes(), receipt_bytes)
 
     def test_honest_drift_can_finalize_when_judge_discloses_scope(self):
         with tempfile.TemporaryDirectory() as tmp:

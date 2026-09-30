@@ -1,8 +1,7 @@
 """Executable contracts for the teaching reconstruction artifact validator.
 
-These tests were written red before the production validator existed. The
-historical red run is retained under ``docs/teaching-skills-suite/evidence``;
-the tests continue to exercise production behavior without reimplementing it.
+These tests execute the production validator against valid and deliberately
+broken artifacts. They check structure and consistency, not teaching quality.
 """
 
 from __future__ import annotations

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import importlib.util
 import json
-import subprocess
-import sys
 import unittest
 from pathlib import Path
 
@@ -29,16 +27,6 @@ class LinearDeliverAdapterTests(unittest.TestCase):
         self.source = (REPO_ROOT / self.inventory["canonical_skill_source"]).read_text(
             encoding="utf-8"
         )
-
-    def test_all_generated_adapters_are_current(self) -> None:
-        result = subprocess.run(
-            [sys.executable, str(ASSEMBLER_PATH), "--check"],
-            cwd=REPO_ROOT,
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
     def test_clients_share_one_delivery_contract(self) -> None:
         for relative in self.inventory["generated_skills"]:

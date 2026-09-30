@@ -165,17 +165,22 @@ class ReportSchedulerTests(unittest.TestCase):
         self.assertTrue(Path(data["snapshot"]).is_file())
         self.assertTrue(self.codex_calls.is_file())
 
-    def test_failed_dispatch_writes_snapshot_and_runtime_caps_retries(self):
+    def test_failed_dispatch_records_snapshot_and_obeys_runtime_stop(self):
+        # The runtime is a protocol stub here; its synthetic retry counter is
+        # not evidence that production retry limits work. Test the scheduler's
+        # responsibility: record failures, then stop dispatching when told.
         self.write_codex(2)
-        first, _ = self.run_scheduler()
+        first, first_data = self.run_scheduler()
         second, data = self.run_scheduler()
+        self.assertTrue(Path(first_data["snapshot"]).is_file())
+        self.assertTrue(Path(data["snapshot"]).is_file())
+        self.assertTrue(self.codex_calls.is_file())
+        self.codex_calls.unlink()
         third, final = self.run_scheduler()
         self.assertEqual((first, second, third), (1, 1, 1))
         self.assertEqual(data["action"], "failed")
         self.assertEqual(final["runtime"]["action"], "failed")
-        manifest = json.loads((self.task / "reporting.json").read_text())
-        self.assertEqual(manifest["periodic"]["state"], "failed")
-        self.assertEqual(manifest["periodic"]["attempts"], 2)
+        self.assertFalse(self.codex_calls.exists(), "runtime stop must prevent another dispatch")
 
     def test_existing_lease_prevents_second_launch(self):
         self.manifest["periodic"]["lease"] = {"owner": "other"}

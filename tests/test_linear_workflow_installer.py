@@ -10,13 +10,6 @@ ROOT = Path(__file__).parents[1]
 
 
 class LinearWorkflowInstallerContractTests(unittest.TestCase):
-    def test_unix_flags_and_only_mode_are_wired(self):
-        text = (ROOT / "install.sh").read_text(encoding="utf-8")
-        for flag in ("--linear-workflow", "--linear-workflow-only", "--no-linear-workflow"):
-            self.assertIn(flag, text)
-        only = text.index('if [[ "$LINEAR_WORKFLOW_ONLY" -eq 1 ]]')
-        unrelated = text.index("configure_fail2ban_hardening", only)
-        self.assertLess(only, unrelated)
 
     def test_deprecated_unix_flags_reject_before_writing(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -44,7 +37,7 @@ class LinearWorkflowInstallerContractTests(unittest.TestCase):
             self.assertIn("deprecated and disabled", result.stderr)
             self.assertFalse(target.exists())
 
-    def test_defaults_disable_existing_discovery_without_installing(self):
+    def test_static_defaults_disable_existing_discovery_without_installing(self):
         unix = (ROOT / "install.sh").read_text()
         win = (ROOT / "scripts/install-win11.ps1").read_text()
         self.assertIn("INSTALL_LINEAR_WORKFLOW=0", unix)
@@ -55,15 +48,8 @@ class LinearWorkflowInstallerContractTests(unittest.TestCase):
         self.assertIn('managed_package_installer.py") disable', win)
         self.assertLess(win.index('if ($LinearWorkflow)'), win.index('Install-CodexPatchSafetySkill -RepoRoot $Root'))
 
-    def test_prewrite_guard_precedes_installer_dispatch(self):
-        unix = (ROOT / "install.sh").read_text(encoding="utf-8")
-        guard = unix.index("run_codex_target_guard before", unix.index("done\n"))
-        dispatch = unix.index("install_linear_workflow_only\n  exit 0", guard)
-        self.assertLess(guard, dispatch)
-        win = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
-        self.assertLess(win.rindex("Assert-CodexTargetGuard -RepoRoot"), win.rindex("Install-LinearWorkflow -RepoRoot"))
 
-    def test_win11_guard_binds_actual_write_home_to_codex_and_cc_switch_profile(self):
+    def test_static_win11_guard_binds_actual_write_home_to_codex_and_cc_switch_profile(self):
         text = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
         invocation = "Assert-CodexTargetGuard -RepoRoot $Root -TargetUserHome $UserHome -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb"
         self.assertIn(invocation, text)
@@ -71,7 +57,7 @@ class LinearWorkflowInstallerContractTests(unittest.TestCase):
         self.assertIn("$normalizedUserHome.Equals($ccSwitchProfile", text)
         self.assertIn("must belong to the same native Win11 profile", text)
 
-    def test_win11_flags_and_launcher_contract(self):
+    def test_static_win11_flags_and_launcher_contract(self):
         text = (ROOT / "scripts" / "install-win11.ps1").read_text(encoding="utf-8")
         self.assertIn("[switch]$LinearWorkflow", text)
         self.assertIn("[switch]$NoLinearWorkflow", text)

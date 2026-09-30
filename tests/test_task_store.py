@@ -69,6 +69,81 @@ class TaskStoreTests(unittest.TestCase):
             callback()
         self.assertEqual(caught.exception.code, code, str(caught.exception))
 
+    def test_retire_active_artifact_preserves_task_and_replays(self):
+        task = self.create()
+        self.mutate(task, 'revise', recovery='continue implementation')
+        self.mutate(task, 'artifact', name='inventory', content='obsolete inventory')
+        before = self.store.read(task, True)
+        path = self.store.root / before['artifacts']['inventory']['path']
+        request = dict(task_id=task, operation_id='retire-inventory',
+                       base_revision=before['revision'], names=['inventory'], rationale='User has received the inventory.')
+        result = self.store.mutate('retire', request)
+        self.assertEqual(result, self.store.mutate('retire', request))
+        after = self.store.read(task, True)
+        self.assertFalse(path.exists())
+        self.assertEqual(after['artifacts'], {})
+        for key in ('state', 'requirements', 'criteria', 'recovery'):
+            self.assertEqual(before[key], after[key])
+        self.assertEqual(after['revision'], before['revision'] + 1)
+        self.assert_code('idempotency_conflict', lambda: self.store.mutate('retire', dict(request, rationale='different')))
+
+    def test_retire_rejects_preserved_referenced_and_modified_artifacts(self):
+        task = self.create()
+        self.mutate(task, 'artifact', name='protected', content='keep', preserve=True)
+        self.assert_code('cleanup_blocked', lambda: self.mutate(task, 'retire', names=['protected'], rationale='obsolete'))
+        self.mutate(task, 'artifact', name='evidence', content='unique evidence')
+        self.result(task, evidence=['evidence'])
+        self.mutate(task, 'revise', criteria=[dict(id='REQ-MODE', withdrawn=True)])
+        self.assert_code('cleanup_blocked', lambda: self.mutate(task, 'retire', names=['evidence'], rationale='old'))
+        self.mutate(task, 'artifact', name='edited', content='original')
+        path = self.store.root / self.store.read(task, True)['artifacts']['edited']['path']
+        path.write_text('user annotation')
+        self.assert_code('artifact_conflict', lambda: self.mutate(task, 'retire', names=['edited'], rationale='old'))
+        self.assertEqual(path.read_text(), 'user annotation')
+
+    def test_retire_reference_oracle_detects_disabled_guard(self):
+        # Adapted from the historical records/evidence dependency failure.
+        # This isolated mutation checks the oracle, not model effectiveness.
+        from agent_workflow import task_store
+        task = self.create()
+        self.mutate(task, 'artifact', name='proof', content='sole evidence')
+        self.result(task, evidence=['proof'])
+        path = self.store.root / self.store.read(task, True)['artifacts']['proof']['path']
+        original_require = task_store.require
+        def without_reference_guard(condition, code, message):
+            if message != 'artifact is referenced by a result':
+                original_require(condition, code, message)
+        with patch.object(task_store, 'require', side_effect=without_reference_guard):
+            self.mutate(task, 'retire', names=['proof'], rationale='deliberate test fault')
+        with self.assertRaises(AssertionError):
+            self.assertTrue(path.exists(), 'referenced evidence was lost')
+
+    def test_retire_interruption_abort_and_committed_recovery(self):
+        task = self.create()
+        self.mutate(task, 'artifact', name='inventory', content='obsolete')
+        before = self.store.read(task, True)
+        path = self.store.root / before['artifacts']['inventory']['path']
+        q = dict(task_id=task, operation_id='retire-crash', base_revision=before['revision'],
+                 names=['inventory'], rationale='delivered')
+        def fail(stage):
+            if stage == 'file_deleted':
+                raise Crash()
+        with self.assertRaises(Crash):
+            Store(self.s.data, fault=fail).mutate('retire', q)
+        self.assert_code('recovery_pending', lambda: self.store.read(task))
+        self.store.abort(task, q['operation_id'])
+        self.assertEqual(path.read_text(), 'obsolete')
+        q['operation_id'] = 'retire-after-abort'
+        def fail_commit(stage):
+            if stage == 'committed':
+                raise Crash()
+        with self.assertRaises(Crash):
+            Store(self.s.data, fault=fail_commit).mutate('retire', q)
+        self.assertTrue(self.store.read(task)['recovery_pending'])
+        self.store.recover(task)
+        self.assertFalse(path.exists())
+        self.assertFalse(self.store.read(task)['recovery_pending'])
+
     def test_queries_do_not_create_storage_and_location_config_is_cwd_independent(self):
         self.assertEqual(self.store.list(), [])
         self.assertEqual(self.store.resolve('fresh', self.s.repo)['candidates'], [])

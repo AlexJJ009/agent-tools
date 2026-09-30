@@ -236,6 +236,7 @@ Other operation payloads extend the same envelope:
 | `forget` | None; requires a closed task without retained artifacts |
 | `artifact-policy` | `name`, boolean `preserve`, actual user `quote`, `source_ref` |
 | `prune` | `names`, `rationale`; closed non-retained tasks only |
+| `retire` | `names`, `rationale`; unreferenced, unpreserved artifacts on an open task |
 
 Artifact names are logical names without path separators. The runtime assigns
 physical paths; it does not accept arbitrary project paths for deletion. To
@@ -304,6 +305,76 @@ ID, replay its unchanged packet or run `task recover --data-root
 root, then list tasks. Unscoped recovery is explicit and can process more than
 one local task.
 
+## Retire process materials during active work
+
+Material retirement does not require closing the task. After reviewing ownership,
+retention, live references and existing cleanup authorization, use `task retire`
+with the existing-task mutation envelope, exact logical `names` and a `rationale`.
+It increments the revision without changing task state. Any result reference,
+including one on a withdrawn criterion, or `preserve: true` blocks retirement.
+Closed non-retained tasks use `task prune`. These operations use the normal
+SQLite operation recovery described above.
+
+For legacy process files outside the artifact store, `task process-cleanup`
+uses a separate journal. It does not adopt files into the task, update SQLite
+state or require business acceptance. Cleaner must first establish that the
+exact files are disposable process outputs, caches or obsolete state within
+the user's authorized scope. Ignored status alone is not deletion permission.
+Preserve current project documentation, the latest finalized subject surveys,
+required fixtures, user-retained files, pending delivery/recovery material and
+irreplaceable evidence. Resolve uncertain ownership or references before acting.
+
+Save an exact packet outside its cleanup targets; replace all example values
+with observed paths, hashes and actual authorization:
+
+```json
+{
+  "workspace": "/absolute/project",
+  "task_id": "TASK_ID",
+  "operation_id": "retire-process-files-1",
+  "authorization": {"quote": "ACTUAL USER WORDING", "source_ref": "ACTUAL MESSAGE REFERENCE"},
+  "process_materials_reviewed": true,
+  "rationale": "Actual ownership, retention and reference review conclusion",
+  "process_roots": ["docs/_local/scratch/TASK_ID"],
+  "files": [{
+    "path": "docs/_local/scratch/TASK_ID/obsolete-output.txt",
+    "sha256": "OBSERVED_SHA256",
+    "disposition": "archive",
+    "category": "process-output"
+  }]
+}
+```
+
+`process_roots` and file paths are exact workspace-relative paths. Each file
+must be a Git-ignored, untracked regular file within a declared root; symlinks
+and `.git` paths are rejected. No recursive directory deletion is supported.
+Dispositions are `archive` or `delete`; categories are `process-output`, `cache`
+or `obsolete-state`. Unlike SQLite mutations, this packet has no `base_revision`.
+
+```sh
+python3 -m agent_workflow.cli task process-cleanup --input /absolute/packets/cleanup.json
+python3 -m agent_workflow.cli task process-cleanup-status --task TASK_ID --operation retire-process-files-1
+python3 -m agent_workflow.cli task process-cleanup-abort --task TASK_ID --operation retire-process-files-1
+```
+
+A first request must match the task's current workspace. Once journaled, an
+operation recovers against its original workspace and unchanged request even
+if the task is later rebound. `process-cleanup-status` reports persisted progress;
+it does not recheck archive bytes.
+
+Use the same `--data-root` throughout an operation. Replay the unchanged
+`process-cleanup` packet to recover; abort is an alternative only before commit,
+not a routine final step. Archive copies are hash-verified before originals are
+quarantined beside their source. Recovery handles interrupted steps; this is not
+an atomic transaction across filesystems. Inspect the returned operation state
+before claiming completion: `prepared` is uncommitted, `committed` still needs
+quarantine cleanup, and `complete` means that cleanup finished. Journals and
+archive copies live under the data root's `cleanup/<task-id>/<operation-digest>/`,
+separate from SQLite task records. There is no timer, TTL or automatic archive deletion.
+Archives still consume storage; existing archives are not implicitly included
+in a new cleanup. [ADR 0005](decisions/0005-scoped-process-material-retirement.md)
+records this extension's boundary.
+
 ## Cleaner task closeout
 
 Task closeout is distinct from Cleaner's behavior-preserving code cleanup.
@@ -332,12 +403,13 @@ a Stop event, ended chat, passing test or report filename does not authorize it.
    edited file or retained reference blocks deletion; resolve it rather than
    bypassing the runtime with a broad filesystem deletion.
 
-Only registered task-owned process material is eligible: for example, a PRD
+Only registered task-owned process material is eligible for `task closeout`: for example, a PRD
 export, checklist export, work report, obsolete evidence or scratch file.
 Filename, age, ignored status and “the Agent wrote it” do not establish ownership.
 Project documentation, another task's files, user-retained material and unknown
 files are excluded. Preserve a report still awaiting delivery in the current
-turn. The MVP has no external-file adoption or handoff disposition. Copy lasting
+turn. Closeout has no external-file adoption or handoff disposition. The separate
+`process-cleanup` operation handles reviewed external process files. Copy lasting
 content into the appropriate project file using normal tools, verify it and its
 consumers, then separately dispose of the runtime-owned copy. Project files
 never enter this runtime's deletion set.

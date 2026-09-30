@@ -19,6 +19,7 @@ checklist solely to record cleanup.
 - Preserve externally visible behavior and protocol semantics. If a cleanup would change behavior, stop and record it as a proposed scope change.
 - Reduce meaningful duplication, temporary leftovers, hidden side effects, unclear names, broad interfaces, and misplaced responsibilities in changed code.
 - Check documentation impact: update affected usage/interface instructions or explain why no documentation change is needed in the existing closing note or commit/PR description. Handoff links the current guide and records a recovery point; it does not duplicate usage instructions.
+- Check task-record freshness when the task record is changed: consolidate competing current-state summaries, preserve user constraints, and link necessary historical evidence instead of copying it. Do not create another cleanup report to describe this check.
 - Check artifact ownership: private task agreements, checklists, reports and receipts belong in ignored `docs/_local/`, not shared source or product input. Preserve reusable test assets and necessary product validation.
 - Preserve significant architectural rationale in the project ADRs (`docs/decisions/`), using the MADR template when adopted. A substantive replacement gets a successor ADR and reciprocal supersession links; typo fixes do not. Do not fabricate alternatives or decisions.
 - Keep dependency direction and module boundaries consistent with the repository.

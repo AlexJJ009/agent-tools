@@ -45,6 +45,56 @@ class ManagedTests(unittest.TestCase):
                    'command_paths': ['worker.py'], 'config_paths': ['config.json'],
                    'authorization_scope': {'purpose': 'isolated sample', 'budget': 1}}})
 
+    def test_gate_observations_do_not_generate_files_or_change_state(self):
+        before = {str(p.relative_to(self.root)): p.read_bytes()
+                  for p in self.root.rglob('*') if p.is_file()}
+        for _ in range(3):
+            self.assertFalse(managed.gate_action(self.root, 'sample', simulation=True)['ready'])
+        after = {str(p.relative_to(self.root)): p.read_bytes()
+                 for p in self.root.rglob('*') if p.is_file()}
+        self.assertEqual(before, after)
+
+    def test_cli_gate_errors_do_not_generate_receipts(self):
+        from agent_workflow.cli import main
+        before = {str(p.relative_to(self.root)): p.read_bytes()
+                  for p in self.root.rglob('*') if p.is_file()}
+        for action in ('missing-action', 'completion'):
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = main(['gate', '--record', str(self.root), '--action', action,
+                             '--phase', 'missing-phase', '--simulation'])
+            self.assertEqual(code, 1)
+            self.assertEqual(json.loads(output.getvalue())['status'], 'error')
+        after = {str(p.relative_to(self.root)): p.read_bytes()
+                 for p in self.root.rglob('*') if p.is_file()}
+        self.assertEqual(before, after)
+
+    def test_refresh_retires_legacy_placeholder_without_losing_authored_notes(self):
+        task = self.root / 'task.md'
+        text = task.read_text().replace(
+            'Keep only current recovery notes here; verification status is rendered below.',
+            'No checks executed. Investigate bindings and run applicable verifiers.')
+        task.write_text(text.replace('## current_state', 'User constraint: keep training paused.\n\n## current_state'))
+        self.verify()
+        self.assertNotIn('No checks executed.', task.read_text())
+        self.assertIn('User constraint: keep training paused.', task.read_text())
+
+    def test_check_keeps_one_receipt_per_run_and_brief_is_on_demand(self):
+        for attempt in range(1, 3):
+            self.verify()
+            self.assertEqual(len(list((self.root / 'evidence').glob('*-checked.json'))), attempt)
+            self.assertEqual(list((self.root / 'evidence').glob('*-readback.json')), [])
+            self.assertFalse((self.root / 'reviews/human-review.md').exists())
+        task = (self.root / 'task.md').read_text()
+        self.assertNotIn('No checks executed.', task)
+        self.assertIn('checked', task)
+        brief = runtime.review_brief(self.root)
+        self.assertTrue(brief.is_file())
+        (self.repo / 'config.json').write_text('{"value": 2}')
+        self.assertTrue(runtime.check(self.root))
+        self.assertEqual(len(list((self.root / 'evidence').glob('*-readback.json'))), 1)
+        self.assertIn('failed', brief.read_text())
+
     def event(self, kind, payload, human=False, affects=None):
         self.count += 1
         source = self.base / f'source-{self.count}.txt'

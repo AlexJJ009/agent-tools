@@ -153,3 +153,23 @@ Maintain current usage/interface facts here and significant design reasons in
 [ADRs](decisions/README.md), so another checkout needs no private report to use
 the runtime. Record documentation impact at meaningful delivery boundaries;
 no Markdown change is required when system behavior and usage are unchanged.
+
+## Record maintenance
+
+`check` still executes the selected verifiers on each call. A successful command
+check stores one complete checked receipt; a failed command preserves its raw
+readback for diagnosis. It creates no human-review document unless explicitly
+requested with `review-brief`; an existing brief is refreshed after a check.
+Old referenced receipts are not deleted or overwritten.
+
+Schema-2 `gate` queries return their decision without saving a new gate file.
+Actual managed execution attempts retain their execution/rejection evidence.
+This does not change the legacy schema-1 gate's audit behavior. `status` may
+record the first observed evidence invalidation; repeated unchanged status
+reads do not append updates.
+
+Maintain one current recovery note in place, without per-stage narrative
+copies. The runtime replaces its marked state block and retires its exact old
+initializer placeholder; it does not rewrite arbitrary Agent-authored prose.
+SessionStart displays the current canonical phase, while a registered Stop
+obligation retains its originally agreed phase. These are separate scopes.

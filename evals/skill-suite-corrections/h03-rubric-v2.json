@@ -1,0 +1,26 @@
+{
+  "schema_version": "skill-rubric-correction/1",
+  "correction_id": "h03-rubric-v2",
+  "case_id": "H03",
+  "primary_check_id": "H03.1",
+  "primary_atomic_check": "对同一cache对象、一个未命中的key以及已存在的attempts列表，说明make_fetch返回的闭包先执行cache[\"attempts\"].append(key)，再抛TimeoutError；因此列表已追加该key，而get中的cache[key]=value没有执行，不产生该key的结果条目。必须区分已发生的共享对象副作用与未发生的缓存填充。接受与源码一致的符号key推演，或一致重命名的具体例子（如x或a）；用户未指定必须复现scenario.py中的字面键x，不因更换无关键名扣分。",
+  "criterion": "对同一cache对象、一个未命中的key以及已存在的attempts列表，说明make_fetch返回的闭包先执行cache[\"attempts\"].append(key)，再抛TimeoutError；因此列表已追加该key，而get中的cache[key]=value没有执行，不产生该key的结果条目。必须区分已发生的共享对象副作用与未发生的缓存填充。接受与源码一致的符号key推演，或一致重命名的具体例子（如x或a）；用户未指定必须复现scenario.py中的字面键x，不因更换无关键名扣分。",
+  "reason": "原主项将fixture示例键x误当成用户请求的必要条件。已观察产出用a完整正确解释相同机制，旧Judge仅因没有x判失败，属于评分过度指定而非能力缺口。",
+  "preserved_requirements": [
+    "same cache object through closure",
+    "append occurs before TimeoutError",
+    "result assignment never executes",
+    "no successful result cache entry",
+    "explain object relationship and control flow"
+  ],
+  "input_changed": false,
+  "raw_outputs_changed": false,
+  "rerun_candidate_required": false,
+  "rescore_scope": "all H03 arms and repetitions under the same effective rubric; preserve original grades and raw outputs",
+  "calibration_expectations": {
+    "correct_x": true,
+    "equivalent_a_actual_output": true,
+    "wrong_cache_unchanged": false
+  },
+  "original_evidence": "challenge-20260930/runs/H03-skills-1/result.json; scoring/grades/H03-skills-1-0d594d85663c.json"
+}

@@ -4,7 +4,7 @@ Use the guides below for implemented behavior. Repository code and its current
 usage/interface documentation describe the system; task PRDs, checklists and
 private reports describe bounded development work and are not deployment proof.
 
-- [Task runtime](TASK_RUNTIME.md): local task state, checklist queries, continuation and owned-artifact closeout.
+- [Task runtime](TASK_RUNTIME.md): local task state, checklist/history queries, scoped material cleanup and recovery.
 - [Agent workflow](AGENT_WORKFLOW.md): development agreements, readback and acceptance.
 - [Learning workflow runtime](LEARNING_WORKFLOW.md): activity routing and scoped actions.
 - [Learning workflow installation](LEARNING_WORKFLOW_INSTALL.md): local Codex installation and rollback.

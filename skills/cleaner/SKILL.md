@@ -66,6 +66,11 @@ Read the same task through `agent-workflow task read` and `task checklist`.
 Consult `agent-workflow task --help` and the selected command's help for CLI
 options; consult the runtime's `docs/TASK_RUNTIME.md` for JSON packet fields.
 Use `python3 -m agent_workflow.cli task` when running from the source checkout.
+Use `task history --task TASK_ID` for compact receipts across SQLite and process
+journals, adding `--detail --limit 50` only when target metadata is needed.
+`task read`/`list` expose pending cleanup through `recovery_pending`; a task
+operation's `completed_at` proves its DB commit, not finished garbage removal.
+Legacy unknown times and cancelled intentions are not completed changes.
 Queries default to stdout. Do not create a closeout report, index or second
 checklist just to record this activity.
 
@@ -100,6 +105,11 @@ checklist just to record this activity.
   keep/archive/delete disposition. Batch related questions; retain those items
   until answered while continuing clear, authorized cleanup. Do not ask again
   for decisions already covered by the user's instructions.
+- When the user explicitly authorizes deleting an entire obsolete task or
+  duplicate archives, review that whole scope. Old reports citing other retiring
+  reports do not permanently freeze those files. Retire the obsolete set
+  together or repair links in retained documents; keep actual live consumers,
+  the latest finalized survey and other protected material intact.
 - Inspect known references and actual script dependencies before retiring
   process material. Move lasting test inputs into project fixtures and verify
   the consumers; tests must not depend on records scheduled for deletion.
@@ -116,13 +126,21 @@ checklist just to record this activity.
   the packet: explicit workspace, task/operation identity, actual authorization
   quote/source, reviewed process roots and exact file paths, hashes, categories
   and `archive`/`delete` dispositions. Keep protected material out of the packet.
-  The tool accepts only ignored, untracked regular files; it does not discover
+  Workspace mode accepts only ignored, untracked regular files; it does not discover
   candidates, recurse through directories or decide whether content is obsolete.
 - This separate cleanup journal does not close or revise the SQLite task.
-  Recover by replaying the unchanged packet; inspect with
+  Recover through `task recover --task TASK_ID` or by replaying the unchanged
+  packet; journals retain their original workspace after task rebind. Inspect with
   `task process-cleanup-status --task TASK_ID --operation OP`. Before commit,
   `task process-cleanup-abort --task TASK_ID --operation OP` restores quarantine.
   Do not use the SQLite operation's `task abort` for this journal.
+- For explicitly authorized duplicates under the fixed `<data-root>/archives/`
+  root, use `storage: "archives"` with exact relative `process_roots` and
+  `files[].path`, and `delete` only. This does not authorize ordinary workspace
+  deletion, journal deletion, directory recursion or changes inside tar files.
+  If relying on a retained identical copy, record per-file
+  `retained_copy: {path: absolute_path, sha256: target_hash}`; the runtime checks
+  its bytes and excludes copies in the same deletion/quarantine set.
 - Archive copies are hash-verified before originals enter local quarantine.
   Cross-filesystem work is recoverable, not one atomic move. Check the returned
   state before reporting completion. There is no timer, TTL or automatic archive
@@ -159,7 +177,8 @@ review and protection rules above first.
   invalidate an uncommitted plan, use `task abort --task TASK_ID --operation OP`
   to restore its quarantine, then read current state and issue corrected work
   under a new operation ID. Abort is not rollback of a committed result.
-  Pending cleanup reports `recovery_pending`; completion requires the commit
+  Pending process journals block closeout/forget as well as appearing in
+  `recovery_pending`. Completion requires the commit
   and remaining garbage removal, not just the committed metadata.
 
 A closeout packet passed to `task closeout --input PATH` has the shape
@@ -181,4 +200,5 @@ Inspect the associated worktree for remaining work or handoff needs, but do not
 remove worktrees or branches as a side effect of artifact cleanup. Their removal
 requires explicit scope and the existing worktree-management capability. Closing
 a task and forgetting its stored contents are separate actions; do not invoke
-`task forget` merely because closeout succeeded.
+`task forget` merely because closeout succeeded. Explicit forget deletes that
+task's SQLite audit; separate process journals are not automatically deleted.

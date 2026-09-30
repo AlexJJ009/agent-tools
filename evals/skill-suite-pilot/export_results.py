@@ -16,6 +16,13 @@ def dump(path,value):
     path.write_text(json.dumps(value,ensure_ascii=False,indent=2)+'\n')
 
 
+def normalized_usage(usage):
+    if not usage:return None
+    cached=usage.get('cached_input_tokens')
+    if cached is None:return usage
+    return {'input_tokens':usage['input_tokens']-cached,'output_tokens':usage['output_tokens'],'cache_read_input_tokens':cached}
+
+
 def digest(value):
     return hashlib.sha256(json.dumps(value,ensure_ascii=False,sort_keys=True).encode()).hexdigest()
 
@@ -70,7 +77,7 @@ def export(runs, scored, output, control_cases=('C05','C08','C17','C19'), reps=1
         row={'prompt_id':cid,'prompt':case['prompt'],'tags':[flow,*case.get('target_skills',[])],
              'rep':rep,'status':'ok','stop_reason':'turn.completed','grade':{'task_pass':int(task),'writing_pass':int(style)},
              'explanation':{'task_pass':'; '.join(bad) or 'All task checks passed','writing_pass':json.dumps(verdict.get('writing_checks',[]),ensure_ascii=False)},
-             'usage':norm,'judge_usage':g.get('judge_usage'),'latency_s':raw['seconds'],
+             'usage':norm,'judge_usage':normalized_usage(g.get('judge_usage')),'latency_s':raw['seconds'],
              'tool_calls':sum(e.get('type')=='item.completed' and e.get('item',{}).get('type')=='command_execution' for e in raw['events']),
              'meta':{'requested_model':raw['model_requested'],'served_model_verified':bool(raw.get('model_observed')),
                      'raw_result':str(p),'grade_identity':g['identity'],'case_sha256':raw['case_sha256'],
@@ -105,6 +112,16 @@ def export(runs, scored, output, control_cases=('C05','C08','C17','C19'), reps=1
            'skills 运行 19 题，control 只运行 C05/C08/C17/C19；只能比较同题四对，不能拿两组整体均值计算增量。','',
            '每题仅一次合成场景试跑。模型 Judge 与被测 Agent 使用独立会话，但来自同一模型；成绩用于定位问题，不作为稳定提升或真实学习成效的证据。','',
            '| 题目 | 配置 | 任务 | 写作 | 用时（秒） |','| --- | --- | --- | --- | --- |']
+    skills_rows=[r for r in summaries if r['variant']=='skills']
+    controls=[r for r in summaries if r['variant']=='control']
+    headline=[f"加载 skills 的 {len(skills_rows)} 题中，任务完成 {sum(r['task'] for r in skills_rows)} 题，写作规范通过 {sum(r['style'] for r in skills_rows)} 题。", '']
+    failed_ids=[r['case'] for r in skills_rows if not r['task']]
+    if failed_ids:headline += ['未通过题：'+', '.join(failed_ids)+'；具体原因及原始产出见下方。','']
+    if controls:
+        matched=[(r,next((b for b in skills_rows if b['case']==r['case']),None)) for r in controls]
+        if all(b and b['task']==r['task'] and b['style']==r['style'] for r,b in matched):
+            headline += [f"{len(controls)} 道同题对照的两组通过/未通过结果相同。本轮没有测出这些题上的 skill 增量；题目可能过于简单，不能据此认定 skills 无用。",'']
+    lines[4:4]=headline
     for r in sorted(summaries,key=lambda r:(r['case'],r['variant'])):
         lines.append(f"| {r['case']} {r['title']} | {r['variant']} | {'通过' if r['task'] else '未通过'} | {'通过' if r['style'] else '未通过'} | {r['seconds']} |")
     lines+=['','## 未通过项与证据','']
@@ -115,7 +132,8 @@ def export(runs, scored, output, control_cases=('C05','C08','C17','C19'), reps=1
         lines+=['## 尚未完成','']+[f"- {r['case_id']} {r['variant']} rep {r['rep']}: {r['reason']}" for r in pending]+['']
     lines+=['## 分流程报告','']+[f'- [{flow}]({output/flow/"report.html"})' for flow in report_flows]
     lines+=['','SKILL.md 读取命令保存在 summary.json；读取文件只能证明加载发生，不能单独证明遵循或增量效果。',
-            '真实仓库与题库不挂载到被测环境；具体隔离探针和实际运行限制见试跑目录。CLI未返回实际服务模型时，只记录请求的gpt-5.5，不能独立核验实际模型身份。','']
+            '真实仓库与题库不挂载到被测环境；具体隔离探针和实际运行限制见试跑目录。CLI未返回实际服务模型时，只记录请求的gpt-5.5，不能独立核验实际模型身份。',
+            '用时是完整 CLI 执行的墙钟时间，包含启动与不可单独观测的内部重试，不能当作模型服务延迟。','']
     (output/'RESULTS.md').write_text('\n'.join(lines))
     return 2 if pending else 0
 

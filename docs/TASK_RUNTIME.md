@@ -14,13 +14,14 @@ Hooks, schedule external work, or synchronize state between machines.
 From the source checkout, inspect the command contract with:
 
 ```sh
-python -m agent_workflow.cli task --help
+python3 -m agent_workflow.cli task --help
 ```
 
 The installed launcher exposes the same entry as `agent-workflow task`. Use each
-subcommand's `--help` for accepted fields and options. Task mutations take a JSON
-packet through `--input PATH`; use an isolated `--data-root` for trials. The
-runtime reports resolved paths rather than creating an index in each project.
+subcommand's `--help` for CLI options and this guide's JSON operation packets
+for payload fields. Task mutations take a JSON packet through `--input PATH`;
+use an isolated `--data-root` for trials. The runtime reports resolved paths
+rather than creating an index in each project.
 
 Linux/WSL path precedence is explicit `--data-root`, then `data_root` in
 `${XDG_CONFIG_HOME:-$HOME/.config}/agent-tools/config.json`, then
@@ -30,15 +31,17 @@ existing installer free of third-party runtime dependencies. The root does not
 change with cwd. Inspect the selected location without creating a task:
 
 ```sh
-python -m agent_workflow.cli task location
-python -m agent_workflow.cli task list --data-root /absolute/trial-data
+python3 -m agent_workflow.cli task location
+python3 -m agent_workflow.cli task list --data-root /absolute/trial-data
 ```
 
 The data root contains `tasks.sqlite3` and task-owned files under
 `artifacts/<task-id>/`. It is application data, separate from the replaceable
 runtime installation and project checkout. Each machine/user has independent
-state. Existing scenario records and explicit record paths remain usable through
-the [agent workflow](AGENT_WORKFLOW.md); ordinary startup does not import them.
+state. [ADR 0004](decisions/0004-task-runtime-application-storage.md) records
+this storage decision and its limits. Existing scenario records and explicit
+record paths remain usable through the [agent workflow](AGENT_WORKFLOW.md);
+ordinary startup does not import them.
 
 ## Find and continue a task
 
@@ -56,15 +59,15 @@ ownership or establish that previous checks still apply. Do not delete a task
 because its old workspace is unavailable.
 
 ```sh
-python -m agent_workflow.cli task resolve --workspace /absolute/project --session SESSION
-python -m agent_workflow.cli task read --task TASK_ID
-python -m agent_workflow.cli task read --task TASK_ID --detail
-python -m agent_workflow.cli task checklist --task TASK_ID
-python -m agent_workflow.cli task checklist --task TASK_ID --item AC-001
-python -m agent_workflow.cli task checklist --task TASK_ID --item AC-001 --detail
-python -m agent_workflow.cli task checklist --task TASK_ID --ordinal 1
-python -m agent_workflow.cli task checklist --task TASK_ID --search output
-python -m agent_workflow.cli task checklist --task TASK_ID --format markdown
+python3 -m agent_workflow.cli task resolve --workspace /absolute/project --session SESSION
+python3 -m agent_workflow.cli task read --task TASK_ID
+python3 -m agent_workflow.cli task read --task TASK_ID --detail
+python3 -m agent_workflow.cli task checklist --task TASK_ID
+python3 -m agent_workflow.cli task checklist --task TASK_ID --item AC-001
+python3 -m agent_workflow.cli task checklist --task TASK_ID --item AC-001 --detail
+python3 -m agent_workflow.cli task checklist --task TASK_ID --ordinal 1
+python3 -m agent_workflow.cli task checklist --task TASK_ID --search output
+python3 -m agent_workflow.cli task checklist --task TASK_ID --format markdown
 ```
 
 Append the same `--data-root /absolute/trial-data` to each command when using an
@@ -108,8 +111,8 @@ ignored configuration explicitly. A narrow selection requires a real dependency
 justification; otherwise use the whole-worktree default.
 
 ```sh
-python -m agent_workflow.cli task fingerprint --workspace /absolute/project
-python -m agent_workflow.cli task fingerprint --workspace /absolute/project --path src/convert.py --path tests/test_convert.py
+python3 -m agent_workflow.cli task fingerprint --workspace /absolute/project
+python3 -m agent_workflow.cli task fingerprint --workspace /absolute/project --path src/convert.py --path tests/test_convert.py
 ```
 
 Run checks with the project's existing tools. Record results with `task result`
@@ -150,7 +153,7 @@ A create packet, saved as `create.json`:
 ```
 
 ```sh
-python -m agent_workflow.cli task create --input /absolute/packets/create.json --data-root /absolute/trial-data
+python3 -m agent_workflow.cli task create --input /absolute/packets/create.json --data-root /absolute/trial-data
 ```
 
 The response supplies the task ID and revision. Existing-task operations use
@@ -288,8 +291,8 @@ inputs make a prepared closeout invalid, abort that exact operation before
 revising and rechecking:
 
 ```sh
-python -m agent_workflow.cli task recover --task TASK_ID --data-root /absolute/trial-data
-python -m agent_workflow.cli task abort --task TASK_ID --operation closeout-1 --data-root /absolute/trial-data
+python3 -m agent_workflow.cli task recover --task TASK_ID --data-root /absolute/trial-data
+python3 -m agent_workflow.cli task abort --task TASK_ID --operation closeout-1 --data-root /absolute/trial-data
 ```
 
 These are alternatives selected from the actual failure state, not two steps to
@@ -314,15 +317,20 @@ a Stop event, ended chat, passing test or report filename does not authorize it.
    runtime. Project conventions and user retention choices take precedence.
 3. Check known references and actual script dependencies. Move lasting test
    inputs out of disposable records into project fixtures and recheck consumers.
-4. Submit one exact `keep` or `delete` disposition for every owned artifact
+4. Reverify behavior affected by closeout edits before submitting closeout.
+   Recording a new `task result` resets that criterion's acceptance to pending.
+   Equivalent fixture movement or documentation maintenance can leave the
+   original user feedback applicable: verify that its scope still covers the
+   current result, then explicitly record it with `task feedback`, preserving
+   the actual quote, source reference and criterion scope. The runtime does
+   not carry acceptance forward automatically. Changed accepted behavior or
+   requirements return the same task to negotiation, checks and new scoped
+   user acceptance; do not reinterpret old feedback to approve them.
+5. Submit one exact `keep` or `delete` disposition for every owned artifact
    through `task closeout`. Runtime checks
    task ownership, revision, paths, content and references before cleanup. An
    edited file or retained reference blocks deletion; resolve it rather than
    bypassing the runtime with a broad filesystem deletion.
-5. Reverify behavior affected by closeout changes. Equivalent fixture movement
-   and documentation maintenance can retain the original feedback's scope;
-   changed accepted behavior or requirements require the same task to return to
-   negotiation, checks and user acceptance.
 
 Only registered task-owned process material is eligible: for example, a PRD
 export, checklist export, work report, obsolete evidence or scratch file.

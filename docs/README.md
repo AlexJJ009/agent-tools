@@ -10,6 +10,7 @@ private reports describe bounded development work and are not deployment proof.
 - [Learning workflow installation](LEARNING_WORKFLOW_INSTALL.md): local Codex installation and rollback.
 - [Architecture decisions](decisions/README.md): adopted choices and their reasons.
 - [Linear workflow](linear-workflow/README.md): shared runtime and explicit dispatch boundaries.
+- [Work Report](WORK_REPORT.md): report generation, delivery contracts and installation.
 - [Work Report timer](WORK_REPORT_LIGHT_TIMER.md): timed prompts and their delivery limits.
 - [CLI server bootstrap](CLI_SERVER_BOOTSTRAP.md): server setup.
 - [Repository overview](../README.md): other maintained tools and platform guides.
@@ -39,7 +40,9 @@ on another host. This division clarifies [ADR 0001](decisions/0001-local-develop
 and does not create a new document pack or ADR for every documentation edit.
 
 Task Runtime stores its state and managed artifacts in the configured application
-data root; see its guide above. Existing explicit local records remain valid.
+data root; see its guide above and [ADR 0004](decisions/0004-task-runtime-application-storage.md).
+That decision supersedes ADR 0001's storage rule only for Task Runtime.
+Existing explicit local records remain valid.
 Private development material outside that runtime belongs in ignored `docs/_local/`,
 created only when needed: `tasks/<task-id>/`, `reports/<task-id>/`, or `scratch/<task-id>/`.
 Existing task identifiers and agreements remain valid. A handoff records the

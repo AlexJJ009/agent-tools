@@ -4,6 +4,10 @@ Date: 2026-09-29
 
 Status: Accepted
 
+Superseded by: [ADR 0004](0004-task-runtime-application-storage.md) for Task
+Runtime's authoritative state and managed artifacts only. The local-record and
+maintained-documentation rules below continue to apply outside that runtime.
+
 ## Context and Problem Statement
 
 Agent Tools contained migration PRDs, a canonical task checklist, a second

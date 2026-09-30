@@ -48,7 +48,7 @@ For context sync, the recommended deployment model is one central tool directory
   server workspaces.
 - `migrate_codex_provider_bucket.py` — Codex history and cc-switch template
   migration that forces every non-target Codex provider bucket into `custom`.
-- `skills/work-report/` — Markdown progress reports with independent review, explicit end-report hooks, and opt-in interval scheduling. See [v2 acceptance and installation](docs/WORK_REPORT_V2_ACCEPTANCE.md).
+- `skills/work-report/` — Markdown progress reports with independent review, explicit end-report hooks, and opt-in interval scheduling. See [usage, installation and limits](docs/WORK_REPORT.md).
 - `skills/codex-win11-patch-safety/` — discoverable, versioned Win11 ChatGPT
   Codex patch workflow with protected-state snapshots, external config
   dependency checks, exact release selection, and human activation gates.

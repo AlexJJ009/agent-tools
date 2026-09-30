@@ -62,8 +62,9 @@ filename, and Agent self-assessment are not user acceptance. Partial acceptance
 updates only the accepted criteria; it does not close the whole task.
 
 Read the same task through `agent-workflow task read` and `task checklist`.
-Consult `agent-workflow task --help` and the selected command's help for inputs;
-use `python -m agent_workflow.cli task` when running from the source checkout.
+Consult `agent-workflow task --help` and the selected command's help for CLI
+options; consult the runtime's `docs/TASK_RUNTIME.md` for JSON packet fields.
+Use `python -m agent_workflow.cli task` when running from the source checkout.
 Queries default to stdout. Do not create a closeout report, index or second
 checklist just to record this activity.
 
@@ -76,6 +77,15 @@ checklist just to record this activity.
 - Inspect known references and actual script dependencies before retiring
   process material. Move lasting test inputs into project fixtures and verify
   the consumers; tests must not depend on records scheduled for deletion.
+- Recheck behavior affected by closeout edits before submitting closeout.
+  Recording a new `task result` resets that criterion's acceptance to pending.
+  Equivalent fixture relocation or documentation maintenance can leave original
+  feedback applicable: verify that it still covers the current result, then
+  explicitly record it through `task feedback` with its actual quote, source
+  reference and criterion scope. The runtime does not automatically preserve
+  acceptance. Changed accepted behavior or requirements return the same task
+  to active work for negotiation, checks and new scoped user acceptance; old
+  feedback cannot approve that change.
 - Submit exact artifact dispositions to `task closeout`: `keep` or `delete` for every owned artifact. Project handoff is a normal
   project edit/copy followed by verification, before disposing of the managed
   copy; the MVP has no external-file adoption or handoff disposition. The
@@ -83,10 +93,6 @@ checklist just to record this activity.
   is eligible process material, but never delete a report still awaiting this
   turn's delivery or a user-retained file. Project documents and other tasks'
   files are outside deletion scope. Unknown ownership means preserve it.
-- Recheck behavior affected by closeout edits. Equivalent fixture relocation or
-  documentation maintenance can preserve the original acceptance scope after
-  verification; changed accepted behavior or requirements return the same task
-  to active work for negotiation, checks and scoped user acceptance.
 - Use `task recover` after interrupted publication or cleanup, following the
   returned operation state. Retry the same operation packet and operation ID;
   do not bypass a conflict with an unrelated deletion command. If changed inputs

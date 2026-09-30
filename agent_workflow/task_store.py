@@ -186,8 +186,8 @@ class Store:
         with self.connection() as db:
             task = self._task(db, task_id)
             require(not self._pending(db, task_id), 'recovery_pending', 'task has an interrupted operation; run recover')
-            if self._has_garbage(db, task_id):
-                task['recovery_pending'] = True
+            task['recovery_pending'] = self._has_garbage(db, task_id)
+            if task['recovery_pending']:
                 if task['state'] == 'closed':
                     task['state'] = 'closing'
             for item in task['criteria']:
@@ -203,7 +203,7 @@ class Store:
                         item['validity'] = 'unknown'
                         item['invalidation_reason'] = 'Workspace or evidence cannot be verified'
             if not detail:
-                task = {k: task[k] for k in ('task_id', 'title', 'revision', 'state', 'workspace', 'requirements', 'recovery', 'criteria')}
+                task = {k: task[k] for k in ('task_id', 'title', 'revision', 'state', 'workspace', 'requirements', 'recovery', 'criteria', 'recovery_pending')}
                 for item in task['criteria']:
                     if item.get('result'):
                         item['result'] = {k: v for k, v in item['result'].items() if k not in ('stdout', 'stderr')}
@@ -224,7 +224,7 @@ class Store:
                     for r in rows if any(search.casefold() in r[k].casefold() for k in ('name', 'requirement'))]
         if not detail:
             rows = [{k: v for k, v in row.items() if k in ('id', 'name', 'requirement', 'verification', 'validity', 'user_acceptance', 'matched_fields', 'invalidation_reason')} for row in rows]
-        return {'task_id': task_id, 'revision': task['revision'], 'items': rows}
+        return {'task_id': task_id, 'revision': task['revision'], 'recovery_pending': task['recovery_pending'], 'items': rows}
 
     def resolve(self, session, workspace):
         root = str(Path(workspace).resolve())

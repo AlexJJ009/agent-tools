@@ -51,6 +51,8 @@ def render_markdown(value):
         return str(text).replace('|', '\\|').replace('\n', '<br>')
     lines = ['# ' + value.get('title', 'Checklist'), '', 'Task: ' + value['task_id'],
              'Revision: ' + str(value['revision']), '']
+    if value.get('recovery_pending'):
+        lines += ['Recovery pending: committed garbage cleanup is incomplete; run task recover.', '']
     if 'requirements' in value:
         lines += [value['requirements'], '']
     rows = value.get('items', value.get('criteria', []))

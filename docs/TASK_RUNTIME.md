@@ -412,7 +412,7 @@ turn. Closeout has no external-file adoption or handoff disposition. The separat
 `process-cleanup` operation handles reviewed external process files. Copy lasting
 content into the appropriate project file using normal tools, verify it and its
 consumers, then separately dispose of the runtime-owned copy. Project files
-never enter this runtime's deletion set.
+never enter task closeout's deletion set.
 
 Closeout quarantines selected owned files as `.trash` before the database
 commit. Abort restores that uncommitted quarantine; after commit, recovery or

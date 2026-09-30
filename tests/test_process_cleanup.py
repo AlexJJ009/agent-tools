@@ -1,11 +1,14 @@
 """Real ignored files, Git boundaries and interruptible cleanup operations."""
 import concurrent.futures
 import copy
+from datetime import datetime, timezone
+import json
 import hashlib
 import os
 from pathlib import Path
 import subprocess
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -242,6 +245,220 @@ class CleanupTests(unittest.TestCase):
         self.run_packet()
         archive.unlink()
         self.fail('archive_missing')
+
+    def archive_packet(self):
+        folder = self.data/'archives/old-run'
+        folder.mkdir(parents=True)
+        target = folder/'duplicate.bin'
+        target.write_bytes(b'old-output')
+        packet = copy.deepcopy(self.packet)
+        packet.update(storage='archives', process_roots=['old-run'], files=[dict(
+            path='old-run/duplicate.bin', sha256=hashlib.sha256(b'old-output').hexdigest(),
+            disposition='delete', category='obsolete-state')])
+        return packet, target
+
+    def test_archives_delete_with_retained_copy_and_timestamps(self):
+        packet, target = self.archive_packet()
+        retained = self.repo/'scratch/retained.bin'
+        retained.write_bytes(target.read_bytes())
+        packet['files'][0]['retained_copy'] = dict(path=str(retained), sha256=packet['files'][0]['sha256'])
+        before = datetime.now(timezone.utc)
+        result = run_cleanup(self.data, packet)
+        after = datetime.now(timezone.utc)
+        self.assertEqual(result['status'], 'complete')
+        self.assertFalse(target.exists())
+        self.assertEqual(retained.read_bytes(), b'old-output')
+        self.assertFalse(list((self.data/'cleanup').rglob('*.archive')))
+        for field in ['created_at', 'updated_at', 'completed_at']:
+            self.assertLessEqual(before, datetime.fromisoformat(result[field]))
+            self.assertLessEqual(datetime.fromisoformat(result[field]), after)
+        self.assertEqual(read_cleanup(self.data, 'task-1', 'cleanup-1'), result)
+        self.assertEqual(run_cleanup(self.data, packet), result)
+
+    def test_archives_recovery_and_abort(self):
+        packet, target = self.archive_packet()
+        def fault(stage, index):
+            if stage == 'quarantined':
+                raise Crash()
+        with self.assertRaises(Crash):
+            run_cleanup(self.data, packet, fault=fault)
+        self.assertFalse(target.exists())
+        abort_cleanup(self.data, 'task-1', 'cleanup-1')
+        self.assertEqual(target.read_bytes(), b'old-output')
+        packet['operation_id'] = 'second'
+        def committed(stage, index):
+            if stage == 'committed':
+                raise Crash()
+        with self.assertRaises(Crash):
+            run_cleanup(self.data, packet, fault=committed)
+        self.assertEqual(run_cleanup(self.data, packet)['status'], 'complete')
+        self.assertFalse(target.exists())
+
+    def test_archives_cannot_escape_delete_journal_or_rearchive(self):
+        packet, target = self.archive_packet()
+        for path, roots in [('old-run/../../cleanup/receipt', ['old-run']),
+                            ('../cleanup/receipt', ['../cleanup'])]:
+            bad = copy.deepcopy(packet)
+            bad['files'][0]['path'] = path
+            bad['process_roots'] = roots
+            self.fail('unsafe_path', bad)
+        bad = copy.deepcopy(packet); bad['files'][0]['disposition'] = 'archive'
+        self.fail('invalid_input', bad)
+        outside = self.data/'cleanup/victim'
+        outside.parent.mkdir(exist_ok=True)
+        outside.write_bytes(b'old-output')
+        target.unlink(); target.symlink_to(outside)
+        self.fail('unsafe_path', packet)
+        self.assertEqual(outside.read_bytes(), b'old-output')
+
+    def test_retained_copy_must_survive_and_match(self):
+        packet, target = self.archive_packet()
+        packet['files'][0]['retained_copy'] = dict(path=str(target), sha256=packet['files'][0]['sha256'])
+        self.fail('unsafe_path', packet)
+        copy_path = self.repo/'scratch/copy'
+        copy_path.write_bytes(b'different')
+        packet['operation_id'] = 'different-copy'
+        packet['files'][0]['retained_copy']['path'] = str(copy_path)
+        self.fail('content_conflict', packet)
+        self.assertTrue(target.exists())
+        copy_path.write_bytes(b'old-output')
+        def fault(stage, index):
+            if stage == 'quarantined':
+                copy_path.write_bytes(b'changed-after-preflight')
+        with self.assertRaises(TaskError) as cm:
+            run_cleanup(self.data, packet, fault=fault)
+        self.assertEqual(cm.exception.code, 'content_conflict')
+        journal = read_cleanup(self.data, 'task-1', 'different-copy')
+        self.assertEqual(journal['status'], 'prepared')
+        self.assertTrue(Path(journal['entries'][0]['quarantine']).exists())
+        self.assertEqual(journal['last_error']['code'], 'content_conflict')
+        copy_path.write_bytes(b'old-output')
+        self.assertEqual(run_cleanup(self.data, packet)['status'], 'complete')
+
+    def test_preflight_failure_is_queryable_and_retryable(self):
+        (self.repo/'scratch/a.txt').write_text('changed')
+        self.fail('content_conflict')
+        journal = read_cleanup(self.data, 'task-1', 'cleanup-1')
+        self.assertEqual(journal['status'], 'rejected')
+        self.assertEqual(journal['last_error']['code'], 'content_conflict')
+        created = journal['created_at']
+        (self.repo/'scratch/a.txt').write_text('scratch/a.txt')
+        result = self.run_packet()
+        self.assertEqual(result['created_at'], created)
+        self.assertEqual(result['last_error']['code'], 'content_conflict')
+        self.assertIn('resolved_at', result['last_error'])
+        self.assertEqual(self.run_packet(), result)
+
+    def test_error_survives_preparation_and_abort_resolves_it_once(self):
+        (self.repo/'scratch/a.txt').write_text('changed')
+        self.fail('content_conflict')
+        original_error = read_cleanup(self.data, 'task-1', 'cleanup-1')['last_error']
+        (self.repo/'scratch/a.txt').write_text('scratch/a.txt')
+        def fault(stage, index):
+            if stage == 'quarantined':
+                raise Crash()
+        with self.assertRaises(Crash):
+            self.run_packet(fault=fault)
+        self.assertEqual(read_cleanup(self.data, 'task-1', 'cleanup-1')['last_error'], original_error)
+        result = abort_cleanup(self.data, 'task-1', 'cleanup-1')
+        self.assertEqual(result['status'], 'aborted')
+        self.assertEqual(result['last_error']['at'], original_error['at'])
+        self.assertIn('resolved_at', result['last_error'])
+        self.assertEqual(abort_cleanup(self.data, 'task-1', 'cleanup-1'), result)
+
+    def test_complete_recovery_resolves_only_latest_error_and_replay_is_readonly(self):
+        self.run_packet()
+        archive = next(self.data.rglob('*.archive'))
+        archive.write_text('corrupted')
+        self.fail('content_conflict')
+        failure = read_cleanup(self.data, 'task-1', 'cleanup-1')['last_error']
+        self.assertNotIn('resolved_at', failure)
+        archive.write_text('scratch/a.txt')
+        result = self.run_packet()
+        self.assertEqual(result['status'], 'complete')
+        self.assertEqual(result['last_error']['at'], failure['at'])
+        self.assertIn('resolved_at', result['last_error'])
+        path = next(self.data.rglob('journal.json'))
+        before = path.read_bytes()
+        self.assertEqual(self.run_packet(), result)
+        self.assertEqual(path.read_bytes(), before)
+        # A later failure replaces the one bounded record, without event growth.
+        archive.write_text('another failure')
+        self.fail('content_conflict')
+        latest = read_cleanup(self.data, 'task-1', 'cleanup-1')
+        self.assertNotIn('resolved_at', latest['last_error'])
+        self.assertNotEqual(latest['last_error']['at'], failure['at'])
+        self.assertNotIn('events', latest)
+
+    def test_old_journal_times_remain_unknown(self):
+        result = self.run_packet()
+        path = next(self.data.rglob('journal.json'))
+        for key in ['created_at', 'updated_at', 'completed_at']:
+            result.pop(key)
+        path.write_text(json.dumps(result))
+        before = path.read_bytes()
+        self.assertEqual(self.run_packet(), result)
+        self.assertEqual(path.read_bytes(), before)
+        self.assertNotIn('created_at', read_cleanup(self.data, 'task-1', 'cleanup-1'))
+
+    def test_first_operation_validates_task_inside_lock_without_journal_on_failure(self):
+        from agent_workflow.process_cleanup import _lock
+        called = []
+        def reject(packet):
+            called.append(packet['task_id'])
+            with self.assertRaises(TaskError) as cm:
+                with _lock(self.data/'cleanup'):
+                    pass
+            self.assertEqual(cm.exception.code, 'operation_busy')
+            raise TaskError('task_missing', 'task is not authorized')
+        with self.assertRaises(TaskError) as cm:
+            run_cleanup(self.data, self.packet, validate_task=reject)
+        self.assertEqual(cm.exception.code, 'task_missing')
+        self.assertFalse(list(self.data.rglob('journal.json')))
+        self.assertTrue((self.repo/'scratch/a.txt').exists())
+        run_cleanup(self.data, self.packet, validate_task=lambda p: called.append(p['task_id']))
+        # Replay belongs to the recorded operation, not a new task mutation.
+        run_cleanup(self.data, self.packet, validate_task=reject)
+        self.assertEqual(called, ['task-1', 'task-1'])
+
+    def test_rejected_retry_revalidates_task_before_mutation(self):
+        (self.repo/'scratch/a.txt').write_text('changed')
+        self.fail('content_conflict')
+        journal_path = next(self.data.rglob('journal.json'))
+        before = journal_path.read_bytes()
+        (self.repo/'scratch/a.txt').write_text('scratch/a.txt')
+        def reject(packet):
+            raise TaskError('workspace_mismatch', 'task rebound or forgotten')
+        with self.assertRaises(TaskError) as cm:
+            run_cleanup(self.data, self.packet, validate_task=reject)
+        self.assertEqual(cm.exception.code, 'workspace_mismatch')
+        self.assertTrue((self.repo/'scratch/a.txt').exists())
+        self.assertEqual(journal_path.read_bytes(), before)
+        self.assertEqual(self.run_packet()['status'], 'complete')
+
+    def test_lock_wait_is_bounded_and_can_acquire_after_release(self):
+        from agent_workflow.process_cleanup import _lock
+        import threading
+        entered, release = threading.Event(), threading.Event()
+        def holder():
+            with _lock(self.data/'cleanup'):
+                entered.set()
+                release.wait(5)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(holder)
+            self.assertTrue(entered.wait(5))
+            try:
+                start = time.monotonic()
+                with self.assertRaises(TaskError) as cm:
+                    with _lock(self.data/'cleanup', timeout=0.05):
+                        pass
+                self.assertEqual(cm.exception.code, 'operation_busy')
+                self.assertLess(time.monotonic()-start, 1)
+            finally:
+                release.set()
+            future.result()
+        with _lock(self.data/'cleanup', timeout=0.1):
+            pass
 
     def test_authorization_and_category_required(self):
         for mutate in [lambda p:p.update(process_materials_reviewed=False),

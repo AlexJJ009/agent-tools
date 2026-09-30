@@ -15,18 +15,22 @@ ACTIONS = ('create', 'revise', 'result', 'submit', 'feedback', 'artifact', 'bind
 def parser():
     p = argparse.ArgumentParser(description=__doc__)
     commands = p.add_subparsers(dest='action', required=True)
-    for name in (*ACTIONS, 'list', 'read', 'checklist', 'resolve', 'recover', 'fingerprint', 'artifact-read', 'location', 'abort', 'process-cleanup', 'process-cleanup-status', 'process-cleanup-abort'):
+    for name in (*ACTIONS, 'list', 'read', 'checklist', 'resolve', 'recover', 'fingerprint', 'artifact-read', 'location', 'abort', 'process-cleanup', 'process-cleanup-status', 'process-cleanup-abort', 'history'):
         c = commands.add_parser(name)
         c.add_argument('--data-root', type=Path, help='absolute application data directory; overrides user config')
         if name in ACTIONS or name == 'process-cleanup':
             c.add_argument('--input', required=True, type=Path, help='JSON operation packet; see docs/TASK_RUNTIME.md')
-        if name in ('read', 'checklist', 'artifact-read'):
+        if name in ('read', 'checklist', 'artifact-read', 'history'):
             c.add_argument('--task', required=True)
         if name in ('abort', 'process-cleanup-status', 'process-cleanup-abort'):
             c.add_argument('--task', required=True)
             c.add_argument('--operation', required=True)
         if name == 'recover':
             c.add_argument('--task', help='recover only this task; otherwise all pending local operations')
+        if name == 'history':
+            c.add_argument('--detail', action='store_true')
+            c.add_argument('--limit', type=int, default=50)
+            c.add_argument('--offset', type=int, default=0)
         if name in ('read', 'checklist'):
             c.add_argument('--detail', action='store_true')
             c.add_argument('--format', choices=('json', 'markdown'), default='json')
@@ -53,7 +57,7 @@ def render_markdown(value):
     lines = ['# ' + value.get('title', 'Checklist'), '', 'Task: ' + value['task_id'],
              'Revision: ' + str(value['revision']), '']
     if value.get('recovery_pending'):
-        lines += ['Recovery pending: committed garbage cleanup is incomplete; run task recover.', '']
+        lines += ['Recovery pending: task file or process cleanup is incomplete; run task recover.', '']
     if 'requirements' in value:
         lines += [value['requirements'], '']
     rows = value.get('items', value.get('criteria', []))
@@ -71,22 +75,17 @@ def main(argv=None):
         elif args.action == 'process-cleanup':
             request = json.loads(args.input.read_text())
             require(isinstance(request, dict), 'invalid_input', 'request must be an object')
-            # A journal is a separate file operation, never an implicit closeout.
-            try:
-                read_cleanup(store.root, request['task_id'], request['operation_id'])
-            except TaskError as exc:
-                if exc.code != 'operation_missing':
-                    raise
-                task = store.read(request['task_id'])
-                require(cleanup_workspace_info(request['workspace']) == task['workspace'],
+            def validate_task(packet):
+                task = store.read(packet['task_id'])
+                require(cleanup_workspace_info(packet['workspace']) == task['workspace'],
                         'workspace_mismatch', 'cleanup must use the task current workspace')
-            # An existing journal keeps its original workspace after task rebind.
-            # run_cleanup checks the full request hash and recorded Git identity.
-            output = run_cleanup(store.root, request)
+            output = run_cleanup(store.root, request, validate_task=validate_task)
         elif args.action == 'process-cleanup-status':
             output = read_cleanup(store.root, args.task, args.operation)
         elif args.action == 'process-cleanup-abort':
             output = abort_cleanup(store.root, args.task, args.operation)
+        elif args.action == 'history':
+            output = store.history(args.task, args.detail, args.limit, args.offset)
         elif args.action == 'list':
             output = store.list(args.workspace)
         elif args.action == 'read':

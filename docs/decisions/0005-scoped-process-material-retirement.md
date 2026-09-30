@@ -38,7 +38,7 @@ artifacts and all result references, including withdrawn criteria.
 Use `task process-cleanup` for explicitly reviewed legacy process files. The
 packet records workspace, task and operation identity, actual user authorization,
 review rationale, declared process roots and exact paths, hashes, categories
-and archive/delete decisions. The operation accepts only Git-ignored, untracked
+and archive/delete decisions. In workspace mode, the operation accepts only Git-ignored, untracked
 regular files in the declared scope; it rejects symlinks and `.git` paths and
 does not recursively delete directories. Cleaner owns semantic review, live
 reference checks and retention decisions; mechanical checks cannot replace them.
@@ -46,8 +46,23 @@ reference checks and retention decisions; mechanical checks cannot replace them.
 Keep this journal separate from SQLite task mutations. Archive copies are
 verified before originals enter local quarantine. An unchanged packet recovers
 an interrupted operation; abort restores an uncommitted operation. No
-cross-filesystem atomic transaction is claimed. Current commands and packet
-fields belong in the [Task Runtime guide](../TASK_RUNTIME.md).
+cross-filesystem atomic transaction is claimed. Expose compact SQLite receipts and process-journal metadata through `task
+history`, without another report or stored task-body history. Preserve unknown
+legacy timestamps; distinguish cancelled intent, database commit and completed
+physical cleanup. Task read/list expose one `recovery_pending` signal, and task
+recovery resumes both stores while preserving each journal's original workspace.
+Pending process journals block closeout and forget. Explicit forget removes
+SQLite task audit, not the independently retained process journals.
+
+Extend the same reviewed-file protocol to an explicit `storage: archives` mode
+limited to the fixed application `archives/` root, exact relative targets and
+delete-only dispositions. A supplied retained-copy claim must be byte-identical,
+verified on disk and outside the same deletion set. This is not recursive
+archive pruning or permission to edit archive members. Whole obsolete-task
+cleanup may resolve internal references together; old report links do not create
+permanent retention obligations for an otherwise authorized retiring set.
+
+Current commands and packet fields belong in the [Task Runtime guide](../TASK_RUNTIME.md).
 
 ### Consequences
 
@@ -58,8 +73,8 @@ fields belong in the [Task Runtime guide](../TASK_RUNTIME.md).
   retained files and irreplaceable evidence remain protected. Unknown ownership,
   pending delivery or live references require resolution before retirement.
 - The separate journal does not alter SQLite task state. Consumers must inspect
-  cleanup completion independently of task status and use the correct recovery
-  or abort command for each store.
+  cleanup completion through the unified summary/history and use the shared
+  recovery entry or the correct store-specific abort command.
 - Archives consume storage. There is no timer, TTL or automatic archive deletion;
   prior archives remain until separately authorized cleanup includes them.
 - Task closeout still requires scoped acceptance and current evidence. This

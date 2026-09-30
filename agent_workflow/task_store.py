@@ -161,6 +161,73 @@ class Store:
         finally:
             db.close()
 
+    def cleanup_operations(self, task_id=None):
+        """Read authoritative journals; never create a second writable index."""
+        from .process_cleanup import _plain_path, _location
+        root = self.root / 'cleanup'
+        _plain_path(root)
+        if task_id is not None:
+            _location(self.root, task_id, 'query')  # Validate before globbing.
+            root = root / task_id
+            pattern = '*/journal.json'
+        else:
+            pattern = '*/*/journal.json'
+        _plain_path(root)
+        rows = []
+        for path in sorted(root.glob(pattern)):
+            _plain_path(path)
+            journal = json.loads(path.read_text())
+            require(journal.get('status') in ('prepared', 'committed', 'complete', 'aborted', 'rejected'),
+                    'cleanup_blocked', 'unknown cleanup journal status; preserve and repair it')
+            q = journal['request']
+            expected = _location(self.root, q['task_id'], q['operation_id'])[1] / 'journal.json'
+            require(path == expected, 'cleanup_blocked', 'journal identity does not match its location')
+            rows.append(journal)
+        return rows
+
+    def cleanup_summary(self, task_id):
+        rows = self.cleanup_operations(task_id)
+        pending = [r['request']['operation_id'] for r in rows if r['status'] in ('prepared', 'committed')]
+        return {'operations': len(rows), 'pending': pending,
+                'recovery_command': 'task recover --task ' + task_id if pending else None}
+
+    def history(self, task_id, detail=False, limit=50, offset=0):
+        require(type(limit) is int and 1 <= limit <= 1000, 'invalid_input', 'limit must be 1..1000')
+        require(type(offset) is int and offset >= 0, 'invalid_input', 'offset must be nonnegative')
+        cleanup = self.cleanup_summary(task_id)
+        recovery_pending = bool(cleanup['pending'])
+        events = []
+        with self.connection() as db:
+            if db:
+                recovery_pending = recovery_pending or bool(self._pending(db, task_id)) or self._has_garbage(db, task_id)
+                for row in db.execute("SELECT * FROM operations WHERE scope=? OR scope LIKE 'create:%'", (task_id,)):
+                    result = json.loads(row['result'] or '{}')
+                    plan = json.loads(row['plan'])
+                    owner = result.get('task_id') or plan.get('task', {}).get('task_id')
+                    if owner != task_id and row['scope'] != task_id:
+                        continue
+                    audit = result.get('audit') or plan.get('result', {}).get('audit')
+                    event = dict(audit or {'action': 'unknown', 'started_at': None, 'completed_at': None,
+                                          'legacy': True, 'targets': []})
+                    event.update(operation_id=row['id'], task_id=task_id, source='task', status=row['state'])
+                    events.append(event)
+        for j in self.cleanup_operations(task_id):
+            q = j['request']
+            events.append(dict(source='process-cleanup', task_id=task_id, operation_id=q['operation_id'],
+                               action='process-cleanup', status=j['status'], started_at=j.get('created_at'),
+                               completed_at=j.get('completed_at'), updated_at=j.get('updated_at'),
+                               legacy='created_at' not in j, rationale=q['rationale'],
+                               storage=q.get('storage', 'workspace'), workspace=q['workspace'],
+                               last_error=j.get('last_error'), targets=j['entries']))
+        events.sort(key=lambda e: (e.get('started_at') or '', e['operation_id']), reverse=True)
+        total = len(events)
+        events = events[offset:offset + limit]
+        if not detail:
+            for e in events:
+                e['target_count'] = len(e.pop('targets', []))
+        return {'task_id': task_id, 'events': events, 'total': total, 'offset': offset,
+                'recovery_pending': recovery_pending, 'truncated': total > offset + limit}
+
     def _task(self, db, task_id):
         row = db.execute('SELECT body FROM tasks WHERE id=?', (task_id,)).fetchone() if db else None
         require(row is not None, 'not_found', 'task not found')
@@ -178,15 +245,24 @@ class Store:
             if db is None:
                 return []
             items = [json.loads(row[0]) for row in db.execute('SELECT body FROM tasks ORDER BY id')]
-            return [{'task_id': t['task_id'], 'title': t['title'], 'revision': t['revision'], 'state': ('closing' if self._pending_closeout(db, t['task_id']) or (t['state'] == 'closed' and self._has_garbage(db, t['task_id'])) else t['state']),
-                     'workspace': t['workspace']['path'], 'recovery_pending': bool(self._pending(db, t['task_id'])) or self._has_garbage(db, t['task_id'])}
-                    for t in items if workspace is None or str(Path(workspace).resolve()) == t['workspace']['path']]
+            result = []
+            for t in items:
+                if workspace is not None and str(Path(workspace).resolve()) != t['workspace']['path']:
+                    continue
+                cleanup = self.cleanup_summary(t['task_id'])
+                pending = bool(self._pending(db, t['task_id'])) or self._has_garbage(db, t['task_id']) or bool(cleanup['pending'])
+                closing = self._pending_closeout(db, t['task_id']) or (t['state'] == 'closed' and pending)
+                result.append({'task_id': t['task_id'], 'title': t['title'], 'revision': t['revision'],
+                               'state': 'closing' if closing else t['state'], 'workspace': t['workspace']['path'],
+                               'cleanup': cleanup, 'recovery_pending': pending})
+            return result
 
     def read(self, task_id, detail=False):
         with self.connection() as db:
             task = self._task(db, task_id)
             require(not self._pending(db, task_id), 'recovery_pending', 'task has an interrupted operation; run recover')
-            task['recovery_pending'] = self._has_garbage(db, task_id)
+            task['cleanup'] = self.cleanup_summary(task_id)
+            task['recovery_pending'] = self._has_garbage(db, task_id) or bool(task['cleanup']['pending'])
             if task['recovery_pending']:
                 if task['state'] == 'closed':
                     task['state'] = 'closing'
@@ -203,7 +279,7 @@ class Store:
                         item['validity'] = 'unknown'
                         item['invalidation_reason'] = 'Workspace or evidence cannot be verified'
             if not detail:
-                task = {k: task[k] for k in ('task_id', 'title', 'revision', 'state', 'workspace', 'requirements', 'recovery', 'criteria', 'recovery_pending')}
+                task = {k: task[k] for k in ('task_id', 'title', 'revision', 'state', 'workspace', 'requirements', 'recovery', 'criteria', 'recovery_pending', 'cleanup')}
                 for item in task['criteria']:
                     if item.get('result'):
                         item['result'] = {k: v for k, v in item['result'].items() if k not in ('stdout', 'stderr')}
@@ -262,6 +338,11 @@ class Store:
         return {'name': name, 'content': raw.decode('utf-8'), 'sha256': a['sha256'], 'revision': task['revision']}
 
     def mutate(self, action, request):
+        from .process_cleanup import _lock
+        with _lock(self.root / 'cleanup', timeout=3):
+            return self._mutate_locked(action, request)
+
+    def _mutate_locked(self, action, request):
         require(isinstance(request, dict), 'invalid_input', 'request must be an object')
         request = deepcopy(request)
         for field in ('preserve', 'retain_task', 'documents_reviewed'):
@@ -295,10 +376,11 @@ class Store:
                 plan = self._plan(db, action, request)
                 db.execute('INSERT INTO operations VALUES(?,?,?,?,?,NULL)', (scope, op, request_hash, 'pending', encoded(plan)))
         self.fault('prepared')
-        return self._finish(scope, op)
+        return self._finish_locked(scope, op)
 
     def _plan(self, db, action, q):
         puts, deletes = [], []
+        original = None
         task_id = q.get('task_id')
         if action in ('create', 'import'):
             require(not task_id, 'invalid_input', 'create/import assigns a task ID')
@@ -324,10 +406,13 @@ class Store:
         else:
             require(isinstance(task_id, str), 'invalid_input', 'task_id is required')
             task = self._task(db, task_id)
+            original = deepcopy(task)
             require(q.get('base_revision') == task['revision'], 'revision_conflict', 'reread current task revision')
             require(task['state'] != 'closed' or action in ('reopen', 'forget', 'prune', 'artifact-policy'), 'invalid_state', 'closed task; explicitly reopen retained task')
             if action not in ('rebind', 'forget', 'prune', 'artifact-policy'):
                 require(workspace_info(task['workspace']['path'])['id'] == task['workspace']['id'], 'workspace_mismatch', 'workspace identity changed; rebind explicitly')
+        if action in ('closeout', 'forget'):
+            require(not self.cleanup_summary(task_id)['pending'], 'recovery_pending', 'finish or abort pending process cleanup first')
         preconditions = []
         if action in ('result', 'submit', 'feedback', 'closeout'):
             if action == 'result':
@@ -479,6 +564,17 @@ class Store:
         result = {'task_id': task_id, 'revision': task['revision'], 'state': task['state']}
         if action == 'artifact':
             result['artifact'] = task['artifacts'][q['name']]
+        before = (original or {}).get('artifacts', {})
+        after = task['artifacts']
+        targets = []
+        for name in sorted(set(before) | set(after)):
+            old, new = before.get(name), after.get(name)
+            if old != new:
+                targets.append({'name': name, 'before': old, 'after': new})
+        result['audit'] = {'action': action, 'started_at': now(), 'completed_at': None,
+                           'revision': task['revision'], 'targets': targets,
+                           'changed_fields': sorted(k for k in task if (original or {}).get(k) != task[k]),
+                           'rationale': q.get('rationale'), 'source_ref': q.get('source_ref')}
         evidence_names = set()
         if action == 'result':
             evidence_names.update(q.get('evidence', []))
@@ -493,6 +589,11 @@ class Store:
                 'binding': {'session': q['session_id'], 'workspace': task['workspace']['path']} if action == 'bind' else None}
 
     def _finish(self, scope, op):
+        from .process_cleanup import _lock
+        with _lock(self.root / 'cleanup', timeout=3):
+            return self._finish_locked(scope, op)
+
+    def _finish_locked(self, scope, op):
         with self.connection(write=True) as db:
             row = db.execute('SELECT * FROM operations WHERE scope=? AND id=?', (scope, op)).fetchone()
             require(row is not None, 'not_found', 'operation missing')
@@ -502,6 +603,8 @@ class Store:
                 return result
             require(row['state'] == 'pending', 'operation_cancelled', 'operation is not pending')
             plan = json.loads(row['plan'])
+            if plan['action'] in ('closeout', 'forget'):
+                require(not self.cleanup_summary(plan['task']['task_id'])['pending'], 'recovery_pending', 'finish or abort pending process cleanup first')
             for a in plan.get('validation_artifacts', []):
                 path = self._path(a['path'])
                 require(path.is_file() and digest(path.read_bytes()) == a['sha256'], 'artifact_conflict', 'required evidence changed during operation')
@@ -532,6 +635,8 @@ class Store:
                 db.execute('INSERT OR REPLACE INTO garbage VALUES(?,?)', (a['path'] + '.trash', a['sha256']))
                 self.fault('file_deleted')
             self.fault('before_commit')
+            if 'audit' in plan['result']:
+                plan['result']['audit']['completed_at'] = now()
             task = plan['task']
             if plan['action'] == 'forget':
                 create_op = self._create_operation(db, task['task_id'])
@@ -591,6 +696,11 @@ class Store:
         return db.execute('SELECT 1 FROM garbage WHERE path LIKE ? LIMIT 1', ('artifacts/' + task_id + '/%',)).fetchone() is not None
 
     def abort(self, task_id, operation_id):
+        from .process_cleanup import _lock
+        with _lock(self.root / 'cleanup', timeout=3):
+            return self._abort_locked(task_id, operation_id)
+
+    def _abort_locked(self, task_id, operation_id):
         """Roll back only an uncommitted plan, preserving original artifact bytes."""
         with self.connection(write=True) as db:
             row = db.execute('SELECT * FROM operations WHERE scope=? AND id=?', (task_id, operation_id)).fetchone()
@@ -611,7 +721,10 @@ class Store:
                     p.unlink()
                 temp = self._path(a['path'] + '.pending')
                 temp.unlink(missing_ok=True)
-            db.execute("UPDATE operations SET state='cancelled',plan='{}' WHERE scope=? AND id=?", (task_id, operation_id))
+            receipt = plan['result']
+            if 'audit' in receipt:
+                receipt['audit']['completed_at'] = now()
+            db.execute("UPDATE operations SET state='cancelled',plan='{}',result=? WHERE scope=? AND id=?", (encoded(receipt), task_id, operation_id))
         return {'status': 'cancelled', 'operation_id': operation_id}
 
     def recover(self, task_id=None):
@@ -620,4 +733,8 @@ class Store:
         result = [self._finish(row['scope'], row['id']) for row in rows if task_id is None or row['scope'] == task_id]
         if self.db.exists():
             self._collect_garbage(task_id)
+        from .process_cleanup import run_cleanup
+        for journal in self.cleanup_operations(task_id):
+            if journal['status'] in ('prepared', 'committed'):
+                result.append(run_cleanup(self.root, journal['request']))
         return result

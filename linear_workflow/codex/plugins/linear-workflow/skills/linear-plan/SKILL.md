@@ -1,9 +1,17 @@
 ---
 name: linear-plan
-description: Plan or revise Linear-first software projects by reading Linear and candidate repositories, producing an approval-bound preview, and writing approved PRDs, Issues, DAG relations, and Delivery Batches through the shared Planning runtime. Use for discovery intake, PRD drafting, decomposition, destination selection, or planning revisions. Do not use to implement a Ready Batch or continue directly into Delivery.
+description: Deprecated and disabled. Retained only for historical inspection and compatibility maintenance; do not invoke for any task.
 ---
 
-# Linear Plan
+# Linear Plan (Deprecated; Disabled)
+
+Stop: this skill is deprecated and disabled. Do not execute the historical workflow below.
+
+Do not call Linear, apply planning changes, dispatch a Batch, or perform delivery through this skill, even if invoked explicitly. Explain that Linear Workflow has been retired. An old Ready Batch or approval does not reactivate it.
+
+The remaining text preserves the former contract for historical inspection and compatibility maintenance only; it is not an executable instruction.
+
+## Historical workflow (inactive)
 
 Prepare a complete planning preview, obtain one explicit approval for that exact preview, apply it idempotently, and stop at the Planning/Delivery boundary.
 

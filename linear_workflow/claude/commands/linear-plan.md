@@ -1,6 +1,6 @@
 ---
-description: Prepare or revise a Linear PRD, DAG, and Delivery Batch preview without entering Delivery.
+description: Deprecated and disabled. Stop without invoking the historical workflow.
 argument-hint: [Linear Issue or Project ID]
 ---
 
-Use `$linear-plan` for the supplied Linear Issue or Project. Read the shared contract and candidate repositories, present the complete approval-bound preview, apply only the exact approved preview, and stop before Delivery.
+`$linear-plan` is deprecated and disabled. Stop without invoking it, calling Linear, or entering Planning or Delivery. Source is retained only for historical inspection and compatibility maintenance.

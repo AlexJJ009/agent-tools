@@ -236,6 +236,210 @@ def drift_report(descriptor: dict[str, Any], repo_root: Path, home: Path, platfo
     return drift
 
 
+MANAGED_MARKER = "managed by agent-tools managed_package_installer.py\n"
+
+
+def _safe_home_path(home: Path, path: Path) -> None:
+    home = home.absolute()
+    path = path.absolute()
+    if path == home or not path.is_relative_to(home) or '..' in path.parts:
+        raise InstallerError(f"discovery target escapes home: {path}")
+    for part in (path, *path.parents):
+        if part.is_symlink():
+            raise InstallerError(f"symlink in discovery path: {part}")
+        if part == home:
+            break
+
+
+def discovery_targets(descriptor: dict[str, Any], repo_root: Path, home: Path) -> list[tuple[Path, Path]]:
+    """Only declared client targets, including sibling versions of a cache target."""
+    pairs = []
+    for group in ('codex_targets', 'claude_targets'):
+        for item in descriptor[group]:
+            source = repo_root / item['source']
+            destination = item['destination']
+            target = home / destination.format(version=descriptor['resolved_version'])
+            _safe_home_path(home, target)
+            relative = Path(destination)
+            if relative.parts[:2] in (('.codex', 'skills'), ('.claude', 'skills'), ('.claude', 'commands')):
+                if target.parent.is_dir():
+                    for backup in target.parent.glob(target.name + '.backup-*'):
+                        _safe_home_path(home, backup)
+                        discoverable = backup / 'SKILL.md' if source.is_dir() else backup
+                        if discoverable.exists() or discoverable.is_symlink():
+                            raise InstallerError(f'unmanaged discoverable backup must be resolved explicitly: {backup}')
+            pairs.append((source, target))
+            # Do not glob the profile: only this explicitly declared package cache.
+            if '{version}' in destination:
+                relative = Path(destination)
+                if relative.name != '{version}' or relative.parts[:3] != ('.codex', 'plugins', 'cache'):
+                    raise InstallerError('version expansion is only supported for declared plugin cache directories')
+                if target.parent.is_dir():
+                    for sibling in sorted(target.parent.iterdir()):
+                        if sibling != target:
+                            _safe_home_path(home, sibling)
+                            pairs.append((source, sibling))
+    retained = [home / '.local/share' / descriptor['name']]
+    retained.extend(home / item['destination'].format(version=descriptor['resolved_version'])
+                    for item in descriptor.get('shared_targets', []))
+    unique = {}
+    for source, target in pairs:
+        if any(target.is_relative_to(path) or path.is_relative_to(target) for path in retained):
+            raise InstallerError(f'discovery target overlaps retained runtime/shared storage: {target}')
+        unique[str(target)] = (source, target)
+    return list(unique.values())
+
+
+def _marketplace_state(home: Path, descriptor: dict[str, Any]):
+    path = home / '.agents/plugins/marketplace.json'
+    _safe_home_path(home, path)
+    if not path.exists():
+        return path, None, []
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise InstallerError(f'cannot inspect marketplace: {exc}') from exc
+    if not isinstance(data, dict) or not isinstance(data.get('plugins', []), list):
+        raise InstallerError('invalid personal marketplace shape')
+    registration = descriptor['plugin_registration']
+    matching = []
+    for item in data.get('plugins', []):
+        if not isinstance(item, dict):
+            raise InstallerError('invalid personal marketplace plugin entry')
+        if item.get('name') == registration['name']:
+            if item.get('source') != {'source': 'local', 'path': registration['path']}:
+                raise InstallerError('same-name marketplace entry has an unmanaged source')
+            matching.append(item)
+    return path, data, matching
+
+
+def disabled_report(descriptor: dict[str, Any], repo_root: Path, home: Path, platform: str) -> list[str]:
+    remaining = []
+    for source, target in discovery_targets(descriptor, repo_root, home):
+        marker = marker_for(source, target)
+        if target.exists() or marker.exists():
+            remaining.append(str(target))
+    _, _, launcher = runtime_paths(descriptor, home, platform)
+    _safe_home_path(home, launcher)
+    if launcher.exists():
+        remaining.append(str(launcher))
+    path, _, matches = _marketplace_state(home, descriptor)
+    if matches:
+        remaining.append(str(path) + '#' + descriptor['plugin_registration']['name'])
+    return remaining
+
+
+def _disable_manifest(descriptor, home, platform):
+    runtime_home, _, _ = runtime_paths(descriptor, home, platform)
+    path = runtime_home.parent / 'install-manifest.json'
+    _safe_home_path(home, path)
+    if not path.exists():
+        return {}
+    try:
+        manifest = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise InstallerError(f'cannot inspect install manifest: {exc}') from exc
+    if (manifest.get('package') != descriptor['name'] or manifest.get('home') != str(home.resolve())
+            or manifest.get('platform') != platform):
+        raise InstallerError('install manifest belongs to a different package or profile')
+    return {item['path']: item['sha256'] for item in manifest.get('targets', [])}
+
+
+def _verify_migrated_commands(target: Path) -> None:
+    """Accept only Codex's exact generated wrapper of a verified command file."""
+    if not target.is_dir():
+        return
+    for path in target.rglob('*'):
+        relative = path.relative_to(target)
+        if 'migrated-command-skills' not in relative.parts or not path.is_file():
+            continue
+        parts = relative.parts
+        if (len(parts) != 4 or parts[:2] != ('.codex-plugin', 'migrated-command-skills')
+                or parts[3] != 'SKILL.md' or not parts[2].startswith('source-command-')):
+            raise InstallerError(f'unverified migrated discovery content: {path}')
+        command_name = parts[2].removeprefix('source-command-')
+        command = target / 'commands' / f'{command_name}.md'
+        if not command.is_file():
+            raise InstallerError(f'migrated skill has no verified command: {path}')
+        text = command.read_text(encoding='utf-8')
+        if not text.startswith('---\n') or '\n---\n' not in text[4:]:
+            raise InstallerError(f'unsupported command frontmatter: {command}')
+        header, body = text[4:].split('\n---\n', 1)
+        descriptions = [line[len('description: '):] for line in header.splitlines() if line.startswith('description: ')]
+        if len(descriptions) != 1:
+            raise InstallerError(f'unsupported command description: {command}')
+        name = f'source-command-{command_name}'
+        expected = (f'---\nname: {json.dumps(name, ensure_ascii=False)}\n'
+                    f'description: {json.dumps(descriptions[0], ensure_ascii=False)}\n---\n\n'
+                    f'# {name}\n\n'
+                    f'Use this skill when the user asks to run the migrated source command `{command_name}`.\n\n'
+                    f'## Command Template\n\n{body.strip()}\n')
+        if path.read_bytes() != expected.encode('utf-8'):
+            raise InstallerError(f'modified migrated command skill: {path}')
+
+
+def disable(descriptor: dict[str, Any], repo_root: Path, home: Path, platform: str) -> None:
+    """Remove verified discovery entries; retain runtime, shared files and data.
+
+    Preflight every target before removing any. A changed or unmanaged target is
+    a conflict, not permission to erase it. Repeating after partial removal is safe.
+    """
+    pairs = discovery_targets(descriptor, repo_root, home)
+    manifest = _disable_manifest(descriptor, home, platform)
+    remove = []
+    for source, target in pairs:
+        marker = marker_for(source, target)
+        _safe_home_path(home, marker)
+        if not target.exists() and not marker.exists():
+            continue
+        if not marker.is_file() or marker.read_text(encoding='utf-8') != MANAGED_MARKER:
+            raise InstallerError(f'unmanaged discovery target: {target}')
+        if target.exists():
+            paths = [target, *target.rglob('*')] if target.is_dir() else [target]
+            for path in paths:
+                if path.is_symlink() or not (path.is_dir() or path.is_file()):
+                    raise InstallerError(f'non-regular discovery content: {path}')
+                relative = path.relative_to(target)
+                if path.is_file() and '__pycache__' in relative.parts and path.suffix != '.pyc':
+                    raise InstallerError(f'unverified cache content: {path}')
+                if path.name == '.agent-tools-managed' and path != marker:
+                    raise InstallerError(f'unverified nested marker: {path}')
+            if not (manifest.get(str(target)) == fingerprint(target) or compare_tree(source, target)):
+                raise InstallerError(f'modified discovery target: {target}')
+            _verify_migrated_commands(target)
+        remove.append((target, marker))
+    _, executable, launcher = runtime_paths(descriptor, home, platform)
+    _safe_home_path(home, launcher)
+    if launcher.exists():
+        expected = (f'@echo off\r\n"{executable}" %*\r\n' if platform == 'win11'
+                    else f'#!/usr/bin/env bash\nexec "{executable}" "$@"\n')
+        expected_bytes = {expected.encode('ascii' if platform == 'win11' else 'utf-8')}
+        if platform == 'win11':
+            expected_bytes.add(expected.replace('\r\n', '\r\r\n').encode('ascii'))
+        if not launcher.is_file() or launcher.read_bytes() not in expected_bytes:
+            raise InstallerError(f'unmanaged or modified launcher: {launcher}')
+    marketplace, data, matches = _marketplace_state(home, descriptor)
+    if not remove and not launcher.exists() and not matches:
+        return
+    guard = repo_root / 'scripts/codex_target_guard.py'
+    subprocess.run([sys.executable, str(guard), '--platform', 'win11' if platform == 'win11' else 'auto',
+                    '--codex-home', str(home / '.codex'), '--cc-switch-db', str(home / '.cc-switch/cc-switch.db'),
+                    '--path-only', '--allow-missing-config', '--allow-missing-cc-switch',
+                    '--skip-cc-switch-read-check'], check=True, capture_output=True, text=True)
+    for target, marker in remove:
+        if target.is_dir():
+            shutil.rmtree(target)
+        elif target.exists():
+            target.unlink()
+        if marker.exists():
+            marker.unlink()
+    if launcher.exists():
+        launcher.unlink()
+    if matches:
+        data['plugins'] = [item for item in data['plugins'] if item not in matches]
+        marketplace.write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
+
+
 def install(
     descriptor: dict[str, Any],
     repo_root: Path,
@@ -245,6 +449,8 @@ def install(
     skip_runtime: bool,
     skip_plugin_registration: bool,
 ) -> None:
+    if descriptor.get('status') == 'disabled':
+        raise InstallerError(f"package {descriptor['name']} is disabled; source is retained but installation is prohibited")
     for source, target in target_pairs(descriptor, repo_root, home):
         copy_managed(source, target)
     if not skip_plugin_registration:
@@ -258,7 +464,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "command",
-        choices=["validate", "pairs", "install", "check", "managed-status"],
+        choices=["validate", "pairs", "install", "disable", "check", "managed-status"],
     )
     parser.add_argument("--descriptor", type=Path, required=True)
     parser.add_argument("--repo-root", type=Path, required=True)
@@ -292,13 +498,17 @@ def main() -> int:
                 args.skip_runtime,
                 args.skip_plugin_registration,
             )
+        elif args.command == "disable":
+            disable(descriptor, args.repo_root, args.home, args.platform)
+            print(f'{descriptor["name"]} discovery: disabled; runtime and data retained')
         elif args.command == "check":
-            drift = drift_report(descriptor, args.repo_root, args.home, args.platform)
+            checker = disabled_report if descriptor.get("status") == "disabled" else drift_report
+            drift = checker(descriptor, args.repo_root, args.home, args.platform)
             if drift:
                 for path in drift:
                     print(f"DRIFT: {path}")
                 return 1
-            print(f'{descriptor["name"]} managed copies: in sync')
+            print(f'{descriptor["name"]} discovery: disabled' if descriptor.get("status") == "disabled" else f'{descriptor["name"]} managed copies: in sync')
         else:
             print(json.dumps({"name": descriptor["name"], "version": descriptor["resolved_version"]}, sort_keys=True))
         return 0

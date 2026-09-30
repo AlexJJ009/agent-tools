@@ -1,5 +1,7 @@
 {
   "workflow_version": "0.4.0",
   "schema_version": 1,
-  "canonical_contract": "linear_workflow/shared/"
+  "canonical_contract": "linear_workflow/shared/",
+  "status": "deprecated",
+  "enabled": false
 }

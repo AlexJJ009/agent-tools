@@ -120,11 +120,11 @@ def validate_repository(root: Path = REPO_ROOT) -> list[str]:
         errors.append("plugin manifest version or skills root is invalid")
     agents = (root / "AGENTS.md").read_text(encoding="utf-8")
     claude = (root / "CLAUDE.md").read_text(encoding="utf-8")
-    marker = "Only an explicitly dispatched Ready Batch authorizes implementation"
+    marker = "Linear Workflow is deprecated and disabled."
     if marker not in agents or marker not in claude:
-        errors.append("AGENTS/CLAUDE Delivery entrypoint is missing or out of sync")
+        errors.append("AGENTS/CLAUDE retirement boundary is missing or out of sync")
     pr_template = (root / ".github/pull_request_template.md").read_text(encoding="utf-8")
-    for marker in ("Repository: `AlexJJ009/agent-tools`", "Base SHA", "Candidate SHA", "Unresolved prior findings", "New findings"):
+    for marker in ("## Change", "## Validation", "Linear Workflow is retired"):
         if marker not in pr_template:
             errors.append(f"PR template is missing: {marker}")
     return errors

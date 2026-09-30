@@ -1,4 +1,6 @@
 interface:
-  display_name: "Linear Plan"
-  short_description: "Plan Linear projects with shared contracts"
-  default_prompt: "Use $linear-plan to prepare an approval-bound Linear planning preview."
+  display_name: "Linear Plan (Disabled)"
+  short_description: "Deprecated and disabled; retained source only"
+  default_prompt: "$linear-plan is disabled. Explain its retirement and stop."
+policy:
+  allow_implicit_invocation: false

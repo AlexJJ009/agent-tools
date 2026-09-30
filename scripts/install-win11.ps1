@@ -20,6 +20,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+if ($LinearWorkflow) {
+  throw "Linear Workflow is deprecated and disabled; installation is not supported."
+}
+
 function Get-PythonCommand {
   $python = Get-Command python -ErrorAction SilentlyContinue
   if ($python) {
@@ -279,12 +283,12 @@ if (-not $NoAgentWt) {
   Write-Host "agent-wt not installed (-NoAgentWt)."
 }
 
-$installLinearWorkflow = -not $NoLinearWorkflow
-if ($LinearWorkflow) { $installLinearWorkflow = $true }
+$installLinearWorkflow = $false
 if ($installLinearWorkflow) {
   Install-LinearWorkflow -RepoRoot $Root -TargetHome $UserHome
 } else {
-  Write-Host "Linear Workflow not installed (-NoLinearWorkflow)."
+  Invoke-AgentToolsPython (Join-Path $Root "scripts\managed_package_installer.py") disable --descriptor (Join-Path $Root "config\managed-packages\linear-workflow.json") --repo-root $Root --home $UserHome --platform win11
+  Write-Host "Linear Workflow deprecated and disabled; source and historical data retained."
 }
 
 if (-not $NoCodexManualRemoteConnect) {

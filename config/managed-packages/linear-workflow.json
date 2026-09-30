@@ -1,5 +1,7 @@
 {
   "schema_version": 1,
+  "status": "disabled",
+  "deprecated": true,
   "name": "linear-workflow",
   "version_file": "linear_workflow/VERSION",
   "runtime": {

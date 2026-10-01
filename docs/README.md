@@ -14,6 +14,7 @@ private reports describe bounded development work and are not deployment proof.
 - [Work Report](WORK_REPORT.md): report generation, delivery contracts and installation.
 - [Work Report timer](WORK_REPORT_LIGHT_TIMER.md): timed prompts and their delivery limits.
 - [CLI server bootstrap](CLI_SERVER_BOOTSTRAP.md): server setup.
+- [Claude Code adapter](CLAUDE_CODE_ADAPTER.md): shared context, skill links and native hooks on Linux/WSL.
 - [Repository overview](../README.md): other maintained tools and platform guides.
 
 ## Documentation Responsibilities

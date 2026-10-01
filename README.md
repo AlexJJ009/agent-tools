@@ -17,6 +17,10 @@ For context sync, the recommended deployment model is one central tool directory
 
 ## Files
 
+- `adapters/claude/` and `scripts/install_claude.py` — optional Linux/WSL Claude
+  Code context, skills and native hooks, sharing existing packages and records.
+  See [installation and limits](docs/CLAUDE_CODE_ADAPTER.md).
+
 - `skills/{intent-to-contract,infra-verification,cleaner,acceptance-gate,reviewer-brief}/`
   and `agent_workflow/` — versioned workflow skills and runtime source; see
   [usage](docs/AGENT_WORKFLOW.md). On Linux/WSL with Python 3.11+ and Git,

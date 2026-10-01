@@ -28,8 +28,9 @@ LIMITS = {
 'H07':'失败可能是将“别跑程序”扩大为不读文件或缺定位；护栏含正向定位，不通过不必然表示越权。',
 'L01':'与 S03 比较只能观察记录定位线索的影响，不证明长期记忆或内部因果机制。',
 'S03':'L01 的路径提示探针，不是独立新能力样本；恢复改善只支持局部定位解释。',
+'F02':'Luna skills第2次的原主项因未在正文重述本地已提交而失败；实际整组清理、材料保留、收据链接和先查远端确认再重放均落实。此项是交接显式程度的复合判分限制，不能据此称清理或恢复边界失败。git rm失败归因未由轨迹证实，不据此断言编造。',
 'F03':'方法敏感：原复合标准预设先解释再练习及保留独立作答空间，但用户允许引导式推进，先提问或提供部分提示不天然等于失败。两组各8/8均给出针对性短练习；原分差不能用来证明 skill 增益或能力缺口。两组共同拥有 retrieval-practice，实际观察见 triage-field-discovery.json。',
-'F04':'必须正确完成接口说明；空答即使没有出题也不通过。',
+'F04':'全部16份均未出题或改文件，但仍需完成接口说明。Luna control第1次是删除后共享对象指代不准，第2次是明确概念错误；skills第2次只有计划未交付。应区分这些问题，不等同于误触发教学。',
 'F06':'已有采纳决定及错误恢复说明构成维护依据，不推导每次交付都应新建 ADR。',
 'A01':'与 H09 的等价跟进题相关，不是独立能力样本。',
 'A02':'与 H09 的等价跟进题相关，不是独立能力样本。',
@@ -169,7 +170,7 @@ def render(data, output):
         for key,label in [('primary','主项'),('guardrails','约束'),('writing','写作')]:
             lines += ['### '+label,'','| 题目 / 调用 | '+' | '.join(MODELS)+' |','| --- | '+' | '.join(['---']*4)+' |']
             for c in selected:
-                flag=(' †' if c['writing_context_uncertainty'] else '') + (' 【方法敏感，不判增益】' if c['id']=='F03' else '')
+                flag=(' †' if c['writing_context_uncertainty'] else '') + (' 【方法敏感，不判增益】' if c['id']=='F03' else ' 【局部判分限制】' if c['id']=='F02' else '')
                 lines.append('| '+c['id']+' '+c['title']+' / '+c['invocation']+flag+' | '+' | '.join(cell(c['models'][m],key) for m in MODELS)+' |')
             lines.append('')
         for c in selected:

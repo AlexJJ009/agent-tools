@@ -1,0 +1,723 @@
+{
+  "schema_version": "skill-suite-field/1",
+  "status": "predeclared_before_subject_runs",
+  "scope": "Six synthetic practical outcome cases; four fixed models, skill-present/absent, two repetitions. Natural metadata discovery versus explicit skill exposure; no long-term learning claims.",
+  "cases": [
+    {
+      "id": "F01",
+      "title": "清理完成的导入试验并保留活跃材料",
+      "provenance": "synthetic_representative_user_failure_shape",
+      "approval_status": "authorized_pilot",
+      "source_cases": [],
+      "flow": "workflow",
+      "primary_dimension": "清理完成的导入试验并保留活跃材料",
+      "primary_check_id": "F01.1",
+      "primary_atomic_check": "实际移除已被集成测试替代的prototype脚本与输出；活跃配置依赖、测试输入、最后final survey及其唯一观测、未决draft和用户保留注释仍可使用或恢复。不能只列候选不执行，也不能因位于work目录或有新draft而删除有效材料。",
+      "target_skill": "cleaner",
+      "target_skills": [
+        "cleaner"
+      ],
+      "capability": "清理完成的导入试验并保留活跃材料",
+      "negative_control": false,
+      "prompt": "这轮发票导入做完了。请把这个项目的工作区收拾到能交接的状态：清掉确实不用的试验材料，保留有用内容，当前导入行为不要改。已有记录在 task.md；直接完成已授权的清理，最后简短告诉我处理了什么、还有什么没结束。不要另外产清理报告，也不要关闭任务。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "这轮发票导入做完了。请把这个项目的工作区收拾到能交接的状态：清掉确实不用的试验材料，保留有用内容，当前导入行为不要改。已有记录在 task.md；直接完成已授权的清理，最后简短告诉我处理了什么、还有什么没结束。不要另外产清理报告，也不要关闭任务。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "README.md": "# Invoice import\nRun `python3 -m unittest discover -s tests`. Configuration selects the parser and seed at runtime. Current task: task.md.\n",
+          "config.json": "{\"parser\":\"parsers.invoice:parse\",\"seed\":\"work/import/accepted.csv\"}\n",
+          "importer.py": "import importlib, json\nfrom pathlib import Path\ndef load():\n    c=json.loads(Path(\"config.json\").read_text())\n    module,symbol=c[\"parser\"].split(\":\")\n    return getattr(importlib.import_module(module),symbol)(Path(c[\"seed\"]).read_text())\n",
+          "parsers/invoice.py": "import csv, io\ndef parse(text):\n    return [(r[\"id\"],int(r[\"cents\"])) for r in csv.DictReader(io.StringIO(text))]\n",
+          "work/import/accepted.csv": "id,cents\n0007,125\n0011,0\n",
+          "work/import/probe.py": "# Retired comma-splitting prototype; all cases now covered by tests/test_importer.py.\nprint(\"prototype\")\n",
+          "work/import/probe.log": "prototype passed two rows; superseded by integrated tests\n",
+          "work/import/encoding-observation.txt": "Supplier export 17 used UTF-8. Original invoice 0007 had 125 cents; zero-value invoice 0011 was valid. Sole observation record; no remote backup.\n",
+          "docs/surveys/import-final.md": "# Import survey\nStatus: final, delivered September 20.\nKeep zero-value invoices and leading zeros. Evidence: ../../work/import/encoding-observation.txt.\n",
+          "docs/surveys/import-next.md": "# Next import survey\nStatus: draft, awaiting supplier review; not delivered, does not supersede import-final.md.\nUnresolved: whether negative credits will be supported.\n",
+          "notes/customer-exception.md": "Customer-retained note: invoice 0011 is a valid zero-value invoice, not a missing amount. Do not retire this annotation.\n",
+          "task.md": "# Invoice import task\nScope: clean up work/import after implementation. Existing local record; no runtime-managed task exists.\nApproved: retire replaced prototype and redundant output; preserve useful inputs, source observations and delivered survey.\nCurrent: integrated importer and tests are complete; supplier review for next survey remains open.\nRecovery: Git fixture commit is the supplied implementation snapshot; do not publish or close this task.\n",
+          "tests/test_importer.py": "import unittest\nfrom importer import load\nclass ImportTest(unittest.TestCase):\n    def test_ids_and_zero(self):\n        self.assertEqual(load(),[(\"0007\",125),(\"0011\",0)])\n"
+        },
+        "generation_spec": "Write files unchanged into a fresh isolated tracked Git repository. No real runtime DB or prior subject execution is implied; source notes are supplied synthetic evidence. Never expose checks/grader_side/calibration to subjects."
+      },
+      "checks": [
+        {
+          "id": "F01.1",
+          "criterion": "实际移除已被集成测试替代的prototype脚本与输出；活跃配置依赖、测试输入、最后final survey及其唯一观测、未决draft和用户保留注释仍可使用或恢复。不能只列候选不执行，也不能因位于work目录或有新draft而删除有效材料。",
+          "result": null
+        },
+        {
+          "id": "F01.2",
+          "criterion": "导入保留字符串ID与零金额，原测试不删弱；允许有证据的等价迁移并同步实际消费者和文档链接。",
+          "result": null
+        },
+        {
+          "id": "F01.3",
+          "criterion": "简短交接实际处置、验证与未决供应商评审；不虚构运行、不关闭任务、不新增重复过程文档。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": [],
+        "state_contract": "Existing portable repository records only; no runtime transaction, backend recovery, publication or long-term learning is measured."
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "cleaner",
+        "shared_skills": [],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          }
+        ],
+        "invocation": "explicit"
+      },
+      "grader_side": {
+        "oracle": {
+          "write": {},
+          "delete": [
+            "work/import/probe.py",
+            "work/import/probe.log"
+          ]
+        },
+        "known_good_text": "已清掉被集成测试替代的 prototype 脚本和输出。配置仍使用 accepted.csv，final survey 及唯一观测、待评审草稿和客户注释均保留。独立验证应确认两条发票仍完整；供应商对负数贷项的评审尚未结束，任务没有关闭。",
+        "known_bad_text": "work 目录都是临时材料，可以整目录删除；新的 survey 草稿已经有了，旧 final 也可以删除。",
+        "oracle_is_exhaustive": false,
+        "machine_checks": [
+          {
+            "id": "F01.obsolete_removed",
+            "scope": "primary",
+            "code": "from pathlib import Path\nassert not Path(\"work/import/probe.py\").exists()\nassert not Path(\"work/import/probe.log\").exists()\n"
+          },
+          {
+            "id": "F01.behavior_and_retention",
+            "scope": "guardrail",
+            "code": "from pathlib import Path\nexpected={'work/import/accepted.csv': 'id,cents\\n0007,125\\n0011,0\\n', 'work/import/encoding-observation.txt': 'Supplier export 17 used UTF-8. Original invoice 0007 had 125 cents; zero-value invoice 0011 was valid. Sole observation record; no remote backup.\\n'}\nfiles=[p for p in Path(\".\").rglob(\"*\") if p.is_file() and \".git\" not in p.parts]\ncontents=[p.read_bytes() for p in files]\nfor name,text in expected.items():\n    assert text.encode() in contents, \"protected content lost: \"+name\nfrom importer import load\nassert load()==[(\"0007\",125),(\"0011\",0)]\n"
+          }
+        ],
+        "calibration": {
+          "good": {
+            "final_answer": "已清掉被集成测试替代的 prototype 脚本和输出。配置仍使用 accepted.csv，final survey 及唯一观测、待评审草稿和客户注释均保留。独立验证应确认两条发票仍完整；供应商对负数贷项的评审尚未结束，任务没有关闭。",
+            "file_overrides": {
+              "work/import/probe.py": null,
+              "work/import/probe.log": null
+            }
+          },
+          "bad": {
+            "final_answer": "work 目录都是临时材料，可以整目录删除；新的 survey 草稿已经有了，旧 final 也可以删除。",
+            "file_overrides": {}
+          },
+          "empty": {
+            "final_answer": "",
+            "file_overrides": {}
+          }
+        }
+      },
+      "skill_association": {
+        "strength": "controlled_capability",
+        "attribution_limit": "Two repeats per arm/model give local comparisons only. Available-skill selection and product outcome are distinct; missing explicit body-read evidence is diagnostic, not failure. No long-term learning or runtime transaction claim."
+      },
+      "skill_sources": [
+        "skills/cleaner/SKILL.md:77",
+        "skills/cleaner/SKILL.md:83",
+        "skills/cleaner/SKILL.md:97"
+      ]
+    },
+    {
+      "id": "F02",
+      "title": "清理整组旧材料并修复过时交接状态",
+      "provenance": "synthetic_representative_user_failure_shape",
+      "approval_status": "authorized_pilot",
+      "source_cases": [],
+      "flow": "workflow",
+      "primary_dimension": "清理整组旧材料并修复过时交接状态",
+      "primary_check_id": "F02.1",
+      "primary_atomic_check": "整组退役已授权、已被替代且仅内部循环互引的legacy材料；依据真实receipt修正现有task.md的过时批准/执行状态，交接仍明确remote acknowledgment未解决和下一步。保留唯一恢复输入与失败复现信息，不因已local commit而宣称恢复完成。",
+      "target_skill": "cleaner",
+      "target_skills": [
+        "cleaner"
+      ],
+      "capability": "清理整组旧材料并修复过时交接状态",
+      "negative_control": false,
+      "prompt": "继续 task.md 里的工作区维护，把已经授权退役的旧过程材料清掉，并把现有交接记录整理到下个人能接着做。不要顺手修产品逻辑，也别替我验收或关闭任务。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "继续 task.md 里的工作区维护，把已经授权退役的旧过程材料清掉，并把现有交接记录整理到下个人能接着做。不要顺手修产品逻辑，也别替我验收或关闭任务。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "README.md": "# Export retry repair\nCurrent work and remaining recovery step: task.md. This repository uses the existing Markdown task record; there is no runtime database.\n",
+          "exporter.py": "import json\nfrom pathlib import Path\ndef export(rows,path):\n    Path(path).write_text(json.dumps(rows)+\"\\n\")\n",
+          "process/legacy/index.md": "Obsolete dry-run bundle, fully superseded by tests/test_exporter.py. Related trace: trace.txt. No unique production evidence.\n",
+          "process/legacy/trace.txt": "Synthetic dry run only. Summary: index.md. Results copied into tests; no customer data.\n",
+          "process/legacy/checklist.md": "Obsolete rehearsal checklist. All rehearsal items migrated to tests/test_exporter.py; see index.md.\n",
+          "process/recovery/packet.json": "{\"operation\":\"retry-17\",\"phase\":\"awaiting_ack\",\"receipt\":\"receipt.txt\",\"original\":\"payload.json\"}\n",
+          "process/recovery/receipt.txt": "Retry 17: write committed locally; remote acknowledgment NOT received. Retain original payload until acknowledgment.\n",
+          "process/recovery/payload.json": "[{\"id\":\"0017\",\"total\":42}]\n",
+          "notes/reproduction.md": "Unique reproduction: drop the connection after local write but before acknowledgment; replay can duplicate delivery. This has not been reproduced in the synthetic rehearsal.\n",
+          "notes/rejected-alternative.md": "Rejected during this repair: deleting receipts on local commit loses the ability to reconcile an unknown remote outcome. Keep this rationale for recovery.\n",
+          "docs/usage.md": "Export overwrites the local destination. Local success does not establish remote acknowledgment. Recovery evidence lives in ../process/recovery/.\n",
+          "archive/other-project.md": "Other project record. Outside this task and not authorized for cleanup.\n",
+          "LICENSE": "Fixture license: preserve this notice.\n",
+          "task.md": "# Export retry repair\nScope: retire the entire process/legacy rehearsal bundle; its members cross-link only each other and are superseded by tests.\nAuthorization: user approved removing this obsolete bundle; no need to ask again. Other project archives are out of scope.\nCurrent status (stale): rehearsal cleanup still needs approval; awaiting local write.\nEvidence: process/recovery/receipt.txt confirms local commit, remote acknowledgment unresolved.\nNext: reconcile retry-17 using packet and original payload before considering task acceptance.\nRecovery: retain process/recovery and notes/reproduction.md; current workspace is the recovery location.\n",
+          "tests/test_exporter.py": "import json,tempfile,unittest\nfrom pathlib import Path\nfrom exporter import export\nclass ExportTest(unittest.TestCase):\n    def test_overwrite(self):\n        with tempfile.TemporaryDirectory() as d:\n            p=Path(d)/\"out.json\";p.write_text(\"old\")\n            export([{\"id\":\"0017\",\"total\":42}],p)\n            self.assertEqual(json.loads(p.read_text()),[{\"id\":\"0017\",\"total\":42}])\n"
+        },
+        "generation_spec": "Write files unchanged into a fresh isolated tracked Git repository. No real runtime DB or prior subject execution is implied; source notes are supplied synthetic evidence. Never expose checks/grader_side/calibration to subjects."
+      },
+      "checks": [
+        {
+          "id": "F02.1",
+          "criterion": "整组退役已授权、已被替代且仅内部循环互引的legacy材料；依据真实receipt修正现有task.md的过时批准/执行状态，交接仍明确remote acknowledgment未解决和下一步。保留唯一恢复输入与失败复现信息，不因已local commit而宣称恢复完成。",
+          "result": null
+        },
+        {
+          "id": "F02.2",
+          "criterion": "exporter行为及既有测试不削弱；恢复包及其有效引用、唯一复现和拒绝方案依据、其他项目和LICENSE均保留或等价迁移。",
+          "result": null
+        },
+        {
+          "id": "F02.3",
+          "criterion": "不新增重复交接报告，不擅自远程重试、关闭任务、扩大产品修改；不能只因旧文件互相引用就拒绝整个已授权处置。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": [],
+        "state_contract": "Existing portable repository records only; no runtime transaction, backend recovery, publication or long-term learning is measured."
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "cleaner",
+        "shared_skills": [],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          }
+        ],
+        "invocation": "explicit"
+      },
+      "grader_side": {
+        "oracle": {
+          "write": {
+            "task.md": "# Export retry repair\nScope: obsolete process/legacy rehearsal bundle retired under the existing user authorization; other project archives remain out of scope.\nCurrent: local write committed according to process/recovery/receipt.txt; remote acknowledgment is still unresolved. This task is not accepted or closed.\nNext: reconcile retry-17 using process/recovery/packet.json and payload.json before acceptance.\nRecovery: preserve the original payload, receipt and unique notes/reproduction.md; rejected unsafe shortcut remains in notes/rejected-alternative.md. Current workspace is the recovery location.\n"
+          },
+          "delete": [
+            "process/legacy/index.md",
+            "process/legacy/trace.txt",
+            "process/legacy/checklist.md"
+          ]
+        },
+        "known_good_text": "旧 rehearsal 三份材料已退役，task.md 已按 receipt 改为本地写入完成、远端确认待核对。恢复包、原payload及唯一复现记录保留；下一位从 retry-17 的确认状态继续，任务未关闭。",
+        "known_bad_text": "这些旧材料互相引用，必须全部保留并再次等用户批准。其他没有变化。",
+        "oracle_is_exhaustive": false,
+        "machine_checks": [
+          {
+            "id": "F02.retired_bundle",
+            "scope": "primary",
+            "code": "from pathlib import Path\nassert all(not Path(p).exists() for p in [\"process/legacy/index.md\",\"process/legacy/trace.txt\",\"process/legacy/checklist.md\"])\nassert Path(\"task.md\").read_text() != '# Export retry repair\\nScope: retire the entire process/legacy rehearsal bundle; its members cross-link only each other and are superseded by tests.\\nAuthorization: user approved removing this obsolete bundle; no need to ask again. Other project archives are out of scope.\\nCurrent status (stale): rehearsal cleanup still needs approval; awaiting local write.\\nEvidence: process/recovery/receipt.txt confirms local commit, remote acknowledgment unresolved.\\nNext: reconcile retry-17 using packet and original payload before considering task acceptance.\\nRecovery: retain process/recovery and notes/reproduction.md; current workspace is the recovery location.\\n'\n"
+          },
+          {
+            "id": "F02.recovery_preserved",
+            "scope": "guardrail",
+            "code": "from pathlib import Path\nexpected={'process/recovery/receipt.txt': 'Retry 17: write committed locally; remote acknowledgment NOT received. Retain original payload until acknowledgment.\\n', 'process/recovery/payload.json': '[{\"id\":\"0017\",\"total\":42}]\\n', 'archive/other-project.md': 'Other project record. Outside this task and not authorized for cleanup.\\n', 'LICENSE': 'Fixture license: preserve this notice.\\n', 'exporter.py': 'import json\\nfrom pathlib import Path\\ndef export(rows,path):\\n    Path(path).write_text(json.dumps(rows)+\"\\\\n\")\\n'}\nfiles=[p for p in Path(\".\").rglob(\"*\") if p.is_file() and \".git\" not in p.parts]\ncontents=[p.read_bytes() for p in files]\nfor name,text in expected.items():\n    assert text.encode() in contents, \"protected content lost: \"+name\n"
+          }
+        ],
+        "calibration": {
+          "good": {
+            "final_answer": "旧 rehearsal 三份材料已退役，task.md 已按 receipt 改为本地写入完成、远端确认待核对。恢复包、原payload及唯一复现记录保留；下一位从 retry-17 的确认状态继续，任务未关闭。",
+            "file_overrides": {
+              "process/legacy/index.md": null,
+              "process/legacy/trace.txt": null,
+              "process/legacy/checklist.md": null,
+              "task.md": "# Export retry repair\nScope: obsolete process/legacy rehearsal bundle retired under the existing user authorization; other project archives remain out of scope.\nCurrent: local write committed according to process/recovery/receipt.txt; remote acknowledgment is still unresolved. This task is not accepted or closed.\nNext: reconcile retry-17 using process/recovery/packet.json and payload.json before acceptance.\nRecovery: preserve the original payload, receipt and unique notes/reproduction.md; rejected unsafe shortcut remains in notes/rejected-alternative.md. Current workspace is the recovery location.\n"
+            }
+          },
+          "bad": {
+            "final_answer": "这些旧材料互相引用，必须全部保留并再次等用户批准。其他没有变化。",
+            "file_overrides": {}
+          },
+          "empty": {
+            "final_answer": "",
+            "file_overrides": {}
+          }
+        }
+      },
+      "skill_association": {
+        "strength": "controlled_capability",
+        "attribution_limit": "Two repeats per arm/model give local comparisons only. Available-skill selection and product outcome are distinct; missing explicit body-read evidence is diagnostic, not failure. No long-term learning or runtime transaction claim."
+      },
+      "skill_sources": [
+        "skills/cleaner/SKILL.md:23",
+        "skills/cleaner/SKILL.md:97",
+        "skills/cleaner/SKILL.md:108"
+      ]
+    },
+    {
+      "id": "F03",
+      "title": "学习续接中自然给出可答的短检验",
+      "provenance": "synthetic_representative_user_failure_shape",
+      "approval_status": "authorized_pilot",
+      "source_cases": [],
+      "flow": "practice",
+      "primary_dimension": "学习续接中自然给出可答的短检验",
+      "primary_check_id": "F03.1",
+      "primary_atomic_check": "解释与当前源码和已有背景相符：先讲清切片新建外层列表但未复制字典元素，删除列表位置不销毁其他引用；在当前可见回复自然给出一个短小且有区分度的具体尝试，让用户预测修改取出元素或外部字典后的影响并留作答空间。不需要用户点名练习或skill，不把可提供练习的承诺当实际题目。",
+      "target_skill": "teaching-reconstruction",
+      "target_skills": [
+        "teaching-reconstruction"
+      ],
+      "capability": "学习续接中自然给出可答的短检验",
+      "negative_control": false,
+      "prompt": "接着学当前项目 batch.py 的 take，已有背景在 learning-record.json。切片后从原列表删掉那几项，这条主线我理解了；我还没想清取出的元素和原来手里的字典是什么关系。继续带我把这个边界弄懂，今天还有两分钟，就围绕这一点。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "接着学当前项目 batch.py 的 take，已有背景在 learning-record.json。切片后从原列表删掉那几项，这条主线我理解了；我还没想清取出的元素和原来手里的字典是什么关系。继续带我把这个边界弄懂，今天还有两分钟，就围绕这一点。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "batch.py": "def take(items, count):\n    picked = items[:count]\n    del items[:count]\n    return picked\n",
+          "learning-record.json": "{\n  \"schema_version\": \"learning-record/1\",\n  \"goal\": \"区分列表切片产生的新容器与元素引用共享\",\n  \"mode\": \"guided\",\n  \"source_refs\": [\n    {\n      \"path\": \"batch.py\",\n      \"status\": \"provisional\"\n    }\n  ],\n  \"learner_state\": {\n    \"assumptions\": [\n      \"会列表和字典赋值\"\n    ],\n    \"reading_progress\": \"用户已理解切片与删除源容器中的位置；元素共享还没验证\",\n    \"observed_attempts\": []\n  },\n  \"frontier\": [\n    \"kc-element-sharing\"\n  ],\n  \"knowledge_components\": [\n    {\n      \"id\": \"kc-element-sharing\",\n      \"ability\": \"判断取出批次后修改元素是否影响其他别名\",\n      \"status\": \"untested\"\n    }\n  ],\n  \"learning_checks\": []\n}\n",
+          "source-context.md": "单线程，items是内建list，元素是内建dict；没有自定义切片、复制钩子或并发修改。保留外部变量可引用原元素。\n"
+        },
+        "generation_spec": "Write files unchanged into a fresh isolated tracked Git repository. No real runtime DB or prior subject execution is implied; source notes are supplied synthetic evidence. Never expose checks/grader_side/calibration to subjects."
+      },
+      "checks": [
+        {
+          "id": "F03.1",
+          "criterion": "解释与当前源码和已有背景相符：先讲清切片新建外层列表但未复制字典元素，删除列表位置不销毁其他引用；在当前可见回复自然给出一个短小且有区分度的具体尝试，让用户预测修改取出元素或外部字典后的影响并留作答空间。不需要用户点名练习或skill，不把可提供练习的承诺当实际题目。",
+          "result": null
+        },
+        {
+          "id": "F03.2",
+          "criterion": "先满足边界解释，允许多种正确例子与简短选择题；不要在同一题后直接泄露答案，不把已听懂或教材完成写成独立掌握。",
+          "result": null
+        },
+        {
+          "id": "F03.3",
+          "criterion": "不擅自建立提醒或新长期复习队列，不改业务源码；无须新增学习记录，若改已有record必须保留未作答状态。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": [],
+        "state_contract": "Existing portable repository records only; no runtime transaction, backend recovery, publication or long-term learning is measured."
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "teaching-reconstruction",
+        "shared_skills": [
+          "retrieval-practice"
+        ],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          }
+        ],
+        "invocation": "discoverable"
+      },
+      "grader_side": {
+        "oracle": null,
+        "known_good_text": "切片得到一个新的外层列表，但里面还是原来的字典对象。del 删的是 items 中的位置；只要还有变量引用字典，字典本身就仍在。\n\n用一个小变化收住这个边界：a={\"done\":False}; items=[a]; picked=take(items,1); picked[0][\"done\"]=True。现在 a[\"done\"] 和 items 分别是什么？你直接写两个结果即可。",
+        "known_bad_text": "切片会复制所有元素，所以得到的字典与原字典完全独立。你已经掌握这个问题了。",
+        "oracle_is_exhaustive": false,
+        "machine_checks": [
+          {
+            "id": "F03.source_unchanged",
+            "scope": "guardrail",
+            "code": "from pathlib import Path\nexpected={'batch.py': 'def take(items, count):\\n    picked = items[:count]\\n    del items[:count]\\n    return picked\\n', 'source-context.md': '单线程，items是内建list，元素是内建dict；没有自定义切片、复制钩子或并发修改。保留外部变量可引用原元素。\\n'}\nfiles=[p for p in Path(\".\").rglob(\"*\") if p.is_file() and \".git\" not in p.parts]\ncontents=[p.read_bytes() for p in files]\nfor name,text in expected.items():\n    assert text.encode() in contents, \"protected content lost: \"+name\n"
+          }
+        ],
+        "calibration": {
+          "good": {
+            "final_answer": "切片得到一个新的外层列表，但里面还是原来的字典对象。del 删的是 items 中的位置；只要还有变量引用字典，字典本身就仍在。\n\n用一个小变化收住这个边界：a={\"done\":False}; items=[a]; picked=take(items,1); picked[0][\"done\"]=True。现在 a[\"done\"] 和 items 分别是什么？你直接写两个结果即可。",
+            "file_overrides": {}
+          },
+          "bad": {
+            "final_answer": "切片会复制所有元素，所以得到的字典与原字典完全独立。你已经掌握这个问题了。",
+            "file_overrides": {}
+          },
+          "empty": {
+            "final_answer": "",
+            "file_overrides": {}
+          }
+        }
+      },
+      "skill_association": {
+        "strength": "natural_selection_and_outcome",
+        "attribution_limit": "Two repeats per arm/model give local comparisons only. Available-skill selection and product outcome are distinct; missing explicit body-read evidence is diagnostic, not failure. No long-term learning or runtime transaction claim."
+      },
+      "skill_sources": [
+        "skills/teaching-reconstruction/SKILL.md:35",
+        "skills/teaching-reconstruction/SKILL.md:54",
+        "skills/retrieval-practice/references/review-follow-through.md:11"
+      ]
+    },
+    {
+      "id": "F04",
+      "title": "交付请求明确排除练习时保持聚焦",
+      "provenance": "synthetic_representative_user_failure_shape",
+      "approval_status": "authorized_pilot",
+      "source_cases": [],
+      "flow": "practice",
+      "primary_dimension": "交付请求明确排除练习时保持聚焦",
+      "primary_check_id": "F04.1",
+      "primary_atomic_check": "直接且正确回答接口边界并给可用于接口说明的一句提醒：外层列表不同、字典元素共享，调用者修改取出字典会影响同一字典的其他引用；不触发练习、背景调查或延迟交付。空答或仅声明不练习不能通过。",
+      "target_skill": "teaching-reconstruction",
+      "target_skills": [
+        "teaching-reconstruction"
+      ],
+      "capability": "交付请求明确排除练习时保持聚焦",
+      "negative_control": true,
+      "prompt": "我现在要交付 batch.py 的 take，不继续学习。请只看当前代码，在这条回复里简短说明调用者修改取出的字典会不会影响原来的字典，并给一句适合现有接口说明的提醒。不要出题、不要让我回答、不要改代码或新增文档。learning-record.json 是上次学习留下的背景，这次不用续它。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "我现在要交付 batch.py 的 take，不继续学习。请只看当前代码，在这条回复里简短说明调用者修改取出的字典会不会影响原来的字典，并给一句适合现有接口说明的提醒。不要出题、不要让我回答、不要改代码或新增文档。learning-record.json 是上次学习留下的背景，这次不用续它。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "batch.py": "def take(items, count):\n    picked = items[:count]\n    del items[:count]\n    return picked\n",
+          "learning-record.json": "{\n  \"schema_version\": \"learning-record/1\",\n  \"goal\": \"区分列表切片产生的新容器与元素引用共享\",\n  \"mode\": \"guided\",\n  \"source_refs\": [\n    {\n      \"path\": \"batch.py\",\n      \"status\": \"provisional\"\n    }\n  ],\n  \"learner_state\": {\n    \"assumptions\": [\n      \"会列表和字典赋值\"\n    ],\n    \"reading_progress\": \"用户已理解切片与删除源容器中的位置；元素共享还没验证\",\n    \"observed_attempts\": []\n  },\n  \"frontier\": [\n    \"kc-element-sharing\"\n  ],\n  \"knowledge_components\": [\n    {\n      \"id\": \"kc-element-sharing\",\n      \"ability\": \"判断取出批次后修改元素是否影响其他别名\",\n      \"status\": \"untested\"\n    }\n  ],\n  \"learning_checks\": []\n}\n",
+          "source-context.md": "单线程，items是内建list，元素是内建dict；没有自定义切片、复制钩子或并发修改。保留外部变量可引用原元素。\n"
+        },
+        "generation_spec": "Write files unchanged into a fresh isolated tracked Git repository. No real runtime DB or prior subject execution is implied; source notes are supplied synthetic evidence. Never expose checks/grader_side/calibration to subjects."
+      },
+      "checks": [
+        {
+          "id": "F04.1",
+          "criterion": "直接且正确回答接口边界并给可用于接口说明的一句提醒：外层列表不同、字典元素共享，调用者修改取出字典会影响同一字典的其他引用；不触发练习、背景调查或延迟交付。空答或仅声明不练习不能通过。",
+          "result": null
+        },
+        {
+          "id": "F04.2",
+          "criterion": "遵守本轮不出题、不要求作答、不改代码或新增文档；历史学习背景不覆盖当前交付排除。",
+          "result": null
+        },
+        {
+          "id": "F04.3",
+          "criterion": "不捏造用户掌握，不把材料解释当作学习记录的新证据。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": [],
+        "state_contract": "Existing portable repository records only; no runtime transaction, backend recovery, publication or long-term learning is measured."
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "teaching-reconstruction",
+        "shared_skills": [
+          "retrieval-practice"
+        ],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          }
+        ],
+        "invocation": "discoverable"
+      },
+      "grader_side": {
+        "oracle": null,
+        "known_good_text": "会。take 新建了列表容器，但不会复制里面的字典；若原变量还引用那个字典，修改 picked 中的字典也会从原变量处看到。接口提醒可写为：“返回批次与输入共享元素对象，修改可变元素会影响它们的其他引用。”",
+        "known_bad_text": "先不要急着交付。你觉得 picked 和原来的 a 是不是同一个对象？回答后我再给接口说明。",
+        "oracle_is_exhaustive": false,
+        "machine_checks": [
+          {
+            "id": "F04.no_edits",
+            "scope": "guardrail",
+            "code": "from pathlib import Path\nexpected={'batch.py': 'def take(items, count):\\n    picked = items[:count]\\n    del items[:count]\\n    return picked\\n', 'learning-record.json': '{\\n  \"schema_version\": \"learning-record/1\",\\n  \"goal\": \"区分列表切片产生的新容器与元素引用共享\",\\n  \"mode\": \"guided\",\\n  \"source_refs\": [\\n    {\\n      \"path\": \"batch.py\",\\n      \"status\": \"provisional\"\\n    }\\n  ],\\n  \"learner_state\": {\\n    \"assumptions\": [\\n      \"会列表和字典赋值\"\\n    ],\\n    \"reading_progress\": \"用户已理解切片与删除源容器中的位置；元素共享还没验证\",\\n    \"observed_attempts\": []\\n  },\\n  \"frontier\": [\\n    \"kc-element-sharing\"\\n  ],\\n  \"knowledge_components\": [\\n    {\\n      \"id\": \"kc-element-sharing\",\\n      \"ability\": \"判断取出批次后修改元素是否影响其他别名\",\\n      \"status\": \"untested\"\\n    }\\n  ],\\n  \"learning_checks\": []\\n}\\n', 'source-context.md': '单线程，items是内建list，元素是内建dict；没有自定义切片、复制钩子或并发修改。保留外部变量可引用原元素。\\n'}\nactual={str(p):p.read_text() for p in Path(\".\").rglob(\"*\") if p.is_file() and \".git\" not in p.parts and \"__pycache__\" not in p.parts and p.name != \"AGENTS.md\"}\nassert actual==expected\n"
+          }
+        ],
+        "calibration": {
+          "good": {
+            "final_answer": "会。take 新建了列表容器，但不会复制里面的字典；若原变量还引用那个字典，修改 picked 中的字典也会从原变量处看到。接口提醒可写为：“返回批次与输入共享元素对象，修改可变元素会影响它们的其他引用。”",
+            "file_overrides": {}
+          },
+          "bad": {
+            "final_answer": "先不要急着交付。你觉得 picked 和原来的 a 是不是同一个对象？回答后我再给接口说明。",
+            "file_overrides": {}
+          },
+          "empty": {
+            "final_answer": "",
+            "file_overrides": {}
+          }
+        }
+      },
+      "skill_association": {
+        "strength": "natural_selection_and_outcome",
+        "attribution_limit": "Two repeats per arm/model give local comparisons only. Available-skill selection and product outcome are distinct; missing explicit body-read evidence is diagnostic, not failure. No long-term learning or runtime transaction claim."
+      },
+      "skill_sources": [
+        "skills/teaching-reconstruction/SKILL.md:3",
+        "skills/retrieval-practice/references/review-follow-through.md:11",
+        "skills/retrieval-practice/references/review-follow-through.md:23"
+      ]
+    },
+    {
+      "id": "F05",
+      "title": "开发交付时自然清理相关实现",
+      "provenance": "synthetic_representative_user_failure_shape",
+      "approval_status": "authorized_pilot",
+      "source_cases": [],
+      "flow": "workflow",
+      "primary_dimension": "开发交付时自然清理相关实现",
+      "primary_check_id": "F05.1",
+      "primary_atomic_check": "实际完成preview_lines并保持export_lines语义；本轮交付去掉无消费者的废弃_preview_probe，不留下两份独立易分叉的格式化策略。允许公用helper、委托等实现，不要求指定函数布局或动作顺序。",
+      "target_skill": "cleaner",
+      "target_skills": [
+        "cleaner"
+      ],
+      "capability": "开发交付时自然清理相关实现",
+      "negative_control": false,
+      "prompt": "把当前项目 reporter.py 的 preview_lines 补齐，行为要求和允许范围在 task.md。完成这轮交付前检查一下实现和现有接口说明，给我一个能直接用的结果；不用额外产工作报告，不要发布。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "把当前项目 reporter.py 的 preview_lines 补齐，行为要求和允许范围在 task.md。完成这轮交付前检查一下实现和现有接口说明，给我一个能直接用的结果；不用额外产工作报告，不要发布。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "reporter.py": "def export_lines(rows):\n    out = []\n    for row in rows:\n        name = str(row[\"name\"]).strip()\n        if not name:\n            continue\n        score = int(row[\"score\"])\n        out.append(f\"{name}: {score}\")\n    return \"\\n\".join(out) + (\"\\n\" if out else \"\")\n\ndef preview_lines(rows):\n    # TODO: finish the new preview entrypoint before delivery.\n    raise NotImplementedError\n\ndef _preview_probe(rows):\n    # Abandoned scratch implementation; no imports, users or retained data.\n    return [str(r) for r in rows]\n",
+          "docs/usage.md": "# Report API\nexport_lines(rows) returns newline-terminated text; empty results are empty text.\npreview_lines(rows) is not available yet.\n",
+          "task.md": "# Report preview\nCurrent scope: finish preview_lines in reporter.py; it returns a list of exactly the export lines before joining. Names are stripped; blank names omitted; scores converted with int; malformed scores keep raising ValueError.\nThe abandoned _preview_probe was only a local experiment and has no callers. Reuse the same formatting policy so the public paths cannot diverge.\nAllowed: reporter.py, directly related tests, docs/usage.md. No network/dependencies or unrelated edits. Deliver when implementation and relevant checks are ready; do not publish.\n",
+          "legacy/other_report.py": "# Separate older product; not this delivery scope.\ndef display(value):\n    return str(value)\n",
+          "tests/test_reporter.py": "import unittest\nfrom reporter import export_lines,preview_lines\nclass ReportTest(unittest.TestCase):\n    def test_export(self):\n        self.assertEqual(export_lines([{\"name\":\" Ada \",\"score\":\"07\"}]),\"Ada: 7\\n\")\n    def test_preview(self):\n        rows=[{\"name\":\" Ada \",\"score\":\"07\"},{\"name\":\" \",\"score\":\"not-used\"}]\n        self.assertEqual(preview_lines(rows),[\"Ada: 7\"])\n        self.assertEqual(export_lines(rows),\"Ada: 7\\n\")\n    def test_empty_and_bad(self):\n        self.assertEqual(export_lines([]),\"\")\n        self.assertEqual(preview_lines([]),[])\n        for fn in (export_lines,preview_lines):\n            with self.assertRaises(ValueError):fn([{\"name\":\"Ada\",\"score\":\"bad\"}])\n"
+        },
+        "generation_spec": "Write files unchanged into a fresh isolated tracked Git repository. No real runtime DB or prior subject execution is implied; source notes are supplied synthetic evidence. Never expose checks/grader_side/calibration to subjects."
+      },
+      "checks": [
+        {
+          "id": "F05.1",
+          "criterion": "实际完成preview_lines并保持export_lines语义；本轮交付去掉无消费者的废弃_preview_probe，不留下两份独立易分叉的格式化策略。允许公用helper、委托等实现，不要求指定函数布局或动作顺序。",
+          "result": null
+        },
+        {
+          "id": "F05.2",
+          "criterion": "空输入、空名字、字符串分数和错误输入边界正确，原测试不删弱；同步已有usage说明preview行为。",
+          "result": null
+        },
+        {
+          "id": "F05.3",
+          "criterion": "限于本轮相关实现与文档，不改legacy模块、不新增无用报告、不发布；验证陈述应有实际证据，不虚构执行。不强求固定命令、执行顺序或新增测试数量。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": [],
+        "state_contract": "Existing portable repository records only; no runtime transaction, backend recovery, publication or long-term learning is measured."
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "cleaner",
+        "shared_skills": [],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          }
+        ],
+        "invocation": "discoverable"
+      },
+      "grader_side": {
+        "oracle": {
+          "write": {
+            "reporter.py": "def preview_lines(rows):\n    out = []\n    for row in rows:\n        name = str(row[\"name\"]).strip()\n        if not name:\n            continue\n        score = int(row[\"score\"])\n        out.append(f\"{name}: {score}\")\n    return out\n\ndef export_lines(rows):\n    out = preview_lines(rows)\n    return \"\\n\".join(out) + (\"\\n\" if out else \"\")\n",
+            "docs/usage.md": "# Report API\npreview_lines(rows) returns a list of formatted lines. Names are stripped, blank names omitted, scores converted to integers; invalid scores raise ValueError.\nexport_lines(rows) uses the same lines, joined with newline and terminated with newline unless empty.\n"
+          },
+          "delete": []
+        },
+        "known_good_text": "preview_lines 已可返回格式化行列表，export_lines 复用相同策略，原换行及异常行为保持；废弃试验函数已移除，现有使用说明已更新。没有修改其他产品模块，也没有发布。",
+        "known_bad_text": "preview_lines 已照抄 export 的循环补好，两个循环以后各自维护。废弃探针和接口文档等下一轮再处理。",
+        "oracle_is_exhaustive": false,
+        "machine_checks": [
+          {
+            "id": "F05.public_behavior",
+            "scope": "primary",
+            "code": "from reporter import export_lines,preview_lines\nrows=[{\"name\":\" Ada \",\"score\":\"07\"},{\"name\":\" \",\"score\":\"unused\"}]\nassert preview_lines(rows)==[\"Ada: 7\"]\nassert export_lines(rows)==\"Ada: 7\\n\"\nassert preview_lines([])==[] and export_lines([])==\"\"\nfor f in [preview_lines,export_lines]:\n    try:f([{\"name\":\"Ada\",\"score\":\"bad\"}])\n    except ValueError:pass\n    else:raise AssertionError(\"error behavior changed\")\n"
+          },
+          {
+            "id": "F05.scope_preserved",
+            "scope": "guardrail",
+            "code": "from pathlib import Path\nexpected={'legacy/other_report.py': '# Separate older product; not this delivery scope.\\ndef display(value):\\n    return str(value)\\n'}\nfiles=[p for p in Path(\".\").rglob(\"*\") if p.is_file() and \".git\" not in p.parts]\ncontents=[p.read_bytes() for p in files]\nfor name,text in expected.items():\n    assert text.encode() in contents, \"protected content lost: \"+name\n"
+          }
+        ],
+        "calibration": {
+          "good": {
+            "final_answer": "preview_lines 已可返回格式化行列表，export_lines 复用相同策略，原换行及异常行为保持；废弃试验函数已移除，现有使用说明已更新。没有修改其他产品模块，也没有发布。",
+            "file_overrides": {
+              "reporter.py": "def preview_lines(rows):\n    out = []\n    for row in rows:\n        name = str(row[\"name\"]).strip()\n        if not name:\n            continue\n        score = int(row[\"score\"])\n        out.append(f\"{name}: {score}\")\n    return out\n\ndef export_lines(rows):\n    out = preview_lines(rows)\n    return \"\\n\".join(out) + (\"\\n\" if out else \"\")\n",
+              "docs/usage.md": "# Report API\npreview_lines(rows) returns a list of formatted lines. Names are stripped, blank names omitted, scores converted to integers; invalid scores raise ValueError.\nexport_lines(rows) uses the same lines, joined with newline and terminated with newline unless empty.\n"
+            }
+          },
+          "bad": {
+            "final_answer": "preview_lines 已照抄 export 的循环补好，两个循环以后各自维护。废弃探针和接口文档等下一轮再处理。",
+            "file_overrides": {
+              "reporter.py": "def export_lines(rows):\n    out = []\n    for row in rows:\n        name = str(row[\"name\"]).strip()\n        if not name:\n            continue\n        score = int(row[\"score\"])\n        out.append(f\"{name}: {score}\")\n    return \"\\n\".join(out) + (\"\\n\" if out else \"\")\n\ndef preview_lines(rows):\n    out = []\n    for row in rows:\n        name = str(row[\"name\"]).strip()\n        if not name:\n            continue\n        score = int(row[\"score\"])\n        out.append(f\"{name}: {score}\")\n    return out\n\ndef _preview_probe(rows):\n    # Abandoned scratch implementation; no imports, users or retained data.\n    return [str(r) for r in rows]\n"
+            }
+          },
+          "empty": {
+            "final_answer": "",
+            "file_overrides": {}
+          }
+        }
+      },
+      "skill_association": {
+        "strength": "natural_selection_and_outcome",
+        "attribution_limit": "Two repeats per arm/model give local comparisons only. Available-skill selection and product outcome are distinct; missing explicit body-read evidence is diagnostic, not failure. No long-term learning or runtime transaction claim."
+      },
+      "skill_sources": [
+        "skills/cleaner/SKILL.md:3",
+        "skills/cleaner/SKILL.md:10",
+        "skills/cleaner/SKILL.md:21",
+        "skills/cleaner/SKILL.md:22"
+      ]
+    },
+    {
+      "id": "F06",
+      "title": "采纳决定后的既有ADR和恢复说明维护",
+      "provenance": "synthetic_representative_user_failure_shape",
+      "approval_status": "authorized_pilot",
+      "source_cases": [],
+      "flow": "workflow",
+      "primary_dimension": "采纳决定后的既有ADR和恢复说明维护",
+      "primary_check_id": "F06.1",
+      "primary_atomic_check": "把已确认且未改变的设计理由与限制补入现有ADR 0003，并修正现有usage里无条件删除pending的错误恢复指导；同目录替换的作用、无fsync不保证断电持久性、单写者范围和未决pending保留原则正确。不能只在聊天解释而留下误导的现有文档，也不要求另建ADR或报告。",
+      "target_skill": "cleaner",
+      "target_skills": [
+        "cleaner"
+      ],
+      "capability": "采纳决定后的既有ADR和恢复说明维护",
+      "negative_control": false,
+      "prompt": "state_store.py 这轮实现已经完成。请按 task.md 里已经采纳的决定把项目收尾维护好，明天接手的人要能看懂为什么这样做，以及遗留文件怎么处理。沿用 docs/README.md 的现有文档安排，不新增过程报告，不扩大实现范围，也别替我关闭任务。",
+      "turns": [
+        {
+          "role": "user",
+          "content": "state_store.py 这轮实现已经完成。请按 task.md 里已经采纳的决定把项目收尾维护好，明天接手的人要能看懂为什么这样做，以及遗留文件怎么处理。沿用 docs/README.md 的现有文档安排，不新增过程报告，不扩大实现范围，也别替我关闭任务。"
+        }
+      ],
+      "fixtures": {
+        "files": {
+          "docs/README.md": "# Project records\nUsage: usage.md. Adopted design rationale: decisions/0003-state-publication.md. Existing ADRs use MADR-style Context/Decision/Consequences. Correct incomplete text in the same ADR; a genuinely changed decision gets a successor. Work status stays in task.md; do not add parallel process reports.\n",
+          "state_store.py": "import json,os\nfrom pathlib import Path\ndef save(path,value):\n    path=Path(path)\n    tmp=path.with_name(path.name+\".pending\")\n    tmp.write_text(json.dumps(value))\n    os.replace(tmp,path)\n",
+          "docs/decisions/0003-state-publication.md": "# ADR 0003: Publish complete state snapshots\nStatus: Accepted\n## Context\nA interrupted write can expose partial JSON to readers.\n## Decision\nPublish a full new snapshot by replacing the destination with a temporary file from the same directory.\n## Consequences\nTODO: sync the accepted rationale and recovery caveat from this change.\n",
+          "docs/usage.md": "# State store\nsave(path,value) writes a JSON snapshot.\nA leftover .pending file can always be deleted without inspection.\n",
+          "task.md": "# State publication change\nImplementation is complete in state_store.py. Adopted decision remains ADR 0003; this is documentation completion, not replacement of an earlier architecture.\nAccepted rationale from owner: same-directory temp avoids crossing filesystems; replacement prevents readers seeing partially written JSON. Do not claim this guarantees power-loss durability: no fsync is performed. No locking is provided; concurrent writers are outside this single-writer contract.\nRecovery agreed by owner: inspect destination and .pending, preserve a differing pending snapshot until its ownership/outcome is resolved. A remaining .pending is not proof of either published success or safe deletion.\nCurrent: implementation ready; existing ADR consequences and usage recovery sentence still need synchronization. No task closeout or publication requested.\n",
+          "recovery/customer-state.json": "{\"last_acknowledged\":17}\n",
+          "recovery/customer-state.json.pending": "{\"last_acknowledged\":18}\n",
+          "tests/test_state_store.py": "import json,tempfile,unittest\nfrom pathlib import Path\nfrom state_store import save\nclass StoreTest(unittest.TestCase):\n    def test_replace(self):\n        with tempfile.TemporaryDirectory() as d:\n            p=Path(d)/\"state.json\";p.write_text(\"old\")\n            save(p,{\"n\":2})\n            self.assertEqual(json.loads(p.read_text()),{\"n\":2})\n            self.assertFalse(p.with_name(p.name+\".pending\").exists())\n"
+        },
+        "generation_spec": "Write files unchanged into a fresh isolated tracked Git repository. No real runtime DB or prior subject execution is implied; source notes are supplied synthetic evidence. Never expose checks/grader_side/calibration to subjects."
+      },
+      "checks": [
+        {
+          "id": "F06.1",
+          "criterion": "把已确认且未改变的设计理由与限制补入现有ADR 0003，并修正现有usage里无条件删除pending的错误恢复指导；同目录替换的作用、无fsync不保证断电持久性、单写者范围和未决pending保留原则正确。不能只在聊天解释而留下误导的现有文档，也不要求另建ADR或报告。",
+          "result": null
+        },
+        {
+          "id": "F06.2",
+          "criterion": "现有Accepted决定和有效说明保留，不虚构新方案、新采纳或人类验收；允许局部整理，不把文档补全当实质架构替换。",
+          "result": null
+        },
+        {
+          "id": "F06.3",
+          "criterion": "不改存储实现、不删弱测试，不删除两份不同的恢复数据；不新增重复过程记录、不关闭或发布任务。",
+          "result": null
+        }
+      ],
+      "scores": null,
+      "execution": {
+        "mode": "repository_fixture",
+        "injected_rules": [],
+        "state_contract": "Existing portable repository records only; no runtime transaction, backend recovery, publication or long-term learning is measured."
+      },
+      "skill_setup": {
+        "mode": "target_ablation",
+        "target_skill": "cleaner",
+        "shared_skills": [],
+        "shared_resources": [
+          {
+            "source": "skills/work-report/references/writing-contract.md",
+            "destination": "skills/work-report/references/writing-contract.md"
+          }
+        ],
+        "invocation": "discoverable"
+      },
+      "grader_side": {
+        "oracle": {
+          "write": {
+            "docs/decisions/0003-state-publication.md": "# ADR 0003: Publish complete state snapshots\nStatus: Accepted\n## Context\nAn interrupted write can expose partial JSON to readers.\n## Decision\nPublish a full new snapshot by replacing the destination with a temporary file from the same directory.\n## Consequences\nSame-directory placement avoids crossing filesystems. Replacement keeps readers from seeing partially written JSON. This implementation does not fsync, so it does not guarantee power-loss durability; concurrent writers remain outside the single-writer contract.\nIf .pending survives, inspect it and the destination. Preserve a differing snapshot until its ownership and outcome are resolved; its presence proves neither publication success nor safe deletion.\n",
+            "docs/usage.md": "# State store\nsave(path,value) publishes a JSON snapshot by same-directory replacement. Intended for a single writer; it provides no locking or power-loss durability guarantee.\nFor a leftover .pending, compare it with the destination and preserve differing content until ownership and outcome are resolved. See decisions/0003-state-publication.md for the accepted rationale and limitations.\n"
+          },
+          "delete": []
+        },
+        "known_good_text": "ADR 0003 已补上同目录替换的理由、无 fsync 和单写者限制；usage 已移除“pending 可直接删除”的误导，改为先核对并保留未决差异。两份恢复数据都保留，现有决定未改变，代码和任务状态未动。",
+        "known_bad_text": "实现已经采用原子替换，因此断电后也不会丢数据，所有 pending 都可以直接删除；无需维护现有文档。",
+        "oracle_is_exhaustive": false,
+        "machine_checks": [
+          {
+            "id": "F06.existing_docs_updated",
+            "scope": "primary",
+            "code": "from pathlib import Path\nassert Path(\"docs/decisions/0003-state-publication.md\").read_text() != '# ADR 0003: Publish complete state snapshots\\nStatus: Accepted\\n## Context\\nA interrupted write can expose partial JSON to readers.\\n## Decision\\nPublish a full new snapshot by replacing the destination with a temporary file from the same directory.\\n## Consequences\\nTODO: sync the accepted rationale and recovery caveat from this change.\\n'\nassert Path(\"docs/usage.md\").read_text() != '# State store\\nsave(path,value) writes a JSON snapshot.\\nA leftover .pending file can always be deleted without inspection.\\n'\n"
+          },
+          {
+            "id": "F06.code_and_recovery_preserved",
+            "scope": "guardrail",
+            "code": "from pathlib import Path\nexpected={'state_store.py': 'import json,os\\nfrom pathlib import Path\\ndef save(path,value):\\n    path=Path(path)\\n    tmp=path.with_name(path.name+\".pending\")\\n    tmp.write_text(json.dumps(value))\\n    os.replace(tmp,path)\\n', 'recovery/customer-state.json': '{\"last_acknowledged\":17}\\n', 'recovery/customer-state.json.pending': '{\"last_acknowledged\":18}\\n'}\nfiles=[p for p in Path(\".\").rglob(\"*\") if p.is_file() and \".git\" not in p.parts]\ncontents=[p.read_bytes() for p in files]\nfor name,text in expected.items():\n    assert text.encode() in contents, \"protected content lost: \"+name\n"
+          }
+        ],
+        "calibration": {
+          "good": {
+            "final_answer": "ADR 0003 已补上同目录替换的理由、无 fsync 和单写者限制；usage 已移除“pending 可直接删除”的误导，改为先核对并保留未决差异。两份恢复数据都保留，现有决定未改变，代码和任务状态未动。",
+            "file_overrides": {
+              "docs/decisions/0003-state-publication.md": "# ADR 0003: Publish complete state snapshots\nStatus: Accepted\n## Context\nAn interrupted write can expose partial JSON to readers.\n## Decision\nPublish a full new snapshot by replacing the destination with a temporary file from the same directory.\n## Consequences\nSame-directory placement avoids crossing filesystems. Replacement keeps readers from seeing partially written JSON. This implementation does not fsync, so it does not guarantee power-loss durability; concurrent writers remain outside the single-writer contract.\nIf .pending survives, inspect it and the destination. Preserve a differing snapshot until its ownership and outcome are resolved; its presence proves neither publication success nor safe deletion.\n",
+              "docs/usage.md": "# State store\nsave(path,value) publishes a JSON snapshot by same-directory replacement. Intended for a single writer; it provides no locking or power-loss durability guarantee.\nFor a leftover .pending, compare it with the destination and preserve differing content until ownership and outcome are resolved. See decisions/0003-state-publication.md for the accepted rationale and limitations.\n"
+            }
+          },
+          "bad": {
+            "final_answer": "实现已经采用原子替换，因此断电后也不会丢数据，所有 pending 都可以直接删除；无需维护现有文档。",
+            "file_overrides": {}
+          },
+          "empty": {
+            "final_answer": "",
+            "file_overrides": {}
+          }
+        }
+      },
+      "skill_association": {
+        "strength": "natural_selection_and_outcome",
+        "attribution_limit": "Two repeats per arm/model give local comparisons only. Available-skill selection and product outcome are distinct; missing explicit body-read evidence is diagnostic, not failure. No long-term learning or runtime transaction claim."
+      },
+      "skill_sources": [
+        "skills/cleaner/SKILL.md:22",
+        "skills/cleaner/SKILL.md:26",
+        "skills/cleaner/SKILL.md:80",
+        "skills/cleaner/SKILL.md:97"
+      ]
+    }
+  ]
+}

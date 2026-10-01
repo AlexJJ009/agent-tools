@@ -229,6 +229,38 @@ def skill_plan(case, variant):
         if not (ROOT/src).resolve().is_relative_to(ROOT):raise ValueError('resource escapes repository')
     return {'mode':'target_ablation','packages':sorted(shared+([target] if variant=='skills' else [])),'resources':resources,'target':target}
 
+def expected_skill_manifest():
+    path=os.environ.get('AGENT_TOOLS_EVAL_EXPECTED_SKILLS')
+    return Path(path).resolve() if path else None
+
+
+def verify_installed_skills(plan, home):
+    """Optional regression gate: compare installed bytes to the authorized main commit."""
+    path=expected_skill_manifest()
+    if path is None:return
+    expected=json.loads(path.read_text())
+    if not expected.get('main_commit') or not isinstance(expected.get('files'),dict):
+        raise RuntimeError('Invalid merged-main skill manifest')
+    checked={}
+    for name in plan['packages']:
+        prefix='skills/'+name+'/'
+        wanted={key[len(prefix):]:sha for key,sha in expected['files'].items() if key.startswith(prefix)}
+        folder=home/'.agents/skills'/name
+        actual={str(p.relative_to(folder)):hashlib.sha256(p.read_bytes()).hexdigest()
+                for p in folder.rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.suffix!='.pyc'}
+        if not wanted or actual!=wanted:raise RuntimeError('Installed skill differs from merged main: '+name)
+        checked[name]=actual
+    resources={}
+    for item in plan.get('resources',[]):
+        source=item['source'];target=home/'.agents'/item['destination']
+        sha=hashlib.sha256(target.read_bytes()).hexdigest()
+        if sha!=expected['files'].get(source):raise RuntimeError('Installed shared resource differs from merged main: '+source)
+        resources[item['destination']]=sha
+    plan['merged_main_copy_audit']={'main_commit':expected['main_commit'],
+        'manifest_sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
+        'packages':checked,'resources':resources,'verified_before_model_start':True}
+
+
 def source_manifest(case, variant):
     plan=skill_plan(case,variant)
     paths=[ROOT/'shared/writing/reader-facing-contract.md',ROOT/'docs/TASK_RUNTIME.md',ROOT/'scripts/codex_target_guard.py']
@@ -239,6 +271,8 @@ def source_manifest(case, variant):
     hashes={str(path.relative_to(ROOT)):hashlib.sha256(path.read_bytes()).hexdigest() for path in paths if path.is_file() and '__pycache__' not in path.parts and path.suffix!='.pyc'}
     cli=Path(shutil.which('codex')).resolve()
     hashes['@codex_binary']=hashlib.sha256(cli.read_bytes()).hexdigest()
+    expected=expected_skill_manifest()
+    if expected is not None:hashes['@expected_skills:'+str(expected)]=hashlib.sha256(expected.read_bytes()).hexdigest()
     for asset,_ in cli_assets(cli):hashes['@cli_asset:'+str(asset)]=hashlib.sha256(asset.read_bytes()).hexdigest()
     return hashes
 
@@ -263,6 +297,7 @@ def setup_skills(case,variant,home):
     catalog='\n'.join('- '+n+': '+next((line.removeprefix('description: ') for line in (skillroot/n/'SKILL.md').read_text().splitlines() if line.startswith('description: ')), '')+' (file: /home/eval/.agents/skills/'+n+'/SKILL.md)' for n in catalog_names)
     if catalog or plan['mode']=='target_ablation':
         with (ch/'AGENTS.md').open('a') as stream:stream.write('\n'+instruction+'\n'+catalog+'\n')
+    verify_installed_skills(plan,home)
     return plan
 
 def observed_target_read(events,target):

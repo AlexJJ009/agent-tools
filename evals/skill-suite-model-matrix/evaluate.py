@@ -22,7 +22,7 @@ REPS=2
 SUBJECT_TIMEOUT=420
 JUDGE_TIMEOUT=300
 SUITES={
-    'challenge':{'directory':'skill-suite-challenge','runner':'run_eval.py','runner_directory':'skill-suite-pilot','score':['skill-suite-corrections/reviewed_challenge_v3.py','score'],'report':['skill-suite-corrections/reviewed_challenge_v3.py','report']},
+    'challenge':{'directory':'skill-suite-challenge','runner':'run_eval.py','runner_directory':'skill-suite-pilot','score':['skill-suite-model-matrix-review/reviewed_h01.py','score'],'report':['skill-suite-model-matrix-review/reviewed_h01.py','report']},
     'mechanisms':{'directory':'skill-suite-mechanisms','runner':'run_mechanisms.py','score':['skill-suite-corrections/reviewed_mechanisms.py','score'],'report':['skill-suite-corrections/reviewed_mechanisms.py','report']},
     'source-discovery':{'directory':'skill-suite-source-discovery','runner':'run_source_discovery.py','score':['skill-suite-source-discovery/score_source_discovery.py'],'report':['skill-suite-source-discovery/report_source_discovery.py']},
     'artifact-followup':{'directory':'skill-suite-artifact-followup','runner':'run_source_discovery.py','runner_directory':'skill-suite-source-discovery','score':['skill-suite-artifact-followup/evaluate.py','score'],'report':['skill-suite-artifact-followup/evaluate.py','report']},
@@ -38,11 +38,13 @@ def dataset(suite):return json.loads((HERE.parent/SUITES[suite]['directory']/'ca
 
 def freeze_sources():
     directories=[ROOT/'skills',ROOT/'shared',ROOT/'agent_workflow',ROOT/'learning_workflow']
-    directories += [HERE.parent/name for name in ['skill-suite-pilot','skill-suite-challenge','skill-suite-mechanisms','skill-suite-source-discovery','skill-suite-artifact-followup','skill-suite-corrections','skill-suite-model-matrix']]
+    directories += [HERE.parent/name for name in ['skill-suite-pilot','skill-suite-challenge','skill-suite-mechanisms','skill-suite-source-discovery','skill-suite-artifact-followup','skill-suite-corrections','skill-suite-model-matrix','skill-suite-model-matrix-review']]
     files={ROOT/'scripts/codex_target_guard.py',ROOT/'docs/TASK_RUNTIME.md'}
     for directory in directories:
         files.update(p for p in directory.rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.suffix!='.pyc')
     hashes={str(path.relative_to(ROOT)):sha(path) for path in sorted(files)}
+    expected=os.environ.get('AGENT_TOOLS_EVAL_EXPECTED_SKILLS')
+    if expected:hashes['@expected_skills:'+str(Path(expected).resolve())]=sha(expected)
     binary=Path(shutil.which('codex')).resolve();hashes['@codex_binary:'+str(binary)]=sha(binary)
     for asset in [binary.parent/'codex-code-mode-host']:
         if not asset.is_file():raise RuntimeError('CLI runtime asset missing: '+str(asset))
@@ -51,7 +53,7 @@ def freeze_sources():
 
 def verify_frozen(manifest):
     for name,expected in manifest['frozen_files'].items():
-        path=Path(name.split(':',1)[1]) if name.startswith(('@codex_binary:','@cli_asset:')) else ROOT/name
+        path=Path(name.split(':',1)[1]) if name.startswith(('@codex_binary:','@cli_asset:','@expected_skills:')) else ROOT/name
         if not path.is_file() or sha(path)!=expected:raise RuntimeError('Frozen source changed: '+name)
 
 def planned_manifest():
@@ -85,7 +87,18 @@ def run_case_job(output,suite,model,cid):
         order=['skills','control'] if rep%2 else ['control','skills'];results={};schedule=[]
         for arm in order:
             verify_frozen(manifest);start=time.time()
-            raw=runner.run_case(case,arm,rep,runs,model,timeout=SUBJECT_TIMEOUT,effort='medium')
+            # Budget timeouts are terminal outcomes, never fresh quality samples on resume.
+            prior=[]
+            for path in runs.glob(f'{cid}-{arm}-{rep}*/result.json'):
+                record=json.loads(path.read_text())
+                if record.get('case_id')==cid and record.get('variant')==arm and record.get('rep')==rep:
+                    match=re.search(r'-attempt(\d+)$',path.parent.name)
+                    prior.append((int(match.group(1)) if match else 1,record))
+            terminal=max(prior,key=lambda item:item[0])[1] if prior else None
+            if terminal and terminal.get('error')=='timeout' and terminal.get('matrix_protocol',{}).get('manifest_sha256')==digest(manifest):
+                raw=terminal
+            else:
+                raw=runner.run_case(case,arm,rep,runs,model,timeout=SUBJECT_TIMEOUT,effort='medium')
             if raw.get('model_requested')!=model:raise RuntimeError('Requested model mismatch; no substitution permitted')
             if raw.get('model_observed') and raw['model_observed']!=model:raise RuntimeError('Served model mismatch; no substitution permitted')
             if raw.get('effort')!='medium' or raw.get('timeout_seconds')!=SUBJECT_TIMEOUT:raise RuntimeError('Reused trial budget mismatch')

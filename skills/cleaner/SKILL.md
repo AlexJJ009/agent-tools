@@ -1,6 +1,6 @@
 ---
 name: cleaner
-description: Clean up coder changes while preserving behavior, module boundaries, maintainability, and handoff clarity; use proportionately before a meaningful stage commit, merge, or delivery, and earlier when patches or alternatives accumulate. Also use for authorized process-material retirement during active work and task closeout after scoped user acceptance. Excludes unrelated repository cleanup and automatic worktree retirement.
+description: Clean up the current change and related workspace materials while preserving behavior, useful evidence, and handoff clarity. Use during authorized cleanup or development delivery when leftovers, duplication, or stale documentation need attention. Task closeout requires scoped user acceptance; unrelated cleanup and worktree removal are outside scope.
 ---
 
 # Cleaner
@@ -11,9 +11,8 @@ Use a code cleanup pass after coding work when the changed area needs a maintain
 
 This skill borrows only the two-role mechanism from SwarmForge: coder produces behavior, cleaner follows with a constrained quality pass. SwarmForge prompt text is not copied because no license was verified in the saved snapshot.
 
-A just-reviewed, unchanged diff needs no repeated ceremony. A tiny change may
-need only a short inspection and a no-change rationale. Do not create a task or
-checklist solely to record cleanup.
+Scale the pass to the change; a just-reviewed, unchanged diff needs no repeated
+inspection. Do not create a task or checklist solely to record cleanup.
 
 ## Cleanup Checks
 
@@ -21,7 +20,7 @@ checklist solely to record cleanup.
 - Preserve externally visible behavior and protocol semantics. If a cleanup would change behavior, stop and record it as a proposed scope change.
 - Reduce meaningful duplication, temporary leftovers, hidden side effects, unclear names, broad interfaces, and misplaced responsibilities in changed code.
 - Check documentation impact: update affected usage/interface instructions or explain why no documentation change is needed in the existing closing note or commit/PR description. Handoff links the current guide and records a recovery point; it does not duplicate usage instructions.
-- Check task-record freshness when the task record is changed: consolidate competing current-state summaries, preserve user constraints, and link necessary historical evidence instead of copying it. Do not create another cleanup report to describe this check.
+- When work changes the task's current status or recovery point, update the existing handoff record. Reconcile competing current-state summaries, preserve user constraints, and link historical evidence; do not create another report.
 - Check artifact ownership: task-runtime state and owned process artifacts use its application data root; existing explicit local records remain valid. Do not create duplicate state under `docs/_local/`. Private material does not become shared source or product input. Preserve reusable test assets and necessary product validation.
 - Preserve significant architectural rationale in the project ADRs (`docs/decisions/`), using the MADR template when adopted. A substantive replacement gets a successor ADR and reciprocal supersession links; typo fixes do not. Do not fabricate alternatives or decisions.
 - Keep dependency direction and module boundaries consistent with the repository.
@@ -36,23 +35,14 @@ execution delegation. A behavior-preserving repair does not create another
 human approval or understanding obligation. If meaning, budget or scope changes,
 record that specific new choice and continue independent in-scope work.
 
-## No-Change Output
-
-No cleanup diff is required. When the best action is to leave the code as-is, record the reasons, the inspected scope, and any out-of-scope concerns.
-
 ## Handoff
 
-Return the cleanup diff or no-change rationale with:
-
-- changed files and why each changed
-- behavior-preservation checks run
-- checklist items affected or invalidated
-- remaining risks for `acceptance-gate` or human review
-
-Cleanup does not authorize Git publication or merge. Return a meaningful diff, a
-no-change rationale, or a concrete out-of-scope concern; do not enlarge the task
-to manufacture cleanup. Record any needed notes in the existing local task or
-conversation, retaining user criteria and actual human acceptance.
+Summarize meaningful changes, checks actually run, and unresolved risks in the
+existing task record, conversation, or commit/PR description. Identify affected
+criteria when relevant. If no cleanup is needed, briefly explain why; no diff or
+separate report is required. Preserve user criteria and actual acceptance.
+Cleanup alone does not authorize Git publication or merge, or expand the scope
+merely to produce a diff.
 
 ## Process-material review
 

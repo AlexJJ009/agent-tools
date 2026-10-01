@@ -1,11 +1,11 @@
 ---
 name: teaching-reconstruction
-description: Orchestrate personalized, evidence-backed teaching reconstruction for papers, code, blogs, and technical topics. Use when the user asks to learn or deeply understand a paper, code, blog, or technical topic; reconstruct a mechanism; audit their own understanding; compare ideas as learning; or turn verified learning into a tutorial or blog draft. Direct manuscript writing belongs to academic-writing; code repair, quoted teaching templates, and ordinary status explanations do not activate guided learning.
+description: Guide evidence-based learning of papers, code, blogs, and technical topics; explain mechanisms, examine understanding, compare ideas, or develop a requested tutorial. Direct manuscript writing belongs to academic-writing; code repair, quoted teaching templates, and ordinary status explanations do not activate guided learning.
 ---
 
 # Teaching Reconstruction
 
-Use this as the orchestrator for learning. Infer the user's current model, expose prerequisites, anchor claims to evidence, and use actual attempts to assess understanding. Material delivery and learner progress are separate: a complete, reviewed document does not show that the learner read or learned it.
+Use this as the orchestrator for learning. Infer the learner's mental model, identify prerequisite knowledge, anchor claims to evidence, and assess understanding from actual attempts. Material delivery and learner progress are separate: a complete, reviewed document does not show that the learner read or learned it.
 
 ## Route first
 
@@ -26,13 +26,13 @@ then write a tutorial" remains orchestrator-owned and stages compilation last.
 
 Main chooses the activity from the request, not the source type. Investigating code for a repair stays delivery; learning its architecture uses this skill. Agent Core supplies stable user context, while Agent Tools owns reusable teaching, domain methods, practice, and learning-document rules. The old `knowledge-deposition-doc` name is a compatibility entry, not a second orchestrator.
 
-Give a complete, coherent first draft when the user wants an explanation or learning material of that scope. Do not make a reconstruction quiz a prerequisite for receiving it, or force every iteration into one tiny teaching unit. Guided interaction remains available when requested or useful for a specific difficulty. Choose the amount to explain from the user's question and feedback; do not ask a pacing questionnaire when the next move is clear.
+Deliver a complete, coherent first draft at the requested scope; practice is not a prerequisite for receiving an explanation or artifact. Choose direct explanation, guided inquiry, or practice to fit the learner's question, prior knowledge, and feedback; adapt scaffolding without imposing tiny teaching units or a pacing questionnaire.
 
-Make substantial material easy to enter selectively: establish the problem and main mechanism, orient the reader to sections by the questions they answer, and supply each section's necessary prerequisites. A reader may inspect only the part they care about. When feedback arrives halfway through, revise the same artifact locally or substantially as needed; preserve unaffected evidence and do not restart an entire lesson by default.
+For substantial material, establish the problem and mechanism, organize sections around useful questions, and explain prerequisite knowledge where needed. Readers may enter selectively or respond partway through. Revise the same artifact at the appropriate scale while preserving unaffected evidence.
 
 For code and architecture learning, read `references/code-architecture-learning.md`. For papers, retain problem, motivation, contribution, assumptions, and experimental-evidence questions through the ReadPapers adapter when applicable. Shared expression principles do not impose a paper-innovation template on code learning.
 
-Within a learning session, select up to three abilities worth retaining and practicing, adjusted to the user's current interest and effort. This is a retention focus, not a limit on document coverage or a quota of three questions. Call `retrieval-practice` for domain-appropriate checks and later review; its `references/review-follow-through.md` owns attempt and follow-up conventions. A reviewer's pass assesses the material only. Keep reading progress, observed attempts, and user-selected retention separate; unknown progress remains unknown.
+Within a learning session, select a manageable set of abilities worth retaining and practicing, based on the learner's interest and effort; this does not limit document coverage or prescribe a question count. Call `retrieval-practice` for domain-appropriate checks and later review; its `references/review-follow-through.md` owns attempt and follow-up conventions. A reviewer's pass assesses the material only. Keep reading progress, observed attempts, and user-selected retention separate; unknown progress remains unknown.
 
 ## Paper adapter boundary
 
@@ -54,7 +54,7 @@ For Zotero library operations, adding a paper, formal close reading, or ZotLit n
   turning the request into a background questionnaire.
 - Separate verified evidence from provisional explanations.
 - Never write inside ZotLit `%%zt-managed%%` regions when editing ReadPapers notes.
-- A request for a complete learning artifact authorizes writing it before learner checks. Mark untested abilities as untested; revise from feedback rather than withholding the artifact. Direct manuscript drafting belongs to `academic-writing` and requires no learner check.
+- Mark untested abilities as untested; artifact quality is not evidence of learner mastery.
 
 ### Current delivery binding
 

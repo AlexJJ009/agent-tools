@@ -132,6 +132,9 @@ def finalize(source, view, output):
             selected[f'{model}/{suite}'] = str(path)
             reports[model, suite] = json.loads(path.read_text())
             link(view / model / suite / 'report', folder)
+            if suite == 'challenge':
+                # This separate reviewed report inherits legacy prose, not its model configuration.
+                evaluate.refresh_report_model_text(view, model, suite)
     if sum(len(evaluate.dataset(s)) for s in evaluate.SUITES) != 19 or manifest.get('expected_subjects') != 304:
         raise RuntimeError('Expected frozen 19-case / 304-slot matrix')
     slots = []; prior_failures = []; all_protocol_errors = []

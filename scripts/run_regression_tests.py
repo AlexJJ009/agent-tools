@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # One test file belongs to one automatic group. The repository alias is retained
 # for a deliberate full top-level run; it is not also run by `active`.
 ROOT_GROUPS = {
+    'claude-adapter': ('test_claude_*', 'test_install_claude.py'),
     'evaluation-fixtures': ('test_task_runtime_cases.py', 'test_task_eval_runner.py'),
     'workflow-acceptance': ('test_workflow_increment_acceptance.py',),
     'task-runtime': ('test_task_*', 'test_process_cleanup.py'),
@@ -57,7 +58,9 @@ def select_suites(paths):
         if path.startswith('.github/') or path in ('install.sh', 'scripts/install-win11.ps1',
                                                   'scripts/run_regression_tests.py', 'scripts/codex_target_guard.py'):
             return ACTIVE
-        if path.startswith('tests/test_'):
+        if path.startswith(('adapters/claude/', 'scripts/install_claude.py', '.claude/skills/')):
+            selected.add('claude-adapter')
+        elif path.startswith('tests/test_'):
             selected.add(root_group(Path(path).name))
         elif path.startswith('scripts/verify_workflow_increment.py'):
             continue  # Explicit historical acceptance harness, not a live consumer.

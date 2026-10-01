@@ -23,7 +23,7 @@ F06 的维护义务来自已有证据：task.md 记载已经采纳的真实理�
 
 ## 运行前校准
 
-每题 `grader_side.calibration` 都有人工编写的 `good`、`bad`、`empty`：`final_answer` 是候选回复；`file_overrides` 覆盖初始文件，`null` 表示删除。先在相同 rubric 下检查 good 主项通过、bad/empty 主项失败，再启动正式试次。参考样例、oracle、checks 和 machine_checks 都只在评分侧，绝不注入被测环境。
+每题 `grader_side.calibration` 都有评测代理编写、独立代理审阅的 `good`、`bad`、`empty`：`final_answer` 是候选回复；`file_overrides` 覆盖初始文件，`null` 表示删除。先在相同 rubric 下检查 good 主项通过、bad/empty 主项失败，再启动正式试次。参考样例、oracle、checks 和 machine_checks 都只在评分侧，绝不注入被测环境。
 
 `grader_side.machine_checks` 是评分副本中的离线 Python 检查，包含 `id`、`scope`、`code`。它们只承担可机械核验的部分：行为、字节保留、明确废弃项已删除、既有文档确实修改。语义 judge 判断完整主项、文档含义、练习质量和边界；不能把文件动过就判作维护正确。F03/F04 的机判护栏通过不等于主项通过，尤其无内容输出必须失败。F05 bad 样例特意实现正确功能但保留重复策略、废弃探针和过时说明，检验评分能否发现维护缺口，而不只是发现功能缺失。
 

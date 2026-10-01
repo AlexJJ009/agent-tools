@@ -6,6 +6,7 @@ import fcntl
 import hashlib
 import importlib.util
 import json
+import os
 import re
 from pathlib import Path
 import sys
@@ -281,7 +282,7 @@ def calibrate(output, selected_cases, workers):
                 folder=output/'calibration'/case['id']/label
                 workspace=folder/'workspace';workspace.mkdir(parents=True,exist_ok=True)
                 home=folder/'home';(home/'.codex').mkdir(parents=True,exist_ok=True)
-                guard=subprocess.run(['python3',str(ROOT/'scripts/codex_target_guard.py'),'--platform','auto','--codex-home',str(home/'.codex'),'--cc-switch-db',str(home/'.cc-switch/cc-switch.db'),'--path-only','--allow-missing-config','--allow-missing-cc-switch','--skip-cc-switch-read-check','--json'],capture_output=True,text=True)
+                guard=subprocess.run(['python3',str(ROOT/'scripts/codex_target_guard.py'),'--platform','auto','--codex-home',str(home/'.codex'),'--cc-switch-db',str(home/'.cc-switch/cc-switch.db'),'--path-only','--allow-missing-config','--allow-missing-cc-switch','--skip-cc-switch-read-check','--json'],capture_output=True,text=True,env={**os.environ,'HOME':str(home),'CODEX_HOME':str(home/'.codex'),'XDG_CONFIG_HOME':str(home/'.config')})
                 if guard.returncode: raise RuntimeError('Calibration profile guard failed: '+guard.stderr)
                 # Rebuild deterministic fixture each time; do not retain prior overrides.
                 import shutil

@@ -102,5 +102,19 @@ class FieldTests(unittest.TestCase):
                         self.assertFalse(all(x['passed'] for x in actual.values()),actual)
 
 
+    def test_calibration_guard_uses_isolated_profile_environment(self):
+        c=case();c['grader_side']={'calibration':{'good':{'final_answer':'done','file_overrides':{}}}}
+        def guard(command, **kwargs):
+            home=Path(command[command.index('--codex-home')+1]).parent
+            self.assertEqual(kwargs['env']['HOME'],str(home))
+            self.assertEqual(kwargs['env']['CODEX_HOME'],str(home/'.codex'))
+            self.assertEqual(kwargs['env']['XDG_CONFIG_HOME'],str(home/'.config'))
+            self.assertIn('--path-only',command)
+            from types import SimpleNamespace
+            return SimpleNamespace(returncode=0,stderr='')
+        with tempfile.TemporaryDirectory() as tmp,patch.object(field.subprocess,'run',side_effect=guard),patch.object(field,'freeze',return_value={'frozen':True}),patch.object(field,'score_one',return_value={'verdict':{'primary_pass':True},'identity':'test'}):
+            self.assertEqual(field.calibrate(Path(tmp),[c],1),0)
+
+
 
 if __name__=='__main__':unittest.main()

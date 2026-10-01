@@ -159,7 +159,7 @@ def cell(value, key):
 
 def render(data, output):
     lines=['# 按问题类型归类的技能评估','',
-      '共 25 道题。每格是同一模型、同一道题的 control → skills 通过次数／有效配对数；不跨题或跨模型汇总质量总分。主项、约束与写作分别列出。原始自动评分保持不变。','',
+      '共 25 道题。每格是同一模型、同一道题的 control → skills 通过次数／有效配对数；不跨题或跨模型汇总质量总分。主项、约束与写作分别列出。原始自动评分保持不变。control 不提供目标 skill，skills 提供目标 skill；共同能力仍在两组中保留。','',
       'explicit 表示显式调用目标技能；discoverable 表示只提供可发现能力，由任务自然触发。缺少正文读取证据是诊断，不排除有效配对，也不证明未被原生注入或没有遵循。', '',
       '新现场评估的 Judge 已提供实际指令上下文，旧评估有 13 条写作判定受到隐藏显式调用指令的影响。新旧写作协议不同，不能把两轮分数变化称为技能进步；受影响旧题在表旁标记，不推算修正分。','',
       '两次重复只支持局部观察。超时、错误、缺评分不补成质量 false；只有双方已完成、结构有效且都有评分才进入新题质量分母。有效配对子集可能有选择偏差。原题完成状态和分母按原报告保留。','']
@@ -169,7 +169,7 @@ def render(data, output):
         for key,label in [('primary','主项'),('guardrails','约束'),('writing','写作')]:
             lines += ['### '+label,'','| 题目 / 调用 | '+' | '.join(MODELS)+' |','| --- | '+' | '.join(['---']*4)+' |']
             for c in selected:
-                flag=' †' if c['writing_context_uncertainty'] else ''
+                flag=(' †' if c['writing_context_uncertainty'] else '') + (' 【方法敏感，不判增益】' if c['id']=='F03' else '')
                 lines.append('| '+c['id']+' '+c['title']+' / '+c['invocation']+flag+' | '+' | '.join(cell(c['models'][m],key) for m in MODELS)+' |')
             lines.append('')
         for c in selected:

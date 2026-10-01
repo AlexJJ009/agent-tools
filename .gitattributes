@@ -1,0 +1,5 @@
+# Keep these pinned upstream resources byte-for-byte, including trailing spaces.
+# Their hashes are checked by tests/test_project_eval_skills.py.
+.agents/skills/build-eval/shared/evals/cost-hillclimb.md whitespace=-blank-at-eol
+.agents/skills/build-eval/shared/evals/report/SCHEMA.md whitespace=-blank-at-eol
+.agents/skills/build-eval/shared/evals/report/runner-scaffold.mjs whitespace=-blank-at-eol

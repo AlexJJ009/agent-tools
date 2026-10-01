@@ -6,6 +6,7 @@ private reports describe bounded development work and are not deployment proof.
 
 - [Task runtime](TASK_RUNTIME.md): local task state, checklist/history queries, scoped material cleanup and recovery.
 - [Agent workflow](AGENT_WORKFLOW.md): development agreements, readback and acceptance.
+- [Project evaluation skills](PROJECT_EVAL_SKILLS.md): project-local build-eval and hillclimb using Codex subscription execution.
 - [Learning workflow runtime](LEARNING_WORKFLOW.md): activity routing and scoped actions.
 - [Learning workflow installation](LEARNING_WORKFLOW_INSTALL.md): local Codex installation and rollback.
 - [Architecture decisions](decisions/README.md): adopted choices and their reasons.
@@ -13,6 +14,7 @@ private reports describe bounded development work and are not deployment proof.
 - [Work Report](WORK_REPORT.md): report generation, delivery contracts and installation.
 - [Work Report timer](WORK_REPORT_LIGHT_TIMER.md): timed prompts and their delivery limits.
 - [CLI server bootstrap](CLI_SERVER_BOOTSTRAP.md): server setup.
+- [Claude Code adapter](CLAUDE_CODE_ADAPTER.md): shared context, skill links and native hooks on Linux/WSL.
 - [Repository overview](../README.md): other maintained tools and platform guides.
 
 ## Documentation Responsibilities

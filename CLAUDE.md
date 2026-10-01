@@ -19,7 +19,8 @@ python3 sync_agent_context.py sync . --direction bidirectional
 Project-local skills are mirrored into `.claude/skills` when present.
 If a request matches one of these descriptions, read `.claude/skills/<name>/SKILL.md` first, then load only the referenced files needed for the task.
 
-- No project-local skills found.
+- `build-eval`: Build a runnable evaluation for an agent, application, or skill: representative cases, calibrated graders, baseline runs, and a reviewable report. Uses the local Codex CLI subscription.
+- `hillclimb`: Improve an agent, application, or skill against an existing evaluation, with scoped changes, held-out cases, and regression checks. Uses the local Codex CLI subscription.
 
 ## Mirrored AGENTS.md
 

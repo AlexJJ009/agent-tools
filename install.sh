@@ -48,6 +48,7 @@ CODEX_SQLITE_LOG_GUARD_MODE="${CODEX_SQLITE_LOG_GUARD_MODE:-enable}"
 CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS="${CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS:-never}"
 CODEX_SQLITE_LOG_GUARD_VACUUM="${CODEX_SQLITE_LOG_GUARD_VACUUM:-0}"
 INSTALL_CLAUDE_DESKTOP_SSH="${INSTALL_CLAUDE_DESKTOP_SSH:-1}"
+CLAUDE_CODE_MODE="${CLAUDE_CODE_MODE:-never}"
 CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS:-never}"
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-1800000}"
 CODEX_STREAM_MAX_RETRIES="${CODEX_STREAM_MAX_RETRIES:-20}"
@@ -2438,6 +2439,10 @@ Options:
   --no-agent-core          Do not auto-verify or run ~/agent-core/scripts/install.sh.
   --check                  Install nothing. Byte-compare managed skill copies
                            against the source tree; exit 1 on any drift.
+  --claude-code MODE      never|existing|latest. Default: never. Opt in to
+                          shared packages and the native Claude adapter;
+                          latest also installs/updates the native CLI.
+  --no-claude-code        Skip the optional Claude adapter (existing state kept).
   -h, --help               Show this help.
 EOF
 }
@@ -2613,6 +2618,14 @@ while [[ $# -gt 0 ]]; do
       INSTALL_CLAUDE_DESKTOP_SSH=0
       shift
       ;;
+    --claude-code)
+      CLAUDE_CODE_MODE="$2"
+      shift 2
+      ;;
+    --no-claude-code)
+      CLAUDE_CODE_MODE=never
+      shift
+      ;;
     --no-registry)
       :
       shift
@@ -2641,6 +2654,10 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+case "$CLAUDE_CODE_MODE" in
+  never|existing|latest) ;;
+  *) echo "invalid --claude-code mode: $CLAUDE_CODE_MODE" >&2; exit 2 ;;
+esac
 run_codex_target_guard before
 
 if [[ "$LINEAR_WORKFLOW_ONLY" -eq 1 ]]; then
@@ -2655,6 +2672,7 @@ fi
 if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
   SOURCE_REAL="$(cd "$SOURCE_DIR" && pwd -P)"
   linear_status=0
+  claude_status=0
   check_codex_patch_safety_skill_drift "$SOURCE_REAL"
   patch_status="$?"
   select_python_bin
@@ -2663,7 +2681,10 @@ if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
     --repo-root "$SOURCE_REAL" --home "$HOME" --platform unix; then
     linear_status=1
   fi
-  [[ "$patch_status" -eq 0 && "$linear_status" -eq 0 ]]
+  if [[ "$CLAUDE_CODE_MODE" != never ]] && ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/install_claude.py" --check; then
+    claude_status=1
+  fi
+  [[ "$patch_status" -eq 0 && "$linear_status" -eq 0 && "$claude_status" -eq 0 ]]
   exit "$?"
 fi
 
@@ -2684,6 +2705,11 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   [[ -d "$SOURCE_DIR/docs" ]] && cp -R "$SOURCE_DIR/docs" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/linear_workflow" ]] && cp -R "$SOURCE_DIR/linear_workflow" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/skills" ]] && cp -R "$SOURCE_DIR/skills" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/adapters" ]] && cp -R "$SOURCE_DIR/adapters" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/agent_workflow" ]] && cp -R "$SOURCE_DIR/agent_workflow" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/learning_workflow" ]] && cp -R "$SOURCE_DIR/learning_workflow" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/project_adapters" ]] && cp -R "$SOURCE_DIR/project_adapters" "$INSTALL_REAL/"
+  [[ -d "$SOURCE_DIR/shared" ]] && cp -R "$SOURCE_DIR/shared" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/agent_context_sync.config.example.json" ]] && cp "$SOURCE_DIR/agent_context_sync.config.example.json" "$INSTALL_REAL/"
 fi
 
@@ -2699,7 +2725,6 @@ mkdir -p "$INSTALL_REAL/logs"
 configure_tmux_mouse_mode
 configure_local_bin_path
 configure_fail2ban_hardening
-configure_claude_desktop_ssh
 update_cc_switch_cli
 if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then
   install_codex_here
@@ -2733,6 +2758,18 @@ fi
 if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
   verify_agent_core_entries
 fi
+if [[ "$CLAUDE_CODE_MODE" != never ]]; then
+  select_python_bin
+  claude_args=(--install-packages --agent-core-home "$AGENT_CORE_DIR")
+  if [[ "$CLAUDE_CODE_MODE" == latest ]]; then
+    claude_args+=(--install-cli)
+  else
+    command -v claude >/dev/null || { echo "Claude Code missing; use --claude-code latest" >&2; exit 1; }
+    claude --version
+  fi
+  "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_claude.py" "${claude_args[@]}"
+fi
+configure_claude_desktop_ssh
 install_codex_patch_safety_skill
 if [[ "$INSTALL_AGENT_WT" -eq 1 ]]; then
   install_agent_wt

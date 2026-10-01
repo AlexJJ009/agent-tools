@@ -40,6 +40,8 @@ class ComponentSelectionTests(unittest.TestCase):
             '.claude/skills/build-eval': {'claude-adapter'},
             'tests/test_claude_hooks.py': {'claude-adapter'},
             'tests/test_install_claude.py': {'claude-adapter'},
+            '.agents/skills/build-eval/SKILL.md': {'project-evals'},
+            'tests/test_project_eval_skills.py': {'project-evals'},
             'agent_workflow/task_store.py': {'task-runtime', 'workflow-records', 'installation'},
             'learning_workflow/runtime.py': {'learning'},
             'skills/work-report/scripts/report_tool.py': {'reports', 'report-integration'},

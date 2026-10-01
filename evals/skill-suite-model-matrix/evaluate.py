@@ -44,11 +44,14 @@ def freeze_sources():
         files.update(p for p in directory.rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.suffix!='.pyc')
     hashes={str(path.relative_to(ROOT)):sha(path) for path in sorted(files)}
     binary=Path(shutil.which('codex')).resolve();hashes['@codex_binary:'+str(binary)]=sha(binary)
+    for asset in [binary.parent/'codex-code-mode-host']:
+        if not asset.is_file():raise RuntimeError('CLI runtime asset missing: '+str(asset))
+        hashes['@cli_asset:'+str(asset)]=sha(asset)
     return hashes
 
 def verify_frozen(manifest):
     for name,expected in manifest['frozen_files'].items():
-        path=Path(name.removeprefix('@codex_binary:')) if name.startswith('@codex_binary:') else ROOT/name
+        path=Path(name.split(':',1)[1]) if name.startswith(('@codex_binary:','@cli_asset:')) else ROOT/name
         if not path.is_file() or sha(path)!=expected:raise RuntimeError('Frozen source changed: '+name)
 
 def planned_manifest():

@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import time
 import unittest
@@ -22,6 +23,18 @@ class HarnessChecks(unittest.TestCase):
         self.assertEqual(r.validate_completion(events(model='other'),0,'gpt-5.5'),'serving_substitution')
         self.assertEqual(r.validate_completion(events(usage={'input_tokens':1,'output_tokens':2,'cached_input_tokens':3}),0,'gpt-5.5'),'invalid_token_usage')
         self.assertEqual(r.validate_completion(events()+[{'type':'turn.failed'}],0,'gpt-5.5'),'cli_execution')
+    def test_missing_code_mode_host_is_infrastructure(self):
+        error={'type':'item.completed','item':{'id':'infra','type':'error','message':'Code Mode is unavailable because failed to spawn code-mode host /opt/codex-code-mode-host: host executable was not found.'}}
+        self.assertEqual(r.validate_completion([error,*events()],0,'gpt-6.1-sol'),'code_mode_host_infrastructure')
+    def test_ordinary_tool_failure_is_not_infrastructure(self):
+        failed={'type':'item.completed','item':{'id':'test','type':'command_execution','exit_code':1,'aggregated_output':'AssertionError: expected bug reproduction'}}
+        self.assertIsNone(r.validate_completion([failed,*events()],0,'gpt-6.1-sol'))
+    def test_cli_sibling_host_is_mounted_without_profile(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'workspace').mkdir();(root/'home').mkdir()
+            cmd=r.sandbox_command(root/'workspace',root/'home',codex=Path(shutil.which('codex')).resolve())
+            result=subprocess.run(cmd+['python3','-c',"from pathlib import Path;import os;assert Path('/opt/codex-code-mode-host').is_file();assert os.access('/opt/codex-code-mode-host',os.X_OK);assert not Path('/home/alex_mercer').exists()"],capture_output=True,text=True)
+            self.assertEqual(result.returncode,0,result.stderr)
     def test_symlinks(self):
         with tempfile.TemporaryDirectory() as tmp:
             p=Path(tmp);(p/'broken').symlink_to('/does-not-exist');(p/'outside').symlink_to('/etc',target_is_directory=True)

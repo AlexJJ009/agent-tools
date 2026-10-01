@@ -88,6 +88,12 @@ class FileObserver:
         return {'method':'inotify','events':self.events,'log':str(self.log),'scope':['workspace except .git','runtime data root'],'overflow':any(e.get('overflow') for e in self.events),'limitations':'New-directory watch registration has a small race; hashes reflect processing time and can be absent after deletion. This is event evidence, not proof that no unobserved file was ever created.'}
 
 def validate_completion(events, exit_code, model):
+    for event in events:
+        item=event.get('item',{})
+        message=item.get('message','') if item.get('type')=='error' else event.get('message','') if event.get('type')=='error' else ''
+        lower=message.lower()
+        if ('code-mode host' in lower or 'code-mode-host' in lower or 'code mode' in lower) and any(token in lower for token in ('failed to spawn','failed to initialize','unavailable','host executable was not found')):
+            return 'code_mode_host_infrastructure'
     done=[e for e in events if e.get('type')=='turn.completed']
     messages=[e.get('item',{}).get('text','') for e in events if e.get('type')=='item.completed' and e.get('item',{}).get('type')=='agent_message']
     if exit_code!=0 or len(done)!=1 or any(e.get('type')=='turn.failed' for e in events):return 'cli_execution'
@@ -103,6 +109,14 @@ def validate_completion(events, exit_code, model):
 def write_json(path, value):
     Path(path).write_text(json.dumps(value, ensure_ascii=False, indent=2) + '\n')
 
+def cli_assets(codex):
+    """Runtime siblings shipped with this CLI; never mount the user's profile."""
+    binary=Path(codex).resolve()
+    candidates=[(binary.parent/'codex-code-mode-host','/opt/codex-code-mode-host')]
+    for path,_ in candidates:
+        if not path.is_file():raise RuntimeError('CLI runtime asset missing: '+str(path))
+    return candidates
+
 def sandbox_command(workspace, home, network=False, runtime=None, data=None, codex=None):
     cmd = ['bwrap', '--die-with-parent', '--new-session', '--unshare-all']
     if network:
@@ -117,6 +131,7 @@ def sandbox_command(workspace, home, network=False, runtime=None, data=None, cod
         cmd += ['--bind', str(data), '/data']
     if codex:
         cmd += ['--ro-bind', str(codex), '/opt/codex']
+        for source,destination in cli_assets(codex):cmd += ['--ro-bind',str(source),destination]
     cmd += ['--clearenv', '--setenv', 'HOME', '/home/eval', '--setenv', 'CODEX_HOME', '/home/eval/.codex', '--setenv', 'PATH', '/usr/bin:/bin', '--setenv', 'SHELL', '/bin/bash', '--setenv', 'LANG', 'C.UTF-8', '--setenv', 'PYTHONPATH', '/opt/runtime:/opt/runtime/python-deps', '--setenv', 'XDG_DATA_HOME', '/home/eval/.local/share', '--setenv', 'XDG_CONFIG_HOME', '/home/eval/.config', '--setenv', 'GIT_CONFIG_GLOBAL', '/dev/null', '--setenv', 'GIT_CONFIG_NOSYSTEM', '1']
     if network:
         for key in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy', 'all_proxy', 'no_proxy'):
@@ -224,6 +239,7 @@ def source_manifest(case, variant):
     hashes={str(path.relative_to(ROOT)):hashlib.sha256(path.read_bytes()).hexdigest() for path in paths if path.is_file() and '__pycache__' not in path.parts and path.suffix!='.pyc'}
     cli=Path(shutil.which('codex')).resolve()
     hashes['@codex_binary']=hashlib.sha256(cli.read_bytes()).hexdigest()
+    for asset,_ in cli_assets(cli):hashes['@cli_asset:'+str(asset)]=hashlib.sha256(asset.read_bytes()).hexdigest()
     return hashes
 
 def setup_skills(case,variant,home):
@@ -313,9 +329,10 @@ def run_case(case, variant, rep, output, model, timeout=300, effort='medium'):
     if task:prompt+='\n\n当前任务接口：python3 -m agent_workflow.cli task read --data-root /data --task '+task+'。可用checklist查询同一任务；实际runtime session绑定为eval-fixture。接口文档在/opt/runtime/docs/TASK_RUNTIME.md，变更包与状态可写/data；清理须保留当前用户授权原文。'
     (run/'prompt.txt').write_text(prompt)
     write_json(run/'before.json',before)
+    codex=Path(shutil.which('codex')).resolve()
+    cli_assets(codex)  # fail before creating a credential copy if the installation is incomplete
     auth=Path(os.environ.get('CODEX_HOME',str(Path.home()/'.codex')))/'auth.json'
     shutil.copyfile(auth,ch/'auth.json');(ch/'auth.json').chmod(0o600)
-    codex=Path(shutil.which('codex')).resolve()
     cli=sandbox_command(work,home,network=True,runtime=runtime,data=data,codex=codex)
     observer=FileObserver({'workspace':work,'runtime_data':data},run/'filesystem-events.jsonl') if case['id']=='C11' else None
     observer_before={'workspace':snapshot(work),'runtime_data':snapshot(data)} if observer else None

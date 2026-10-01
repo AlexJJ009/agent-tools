@@ -7,15 +7,15 @@ description: Write or revise requested standalone learning material such as a tu
 
 This is Agent Tools' learning-document capability, normally selected by Main or `teaching-reconstruction`. The user does not need to know this internal name. Turn inspected sources or existing learning state into requested durable writing without inventing evidence or treating polished prose as learner mastery.
 
-## Workflow
+## Writing and revision
 
-1. Reuse relevant learning state when it exists; a first complete draft may instead start from inspected sources and stated reader assumptions. Supply the necessary prerequisites and mark evidence gaps. Do not require a prior learning session or completed checks. Direct manuscript drafting and revision belong to `academic-writing`.
-2. Choose artifact form: tutorial, blog, study note, review memo, or audit report.
-3. Preserve source boundaries and provisional labels.
-4. Select domain-appropriate practice through `retrieval-practice` when it serves the learning request; respect prose-only or deferred-practice requests. Focus retention on up to three abilities without imposing a fixed question mixture. Keep answers separate in live practice; an offline self-study document may include a separate or folded key.
-5. When the request includes curation into a knowledge directory, follow the curation procedure below; a saved Markdown file alone does not complete that request.
+- Use relevant learning state or inspected sources and stated reader assumptions; no prior session or completed practice is required. Explain prerequisite knowledge and mark evidence gaps. Direct manuscript drafting and revision belong to `academic-writing`.
+- Choose the requested artifact form: tutorial, blog, study note, review memo, or audit report.
+- Preserve source boundaries and provisional labels.
+- Use `retrieval-practice` when practice serves the learning request; respect prose-only or deferred-practice requests. Select retention targets to fit the learner's effort, without a fixed question mix. Keep answers separate in live practice; a self-study document may include a separate or folded key.
+- When the request includes curation into a knowledge directory, follow the curation procedure below; a saved Markdown file alone does not complete that request.
 
-Deliver a coherent full first draft at the requested scope, with a clear entry into the problem and sections organized around useful questions. The learner may read selectively and request a rewrite after only part of the material. Revise the same artifact at the appropriate scale; retain valid evidence and adapt the explanation to the feedback rather than enforcing tiny iterations. Separate material review, known reading progress, actual practice results, and the learner's choice of what to retain. A document can be ready while all its checks remain unattempted.
+Deliver a complete, coherent first draft at the requested scope, introducing the problem and organizing sections around useful questions. Support selective reading and partial feedback: revise the same artifact at the appropriate scale while retaining valid evidence. Keep material review, reading progress, observed practice, and learner-selected retention distinct; a finished document does not establish mastery.
 
 ## Explicit Curation
 

@@ -39,6 +39,32 @@ class LedgerTests(unittest.TestCase):
         self.assertEqual(len(materials.load(self.data)), 240)
         self.assertEqual({e['schema'] for e in materials.load(self.data)}, {materials.SCHEMA})
 
+    def test_busy_lock_skips_recording_after_bounded_wait(self):
+        import fcntl
+        ledger = materials.ledger_path(self.data)
+        ledger.parent.mkdir(parents=True)
+        err = io.StringIO()
+        with ledger.open('ab') as holder, patch.object(materials, 'LOCK_TIMEOUT', 0.2), contextlib.redirect_stderr(err):
+            fcntl.flock(holder.fileno(), fcntl.LOCK_EX)
+            self.assertIsNone(materials.record(self.data, 'test', 'x', root=self.data))
+        self.assertIn('lock busy', err.getvalue())
+        self.assertEqual(materials.load(self.data), [])
+
+    def test_tree_digest_sees_replaced_file_with_same_size_and_mtime(self):
+        from agent_workflow.process_cleanup import _tree_digest
+        tree = self.data / 'tree'
+        tree.mkdir(parents=True)
+        f = tree / 'a.bin'
+        f.write_text('same')
+        stamp = f.stat().st_mtime_ns
+        before = _tree_digest(tree)
+        f.unlink()
+        (tree / 'other').write_text('keep inode busy')
+        f.write_text('same')
+        os.utime(f, ns=(stamp, stamp))
+        (tree / 'other').unlink()
+        self.assertNotEqual(_tree_digest(tree), before)
+
     def test_recording_failure_never_raises(self):
         materials.ledger_path(self.data).mkdir(parents=True)  # A directory cannot be appended to.
         err = io.StringIO()
@@ -222,6 +248,61 @@ class InventoryTests(unittest.TestCase):
                 run_cleanup(self.data, self.packet(target, op=op))
             self.assertEqual(cm.exception.code, 'unsafe_path')
         self.assertTrue(stray.exists())
+
+    def test_record_refuses_broad_paths(self):
+        for path in ('/', Path.home(), self.data, self.repo, self.repo.parent):
+            with self.subTest(path=path):
+                Path(path).mkdir(parents=True, exist_ok=True)
+                code, out = self.cli(materials_main, 'record', '--path', path, '--task', self.task)
+                self.assertEqual((code, json.loads(out)['code']), (1, 'unsafe_path'))
+
+    def assert_refused(self, target, op):
+        with self.assertRaises(TaskError) as cm:
+            run_cleanup(self.data, self.packet(target, op=op))
+        self.assertEqual(cm.exception.code, 'unsafe_path')
+        self.assertTrue(target.exists())
+
+    def test_ledger_scope_is_exact_owned_and_narrow(self):
+        parent = self.fill(self.repo.parent / 'shared/other-task', 2)
+        child = self.fill(parent / 'run', 2)
+        # Another task's directory unit does not authorize this task.
+        materials.record(parent, 'agent', 'other', task_id='someone-else', root=self.data)
+        self.assert_refused(child, 'foreign')
+        # A broad recorded ancestor (written by a producer bypassing record's check) authorizes nothing.
+        loose = self.fill(self.repo.parent / 'loose', 1)
+        materials.record(self.repo.parent, 'agent', 'too broad', kind='dir', task_id=self.task, root=self.data)
+        self.assert_refused(loose, 'broad')
+        # The nearest recorded entry decides: a removed child entry is not covered by a live parent.
+        materials.record(parent, 'agent', 'mine', task_id=self.task, root=self.data)
+        materials.record(child, 'agent', 'gone', 'removed', kind='dir', task_id=self.task, root=self.data)
+        self.assert_refused(child, 'nearest')
+
+    def test_external_paths_inside_another_repo_must_be_ignored(self):
+        other = self.repo.parent / 'other'
+        other.mkdir()
+        run = lambda *a: subprocess.run(['git', '-C', str(other), *a], capture_output=True, check=True)
+        run('init', '-q')
+        (other / '.gitignore').write_text('out/\n')
+        run('add', '.gitignore')
+        run('-c', 'user.name=T', '-c', 'user.email=t@example.invalid', 'commit', '-qm', 'i')
+        wip = other / 'wip.py'
+        wip.write_text('unsaved work')
+        src = self.fill(other / 'src', 2)
+        out = self.fill(other / 'out', 2)
+        for target, op in ((wip, 'wip'), (src, 'src')):
+            materials.record(target, 'agent', 'x', task_id=self.task, root=self.data)
+            self.assert_refused(target, op)
+        materials.record(out, 'agent', 'ignored output', task_id=self.task, root=self.data)
+        self.assertEqual(run_cleanup(self.data, self.packet(out, op='out'))['status'], 'complete')
+
+    def test_double_slash_paths_are_rejected(self):
+        packet = {'workspace': str(self.repo), 'task_id': self.task, 'operation_id': 'slashes', 'storage': 'external',
+                  'authorization': {'quote': 'q', 'source_ref': 's'}, 'process_materials_reviewed': True,
+                  'rationale': 'r', 'process_roots': ['//tmp'],
+                  'files': [{'path': '//tmp/x', 'sha256': '0' * 64, 'disposition': 'delete', 'category': 'cache'}]}
+        with self.assertRaises(TaskError) as cm:
+            run_cleanup(self.data, packet)
+        self.assertEqual((cm.exception.code, str(cm.exception)), ('unsafe_path', 'invalid process root'))
 
 
 if __name__ == '__main__':

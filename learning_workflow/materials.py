@@ -11,9 +11,11 @@ import json
 import os
 from pathlib import Path
 import sys
+import time
 
 SCHEMA = 'agent-tools.material/1'
 EVENTS = ('created', 'updated', 'removed')
+LOCK_TIMEOUT = 5
 
 
 def data_root(explicit=None):
@@ -50,8 +52,16 @@ def _locked_append(path, line):
             import fcntl
         except ImportError:  # Windows: single small O_APPEND writes.
             fcntl = None
-        if fcntl:
-            fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+        if fcntl:  # Bounded wait: a stuck holder must not stall the producer.
+            deadline = time.monotonic() + LOCK_TIMEOUT
+            while True:
+                try:
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError('ledger lock busy')
+                    time.sleep(0.02)
         try:
             stream.write(line)
             stream.flush()

@@ -60,7 +60,8 @@ recorded directory as a unit by tree digest. Completed removals append
   agent registers them or they fall under a known root.
 * Bad, because the ledger only grows; there is no compaction yet.
 * Neutral: the ledger is not authority to delete and nothing is deleted
-  automatically. Review, user authorization, Git checks (ignored/untracked in
-  the workspace, untracked elsewhere) and journaled recovery from ADR 0004
-  still apply. The directory tree digest
-  covers paths, types, sizes and modification times, not file bytes.
+  automatically. A ledger entry scopes only its own path or recorded directory
+  unit for its own task or workspace; broad paths are refused. Review, user
+  authorization, Git checks (untracked and ignored inside any worktree) and
+  journaled recovery from ADR 0004 still apply. The directory `tree_digest` is a
+  metadata identity, not a hash of file bytes.

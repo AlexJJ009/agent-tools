@@ -14,7 +14,7 @@ import sys
 
 from . import materials
 from .task_store import Store, TaskError, require
-from .process_cleanup import _hash, _tree_digest, artifact_roots, workspace_info
+from .process_cleanup import _hash, _tree_digest, artifact_roots, broad_path, workspace_info
 
 
 def _under(path, parent):
@@ -143,8 +143,8 @@ def cleanup_packet(store, args):
     for path in paths:
         name = str(path) if external else path.relative_to(workspace).as_posix()
         kind = 'dir' if path.is_dir() and not path.is_symlink() else 'file'
-        entry = {'path': name, 'sha256': _tree_digest(path) if kind == 'dir' else _hash(path),
-                 'disposition': 'delete' if kind == 'dir' else args.disposition, 'category': args.category}
+        entry = {'path': name, 'disposition': 'delete' if kind == 'dir' else args.disposition, 'category': args.category}
+        entry.update({'tree_digest': _tree_digest(path)} if kind == 'dir' else {'sha256': _hash(path)})
         if kind == 'dir':
             entry['kind'] = 'dir'
         files.append(entry)
@@ -194,6 +194,9 @@ def main(argv=None):
         if args.action == 'record':
             path = args.path.expanduser().absolute()
             require(path.exists(), 'not_found', f'path does not exist: {path}')
+            workspaces = [t['workspace'] for t in store.list()] + ([args.workspace] if args.workspace else [])
+            require(not broad_path(path.resolve(), store.root, workspaces), 'unsafe_path',
+                    'refusing /, home, the data root, a Git worktree root or an ancestor of one; record the material inside it')
             entry = materials.record(path, 'agent', args.purpose, args.event, workspace=args.workspace,
                                      task_id=args.task, session_id=args.session, root=store.root)
             require(entry is not None, 'storage_unavailable', 'ledger append failed')

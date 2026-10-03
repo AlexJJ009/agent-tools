@@ -87,11 +87,15 @@ command interface. The reporting sequence is:
 
 `--record-only` initializes registration material rather than a deliverable.
 After registration, initialize the formal report so the snapshot is fresh. With
-`--task-dir`, `init` reuses the task's latest formal batch of the same kind:
-it refreshes `context.json` and the frontmatter, keeps the written body, and the
-digest changes, so check, review and finalize run again in that directory. A
-different kind or agreement, a progress obligation (interval or interim) whose
-cutoff is later than that batch, or `--new-batch`, starts another batch.
+`--task-dir`, `init` reuses the task's latest formal batch of the same kind
+when the request is unchanged, or with `--revise`: it refreshes `context.json`
+and the frontmatter, keeps the written body, and the digest changes, so check,
+review and finalize run again in that directory. If the batch was delivered,
+the delivered files are first copied to `<batch>/revisions/<stamp>/`, where
+`finalize --verify-only` still verifies them; check and finalize refuse to write
+there. A different kind, request or agreement, a progress obligation (interval
+or interim) whose cutoff is later than that batch, or `--new-batch`, starts
+another batch.
 New delivery checks bind the request, workflow snapshot, report, reviews and
 evidence; an older placeholder or review file alone cannot satisfy them.
 `finalize --verify-only` verifies a historical frozen report without refreshing

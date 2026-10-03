@@ -12,9 +12,9 @@ artifact store. [SKILL.md](../SKILL.md) owns the review and authorization rules;
   ... --rationale ... --quote ... --source-ref ...` computes those digests from
   the reviewed inventory paths; the cleanup run verifies them again.
   Workspace mode accepts only ignored, untracked regular files, or a directory
-  entry (`kind: "dir"`, `delete` only) identified by a tree digest over relative
-  paths, types, sizes and modification times. It does not decide whether content
-  is obsolete. Completed removals are appended to the material ledger.
+  entry (`kind: "dir"`, `delete` only) identified by `tree_digest`, a metadata
+  identity (paths, inodes, ctimes, types, sizes, mtimes), not a content hash. It
+  does not decide whether content is obsolete. Completed removals are appended to the material ledger.
 - Inventory paths outside the workspace (unregistered files under the task's
   `<data-root>/artifacts/<task-id>/`, the `<repo-parent>/_artifacts/<repo>/`
   worktree artifact base, or ledger-recorded paths) get an `external` packet

@@ -382,17 +382,31 @@ class ReportToolTests(unittest.TestCase):
             self.assertTrue(again["reused_batch"])
             self.assertEqual(Path(again["report"]), case.report)
             self.assertEqual(case.report.read_text().split("\n---\n", 1)[1], body)
+            # The delivered snapshot is frozen under revisions/ and still verifies.
+            frozen = Path(again["frozen_revision"]) / "report.md"
+            self.assertEqual(frozen.parent.parent, case.report.parent / "revisions")
+            self.assert_pass(self.run_cli("finalize", "--report", frozen, "--task", case.task_id,
+                "--workspace", case.workspace, "--verify-only"))
+            self.assert_fail(self.check_report(case.__class__(**{**case.__dict__, "report": frozen})))
             self.assert_fail(self.finalize(case))  # The refreshed snapshot needs check and review again.
             self.assert_pass(self.check_report(case))
             self.write_review(case)
             self.assert_pass(self.finalize(case))
             self.assertEqual([p.parent for p in case.task_dir.glob("*/report.md")], [case.report.parent])
+            other = case.workspace / "other-request.md"
+            other.write_text("A different request: report the deployment.\n")
+            different = self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
+                "--request", other, "--task-dir", case.task_dir))
+            self.assertFalse(different["reused_batch"])
+            revise = self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
+                "--request", other, "--task-dir", case.task_dir, "--revise"))
+            self.assertEqual(Path(revise["report"]), Path(different["report"]))
             final = self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
                 "--request", case.workspace / "request.md", "--task-dir", case.task_dir, "--kind", "final"))
             extra = self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
                 "--request", case.workspace / "request.md", "--task-dir", case.task_dir, "--new-batch"))
             self.assertFalse(final["reused_batch"] or extra["reused_batch"])
-            self.assertEqual(len(list(case.task_dir.glob("*/report.md"))), 3)
+            self.assertEqual(len(list(case.task_dir.glob("*/report.md"))), 4)
 
     def test_new_periodic_progress_tick_gets_new_batch(self):
         with tempfile.TemporaryDirectory() as tmp:

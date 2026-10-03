@@ -405,9 +405,10 @@ with observed paths, hashes and actual authorization:
 exact workspace-relative paths. Each file
 must be a Git-ignored, untracked regular file within a declared root; symlinks
 and `.git` paths are rejected. A `files` entry with `"kind": "dir"` retires a
-whole ignored, untracked directory as a unit: its `sha256` is a tree digest over
-relative paths, entry types, file sizes and modification times (not file bytes),
-its disposition must be `delete`, and a nested `.git` entry is rejected.
+whole ignored, untracked directory as a unit. It carries `tree_digest` instead
+of `sha256`: a metadata identity over each entry's relative path, inode, ctime
+and type, plus file size and mtime or link target. It is not a content hash.
+The disposition must be `delete`, and a nested `.git` entry is rejected.
 Dispositions are `archive` or `delete`; categories are `process-output`, `cache`
 or `obsolete-state`. Unlike SQLite mutations, this packet has no `base_revision`.
 `agent-workflow materials cleanup-packet` builds this packet from selected
@@ -480,6 +481,10 @@ script or a shared experiment directory, with one command:
 agent-workflow materials record --path /absolute/path [--purpose TEXT] [--task TASK_ID] [--workspace /absolute/project]
 ```
 
+`record` refuses `/`, the home directory, the data root, a Git worktree root
+(including any task workspace) and any ancestor of these; record the material
+inside them instead.
+
 `materials list` answers where a task's files are and what Cleaner can review:
 
 ```sh
@@ -515,10 +520,14 @@ Paths outside the workspace produce a packet with `"storage": "external"`, whose
 `process_roots` and `files[].path` are absolute. Each target needs scope
 evidence, checked again by the cleanup run: an unregistered file or directory
 under this task's `<data-root>/artifacts/<task-id>/`, a path inside the
-repository's `<repo-parent>/_artifacts/<repo>/`, or a path whose own or ancestor
-latest ledger event is `created` or `updated`. The data root, the workspace,
-their ancestors, other data-root paths (journals, database, other tasks), Git
-worktree roots, Git-tracked paths and directories containing `.git` are refused.
+repository's `<repo-parent>/_artifacts/<repo>/`, or ledger scope. For ledger
+scope the nearest recorded path decides: it must be the target itself or a
+recorded directory above it, its latest event `created` or `updated`, its
+`task_id` this task or its `workspace` this workspace, and it must not be a
+path `record` would refuse. The data root, the workspace, their ancestors,
+other data-root paths (journals, database, other tasks), Git worktree roots and
+directories containing `.git` are refused. Inside any Git worktree a target
+must be untracked and Git-ignored.
 Authorization, the journal, quarantine and digest verification are unchanged.
 Workspace and external paths need separate packets. [ADR 0010](decisions/0010-material-ledger.md) records the decision.
 

@@ -15,6 +15,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -388,8 +389,8 @@ def render_report_template(context: dict[str, Any], rubric: dict[str, Any], scri
     return "---\n" + yaml.safe_dump(fm, allow_unicode=True, sort_keys=False).strip() + "\n---\n\n" + body
 
 
-def open_batch(task_dir: Path, kind: str) -> Path | None:
-    """Latest formal batch of this kind in the task; revisions reuse it instead of starting another."""
+def open_batch(task_dir: Path, kind: str, request_sha256: str, revise: bool = False) -> Path | None:
+    """Latest formal batch of this kind for the same request (or any request with --revise)."""
     def recency(path: Path) -> tuple[int, str]:  # Batch names have one-second resolution.
         try:
             return (path.parent / "context.json").stat().st_mtime_ns, path.parent.name
@@ -404,6 +405,10 @@ def open_batch(task_dir: Path, kind: str) -> Path | None:
         except ValidationFailure:
             continue
         if isinstance(data, dict) and data.get("schema_version") == CONTEXT_SCHEMA and data.get("kind") == kind:
+            if revise:
+                return path.parent
+            if (data.get("request") or {}).get("sha256") != request_sha256:
+                return None  # A different request is a different report.
             if kind == "progress" and progress_tick_after(task_dir, str(data.get("generated_at", ""))):
                 return None  # A new interval/interim obligation is a new report, not a revision.
             return path.parent
@@ -540,7 +545,8 @@ def cmd_init(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         initial_inventory = git_status(workspace) or {"status": "unavailable"}
 
     record_only = getattr(args, "record_only", False)
-    reused = None if record_only or getattr(args, "new_batch", False) or not args.task_dir else open_batch(task_dir, args.kind)
+    reused = None if record_only or getattr(args, "new_batch", False) or not args.task_dir else open_batch(
+        task_dir, args.kind, request_hash, getattr(args, "revise", False))
     report_id = reused.name if reused else f"{stamp()}-{args.kind}-{secrets.token_hex(3)}"
     report_dir = task_dir / report_id
     state_path = state_path or (task_dir / "working-state.md")
@@ -601,6 +607,7 @@ def cmd_init(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     parse_iso(context["window_start"], "window_start")
     context_path = report_dir / "context.json"
     report_path = report_dir / ("draft.md" if record_only else "report.md")
+    revision = archive_delivered(report_dir) if reused else None
     atomic_write_json(context_path, context)
     if reused:
         # Revision in place: refresh the frozen snapshot and frontmatter, keep the written body.
@@ -624,6 +631,7 @@ def cmd_init(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "task_id": task_id,
         "report_id": report_id,
         "reused_batch": bool(reused),
+        "frozen_revision": str(revision) if revision else None,
         ("draft" if record_only else "report"): str(report_path),
         "context": str(context_path),
         "state": str(state_path),
@@ -751,6 +759,39 @@ def strip_line_suffix(path: Path) -> Path:
     return path
 
 
+def batch_of(report_dir: Path) -> Path:
+    """A delivered revision lives in <batch>/revisions/<stamp>/ and keeps its batch identity."""
+    return report_dir.parent.parent if report_dir.parent.name == "revisions" else report_dir
+
+
+def physical(path: Path, report_dir: Path) -> Path:
+    """Map a path inside the batch to the frozen revision copy that holds it."""
+    batch = batch_of(report_dir)
+    return report_dir / path.relative_to(batch) if batch != report_dir and is_relative_to(path, batch) else path
+
+
+def logical(path: Path, report_dir: Path) -> Path:
+    batch = batch_of(report_dir)
+    return batch / path.relative_to(report_dir) if batch != report_dir and is_relative_to(path, report_dir) else path
+
+
+def archive_delivered(batch: Path) -> Path | None:
+    """Before revising a delivered batch in place, freeze the delivered snapshot under revisions/."""
+    receipt = batch / "delivery.json"
+    try:
+        delivered = receipt.is_file() and load_json_strict(receipt).get("status") == "pass"
+    except (ValidationFailure, AttributeError):
+        delivered = False
+    if not delivered:
+        return None
+    target = batch / "revisions" / f"{stamp()}-{secrets.token_hex(2)}"
+    reject_symlinks(target, include_leaf=False)
+    shutil.copytree(batch, target, ignore=lambda d, names: ["revisions"] if Path(d) == batch else [])
+    for name in ["checks.json", "review.json", "cold-read.json", "delivery.json"]:
+        (batch / name).unlink(missing_ok=True)  # The revised report needs fresh checks, review and delivery.
+    return target
+
+
 def resolve_local(ref: str, report_dir: Path) -> Path:
     parsed = urlparse(ref)
     raw = unquote(parsed.path) if parsed.scheme == "file" else ref.split("#", 1)[0]
@@ -822,11 +863,14 @@ def validate_report(report: Path, task_id: str, workspace: Path, *, current_work
     output_root = Path(context["output_root"]).resolve()
     if report.name != "report.md":
         issues.append(issue("report_name_invalid", "report file must be named report.md"))
-    if not is_relative_to(report, output_root) or report.parent.parent.parent.resolve() != output_root:
+    batch = batch_of(report_dir)
+    if not is_relative_to(report, output_root) or batch.parent.parent.resolve() != output_root:
         issues.append(issue("output_root_mismatch", "report path must be exactly under context output_root/task/report"))
-    if not REPORT_RE.match(report_dir.name) or context.get("report_id") != report_dir.name:
+    if not REPORT_RE.match(batch.name) or context.get("report_id") != batch.name:
         issues.append(issue("report_id_invalid", "report directory name and context report_id must match approved format"))
-    if report_dir.parent.name != task_id or not TASK_RE.match(task_id):
+    if current_workflow and batch != report_dir:
+        issues.append(issue("revision_frozen", "a delivered revision is read-only; use finalize --verify-only"))
+    if batch.parent.name != task_id or not TASK_RE.match(task_id):
         issues.append(issue("task_id_invalid", "task id/path must match approved format"))
 
     policy_artifacts = [report, context_path]
@@ -872,7 +916,7 @@ def validate_report(report: Path, task_id: str, workspace: Path, *, current_work
     cited_files: list[Path] = []
     image_count = 0
     for ref, is_image in local_links:
-        path = resolve_local(ref, report_dir)
+        path = physical(resolve_local(ref, batch), report_dir)
         if not path.exists():
             issues.append(issue("local_reference_missing", f"missing local reference: {ref}"))
             continue
@@ -918,7 +962,7 @@ def digest_manifest(report: Path, cited_files: list[Path]) -> tuple[str, list[di
         if name in {"checks.json", "review.json", "delivery.json"}:
             continue
         digest = sha256_file(resolved)
-        evidence.append({"path": str(resolved), "sha256": digest})
+        evidence.append({"path": str(logical(resolved, report_dir)), "sha256": digest})
     manifest = {"schema_version": "work-report.digest/1", "files": evidence}
     raw = json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(raw).hexdigest(), evidence
@@ -927,6 +971,8 @@ def digest_manifest(report: Path, cited_files: list[Path]) -> tuple[str, list[di
 def cmd_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     workspace = canonical_workspace(safe_absolute(Path(args.workspace)))
     report = safe_absolute(Path(args.report))
+    if batch_of(report.parent) != report.parent:
+        raise ValidationFailure([issue("revision_frozen", "a delivered revision is read-only; use finalize --verify-only")])
     try:
         context, issues, warnings, cited = validate_report(report, args.task, workspace)
         artifact_digest, evidence = digest_manifest(report, cited)
@@ -1104,7 +1150,7 @@ def cmd_finalize(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             issues.append(issue("checks_not_pass", "checks.json must have status pass"))
         if checks.get("artifact_digest") != digest:
             issues.append(issue("checks_digest_mismatch", "checks artifact_digest does not match current report"))
-        if checks.get("task_id") != args.task or checks.get("report_id") != report.parent.name:
+        if checks.get("task_id") != args.task or checks.get("report_id") != batch_of(report.parent).name:
             issues.append(issue("checks_metadata_mismatch", "checks task/report metadata does not match"))
     rubric, _, rub_warnings = load_rubric(Path(__file__).resolve(), context.get("rubric_version", "2.0.1"))
     warnings.extend(rub_warnings)
@@ -1161,6 +1207,8 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--window-end")
     init.add_argument("--record-only", action="store_true",
                       help="start process recording with draft.md, not a deliverable report.md")
+    init.add_argument("--revise", action="store_true",
+                      help="revise the task's latest batch of this kind even though the request changed")
     init.add_argument("--new-batch", action="store_true",
                       help="start another batch even though this task already has one of this kind")
     init.set_defaults(func=cmd_init)

@@ -91,6 +91,7 @@ not an automatic Stop guarantee.
 current user's `.codex/hooks.json`, preserving foreign groups and leaving model,
 auth, CC Switch and hooks.state unchanged. Use native `/hooks` to review/trust
 installed definitions. File existence or installer PASS does not prove trust.
+Claude Code registration (no `Interrupt` event): agent-tools `docs/CLAUDE_CODE_ADAPTER.md`.
 
 - `UserPromptSubmit`: conservatively captures possible report/timing requests;
   an actual intent Judge decides semantics. A prompt that is only a

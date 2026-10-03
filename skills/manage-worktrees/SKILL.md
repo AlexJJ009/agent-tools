@@ -1,6 +1,6 @@
 ---
 name: manage-worktrees
-description: Decide whether a coding task should use the current checkout, a branch, or a managed Git worktree; return unsupported guidance for permission boundaries; then inspect, create, list, and diagnose agent-safe workspaces with consistent paths, cache plans, artifact roots, and registry records. Use when Codex is about to start isolated or parallel repository work, mentions Git worktrees, needs a hotfix/review workspace, or needs to audit dependency and artifact hygiene.
+description: Decide whether a coding task should use the current checkout, a branch, or a managed Git worktree; return unsupported guidance for permission boundaries; then inspect, create, list, and diagnose agent-safe workspaces with consistent paths, cache plans, artifact roots, and registry records. Use when the coding agent is about to start isolated or parallel repository work, mentions Git worktrees, needs a hotfix/review workspace, or needs to audit dependency and artifact hygiene.
 ---
 
 # Manage Worktrees

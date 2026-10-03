@@ -86,6 +86,12 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
     def test_isolated_unix_install_creates_exactly_one_current_scope_skill(self):
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary)
+            stale = [home / "agent-tools-installed" / name for name in (
+                "linear_workflow/VERSION", "config/managed-packages/linear-workflow.json",
+                "scripts/managed_package_installer.py", "docs/linear-workflow/README.md")]
+            for path in stale:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("removed release")
             self.run_isolated_unix_install(home)
             current = home / ".codex" / "skills" / "manage-worktrees"
             legacy = home / ".agents" / "skills" / "manage-worktrees"
@@ -101,7 +107,9 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
                 for skill in ("linear-plan", "linear-deliver"):
                     self.assertFalse((home / client / "skills" / skill).exists())
             self.assertFalse((home / ".local/bin/linear-workflow").exists())
-            self.assertTrue((home / "agent-tools-installed/config/managed-packages/linear-workflow.json").is_file())
+            self.assertTrue((home / "agent-tools-installed/config/retired-packages/linear-workflow.json").is_file())
+            for path in stale:
+                self.assertFalse(path.parent.exists() if path.parent.name != "scripts" else path.exists(), path)
 
     def test_isolated_unix_install_rejects_legacy_duplicate(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -217,6 +225,39 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
         self.assertIn("($ApplyCodexProviderBucketMigration -or $DryRunCodexProviderBucketMigration -or $KillRunningCodexProviderBucketMigration)", installer)
         self.assertIn("$KillRunningCodexProviderBucketMigration -and -not $NoKillRunningCodexProviderBucketMigration", installer)
 
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell unavailable")
+    def test_win11_installer_rejects_mismatched_write_profiles_before_writes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            home, other = root / "home", root / "other"
+            wrapper = root / "capture-installer-error.ps1"
+            wrapper_text = (
+                "param([string]$Installer, [string]$UserHome, [string]$CodexHome, [string]$CcSwitchDb)\n"
+                "$ErrorActionPreference = 'Stop'\n"
+                "try {\n"
+                "  & $Installer -UserHome $UserHome -CodexHome $CodexHome -CcSwitchDb $CcSwitchDb\n"
+                "  exit 0\n"
+                "} catch {\n"
+                "  [Console]::Error.WriteLine($_.Exception.Message)\n"
+                "  exit 1\n"
+                "}\n"
+            )
+            wrapper.write_text(wrapper_text)
+            for codex, database in ((other / ".codex", home / ".cc-switch/cc-switch.db"),
+                                    (home / ".codex", other / ".cc-switch/cc-switch.db")):
+                with self.subTest(codex=codex, database=database):
+                    result = subprocess.run(
+                        ["pwsh", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(wrapper),
+                         "-Installer", "./scripts/install-win11.ps1",
+                         "-UserHome", str(home), "-CodexHome", str(codex), "-CcSwitchDb", str(database)],
+                        cwd=ROOT, text=True, errors="replace", capture_output=True, timeout=20,
+                    )
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertEqual(result.stderr.strip(),
+                                     "UserHome, CodexHome, and CcSwitchDb must belong to the same native Win11 profile")
+                    self.assertEqual(list(root.iterdir()), [wrapper])
+                    self.assertEqual(wrapper.read_text(), wrapper_text)
+
     def test_explicit_cron_uses_only_isolated_crontab(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
@@ -242,7 +283,7 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
         for name in (
             "install.sh", "sync_agent_context.py", "sync_agent_context_cron.sh",
             "codex_project_memory.py", "agent_context_sync.config.example.json",
-            "bin", "scripts", "config", "skills", "linear_workflow",
+            "bin", "scripts", "config", "skills",
         ):
             source = ROOT / name
             if source.is_dir():

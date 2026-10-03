@@ -23,7 +23,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ($LinearWorkflow) {
-  throw "Linear Workflow is deprecated and disabled; installation is not supported."
+  throw "Linear Workflow was removed; installation is not supported."
 }
 
 function Get-PythonCommand {
@@ -147,17 +147,6 @@ function Install-CodexPatchSafetySkill {
   Write-Host "Installed Codex Win11 patch safety skill."
 }
 
-function Install-LinearWorkflow {
-  param(
-    [Parameter(Mandatory = $true)][string]$RepoRoot,
-    [Parameter(Mandatory = $true)][string]$TargetHome
-  )
-  $helper = Join-Path $RepoRoot "scripts\managed_package_installer.py"
-  $descriptor = Join-Path $RepoRoot "config\managed-packages\linear-workflow.json"
-  Invoke-AgentToolsPython $helper install --descriptor $descriptor --repo-root $RepoRoot --home $TargetHome --platform win11
-  Write-Host "Linear Workflow installed for native Win11 user: $TargetHome"
-}
-
 function Install-AgentWt {
   param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
@@ -275,13 +264,8 @@ if (-not $NoAgentWt) {
   Write-Host "agent-wt not installed (-NoAgentWt)."
 }
 
-$installLinearWorkflow = $false
-if ($installLinearWorkflow) {
-  Install-LinearWorkflow -RepoRoot $Root -TargetHome $UserHome
-} else {
-  Invoke-AgentToolsPython (Join-Path $Root "scripts\managed_package_installer.py") disable --descriptor (Join-Path $Root "config\managed-packages\linear-workflow.json") --repo-root $Root --home $UserHome --platform win11
-  Write-Host "Linear Workflow deprecated and disabled; source and historical data retained."
-}
+Invoke-AgentToolsPython (Join-Path $Root "scripts\retired_package_cleanup.py") remove --record (Join-Path $Root "config\retired-packages\linear-workflow.json") --repo-root $Root --home $UserHome --platform win11
+Write-Host "Linear Workflow removed; verified client copies cleaned, runtime data retained."
 
 if (-not $NoCodexManualRemoteConnect) {
   Install-CodexManualRemoteConnect -RepoRoot $Root -TargetHome $UserHome -TargetScript $ManualRemoteConnectScript

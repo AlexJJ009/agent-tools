@@ -50,7 +50,8 @@ class ComponentSelectionTests(unittest.TestCase):
             'skills/manage-worktrees/scripts/agent_wt.py': {'worktrees', 'installation'},
             'skills/codex-win11-patch-safety/scripts/patch_release.py': {'win11-patch', 'installation'},
             'tools/win11-proxy-relay/runtime/probe.py': {'proxy-relay'},
-            'linear_workflow/shared/runtime/src/anything.py': {'installation'},
+            'config/retired-packages/linear-workflow.json': {'installation'},
+            'tests/test_retired_package_cleanup.py': {'installation'},
             'tests/test_task_store.py': {'task-runtime'},
             'scripts/verify_workflow_increment.py': set(),
             'tests/test_workflow_increment_acceptance.py': set(),
@@ -68,14 +69,13 @@ class ComponentSelectionTests(unittest.TestCase):
         for path, expected in cases.items():
             with self.subTest(path=path):
                 self.assertEqual(set(runner.select_suites([path])), expected)
-        for path in ('install.sh', '.github/workflows/linear-workflow-runtime.yml',
+        for path in ('install.sh', '.github/workflows/regression.yml',
                      'scripts/run_regression_tests.py', 'scripts/codex_target_guard.py', 'new_runtime/new_module.py'):
             with self.subTest(path=path):
                 self.assertEqual(runner.select_suites([path]), runner.ACTIVE)
         self.assertEqual(set(runner.select_suites(['docs/README.md', 'learning_workflow/runtime.py',
                                                   'tools/win11-proxy-relay/runtime/probe.py'])),
                          {'learning', 'proxy-relay'})
-        self.assertNotIn('linear-compatibility', runner.ACTIVE)
 
     def test_current_modules_have_one_owner_and_unknown_tests_fail_explicitly(self):
         for path in (runner.ROOT / 'tests').glob('test_*.py'):

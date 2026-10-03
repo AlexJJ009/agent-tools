@@ -14,6 +14,6 @@ Select applicable checks at intake and acceptance. Keep one general Coder; norma
 
 For office requests create distinct fact, audience and exported-output requirements. Bind them to material/data cells/output pages, not fabricated code symbols. Missing source facts or a target artifact stays unverified; do not run pytest or label source inspection as successful export. Use an available document/slides tool suited to the requested output; do not auto-publish.
 
-For mixed delivery and learning, identify the two deliverables and applicable checks in one task agreement. For mixed algorithm and infra, combine checks without duplicate task files. Respect the project's actual current CI and authorization requirements. Retired Linear Workflow adapters or old Batch approvals do not reactivate a workflow; local records do not create external authority.
+For mixed delivery and learning, identify the two deliverables and applicable checks in one task agreement. For mixed algorithm and infra, combine checks without duplicate task files. Respect the project's actual current CI and authorization requirements. Local records do not create external authority.
 
 Checklist expectations are derived from the canonical protocols. Proposals (extra seeds, full CI, benchmarks, broad refactors) remain proposals unless adopted; do not silently require them for small tasks. Preserve known failures and unchanged valid evidence. Use `check --item <ID>` after repairing only the affected binding/implementation.

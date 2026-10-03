@@ -20,8 +20,6 @@ FAIL2BAN_SSHD_BANACTION="${FAIL2BAN_SSHD_BANACTION:-iptables-multiport[blocktype
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
 INSTALL_AGENT_WT=1
-INSTALL_LINEAR_WORKFLOW=0
-LINEAR_WORKFLOW_ONLY=0
 INSTALL_CC_SWITCH_CLI_UPDATE="${INSTALL_CC_SWITCH_CLI_UPDATE:-1}"
 CC_SWITCH_UPDATE_PROXY_MODE="${CC_SWITCH_UPDATE_PROXY_MODE:-auto}"
 CC_SWITCH_UPDATE_CONNECT_TIMEOUT="${CC_SWITCH_UPDATE_CONNECT_TIMEOUT:-10}"
@@ -78,7 +76,6 @@ INSTALL_AGENT_CORE_ENTRIES=1
 AGENT_CORE_ENTRIES_STATUS=""
 CODEX_PATCH_SAFETY_SKILL_STATUS=""
 AGENT_WT_STATUS=""
-LINEAR_WORKFLOW_STATUS=""
 LOCAL_BIN_PATH_STATUS=""
 CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS=""
 CLAUDE_DESKTOP_SSH_STATUS=""
@@ -2153,47 +2150,6 @@ check_codex_patch_safety_skill_drift() {
   fi
 }
 
-install_linear_workflow_tools() {
-  LINEAR_WORKFLOW_STATUS="skipped"
-  local descriptor="$INSTALL_REAL/config/managed-packages/linear-workflow.json"
-  if [[ ! -f "$descriptor" ]]; then
-    echo "Linear Workflow not installed: missing $descriptor" >&2
-    return 1
-  fi
-  select_python_bin
-  "$PYTHON_BIN" "$INSTALL_REAL/scripts/managed_package_installer.py" install \
-    --descriptor "$descriptor" --repo-root "$INSTALL_REAL" --home "$HOME" --platform unix
-  if command -v codex >/dev/null 2>&1; then
-    if codex plugin add linear-workflow@personal >/dev/null 2>&1; then
-      LINEAR_WORKFLOW_STATUS="installed: Codex/Claude adapters + personal plugin + isolated uv runtime"
-    else
-      LINEAR_WORKFLOW_STATUS="installed; codex plugin add failed"
-      echo "Linear Workflow plugin cache installed, but 'codex plugin add linear-workflow@personal' failed." >&2
-    fi
-  else
-    LINEAR_WORKFLOW_STATUS="installed; codex plugin add skipped (codex unavailable)"
-  fi
-}
-
-install_linear_workflow_only() {
-  local source_real install_real
-  source_real="$(cd -- "$SOURCE_DIR" && pwd -P)"
-  mkdir -p "$INSTALL_DIR"
-  install_real="$(cd -- "$INSTALL_DIR" && pwd -P)"
-  if [[ "$source_real" != "$install_real" ]]; then
-    for item in linear_workflow config scripts; do
-      if [[ -e "$install_real/$item" ]]; then
-        echo "linear-workflow-only refuses to replace existing target: $install_real/$item" >&2
-        return 1
-      fi
-      cp -R "$SOURCE_DIR/$item" "$install_real/$item"
-    done
-  fi
-  INSTALL_REAL="$install_real"
-  install_linear_workflow_tools
-  printf '%s\n' "$LINEAR_WORKFLOW_STATUS"
-}
-
 backup_and_copy_managed() {
   local source="$1"
   local target="$2"
@@ -2361,9 +2317,8 @@ Options:
   --no-codex-here          Do not install ~/.local/bin/codex-here.
   --no-agent-wt            Do not install the agent-wt launcher or
                            the current-scope Codex manage-worktrees Skill.
-  --linear-workflow        Deprecated: rejected; Linear Workflow is disabled.
-  --linear-workflow-only   Deprecated: rejected; source is retained only.
-  --no-linear-workflow     Keep Linear Workflow disabled (default).
+  --linear-workflow, --linear-workflow-only
+                           Removed: rejected. --no-linear-workflow is a no-op.
   --no-cc-switch-update    Do not update cc-switch-cli from the latest GitHub
                            release before Codex provider migration.
   --cc-switch-update-proxy MODE
@@ -2450,11 +2405,10 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --linear-workflow|--linear-workflow-only)
-      echo "Linear Workflow is deprecated and disabled; installation is not supported." >&2
+      echo "Linear Workflow was removed; installation is not supported." >&2
       exit 2
       ;;
     --no-linear-workflow)
-      INSTALL_LINEAR_WORKFLOW=0
       shift
       ;;
     --install-dir)
@@ -2660,11 +2614,6 @@ case "$CLAUDE_CODE_MODE" in
 esac
 run_codex_target_guard before
 
-if [[ "$LINEAR_WORKFLOW_ONLY" -eq 1 ]]; then
-  install_linear_workflow_only
-  exit 0
-fi
-
 if [[ ${#SCAN_ROOTS[@]} -eq 0 ]]; then
   SCAN_ROOTS+=("$(pwd)")
 fi
@@ -2676,8 +2625,8 @@ if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
   check_codex_patch_safety_skill_drift "$SOURCE_REAL"
   patch_status="$?"
   select_python_bin
-  if ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/managed_package_installer.py" check \
-    --descriptor "$SOURCE_REAL/config/managed-packages/linear-workflow.json" \
+  if ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/retired_package_cleanup.py" check \
+    --record "$SOURCE_REAL/config/retired-packages/linear-workflow.json" \
     --repo-root "$SOURCE_REAL" --home "$HOME" --platform unix; then
     linear_status=1
   fi
@@ -2693,6 +2642,10 @@ SOURCE_REAL="$(cd "$SOURCE_DIR" && pwd -P)"
 INSTALL_REAL="$(mkdir -p "$INSTALL_DIR" && cd "$INSTALL_DIR" && pwd -P)"
 
 if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
+  # Linear Workflow source was removed; drop copies left by earlier releases.
+  rm -rf "$INSTALL_REAL/linear_workflow" "$INSTALL_REAL/docs/linear-workflow" "$INSTALL_REAL/docs/linear-templates" \
+    "$INSTALL_REAL/config/managed-packages/linear-workflow.json" "$INSTALL_REAL/scripts/managed_package_installer.py"
+  rmdir "$INSTALL_REAL/config/managed-packages" 2>/dev/null || true
   cp "$SOURCE_DIR/sync_agent_context.py" "$INSTALL_REAL/"
   cp "$SOURCE_DIR/sync_agent_context_cron.sh" "$INSTALL_REAL/"
   cp "$SOURCE_DIR/codex_project_memory.py" "$INSTALL_REAL/"
@@ -2703,7 +2656,6 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   [[ -d "$SOURCE_DIR/config" ]] && cp -R "$SOURCE_DIR/config" "$INSTALL_REAL/"
   [[ -f "$SOURCE_DIR/README.md" ]] && cp "$SOURCE_DIR/README.md" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/docs" ]] && cp -R "$SOURCE_DIR/docs" "$INSTALL_REAL/"
-  [[ -d "$SOURCE_DIR/linear_workflow" ]] && cp -R "$SOURCE_DIR/linear_workflow" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/skills" ]] && cp -R "$SOURCE_DIR/skills" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/adapters" ]] && cp -R "$SOURCE_DIR/adapters" "$INSTALL_REAL/"
   [[ -d "$SOURCE_DIR/agent_workflow" ]] && cp -R "$SOURCE_DIR/agent_workflow" "$INSTALL_REAL/"
@@ -2774,14 +2726,10 @@ install_codex_patch_safety_skill
 if [[ "$INSTALL_AGENT_WT" -eq 1 ]]; then
   install_agent_wt
 fi
-if [[ "$INSTALL_LINEAR_WORKFLOW" -eq 1 ]]; then
-  install_linear_workflow_tools
-else
-  select_python_bin
-  "$PYTHON_BIN" "$INSTALL_REAL/scripts/managed_package_installer.py" disable \
-    --descriptor "$INSTALL_REAL/config/managed-packages/linear-workflow.json" \
-    --repo-root "$INSTALL_REAL" --home "$HOME" --platform unix
-fi
+select_python_bin
+"$PYTHON_BIN" "$INSTALL_REAL/scripts/retired_package_cleanup.py" remove \
+  --record "$INSTALL_REAL/config/retired-packages/linear-workflow.json" \
+  --repo-root "$INSTALL_REAL" --home "$HOME" --platform unix
 select_python_bin
 
 "$PYTHON_BIN" - "$INSTALL_REAL/agent_context_sync.config.json" "$MAX_DEPTH" "$SCOPE" "$DIRECTION" "$PREFER" "$MODE" "${SCAN_ROOTS[@]}" <<'PY'
@@ -2890,9 +2838,5 @@ if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
 else
   echo "agent-core entries not checked (--no-agent-core)."
 fi
-if [[ "$INSTALL_LINEAR_WORKFLOW" -eq 1 ]]; then
-  echo "Linear Workflow: ${LINEAR_WORKFLOW_STATUS}"
-else
-  echo "Linear Workflow deprecated and disabled; source and historical data retained."
-fi
+echo "Linear Workflow removed; verified client copies cleaned, runtime data retained."
 echo "Codex Win11 patch safety skill: ${CODEX_PATCH_SAFETY_SKILL_STATUS}"

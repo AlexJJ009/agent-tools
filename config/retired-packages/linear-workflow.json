@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "linear-workflow",
+  "version": "0.4.0",
+  "removed": "Source removed on 2026-10-03; see docs/decisions/0006-retire-linear-workflow.md. sha256 values fingerprint the last shipped copies.",
+  "targets": [
+    {"destination": ".codex/skills/linear-plan", "kind": "dir", "sha256": "194ce45c180a51896ac7790adcef04bbea10eec78688f9e704bcde4668df7402"},
+    {"destination": ".codex/skills/linear-deliver", "kind": "dir", "sha256": "80f0f1635b91718facb95bde9eb8aebe28c9635d7950564aa359f0ca9fec9ff0"},
+    {"destination": "plugins/linear-workflow", "kind": "dir", "sha256": "110ad012db70fe74dd89dc49e9f2713fce2b3d26350af6039688aa37ab3fed9d"},
+    {"destination": ".codex/plugins/cache/personal/linear-workflow/{version}", "kind": "dir", "sha256": "110ad012db70fe74dd89dc49e9f2713fce2b3d26350af6039688aa37ab3fed9d"},
+    {"destination": ".claude/skills/linear-plan", "kind": "dir", "sha256": "e35c7fd463133582ce5d4f6039ffb3950b1f560ee2e7e89813b1823f6e1b596f"},
+    {"destination": ".claude/skills/linear-deliver", "kind": "dir", "sha256": "c0c669b591eccacda391689335a0de15fd318290c4c7689d7484bf839a9f71ce"},
+    {"destination": ".claude/commands/linear-plan.md", "kind": "file", "sha256": "23d8d9d5e084b2656d669c90fd3f718782a699c3c91c6644e46e6cae523ccf1b"},
+    {"destination": ".claude/commands/linear-deliver.md", "kind": "file", "sha256": "753a1856ad35e662c74e1265981f6cbc4ef531e8537046da60184b7dd5c725ed"}
+  ],
+  "plugin_registration": {"name": "linear-workflow", "path": "./plugins/linear-workflow"},
+  "launcher": {"entrypoint": "linear-workflow", "name": "linear-workflow", "windows_name": "linear-workflow.cmd"}
+}

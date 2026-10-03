@@ -181,7 +181,7 @@ rule belongs to authorized repository setup, not each report. Do not implicitly
 add, commit, untrack files, or edit project .gitignore while reporting. Export a
 specific report to a tracked location only when asked; otherwise preserve
 excluded artifacts separately before removing a workspace. Do not auto-publish,
-create business PRDs, use Linear, or introduce a global task database.
+create business PRDs or introduce a global task database.
 
 Hook definitions, trust activation, scheduled execution and report delivery are
 separate states. Read back each; an installed file is not an active guarantee.

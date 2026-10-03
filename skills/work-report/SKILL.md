@@ -78,15 +78,18 @@ uv run --script <skill-dir>/scripts/report_tool.py init \
 Omit `--workflow-record` when there is no workflow record. With one, context.json
 freezes its actual checklist bytes, hash and revision alongside the request and
 working state. Brief and report must refer to the same applicable canonical
-state; do not reconstruct another acceptance ledger. A new report's delivery
-checks reject a changed workflow snapshot. Initialize another batch after a
-material state update. Historical `finalize --verify-only` remains read-only
-and verifies the frozen report instead of requiring the live task to stop moving.
+state; do not reconstruct another acceptance ledger. Delivery checks reject a
+changed workflow snapshot; after a material state update, rerun `init` with the
+same `--task-dir` to refresh the snapshot, then check and finalize again.
+Historical `finalize --verify-only` remains read-only and verifies the frozen
+report instead of requiring the live task to stop moving.
 
 Use `--record-only` to create `draft.md` and state for registration, not a delivered
 report. Reuse `--task-dir` for one agreement and `--state` for an existing working
-state. Formal reporting after registration always uses a newly initialized
-batch. A temporary interim report alongside another active obligation gets its
+state. With `--task-dir`, `init` reuses the task's latest formal batch of the
+same kind: revisions stay in that directory and the digest is recomputed. A
+different kind or agreement, or `--new-batch`, starts another batch; the
+registration draft never serves as the formal report. A temporary interim report alongside another active obligation gets its
 own task directory and references the original state; do not cancel the earlier
 obligation. Preserve the original goal and resume point in that state.
 
@@ -105,7 +108,7 @@ directory. Keep temporary drafts and intermediate files in
 must remain with their bound snapshot. This convention does not require
 creating all three directories, a local index or a transcript of tool output.
 Do not transcribe every tool call or update global memory automatically. A
-report does not terminate background work. New state needs a new snapshot;
+report does not terminate background work. New state needs a refreshed snapshot;
 an early placeholder batch cannot stand in for a completed report.
 
 ## Write and check

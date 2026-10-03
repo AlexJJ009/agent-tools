@@ -352,6 +352,67 @@ class ReportToolTests(unittest.TestCase):
         self.assert_pass(self.check_report(case))
         return case
 
+    def test_revision_reuses_batch_and_new_report_gets_new_batch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = self.checked_case(tmp)
+            self.write_review(case)
+            self.assert_pass(self.finalize(case))
+            body = case.report.read_text().split("\n---\n", 1)[1]
+            again = self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
+                "--request", case.workspace / "request.md", "--task-dir", case.task_dir))
+            self.assertTrue(again["reused_batch"])
+            self.assertEqual(Path(again["report"]), case.report)
+            self.assertEqual(case.report.read_text().split("\n---\n", 1)[1], body)
+            self.assert_fail(self.finalize(case))  # The refreshed snapshot needs check and review again.
+            self.assert_pass(self.check_report(case))
+            self.write_review(case)
+            self.assert_pass(self.finalize(case))
+            self.assertEqual([p.parent for p in case.task_dir.glob("*/report.md")], [case.report.parent])
+            final = self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
+                "--request", case.workspace / "request.md", "--task-dir", case.task_dir, "--kind", "final"))
+            extra = self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
+                "--request", case.workspace / "request.md", "--task-dir", case.task_dir, "--new-batch"))
+            self.assertFalse(final["reused_batch"] or extra["reused_batch"])
+            self.assertEqual(len(list(case.task_dir.glob("*/report.md"))), 3)
+
+    def test_outputs_are_registered_in_material_ledger(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data = Path(tmp) / "data"
+            with patch.dict(os.environ, {"XDG_DATA_HOME": str(data), "XDG_CONFIG_HOME": str(Path(tmp) / "config")}):
+                case = self.checked_case(tmp)
+            ledger = data / "agent-tools/materials/ledger.jsonl"
+            entries = [json.loads(line) for line in ledger.read_text().splitlines()]
+            self.assertEqual([(e["path"], e["kind"], e["event"]) for e in entries], [
+                (str(case.task_dir), "dir", "created"), (str(case.report.parent), "dir", "created"),
+                (str(case.report.parent), "dir", "updated")])
+            self.assertEqual({(e["producer"], e["task_id"]) for e in entries}, {("work-report", case.task_id)})
+
+    def test_plain_directory_inside_commitless_repo_is_its_own_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            outer = Path(tmp).resolve() / "team"
+            outer.mkdir()
+            self.git(outer, "init")  # No commit, like an empty shared team repository.
+            inner = outer / "artifacts" / "run"
+            inner.mkdir(parents=True)
+            case = self.init_report(inner)
+            self.assertEqual(case.output_root, inner / "docs/_local/reports")
+            self.assertEqual(json.loads(case.context.read_text())["workspace"], str(inner))
+            self.assertFalse((outer / "docs").exists())
+            exclude = outer / ".git/info/exclude"
+            self.assertNotIn("docs/_local", exclude.read_text() if exclude.exists() else "")
+
+    def test_tracked_subdirectory_still_resolves_to_its_repo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = self.make_workspace(tmp, git=True)
+            (workspace / "src").mkdir()
+            (workspace / "src/a.py").write_text("x = 1\n")
+            self.git(workspace, "add", "src/a.py")
+            self.git(workspace, "commit", "-m", "src")
+            request = workspace / "request.md"
+            request.write_text("Report the change.\n")
+            result = self.assert_pass(self.run_cli("init", "--workspace", workspace / "src", "--title", "t", "--request", request))
+            self.assertTrue(Path(result["report"]).is_relative_to(workspace.resolve() / "docs/_local/reports"))
+
     def test_record_only_does_not_publish_report(self):
         with tempfile.TemporaryDirectory() as tmp:
             workspace = self.make_workspace(tmp)

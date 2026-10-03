@@ -285,6 +285,26 @@ class ReportRuntimeTests(unittest.TestCase):
         result = self.data(self.register(repo, legacy, request, decision))
         self.assertEqual(result['status'], 'registered', result)
 
+    def test_prompt_in_plain_dir_inside_commitless_repo_leaves_outer_repo_untouched(self):
+        outer = self.root / "team"
+        outer.mkdir()
+        self.git(outer, "init")
+        inner = outer / "artifacts" / "run"
+        inner.mkdir(parents=True)
+        event = json.dumps({"hook_event_name": "UserPromptSubmit", "cwd": str(inner), "session_id": self.session_id,
+                            "turn_id": "t1", "prompt": "Please send an end report when finished."})
+        self.assertEqual(self.data(self.run_cli("hook", input=event, cwd=inner)), {})
+        self.assertFalse((outer / "docs").exists())
+        self.assertNotIn("docs/_local", (outer / ".git/info/exclude").read_text())
+        repo, _task_dir, _request = self.make_repo_task()
+        (repo / "src").mkdir()
+        (repo / "src/a.py").write_text("x = 1\n")
+        self.git(repo, "add", "src/a.py")
+        runtime = self.load_runtime_module()
+        self.assertEqual(runtime.git_root(repo / "src"), repo.resolve())
+        with self.assertRaises(runtime.RuntimeFailure):
+            runtime.git_root(inner)
+
     def test_register_ignores_none_and_rejects_missing_git_ignore(self):
         text = "Please send an end report."
         repo, task_dir, request = self.make_repo_task(ignored=True, request_text=text)

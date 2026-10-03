@@ -219,6 +219,16 @@ class AgentWorkflowInstallTests(unittest.TestCase):
         self.assertEqual(self.install(), 0)
         self.assertEqual(launcher.read_text(encoding="utf-8"), installer.expected_launcher(runtime))
 
+    def test_launcher_from_another_interpreter_can_be_upgraded(self):
+        self.assertEqual(self.install(), 0)
+        runtime = self.home / ".local/share/agent-workflow"
+        launcher = self.home / ".local/bin/agent-workflow"
+        other = installer.expected_launcher(runtime).replace(installer.shlex.quote(installer.sys.executable), "/opt/other-env/bin/python3.11")
+        self.assertNotEqual(other, installer.expected_launcher(runtime))
+        launcher.write_text(other, encoding="utf-8")
+        self.assertEqual(self.install(), 0)
+        self.assertEqual(launcher.read_text(encoding="utf-8"), installer.expected_launcher(runtime))
+
     def test_failed_final_launcher_validation_restores_previous_install(self):
         self.assertEqual(self.install(), 0)
         runtime = self.home / ".local/share/agent-workflow"

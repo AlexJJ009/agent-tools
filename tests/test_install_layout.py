@@ -29,6 +29,10 @@ def profile_env(home):
     crontab.write_text('#!/bin/sh\nif [ "$1" = "-l" ]; then cat "$HOME/test-crontab" 2>/dev/null; '
                        'else cat > "$HOME/test-crontab"; fi\n')
     crontab.chmod(0o755)
+    # The work-report installer only warms its uv script environment; layout is not under test there.
+    uv = fake / 'uv'
+    uv.write_text('#!/bin/sh\nexit 0\n')
+    uv.chmod(0o755)
     env.update(HOME=str(home), PATH=f'{fake}{os.pathsep}{env["PATH"]}', CODEX_HOME=str(home / '.codex'),
                CC_SWITCH_DB_PATH=str(home / '.cc-switch/cc-switch.db'), TMUX_CONF=str(home / '.tmux.conf'),
                PYTHON_BIN=sys.executable)  # hook commands record the interpreter that installed them

@@ -94,14 +94,27 @@ select_python_bin() {
     return
   fi
 
-  for candidate in python3.13 python3.12 python3.11 python3.10 python3 python; do
-    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" - <<'PY' >/dev/null 2>&1; then
+  # Prefer 3.11+: install_agent_workflow.py requires it (its launcher uses
+  # python -P). uv-managed interpreters count when the system one is older;
+  # glob them read-only, since running uv may write its cache before the guard.
+  local minor uv_dir="${UV_PYTHON_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/uv/python}"
+  local -a uv_pythons=()
+  shopt -s nullglob
+  uv_pythons=("$uv_dir"/cpython-3.*/bin/python3)
+  shopt -u nullglob
+  for minor in 11 10; do
+    for candidate in python3.13 python3.12 python3.11 python3.10 python3 python ${uv_pythons[@]+"${uv_pythons[@]}"}; do
+      if command -v "$candidate" >/dev/null 2>&1 && "$candidate" - "$minor" <<'PY' >/dev/null 2>&1; then
 import sys
-raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
+raise SystemExit(0 if sys.version_info >= (3, int(sys.argv[1])) else 1)
 PY
-      PYTHON_BIN="$candidate"
-      return
-    fi
+        PYTHON_BIN="$candidate"
+        if [[ "$minor" == 10 ]]; then
+          echo "WARNING: no Python 3.11+ found; using $PYTHON_BIN (agent-workflow install needs 3.11+)." >&2
+        fi
+        return 0
+      fi
+    done
   done
 
   for candidate in python3 python; do

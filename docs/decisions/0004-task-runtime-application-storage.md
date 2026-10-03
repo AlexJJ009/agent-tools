@@ -7,6 +7,9 @@ Status: Accepted
 Consolidated on 2026-09-30 from records 0001, 0004 and 0005. Earlier rationale
 and the original runtime-owned-only deletion boundary remain in Git history;
 this consolidation preserves the adopted behavior, not a new runtime change.
+Amended on 2026-10-03 to match deployment: earlier installers let software land
+in the data root, which contradicted this decision; the layout below is now
+enforced by the installers.
 
 ## Context and Problem Statement
 
@@ -31,7 +34,9 @@ technologies or a requirement to migrate all legacy records.
 ## Decision Outcome
 
 Use one local application-data store, separate from installed software and
-project checkouts. SQLite holds task state and operation metadata; managed paths
+project checkouts. On Linux/WSL the data root is `~/.local/share/agent-tools`
+and the software install root is `~/.local/lib/agent-tools`; skills are linked
+into the user-level client directories, not into projects. SQLite holds task state and operation metadata; managed paths
 hold task artifacts. Stable task and criterion IDs, revision checks and
 idempotent requests support continuation across conversations and explicit
 workspace rebinds. There is no cross-machine synchronization. Keep observations,

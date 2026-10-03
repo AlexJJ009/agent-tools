@@ -12,7 +12,7 @@ permissions:
 jobs:
   regression:
     # Legacy status name: ruleset 20623617 requires this context. Rename both together.
-    name: linear-workflow-runtime
+    name: regression
     runs-on: ubuntu-latest
     steps:
       - name: Checkout candidate

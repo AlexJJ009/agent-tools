@@ -1263,9 +1263,17 @@ def refresh_manifest(manifest: dict[str, Any], *, complete_periodic: bool = Fals
     return changed
 
 
+def codex_internal(event: dict[str, Any]) -> bool:
+    # Codex's own memory consolidation runs as a session; it is not user work.
+    memories = (Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex").expanduser() / "memories").resolve()
+    cwd, prompt = event.get("cwd"), event.get("prompt")
+    return bool(isinstance(cwd, str) and Path(cwd).resolve().is_relative_to(memories)
+                or isinstance(prompt, str) and prompt.lstrip().startswith(("Memory Writing Agent", "## Memory Writing Agent")))
+
+
 def cmd_hook(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     event = json.loads(sys.stdin.read() or "{}")
-    if event.get("agent_id") or event.get("agent_type"):
+    if event.get("agent_id") or event.get("agent_type") or codex_internal(event):
         return 0, {}
     cwd = safe_absolute(Path(event.get("cwd") or Path.cwd()))
     session_id = event.get("session_id")

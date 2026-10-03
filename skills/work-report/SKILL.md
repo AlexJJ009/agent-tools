@@ -42,6 +42,8 @@ for explaining why an observation supports a conclusion.
 - **Timed message to this conversation:** use the lightweight [timer](references/timer.md)
   by default. Delivery of the prompt is separate from report completion. Do not
   also register a legacy periodic obligation or a second cron schedule.
+  The timer requires the Codex CLI; in Claude Code it is unavailable, so state
+  that limit instead of calling it.
 - **Ordinary follow-up:** answer in conversation. Do not rewrite the report or
   create another reporting obligation unless requested.
 

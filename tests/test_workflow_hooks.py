@@ -78,6 +78,14 @@ class HookTests(unittest.TestCase):
         self.assertEqual(runtime.read_record(self.root)['pending_inputs'], {})
         self.assertEqual(self.call('UserPromptSubmit', agent_id='subagent', prompt='hello'), {})
 
+    def test_codex_memory_sessions_are_skipped(self):
+        memories = self.base / 'codex-home/memories'
+        memories.mkdir(parents=True)
+        with patch.dict(os.environ, {'CODEX_HOME': str(self.base / 'codex-home')}):
+            self.assertEqual(self.call('SessionStart', cwd=str(memories)), {})
+            self.assertEqual(self.call('UserPromptSubmit', prompt='Memory Writing Agent: Phase 2'), {})
+        self.assertEqual(runtime.read_record(self.root)['pending_inputs'], {})
+
     def test_resume_restores_only_explicit_binding(self):
         output = self.call('SessionStart', source='resume')['hookSpecificOutput']['additionalContext']
         self.assertIn(str(self.root), output)

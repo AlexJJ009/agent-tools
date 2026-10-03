@@ -1,7 +1,8 @@
 # Project evaluation skills
 
-This checkout provides two project-local Codex skills: `$build-eval` and
-`$hillclimb`. They adapt Anthropic's `claude-api` subcommands while preserving
+This checkout provides two Codex-only project-local skills: `$build-eval` and
+`$hillclimb`. They are not exposed to Claude Code, which has native equivalents
+through its `claude-api` (`build-eval`, `hillclimb`) and `skill-creator` skills. They adapt Anthropic's `claude-api` subcommands while preserving
 the upstream guide bodies. They are development tools for this project, not
 part of the user-level skill installers. OpenAI's built-in `skill-creator`
 remains the sole creator; Web App Testing is not included.

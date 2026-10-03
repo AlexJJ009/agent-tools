@@ -79,8 +79,8 @@ for the exact flags and required revision/path inputs.
 `check-action` checks a named action at the expected route revision. Ordinary
 reads can continue with pending input. Dependent writes require resolved input,
 available selected skills and declared output paths. Default skill lookup includes
-user `.agents/skills` and `.codex/skills`, plus workspace `.agents/skills` and
-`.claude/skills`; explicit `skill_roots` replaces this search list. A failed
+user and workspace `.agents/skills`, `.codex/skills` and `.claude/skills`;
+explicit `skill_roots` replaces this search list. A failed
 capability check is recovered in the existing task record. For an inspected
 location correction, snapshot the preserved request with a distinct recovery
 input ID and classify at the returned revision; this creates no new authority.
@@ -111,11 +111,14 @@ Curation cannot place artifacts inside the route's internal state directory.
 
 `learning-workflow bind --record DIR --session-id ID --workspace DIR
 --state-root DIR [--on-stop]` binds one actual session/workspace pair. Unbound
-SessionStart/UserPromptSubmit add only a thin routing reminder and the actual
-host identity. They do not create a persistent record or start a classifier.
-Bound input is saved before Main classifies it. Hosts lacking turn IDs only
-provide content-level prompt retry identity; repeated identical requests cannot
-be distinguished there without an explicit `input-id`.
+SessionStart adds only the actual host identity and a one-line persistence
+rule; unbound UserPromptSubmit adds nothing. They do not create a persistent
+record or start a classifier. Codex's internal memory-writing session
+(`$CODEX_HOME/memories` or a `Memory Writing Agent` prompt) is ignored by all
+three hook runtimes. Bound input is saved before Main classifies it. Hosts
+lacking turn IDs only provide content-level prompt retry identity; repeated
+identical requests cannot be distinguished there without an explicit
+`input-id`. The Claude adapter supplies Claude's `prompt_id` as `turn_id`.
 
 For a requested legacy v1 teaching deliverable governed by the
 [teaching artifact contract](../skills/teaching-reconstruction/references/artifact-contract.md),

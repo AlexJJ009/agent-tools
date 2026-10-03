@@ -28,6 +28,11 @@ class ProjectEvalSkillsTests(unittest.TestCase):
                 continue
             self.assertEqual(hashlib.sha256((BUILD / source).read_bytes()).hexdigest(), expected, source)
 
+    def test_codex_only_skills_are_not_exposed_to_claude(self):
+        for name in ("build-eval", "hillclimb"):
+            path = ROOT / ".claude" / "skills" / name
+            self.assertFalse(path.exists() or path.is_symlink(), str(path))
+
     def test_shared_resources_resolve_inside_project(self):
         for name in ("build-eval", "hillclimb"):
             for relative in ("LICENSE.txt", "shared/codex-cli.md", "shared/model-migration.md",

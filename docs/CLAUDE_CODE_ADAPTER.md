@@ -47,9 +47,9 @@ own installation contract. Resolve learning package drift through its
 | Task/route/report records | Existing runtime storage and explicit records; no Claude copy |
 
 The adapter installs fourteen shared skills. It preserves unrelated Claude
-skills, agents, plugins and project configuration. This repository additionally
-has relative `.claude/skills` links to its existing `.agents/skills/build-eval`
-and `hillclimb`; their existing Codex evaluation backend remains unchanged.
+skills, agents, plugins and project configuration. This repository's
+`.agents/skills/build-eval` and `hillclimb` are Codex-only and have no
+`.claude/skills` links; Claude uses its native `claude-api` and `skill-creator`.
 
 The context view links to the shared writing contract. If the existing global
 entry does not directly point at Core, the view imports Core through native
@@ -78,12 +78,23 @@ this adapter's registration location. The adapter registers `SessionStart`,
 `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, and `Stop` as applicable to each
 shared runtime. It strips Codex-only context-limit fields. Foreign settings and
 hook handlers survive installation and removal, including handlers in mixed
-groups. Unchanged reinstallation creates no additional backups.
+groups. Unchanged reinstallation creates no additional backups. Learning and
+workflow `PreToolUse`/`PostToolUse` groups match only `Bash`, the only tool
+they act on; work-report `PostToolUse` keeps `.*`. Codex registrations keep
+`.*` because Codex shell tool names are not verified here.
 
 The small managed `native_hook.py` adapter forwards events to the shared
-runtimes. It ensures the learning context includes the actual native
-`session_id`, workspace and state root even when a record is already bound,
-and moves report diagnostics to Claude's top-level `systemMessage` field.
+runtimes. At `SessionStart` it ensures the learning context includes the actual
+native `session_id`, workspace and state root even when a record is already
+bound, and it moves report diagnostics to Claude's top-level `systemMessage`
+field. A `UserPromptSubmit` whose prompt is only background
+`<task-notification>` envelopes is system text, not user input, and is not
+forwarded to any runtime; user text outside the envelopes is forwarded intact.
+Claude's prompt payload has no `turn_id` but carries a per-submission
+`prompt_id` (observed on Claude Code 2.1.288); the adapter forwards it as
+`turn_id`, so identical repeated prompts become distinct inputs while a retried
+submission stays idempotent. Non-JSON runtime output becomes a short
+`systemMessage` instead of a traceback.
 Shared block/deny decisions and process-state writes remain unchanged.
 Bind and resume using those observed values and the existing runtime
 commands. The adapter does not create a task merely because Claude starts, or
@@ -117,7 +128,7 @@ source update.
 ## Verification
 
 ```sh
-python3 -m unittest tests.test_claude_hooks tests.test_install_claude
+python3 -m unittest tests.test_claude_hooks tests.test_install_claude tests.test_claude_native_hook
 claude doctor
 ```
 

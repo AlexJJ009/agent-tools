@@ -11,6 +11,32 @@
         "scripts/agent_wt.py": "0438764502ac16af4ec6242d64ea672852843e18eeaaf2ae809e86f7ea044532",
         "tests/test_agent_wt.py": "11d1e3e99064d60906ff7a36d6ffcd8fa90ee9ae49691d08fa48a37a218d5be2"
       }
+    },
+    {
+      "commit": "e3eaf14e104b820bc6654f24e60160d379239c4f",
+      "files": {
+        "SKILL.md": "01fdd37fb8fdfa44d85b7b34c0fad9604063ff2306ab40a8dda528c0eb0a5a3e",
+        "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
+        "references/adapters.md": "962184a8ffb4e69ab11edf110dc925ffb1ff4c9187c2ab9998e19c5181733ed6",
+        "references/installation-baselines.json": "12a5dc83f670d52df4a740d7803bd9f50dd121e7e498765f6288cd3802ec45e9",
+        "references/policies.md": "6d8225c09a4bd721bb31ab0fe46602087a19a76cdcf326c8638b5846087d652d",
+        "scripts/agent_wt.py": "0438764502ac16af4ec6242d64ea672852843e18eeaaf2ae809e86f7ea044532",
+        "scripts/install_skill.py": "698fcedd25f93593f50e31ff7445a26fc2e435dbbd227d2e2161ecfb1577ca10",
+        "tests/test_agent_wt.py": "3c98ab5783bd214b2366f62efff3ad34deb6fac7e8fce9bba15eabbeef6c00c9"
+      }
+    },
+    {
+      "commit": "d53b929599e050136e95169bfb7599ed82f4ba5b",
+      "files": {
+        "SKILL.md": "efa911e60cb8e321dd22571543097aca51a4f85fe97fdc1e2cf52ed86c224e88",
+        "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
+        "references/adapters.md": "962184a8ffb4e69ab11edf110dc925ffb1ff4c9187c2ab9998e19c5181733ed6",
+        "references/installation-baselines.json": "12a5dc83f670d52df4a740d7803bd9f50dd121e7e498765f6288cd3802ec45e9",
+        "references/policies.md": "6d8225c09a4bd721bb31ab0fe46602087a19a76cdcf326c8638b5846087d652d",
+        "scripts/agent_wt.py": "0438764502ac16af4ec6242d64ea672852843e18eeaaf2ae809e86f7ea044532",
+        "scripts/install_skill.py": "698fcedd25f93593f50e31ff7445a26fc2e435dbbd227d2e2161ecfb1577ca10",
+        "tests/test_agent_wt.py": "3c98ab5783bd214b2366f62efff3ad34deb6fac7e8fce9bba15eabbeef6c00c9"
+      }
     }
   ]
 }

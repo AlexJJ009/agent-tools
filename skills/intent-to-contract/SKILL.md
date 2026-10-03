@@ -5,7 +5,7 @@ description: Create or revise a requested task agreement, or ground requirements
 
 # Intent To Contract
 
-Use this skill when the user requests a task agreement or when expensive or high-risk work needs grounded requirements and an authorization boundary. Do not invoke it for every natural-language request, ordinary bug fix, quick implementation, or a mention of an old PRD. Create or reuse a PRD and checklist on demand under the user's request or an applicable continuing agreement; their existence is not a prerequisite for ordinary development. The output is the requested task agreement, recorded in the existing task when persistence is needed; it does not freeze every coding step or require legacy runtime context.
+Use this skill when the user requests a task agreement or when expensive or high-risk work needs grounded requirements and an authorization boundary. Do not invoke it for every natural-language request, ordinary bug fix, quick implementation, or a mention of an old PRD. The output is the requested task agreement, recorded in the existing task when persistence is needed; it does not freeze every coding step or require legacy runtime context.
 
 Keep the work moving while the agreement is formed. Ask the user only for facts that would change the target, budget, production effect, or formal experiment. For facts visible in the repository or local environment, investigate and record the evidence instead of asking the user to remember it.
 
@@ -16,12 +16,12 @@ Keep the work moving while the agreement is formed. Ask the user only for facts 
 - Keep multiple plausible meanings in `semantic_candidates`; do not silently choose when the difference affects target behavior, cost, or formal runs.
 - Ground parameter-like requirements in real code, data, or output objects before treating them as protocol items. A matching field name is not enough; trace definition, override order, and consumer.
 - Keep the current agreement separate from the work record. Debugging discoveries can update the work record, but cannot lower the goal or change the protocol to make a failing implementation pass.
-- Learning-only requests route to the existing teaching flow. Office-only requests use office quality checks, not code gates.
+- Learning-only requests route to the existing teaching flow.
 - Distinguish semantic routing from runtime lint. The Agent chooses the scenario after investigation; the runtime only rejects obvious contradictions such as a Docker or launcher request without infra facts.
 
 Use [acceptance profiles](references/acceptance-profiles.md) when selecting scenario checks; read only the applicable profile.
 
-Only when continuing an explicitly selected legacy scenario contract, read the [legacy runtime input contract](references/runtime-api.md) for its field enums, path scope and observation/readback distinctions. Current task-runtime work uses the task commands below; ordinary work need not create either record.
+When continuing an explicitly selected legacy scenario contract (or an office-only request), read [legacy scenario records](references/legacy-scenario-records.md). Current task-runtime work uses the task commands below.
 
 ## Discover choices before dependent work
 
@@ -53,10 +53,10 @@ request. A general positive reaction does not accept the entire checklist.
 
 ## Current task state and continuation
 
-Use the task runtime when persistent requirements and checklist state are
-needed across conversations. Do not create a task just to answer a status
-question, handle a short change, or record that this skill was read. A session
-or worktree name is not a task ID.
+The default deliverable is the conversation and the changed project files;
+create a record only when the work needs one to continue. Use the task runtime
+when requirements and checklist state must persist across conversations. A
+session or worktree name is not a task ID.
 
 Use `agent-workflow task resolve` with the current session and workspace, or
 `task list` for candidate metadata. If several tasks match, return the relevant
@@ -66,19 +66,11 @@ individual details, or name/content search. Select an item by its stable ID;
 ordinal position only locates that ID in the current revision. Read evidence
 only as needed and verify current code and jobs from the actual workspace.
 
-For example, `agent-workflow task checklist --task TASK_ID --item AC-001
---detail` reads one criterion; `--search text` searches current names and
-requirements. Append `--data-root /absolute/root` consistently when overriding
-the application root. A revision packet passed to `task revise --input PATH`
-can be `{"task_id":"TASK_ID","operation_id":"clarify-1","base_revision":3,
-"criteria":[{"id":"AC-001","expected":"The corrected expected outcome"}]}`.
-Replace placeholders with the selected task's current values and the actual
-agreed change; do not overwrite requirements merely to update progress.
-
-Use `agent-workflow task --help` and command-specific help for the JSON packet
-contract. From a source checkout, the equivalent entry is
-`python -m agent_workflow.cli task`. Create only on demand; `task revise`
-updates the same task when requirements change. The Agent supplies requirements
+Append `--data-root /absolute/root` consistently when overriding the
+application root. See `agent-workflow task <command> --help` for the packet
+shape; from a source checkout, use `python -m agent_workflow.cli task`. `task
+revise` updates the same task for an agreed requirement change, not for
+progress. The Agent supplies requirements
 and check points; runtime maintains checklist state and revisions. Do not keep
 a second writable Markdown PRD/checklist beside the runtime's current state.
 Queries and human-readable views go to stdout unless an export is requested.
@@ -102,48 +94,13 @@ permission or acceptance-gate contracts. After scoped user acceptance, use
 Cleaner's task-closeout activity for owned process material and durable project
 information; code cleanup is a separate activity.
 
-## Existing scenario records
-
-Keep existing scenario records and their explicit paths when continuing the
-legacy workflow below. This interface still supplies formal command/config
-bindings and readback checks; task-state storage does not loosen those gates.
-Do not create both interfaces' checklists for the same state merely to satisfy
-this skill.
-
-## Continuing an explicitly selected legacy scenario contract
-
-The runtime does not perform arbitrary natural-language extraction. The Agent supplies a JSON context containing investigated `items`, `facts`, `bindings`, `checks`, formal command/config scope, and review targets. Bindings include ordered override anchors and a `readback_key` into verifier JSON where `{config_key, consumer_symbol, value}` is returned. Optional `protocol_view: true` renders `protocol.md` from the canonical record. See [context example](templates/context.example.json); replace every sample path and value with inspected project facts.
-
-The following initialization syntax is retained for explicitly requested legacy scenario work, not the default for new task agreements. Continue an existing record at its exact path; do not initialize a replacement to obtain newer status fields:
-
-```text
-agent-workflow init --query <request.txt> --scenario <algorithm|infra|business|bug_fix|office|learning> --context <context.json> --mode simulation
-```
-
-Only explicitly requested new legacy scenario records use `docs/_local/tasks/<task-id>/` in the current worktree, excluded by the repository rule `/docs/_local/`. Preserve existing task IDs and explicit record paths; resume the existing checklist instead of creating a second status source. Use [templates/task.md](templates/task.md) and [templates/checklist.yaml](templates/checklist.yaml) as the local shape when the runtime cannot yet create the file.
-
-Each extracted requirement should include:
-
-- `source_quote`
-- `normalized_value`
-- `requirement_kind`
-- `authority`
-- `confidence`
-- `cost_if_wrong`
-- `blocking_question`
-- linked `checklist` item ID
-
-For protocol-like values, include a binding record with the repository state, definition location, consumer location, override order, readback evidence, and unresolved ambiguity.
-
 ## Handoff and Repository Documentation
 
 Keep requirements and success conditions in the selected canonical task store or existing local PRD/simple spec, and actual verification status in its one runtime-maintained checklist. Agents may update execution status but cannot relax requirements or invent human acceptance. Do not require checklist rewrites or Markdown changes for every commit.
 
-Update the existing recovery note in place when the stage changes; replace superseded current-state prose instead of appending another phase summary. Keep source requirements and evidence by reference. A check, review or handoff does not need its own Markdown file, index or narrative receipt.
+Task state, recovery points and handoff live in the task record (Task Runtime or the task's `docs/_local` record); never write task state into AGENTS.md, CLAUDE.md or other auto-loaded instruction files. Update that record in place when the stage changes, replacing superseded current-state prose; keep source requirements and evidence by reference and link repository usage/interface documentation instead of copying it. Process handles belong to their original machine and must be read back before reuse after a handoff.
 
-Use task/handoff records for the recovery point, implementation notes, outstanding work and local evidence. Link current repository usage/interface documentation instead of copying it. Process handles belong to their original machine and must be read back before reuse after a handoff.
-
-Repository documentation must explain the implemented system without access to private reports. Extract durable usage, interface facts and important design reasons into maintained documentation or ADRs; do not commit the entire local plan as a substitute. Private reports use `docs/_local/reports/<task-id>/`, and temporary drafts may use `docs/_local/scratch/<task-id>/` only when needed. No local index or duplicate progress register is required.
+Repository documentation must explain the implemented system without access to private reports. Extract durable usage and interface facts into maintained documentation rather than committing the local plan. When a change chooses between viable designs, add or update `docs/decisions/` in the same change. Private reports use `docs/_local/reports/<task-id>/`; temporary drafts use `docs/_local/scratch/<task-id>/`.
 
 Before a merge or meaningful delivery commit, state documentation impact in the existing closing note or commit/PR description and update affected system docs. If there is no impact, explain why; a Markdown diff is not mandatory.
 

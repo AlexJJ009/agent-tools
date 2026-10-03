@@ -1,6 +1,6 @@
 ---
 name: task-routing
-description: Classify a continuing request by current activity, explicit exclusions, and project scope before selecting learning, writing, curation, or delivery capabilities. Use for mixed or changing tasks; do not invoke as a keyword classifier for every short answer.
+description: Classify a request by current activity, explicit exclusions, and project scope before selecting learning, writing, curation, or delivery capabilities. Use when a request mixes or switches between delivery and learning/writing, or when resuming a persisted learning route; not a keyword classifier for every short answer.
 ---
 
 # Task Routing
@@ -9,18 +9,17 @@ The Main Agent decides the current activity from the user's latest request, the 
 
 Choose one current activity: `delivery`, `learning`, `writing`, `curation`, or `answer`. Select the capabilities needed for that activity; a capability can be reused in several activities. Use `direct`, `guided`, `practice`, or `review` interaction mode. For an explicitly ordered request, preserve the requested order within and across activities; keep a continuation point for unfinished stages. A planned later stage does not replace unfinished delivery.
 
-`knowledge-deposition-doc` is the legacy compatibility name for the Agent Tools learning suite. It does not select an activity by itself. Code/architecture learning uses `teaching-reconstruction` and its domain reference; a requested standalone learning document uses `learning-artifact-compiler`, including a complete first draft before any learner checks. Choose pacing from the request and feedback rather than forcing tiny units. Agent Core supplies stable context, not a competing learning workflow.
+`knowledge-deposition-doc` is the legacy compatibility name for the Agent Tools learning suite. It does not select an activity by itself. Code/architecture learning uses `teaching-reconstruction` and its domain reference; a requested standalone learning document uses `learning-artifact-compiler`, including a complete first draft before any learner checks. Choose pacing from the request and feedback rather than forcing tiny units.
 
-Development ownership stays with the existing development skills: requirement refinement, authorized exploration, minimum viable product (MVP), implementation, iteration, review, and acceptance are all `delivery`. Autonomy applies within the agreed increment or exploration scope; a rough goal or a route decision is not execution authority. Follow that development workflow to establish or reuse its canonical record when it needs one; attach a learning route sidecar only when this workflow is actually needed. Do not create a competing learning task record merely because development is sustained.
+Development ownership stays with the existing development skills: requirement refinement, authorized exploration, minimum viable product (MVP), implementation, iteration, review, and acceptance are all `delivery`. Autonomy applies within the agreed increment or exploration scope; a rough goal or a route decision is not execution authority. Follow that development workflow to establish or reuse its canonical record when it needs one; attach a learning route sidecar to it only under the persistence rule below.
 
-For sustained learning/writing or an authorized cross-activity handoff that
-needs a persistent route, first read the existing route and canonical development
-record, then follow [route record operations](references/route-record-operations.md)
-before creating, updating, binding, or recovering state, or using an existing
-route for covered actions or curation. Reuse the current record
-and actual native session ID; preserve authority, exclusions, and revision checks.
-Brief answers need no route file. Missing route state blocks only dependent
-actions, not harmless reading or recovery.
+Persist a route record only when a learning or writing task must continue across
+sessions or tasks; otherwise route in conversation and write no files. To create,
+resume, or act through a persisted route, first read it and any canonical
+development record, then follow [route record operations](references/route-record-operations.md).
+Reuse the current record and actual native session ID; preserve authority,
+exclusions, and revision checks. Missing route state blocks only dependent
+actions, not reading or recovery.
 
 Set `readpapers_root` only from an explicit configured project root and `authorized_read_roots` only from user-granted scope; do not invent authority in a decision packet. ReadPapers owns Zotero library operations, adding papers, formal close reading, and ZotLit note updates in its configured project scope. Manuscript projects own drafts and experimental claims; code repositories own implementation and runtime facts. Existing evidence may cross these boundaries as cited material, but source access never grants execution or library write authority. For authorized SSH source reading, record repository, revision, path and observed range; distinguish code observations from executed tests.
 

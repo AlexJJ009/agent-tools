@@ -1,11 +1,11 @@
 ---
 name: infra-verification
-description: Verify training, evaluation, Docker, Harbor, GPU, mount, network, lifecycle, timeout, retry, cancellation, and resource cleanup behavior with readback evidence.
+description: Use when asked to verify that training or evaluation infrastructure (launcher config, Docker/Harbor, GPU, mounts, network, episode lifecycle, timeout, retry, cancellation, cleanup) behaves as intended, using readback evidence from the target environment.
 ---
 
 # Infra Verification
 
-Use this skill for training infra, evaluation infra, Agentic episode infrastructure, launcher/config plumbing, Docker or Harbor environments, GPU allocation, mounts, network setup, checkpoint/recovery, cancellation, retries, and resource cleanup. Investigate only the relevant effects and existing authorization. `infra_heavy` is a retained legacy profile, not a requirement to create a scenario record for every infrastructure change.
+Scope covers training and evaluation infra, Agentic episode infrastructure, launcher/config plumbing, checkpoint/recovery and the items in the description. Investigate only the relevant effects and existing authorization. `infra_heavy` is a retained legacy profile only.
 
 ## Verification Focus
 
@@ -21,7 +21,7 @@ Check the parts that match the current change:
 
 ## Evidence Levels
 
-Use these distinctions to describe the evidence. For a selected task-runtime task, read `task checklist` and record actual observed checks through `task result`, keeping verification, validity and user acceptance separate. Otherwise use the existing tests, logs and closing explanation; do not create a task or checklist just to classify evidence. Only an existing legacy record stores these levels in `checklist.yaml`:
+Use these distinctions to describe the evidence. For a selected task-runtime task, read `task checklist` and record actual observed checks through `task result`, keeping verification, validity and user acceptance separate. Otherwise use the existing tests, logs and closing explanation. Only an existing legacy record stores these levels in `checklist.yaml`:
 
 - `none`: no evidence yet
 - `static`: source, config, manifest, or local file inspection only

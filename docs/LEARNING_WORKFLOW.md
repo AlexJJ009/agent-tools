@@ -39,9 +39,12 @@ their scheduler/state services exist.
 
 Run `learning-workflow decision-schema` for field types and an example packet.
 Skill instructions and CLI help are English; request snapshots and generated
-content may be in the user's chosen language. A brief answer or straightforward
-repair may stay in conversation. Persistent learning/writing, changed stages,
-and covered operations need current state.
+content may be in the user's chosen language. Create a route record only when a
+learning/writing task must continue across sessions or tasks; otherwise route in
+conversation. On a persisted route, record and classify later input only when it
+changes the route; a bound session's Hook saves prompts as pending input, which
+must be classified before curation. Request and decision packets are transient
+inputs under `docs/_local/scratch/<task-id>/`.
 
 ```sh
 learning-workflow init --query request.txt --decision decision.json \

@@ -1,11 +1,11 @@
 ---
 name: acceptance-gate
-description: Evaluate an explicitly selected existing legacy Agent Workflow formal-run or protected-action contract. Preserve its candidate, command, config and feedback checks; ordinary task completion does not invoke this gate.
+description: Legacy only. Evaluate an explicitly selected existing legacy Agent Workflow formal-run or protected-action contract, preserving its candidate, command, config and feedback checks.
 ---
 
 # Acceptance Gate
 
-Use this skill when an explicitly selected existing legacy record governs the requested formal run or protected action. A task completion claim, ordinary code change, deployment keyword or unresolved question alone does not trigger it. Do not create a legacy record or duplicate checklist to satisfy this skill.
+Legacy only: use this skill when an explicitly selected existing legacy record governs the requested formal run or protected action. A task completion claim, ordinary code change, deployment keyword or unresolved question alone does not trigger it.
 
 For current task-runtime work, read the selected task with `agent-workflow task read` or `task checklist`; record actual checks with `task result` and scoped user feedback with `task feedback`. Ordinary work without persistent task state uses the existing requirements, code and test evidence. Neither path grants new execution authority.
 

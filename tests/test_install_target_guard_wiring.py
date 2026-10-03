@@ -153,6 +153,33 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
                         self.assertFalse(legacy.exists())
                         self.assertTrue((target / "SKILL.md").is_file())
 
+    def test_every_committed_manage_worktrees_release_is_a_baseline(self):
+        # An installed copy of any earlier commit must stay upgradable, so each
+        # committed tree other than the current one needs a baseline entry.
+        import hashlib
+        prefix = "skills/manage-worktrees/"
+        def git(*args):
+            return subprocess.check_output(["git", *args], cwd=ROOT)
+        if git("rev-parse", "--is-shallow-repository").strip() == b"true":
+            self.skipTest("release baselines need full git history")
+        spec = importlib.util.spec_from_file_location("install_mwt_history", ROOT / prefix / "scripts/install_skill.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        current = module.tree(ROOT / prefix)
+        baselines = [entry["files"] for entry in json.loads((ROOT / prefix / "references/installation-baselines.json").read_text())["releases"]]
+        missing = []
+        for commit in git("log", "--format=%H", "HEAD", "--", prefix).decode().split():
+            files = {}
+            for line in git("ls-tree", "-r", commit, "--", prefix).decode().splitlines():
+                meta, path = line.split("\t", 1)
+                mode, kind, obj = meta.split()
+                rel = path[len(prefix):]
+                if kind == "blob" and mode != "120000" and "__pycache__/" not in rel:
+                    files[rel] = hashlib.sha256(git("cat-file", "blob", obj)).hexdigest()
+            if files and files != current and files not in baselines:
+                missing.append(commit[:7])
+        self.assertEqual(missing, [], "add these releases to installation-baselines.json")
+
     def test_previous_release_upgrade_and_failed_publish_rollback(self):
         spec = importlib.util.spec_from_file_location("install_mwt_upgrade", ROOT / "skills/manage-worktrees/scripts/install_skill.py")
         module = importlib.util.module_from_spec(spec)

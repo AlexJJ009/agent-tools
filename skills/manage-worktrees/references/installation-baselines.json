@@ -2,13 +2,70 @@
   "schema": 1,
   "releases": [
     {
-      "commit": "c05b1c958c8ad17b27b4a3187027bf85a3a121a4",
+      "commit": "bcfcd10e6a548e1ad04b8210ccf8be9f90b33d0f",
+      "files": {
+        "SKILL.md": "3c53a3dea4c76127041da62edc0a3c2cf62b39fd03a6b356c8da297311a6e531",
+        "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
+        "references/adapters.md": "635283c9994e7fcc90d458fda1f138597e39e859400e1c89d230c0a805d71d62",
+        "references/policies.md": "78b4fd91689dd46d4ad9a142ba31e20f60e7484cd2432361c3f1fc1f398e30e3",
+        "scripts/agent_wt.py": "9f256fb4e25bcb220a60209625a6179fc87b85da73e22a594d6f2d44bf34439f",
+        "tests/test_agent_wt.py": "9457ecba278adc3b799ceca3ed33471e92d5f0497a8daaca51952b5402c24407"
+      }
+    },
+    {
+      "commit": "e916f8a2b4fd18c71832ff44ccb99a262d1b9c89",
+      "files": {
+        "SKILL.md": "36a5ed1b0b85a6361d96d61a5bce56c11e16e0bd94bb96f2113774e9a55fa1d9",
+        "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
+        "references/adapters.md": "962184a8ffb4e69ab11edf110dc925ffb1ff4c9187c2ab9998e19c5181733ed6",
+        "references/policies.md": "6d8225c09a4bd721bb31ab0fe46602087a19a76cdcf326c8638b5846087d652d",
+        "scripts/agent_wt.py": "24ba6e2161d7e361153466fca9db030b1ddcff348a57996f445e74838b26385e",
+        "tests/test_agent_wt.py": "c3be7c0b602f42cb617f0a05c941285f8be37449b8484171623a9917e8853080"
+      }
+    },
+    {
+      "commit": "5a619658b7dcb548f256d31ca4c48c88a3d4d8c6",
+      "files": {
+        "SKILL.md": "36a5ed1b0b85a6361d96d61a5bce56c11e16e0bd94bb96f2113774e9a55fa1d9",
+        "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
+        "references/adapters.md": "962184a8ffb4e69ab11edf110dc925ffb1ff4c9187c2ab9998e19c5181733ed6",
+        "references/policies.md": "6d8225c09a4bd721bb31ab0fe46602087a19a76cdcf326c8638b5846087d652d",
+        "scripts/agent_wt.py": "6241c069394976a580d11fde12d51e9fecea44c07e21e5aaccf42f6c7312e47b",
+        "tests/test_agent_wt.py": "aaabd81e4bc47adbe2c72d52dd60748861dddf2dbe100a158639b4e8917128f9"
+      }
+    },
+    {
+      "commit": "056d43a6eec039a85816b6c334fa2867c4066106",
+      "files": {
+        "SKILL.md": "36a5ed1b0b85a6361d96d61a5bce56c11e16e0bd94bb96f2113774e9a55fa1d9",
+        "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
+        "references/adapters.md": "962184a8ffb4e69ab11edf110dc925ffb1ff4c9187c2ab9998e19c5181733ed6",
+        "references/policies.md": "6d8225c09a4bd721bb31ab0fe46602087a19a76cdcf326c8638b5846087d652d",
+        "scripts/agent_wt.py": "2e68be62d4e15ae061cd5775479fdf73cf49de35f6890d219699d11b5ef417b7",
+        "tests/test_agent_wt.py": "bcbb7d82a2984b85d76dbc7f32924246a391e5d544bcd6e83a06400b37c3826d"
+      }
+    },
+    {
+      "commit": "590a09f7ac207b6d635be3aa148bb2dbab7418e0",
       "files": {
         "SKILL.md": "36a5ed1b0b85a6361d96d61a5bce56c11e16e0bd94bb96f2113774e9a55fa1d9",
         "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
         "references/adapters.md": "962184a8ffb4e69ab11edf110dc925ffb1ff4c9187c2ab9998e19c5181733ed6",
         "references/policies.md": "6d8225c09a4bd721bb31ab0fe46602087a19a76cdcf326c8638b5846087d652d",
         "scripts/agent_wt.py": "0438764502ac16af4ec6242d64ea672852843e18eeaaf2ae809e86f7ea044532",
+        "tests/test_agent_wt.py": "11d1e3e99064d60906ff7a36d6ffcd8fa90ee9ae49691d08fa48a37a218d5be2"
+      }
+    },
+    {
+      "commit": "0aa972268518a2c837afe3f3230b615d7cd288f4",
+      "files": {
+        "SKILL.md": "01fdd37fb8fdfa44d85b7b34c0fad9604063ff2306ab40a8dda528c0eb0a5a3e",
+        "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
+        "references/adapters.md": "962184a8ffb4e69ab11edf110dc925ffb1ff4c9187c2ab9998e19c5181733ed6",
+        "references/installation-baselines.json": "12a5dc83f670d52df4a740d7803bd9f50dd121e7e498765f6288cd3802ec45e9",
+        "references/policies.md": "6d8225c09a4bd721bb31ab0fe46602087a19a76cdcf326c8638b5846087d652d",
+        "scripts/agent_wt.py": "0438764502ac16af4ec6242d64ea672852843e18eeaaf2ae809e86f7ea044532",
+        "scripts/install_skill.py": "698fcedd25f93593f50e31ff7445a26fc2e435dbbd227d2e2161ecfb1577ca10",
         "tests/test_agent_wt.py": "11d1e3e99064d60906ff7a36d6ffcd8fa90ee9ae49691d08fa48a37a218d5be2"
       }
     },
@@ -32,6 +89,32 @@
         "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
         "references/adapters.md": "962184a8ffb4e69ab11edf110dc925ffb1ff4c9187c2ab9998e19c5181733ed6",
         "references/installation-baselines.json": "12a5dc83f670d52df4a740d7803bd9f50dd121e7e498765f6288cd3802ec45e9",
+        "references/policies.md": "6d8225c09a4bd721bb31ab0fe46602087a19a76cdcf326c8638b5846087d652d",
+        "scripts/agent_wt.py": "0438764502ac16af4ec6242d64ea672852843e18eeaaf2ae809e86f7ea044532",
+        "scripts/install_skill.py": "698fcedd25f93593f50e31ff7445a26fc2e435dbbd227d2e2161ecfb1577ca10",
+        "tests/test_agent_wt.py": "3c98ab5783bd214b2366f62efff3ad34deb6fac7e8fce9bba15eabbeef6c00c9"
+      }
+    },
+    {
+      "commit": "5af71e73863e042ac27441b98342e3956be51dd7",
+      "files": {
+        "SKILL.md": "efa911e60cb8e321dd22571543097aca51a4f85fe97fdc1e2cf52ed86c224e88",
+        "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
+        "references/adapters.md": "962184a8ffb4e69ab11edf110dc925ffb1ff4c9187c2ab9998e19c5181733ed6",
+        "references/installation-baselines.json": "fbb350b0b31e595b477f6e8602b0476ced1cd4561c0a4501c989d8c160bc8dfb",
+        "references/policies.md": "6d8225c09a4bd721bb31ab0fe46602087a19a76cdcf326c8638b5846087d652d",
+        "scripts/agent_wt.py": "0438764502ac16af4ec6242d64ea672852843e18eeaaf2ae809e86f7ea044532",
+        "scripts/install_skill.py": "698fcedd25f93593f50e31ff7445a26fc2e435dbbd227d2e2161ecfb1577ca10",
+        "tests/test_agent_wt.py": "3c98ab5783bd214b2366f62efff3ad34deb6fac7e8fce9bba15eabbeef6c00c9"
+      }
+    },
+    {
+      "commit": "8f6a57c115f81f4f64a53bb9bbdb6adf222ba998",
+      "files": {
+        "SKILL.md": "efa911e60cb8e321dd22571543097aca51a4f85fe97fdc1e2cf52ed86c224e88",
+        "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
+        "references/adapters.md": "962184a8ffb4e69ab11edf110dc925ffb1ff4c9187c2ab9998e19c5181733ed6",
+        "references/installation-baselines.json": "bc6ee4238e52a6be9ed79d5707220cc5e81db22c1b86d874bf183fa2718ad06d",
         "references/policies.md": "6d8225c09a4bd721bb31ab0fe46602087a19a76cdcf326c8638b5846087d652d",
         "scripts/agent_wt.py": "0438764502ac16af4ec6242d64ea672852843e18eeaaf2ae809e86f7ea044532",
         "scripts/install_skill.py": "698fcedd25f93593f50e31ff7445a26fc2e435dbbd227d2e2161ecfb1577ca10",

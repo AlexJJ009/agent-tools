@@ -74,7 +74,7 @@ class InstallerTests(unittest.TestCase):
                                    with_hooks=True)
         self.assertEqual(report["status"], "installed")
         self.assertEqual(installer.check(self.home)["status"], "pass")
-        bundle = self.home / ".local/share/agent-tools/learning-workflow"
+        bundle = self.home / ".local/lib/agent-tools/learning-workflow"
         self.assertEqual((bundle / "shared/writing/reader-facing-contract.md").read_text(),
                          (bundle / "skills/work-report/references/writing-contract.md").read_text())
         self.assertTrue((self.papers / ".agents/skills/read-paper").is_symlink())
@@ -134,11 +134,11 @@ class InstallerTests(unittest.TestCase):
         with self.assertRaisesRegex(installer.InstallError, "unmanaged target preserved"):
             installer.install(self.home, legacy_root=self.old, read_papers_root=None, with_hooks=False)
         self.assertEqual(link.readlink(), self.base / "foreign")
-        self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
+        self.assertFalse((self.home / ".local/lib/agent-tools/learning-workflow").exists())
 
     def test_changed_payload_blocks_rollback(self) -> None:
         installer.install(self.home, legacy_root=self.old, read_papers_root=None, with_hooks=False)
-        bundle = self.home / ".local/share/agent-tools/learning-workflow"
+        bundle = self.home / ".local/lib/agent-tools/learning-workflow"
         (bundle / "skills/task-routing/SKILL.md").write_text("later user edit\n")
         with self.assertRaisesRegex(installer.InstallError, "bundle changed"):
             installer.rollback(self.home)
@@ -156,7 +156,7 @@ class InstallerTests(unittest.TestCase):
         original = os.readlink(alias)
         installer.install(self.home, legacy_root=self.old, read_papers_root=None,
                           legacy_knowledge_source=source, with_hooks=False)
-        bundle = self.home / ".local/share/agent-tools/learning-workflow"
+        bundle = self.home / ".local/lib/agent-tools/learning-workflow"
         self.assertEqual(alias.resolve(), bundle / "skills/knowledge-deposition-doc")
         self.assertFalse((self.home / ".agents/skills/knowledge-deposition-doc").exists())
         self.assertEqual(os.readlink(claude_alias), original)
@@ -181,7 +181,7 @@ class InstallerTests(unittest.TestCase):
                     installer.install(self.home, legacy_root=self.old, read_papers_root=None,
                                       legacy_knowledge_source=supplied, with_hooks=False)
                 self.assertEqual(alias.resolve(), source)
-                self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
+                self.assertFalse((self.home / ".local/lib/agent-tools/learning-workflow").exists())
 
     def test_duplicate_core_alias_is_preserved_before_install(self) -> None:
         alias = self.home / ".agents/skills/knowledge-deposition-doc"
@@ -191,7 +191,7 @@ class InstallerTests(unittest.TestCase):
             installer.install(self.home, legacy_root=self.old, read_papers_root=None,
                               with_hooks=False)
         self.assertEqual((alias / "SKILL.md").read_text(), "user-owned rules\n")
-        self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
+        self.assertFalse((self.home / ".local/lib/agent-tools/learning-workflow").exists())
 
     def test_check_detects_new_duplicate_without_removing_it(self) -> None:
         installer.install(self.home, legacy_root=self.old, read_papers_root=None,
@@ -250,7 +250,7 @@ class InstallerTests(unittest.TestCase):
         self.assertEqual(report["global_read_paper_aliases_deactivated"], 2)
         launcher = self.home / ".local/bin/learning-workflow"
         self.assertTrue(launcher.is_symlink())
-        self.assertEqual(launcher.resolve(), self.home / ".local/share/agent-tools/learning-workflow/bin/learning-workflow")
+        self.assertEqual(launcher.resolve(), self.home / ".local/lib/agent-tools/learning-workflow/bin/learning-workflow")
         self.assertTrue(all(not alias.exists() for alias in aliases))
         self.assertEqual(installer.check(self.home)["status"], "pass")
         installer.rollback(self.home)
@@ -286,20 +286,20 @@ class InstallerTests(unittest.TestCase):
         self.assertTrue(failed)
         self.assertTrue(old_link.is_symlink())
         self.assertEqual(old_link.readlink(), old_text)
-        self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
+        self.assertFalse((self.home / ".local/lib/agent-tools/learning-workflow").exists())
 
     def test_partial_bundle_copy_is_removed(self) -> None:
-        bundle = self.home / ".local/share/agent-tools/learning-workflow"
-        original = shutil.copytree
+        bundle = self.home / ".local/lib/agent-tools/learning-workflow"
+        original = installer.layout.sync_tree
 
-        def fail_bundle_copy(src: Path, dst: Path, *args: object, **kwargs: object) -> Path:
+        def fail_bundle_copy(dst: Path, *args: object, **kwargs: object) -> dict:
             if Path(dst) == bundle:
                 bundle.mkdir(parents=True)
                 (bundle / "partial").write_text("incomplete")
                 raise OSError("injected copy failure")
-            return original(src, dst, *args, **kwargs)
+            return original(dst, *args, **kwargs)
 
-        with patch.object(installer.shutil, "copytree", fail_bundle_copy):
+        with patch.object(installer.layout, "sync_tree", fail_bundle_copy):
             with self.assertRaisesRegex(OSError, "injected copy failure"):
                 installer.install(self.home, legacy_root=self.old, read_papers_root=None,
                                   with_hooks=False)
@@ -321,7 +321,7 @@ class InstallerTests(unittest.TestCase):
                                   with_hooks=True)
         self.assertEqual(json.loads((self.home / ".codex/hooks.json").read_text()), self.foreign)
         self.assertFalse(manifest.exists())
-        self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
+        self.assertFalse((self.home / ".local/lib/agent-tools/learning-workflow").exists())
         self.assertEqual((self.home / ".agents/skills/teaching-reconstruction").resolve(),
                          self.old / "skills/teaching-reconstruction")
 
@@ -361,7 +361,7 @@ class InstallerTests(unittest.TestCase):
         with self.assertRaisesRegex(installer.InstallError, "Claude-owned"):
             installer.install(self.home, legacy_root=self.old, read_papers_root=self.papers, with_hooks=False)
         self.assertEqual(installer.digest(claude), before)
-        self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
+        self.assertFalse((self.home / ".local/lib/agent-tools/learning-workflow").exists())
 
     def test_shared_agents_parent_is_still_rejected_before_writes(self) -> None:
         shared = self.base / "foreign-agents"
@@ -370,7 +370,7 @@ class InstallerTests(unittest.TestCase):
         with self.assertRaisesRegex(installer.InstallError, "skill destination escapes"):
             installer.install(self.home, legacy_root=self.old, read_papers_root=self.papers, with_hooks=False)
         self.assertEqual(list(shared.iterdir()), [])
-        self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
+        self.assertFalse((self.home / ".local/lib/agent-tools/learning-workflow").exists())
 
     def test_codex_alias_into_renamed_claude_root_is_rejected(self) -> None:
         shared = self.papers / "shared-client-state"
@@ -425,13 +425,13 @@ class InstallerTests(unittest.TestCase):
                                   legacy_project_skills_source=source, with_hooks=False)
         self.assertEqual(bridge.readlink(), source)
         self.assertFalse((self.papers / ".agents/skills/read-paper").exists())
-        self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
+        self.assertFalse((self.home / ".local/lib/agent-tools/learning-workflow").exists())
 
     def test_target_guard_rejects_cross_platform_config_before_writes(self) -> None:
         (self.home / ".codex/config.toml").write_text('note = "C:\\\\Users\\\\other"\n')
         with self.assertRaisesRegex(installer.InstallError, "target guard rejected"):
             installer.install(self.home, legacy_root=self.old, read_papers_root=None, with_hooks=False)
-        self.assertFalse((self.home / ".local/share/agent-tools/learning-workflow").exists())
+        self.assertFalse((self.home / ".local/lib/agent-tools/learning-workflow").exists())
 
 
 if __name__ == "__main__":

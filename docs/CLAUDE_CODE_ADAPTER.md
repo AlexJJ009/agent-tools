@@ -32,8 +32,10 @@ steps. Use the dedicated Python command when only Claude adaptation is needed.
 No credential, permission mode, Codex model/provider or CC Switch configuration
 is changed by the dedicated adapter. Its target guard runs before installation.
 Shared package preparation uses their existing installers: workflow/report can
-refresh managed packages; an existing learning candidate is checked through its
-own installation contract. Resolve learning package drift through its
+refresh managed packages; an existing learning bundle is updated with its
+recorded choices through its own installer. Rerunning the adapter moves views
+recorded under the old `~/.local/share/agent-tools/claude/` into the install
+root and repoints the rule link, skill links and hook commands. Resolve learning package drift through its
 [installer](LEARNING_WORKFLOW_INSTALL.md), rather than overwriting its state.
 
 ## Locations and single source of truth
@@ -41,7 +43,7 @@ own installation contract. Resolve learning package drift through its
 | Claude entry | Authoritative source |
 |---|---|
 | `~/.claude/CLAUDE.md` | Existing Core entry and its native `@` imports; linked to Core if missing |
-| `~/.claude/rules/agent-tools.md` | Generated profile view at `~/.local/share/agent-tools/claude/context.md` |
+| `~/.claude/rules/agent-tools.md` | Generated profile view at `~/.local/lib/agent-tools/claude/context.md` (install root, beside `native_hook.py`) |
 | `~/.claude/skills/<name>` | Existing shared workflow/report packages and learning bundle |
 | `~/.claude/settings.json` hook commands | Existing installed workflow, learning and report hook runtimes |
 | Task/route/report records | Existing runtime storage and explicit records; no Claude copy |

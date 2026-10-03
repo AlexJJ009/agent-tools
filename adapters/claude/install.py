@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -17,9 +18,16 @@ from adapters.claude import hooks
 
 ROOT = Path(__file__).resolve().parents[2]
 STATE = ".local/state/agent-tools/claude/install.json"
-CONTEXT = ".local/share/agent-tools/claude/context.md"
 RULE = ".claude/rules/agent-tools.md"
-NATIVE = ".local/share/agent-tools/claude/native_hook.py"
+LEGACY_VIEWS = learning.layout.LEGACY_DATA_LAYOUT + "/claude"  # earlier releases wrote views into the data root
+
+
+def context_path(home: Path) -> Path:
+    return hooks.view_root(home) / "context.md"
+
+
+def native_path(home: Path) -> Path:
+    return hooks.view_root(home) / "native_hook.py"
 
 
 def native_source() -> bytes:
@@ -55,7 +63,7 @@ def read_settings(home: Path) -> dict:
 
 
 def skill_sources(home: Path) -> dict[str, Path]:
-    bundle = home / ".local/share/agent-tools/learning-workflow"
+    bundle = learning.bundle_root(home)
     sources = {name: home / ".agents/skills" / name for name in workflow.SKILLS}
     sources.update({name: bundle / "skills" / name for name in learning.SKILLS})
     sources["work-report"] = home / ".agents/skills/work-report"
@@ -71,7 +79,7 @@ def skill_sources(home: Path) -> dict[str, Path]:
 
 
 def context(home: Path, core_source: Path | None = None) -> str:
-    contract = home / ".local/share/agent-tools/learning-workflow/shared/writing/reader-facing-contract.md"
+    contract = learning.bundle_root(home) / "shared/writing/reader-facing-contract.md"
     if not contract.is_file():
         raise ValueError(f"shared writing contract missing: {contract}")
     core_import = ""
@@ -87,24 +95,16 @@ def context(home: Path, core_source: Path | None = None) -> str:
             + core_import
             + "Use the installed Agent Tools skills when the current request matches their descriptions. "
             "Their shared source and runtime are authoritative; Claude discovery links are views.\n\n"
-            + learning.writing_entry(home, home / ".local/share/agent-tools/learning-workflow")
+            + learning.writing_entry(home, learning.bundle_root(home))
             + "\nNative hooks supply the actual session_id and workspace. Use those values when binding "
             "a task or route, and reuse the existing process record on resume. "
             "Do not create a separate Claude copy of task state.\n")
 
 
 def prepare_packages(home: Path) -> None:
-    for script, installed in [
-        ("install_agent_workflow.py", home / ".local/share/agent-workflow"),
-        ("install_work_report.py", home / ".agents/skills/work-report"),
-        ("install_learning_workflow.py", home / ".local/state/learning-workflow/install.json"),
-    ]:
-        # Existing learning candidates have their own upgrade/rollback contract.
-        # Check them, rather than silently replacing their installation state.
-        args = [sys.executable, str(ROOT / "scripts" / script)]
-        if script == "install_learning_workflow.py" and installed.exists():
-            args.append("--check")
-        subprocess.run(args, check=True, stdout=subprocess.DEVNULL)
+    # An installed learning bundle is updated with its recorded choices; a changed one is refused.
+    for script in ("install_agent_workflow.py", "install_work_report.py", "install_learning_workflow.py"):
+        subprocess.run([sys.executable, str(ROOT / "scripts" / script)], check=True, stdout=subprocess.DEVNULL)
 
 
 def install_cli() -> None:
@@ -139,7 +139,17 @@ def load_state(home: Path) -> dict | None:
     if (not isinstance(data.get("links"), dict) or not isinstance(data.get("context"), str)
             or not isinstance(data.get("native_sha256"), str) or not isinstance(data.get("managed_hooks"), dict)):
         raise ValueError("incomplete Claude adapter manifest")
+    data.setdefault("context_path", str(home / LEGACY_VIEWS / "context.md"))
+    data.setdefault("native_path", str(home / LEGACY_VIEWS / "native_hook.py"))
     return data
+
+
+def link_plan(home: Path, sources: dict[str, Path], core_link: str | None) -> dict[str, Path]:
+    links = {f".claude/skills/{name}": source for name, source in sources.items()}
+    links[RULE] = context_path(home)
+    if core_link is not None:
+        links[".claude/CLAUDE.md"] = Path(core_link)
+    return links
 
 
 def check(home: Path, *, current_source: bool = True) -> dict:
@@ -152,7 +162,7 @@ def check(home: Path, *, current_source: bool = True) -> dict:
         safe_target(path, home)
         if not path.is_symlink() or os.readlink(path) != entry["target"]:
             raise ValueError(f"managed Claude link missing or changed: {path}")
-    generated = home / CONTEXT
+    generated = Path(state["context_path"])
     safe_target(generated, home)
     if not isinstance(state.get("core_source"), str):
         raise ValueError("Claude adapter manifest is missing its Agent Core source")
@@ -160,14 +170,18 @@ def check(home: Path, *, current_source: bool = True) -> dict:
         raise ValueError(f"Agent Core Claude context missing: {state['core_source']}")
     if generated.is_symlink() or generated.read_text() != state["context"]:
         raise ValueError("managed Claude context missing or changed")
-    native = home / NATIVE
+    native = Path(state["native_path"])
     safe_target(native, home)
     if native.is_symlink() or not native.is_file() or hashlib.sha256(native.read_bytes()).hexdigest() != state["native_sha256"]:
         raise ValueError("managed native hook adapter missing or changed")
     hooks.check(read_settings(home), home, state["managed_hooks"])
     if current_source:
-        if generated.read_text() != context(home, Path(state["core_source"])) or native.read_bytes() != native_source():
-            raise ValueError("Claude adapter source updated; rerun installation to refresh managed views")
+        core_link = state["links"].get(".claude/CLAUDE.md", {}).get("target")
+        current = {raw: str(target) for raw, target in link_plan(home, skill_sources(home), core_link).items()}
+        if (generated != context_path(home) or native != native_path(home)
+                or current != {raw: entry["target"] for raw, entry in state["links"].items()}
+                or generated.read_text() != context(home, Path(state["core_source"])) or native.read_bytes() != native_source()):
+            raise ValueError("Claude adapter source updated or views moved; rerun installation to refresh managed views")
         hooks.check(read_settings(home), home)
     if read_settings(home).get("disableAllHooks"):
         raise ValueError("Claude hooks are disabled")
@@ -187,11 +201,9 @@ def install(home: Path, core: Path, legacy_roots: list[Path]) -> dict:
     settings = read_settings(home)
     if settings.get("disableAllHooks"):
         raise ValueError("Claude hooks are disabled; preserve this setting and resolve it explicitly")
+    learning.layout.require_separate(hooks.view_root(home).parent)
     merged = hooks.merge_install(settings, home)
-    links = {f".claude/skills/{name}": source for name, source in sources.items()}
-    links[RULE] = home / CONTEXT
-    if not core_view.exists():
-        links[".claude/CLAUDE.md"] = core_source
+    links = link_plan(home, sources, None if core_view.exists() else str(core_source))
     plan = {}
     for raw, target in links.items():
         path = home / raw
@@ -205,11 +217,11 @@ def install(home: Path, core: Path, legacy_roots: list[Path]) -> dict:
                 if not any(path.resolve() == (root / path.name).resolve() for root in legacy_roots):
                     raise ValueError(f"foreign Claude link preserved: {path}; specify its exact --legacy-skill-root")
         plan[raw] = {"target": str(target), "prior": prior}
-    generated = home / CONTEXT
+    generated = context_path(home)
     safe_target(generated, home)
     if generated.exists() or generated.is_symlink():
         raise ValueError(f"unmanaged context preserved: {generated}")
-    native = home / NATIVE
+    native = native_path(home)
     safe_target(native, home)
     if native.exists() or native.is_symlink():
         raise ValueError(f"unmanaged native hook adapter preserved: {native}")
@@ -233,13 +245,14 @@ def install(home: Path, core: Path, legacy_roots: list[Path]) -> dict:
             if path.is_symlink():
                 path.unlink()
             path.symlink_to(entry["target"], target_is_directory=raw.startswith(".claude/skills/"))
-        atomic_write(generated, context(home, core_source).encode())
-        atomic_write(native, native_source())
+        learning.layout.sync_tree(generated.parent, {generated.name: context(home, core_source).encode(),
+                                                     native.name: native_source()})
         if before_settings is not None:
             # May contain credentials: private backup, never print its contents.
             atomic_write(backup_path, before_settings)
         atomic_write(settings_path, (json.dumps(merged, indent=2) + "\n").encode())
         payload = {"schema_version": 1, "home": str(home), "links": plan, "core_source": str(core_source),
+                   "context_path": str(generated), "native_path": str(native),
                    "context": generated.read_text(), "native_sha256": hashlib.sha256(native_source()).hexdigest(),
                    "managed_hooks": hooks.hook_groups(home)}
         atomic_write(state_path, (json.dumps(payload, indent=2) + "\n").encode())
@@ -252,6 +265,7 @@ def install(home: Path, core: Path, legacy_roots: list[Path]) -> dict:
                 path.symlink_to(plan[raw]["prior"])
         generated.unlink(missing_ok=True)
         native.unlink(missing_ok=True)
+        (generated.parent / learning.layout.MANIFEST).unlink(missing_ok=True)
         state_path.unlink(missing_ok=True)
         if before_backup is None:
             backup_path.unlink(missing_ok=True)
@@ -265,27 +279,64 @@ def install(home: Path, core: Path, legacy_roots: list[Path]) -> dict:
 
 
 def refresh(home: Path, state: dict) -> dict:
+    """Update views, links and hooks in place, moving views out of an old data-root layout."""
     check(home, current_source=False)  # validate published bytes before upgrade
+    learning.layout.require_separate(hooks.view_root(home).parent)
+    old_context, old_native = Path(state["context_path"]), Path(state["native_path"])
+    new_context, new_native = context_path(home), native_path(home)
     expected_context = context(home, Path(state["core_source"]))
     expected_native = native_source()
     expected_hooks = hooks.hook_groups(home)
-    if (state["context"] == expected_context and state["native_sha256"] == hashlib.sha256(expected_native).hexdigest()
+    core_link = state["links"].get(".claude/CLAUDE.md", {}).get("target")
+    targets = {raw: str(target) for raw, target in link_plan(home, skill_sources(home), core_link).items()}
+    if set(targets) != set(state["links"]):
+        raise ValueError("Claude adapter skill set changed; remove and reinstall the adapter")
+    relink = [raw for raw, target in targets.items() if state["links"][raw]["target"] != target]
+    moved = (old_context, old_native) != (new_context, new_native)
+    if (not moved and not relink and state["context"] == expected_context
+            and state["native_sha256"] == hashlib.sha256(expected_native).hexdigest()
             and state["managed_hooks"] == expected_hooks):
         return check(home)
+    if moved and any(p.exists() or p.is_symlink() for p in (new_context, new_native)):
+        raise ValueError(f"unmanaged Claude view preserved: {new_context.parent}")
     settings = hooks.merge_install(hooks.remove_owned(read_settings(home), home, state["managed_hooks"]), home)
-    paths = [home / CONTEXT, home / NATIVE, home / ".claude/settings.json", home / STATE]
-    before = {path: path.read_bytes() for path in paths}
-    updated = dict(state, context=expected_context, native_sha256=hashlib.sha256(expected_native).hexdigest(), managed_hooks=expected_hooks)
+    manifest = new_context.parent / learning.layout.MANIFEST
+    paths = [old_context, old_native, old_context.parent / learning.layout.MANIFEST, manifest,
+             home / ".claude/settings.json", home / STATE]
+    before = {path: path.read_bytes() for path in paths if path.is_file()}
+    links = {raw: dict(entry, target=targets[raw]) for raw, entry in state["links"].items()}
+    updated = dict(state, context=expected_context, native_sha256=hashlib.sha256(expected_native).hexdigest(),
+                   managed_hooks=expected_hooks, links=links, context_path=str(new_context), native_path=str(new_native))
     try:
-        for path, data in zip(paths, [expected_context.encode(), expected_native,
-                                   (json.dumps(settings, indent=2) + "\n").encode(),
-                                   (json.dumps(updated, indent=2) + "\n").encode()]):
-            atomic_write(path, data)
-        return {**check(home), "status": "updated"}
+        learning.layout.sync_tree(new_context.parent, {new_context.name: expected_context.encode(),
+                                                       new_native.name: expected_native})
+        for raw in relink:
+            path = home / raw
+            path.unlink()
+            path.symlink_to(targets[raw], target_is_directory=raw.startswith(".claude/skills/"))
+        atomic_write(home / ".claude/settings.json", (json.dumps(settings, indent=2) + "\n").encode())
+        atomic_write(home / STATE, (json.dumps(updated, indent=2) + "\n").encode())
+        result = {**check(home), "status": "updated"}
     except Exception:
+        for raw in relink:
+            path = home / raw
+            path.unlink(missing_ok=True)
+            path.symlink_to(state["links"][raw]["target"], target_is_directory=raw.startswith(".claude/skills/"))
+        for path in (new_context, new_native, manifest):
+            if path not in before:
+                path.unlink(missing_ok=True)
         for path, data in before.items():
             atomic_write(path, data)
         raise
+    if moved:
+        from shared import materials
+        for path in (old_context, old_native):
+            path.unlink()
+            materials.record(path, learning.layout.PRODUCER, "Claude view moved to the install root", "removed", kind="file")
+        (old_context.parent / learning.layout.MANIFEST).unlink(missing_ok=True)
+        with contextlib.suppress(OSError):
+            old_context.parent.rmdir()
+    return result
 
 
 def remove(home: Path) -> dict:
@@ -293,7 +344,8 @@ def remove(home: Path) -> dict:
     state = load_state(home)
     settings_path = home / ".claude/settings.json"
     cleaned = hooks.remove_owned(read_settings(home), home, state["managed_hooks"])
-    before = {path: path.read_bytes() for path in [settings_path, home / CONTEXT, home / NATIVE, home / STATE]}
+    views = [Path(state["context_path"]), Path(state["native_path"])]
+    before = {path: path.read_bytes() for path in [settings_path, *views, home / STATE]}
     changed = []
     try:
         atomic_write(settings_path, (json.dumps(cleaned, indent=2) + "\n").encode())
@@ -303,8 +355,9 @@ def remove(home: Path) -> dict:
             path.unlink()
             if entry["prior"] is not None:
                 path.symlink_to(entry["prior"])
-        (home / CONTEXT).unlink()
-        (home / NATIVE).unlink()
+        for path in views:
+            path.unlink()
+        (views[0].parent / learning.layout.MANIFEST).unlink(missing_ok=True)
         (home / STATE).unlink()
     except Exception:
         for raw in reversed(changed):

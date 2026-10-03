@@ -50,7 +50,8 @@ inventory command.
 
 The data root contains `tasks.sqlite3`, task-owned files under
 `artifacts/<task-id>/` and the material ledger under `materials/`. It is application data, separate from the replaceable
-runtime installation and project checkout. Each machine/user has independent
+runtime installation (`~/.local/lib/agent-tools`; installers refuse overlapping
+roots) and project checkout. Context-sync logs live in its `logs/`. Each machine/user has independent
 state. [ADR 0004](decisions/0004-task-runtime-application-storage.md) records
 this storage decision and its limits. Existing scenario records and explicit
 record paths remain usable through the [agent workflow](AGENT_WORKFLOW.md);

@@ -24,6 +24,10 @@ class ClaudeHooksTests(unittest.TestCase):
                     self.assertEqual(handler["type"], "command")
                     self.assertEqual(handler["timeout"], 30)
                     self.assertTrue(shlex.split(handler["command"]))
+        self.assertEqual([g["matcher"] for g in groups["PreToolUse"]], ["Bash", "Bash"])
+        self.assertEqual([g["matcher"] for g in groups["PostToolUse"]][:2], ["Bash", "Bash"])
+        self.assertEqual(groups["PostToolUse"][2]["matcher"], ".*")
+        self.assertIn("report_runtime.py", groups["PostToolUse"][2]["hooks"][0]["command"])
         commands = [group["hooks"][0]["command"] for group in groups["Stop"]]
         self.assertIn("learning-workflow-hook", commands[0])
         self.assertIn("agent_workflow.hooks", commands[1])

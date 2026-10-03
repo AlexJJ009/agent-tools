@@ -99,6 +99,21 @@ def managed_launcher_contents(runtime_target: Path) -> set[str]:
     return {expected_launcher(runtime_target), *prior_expected_launchers(runtime_target)}
 
 
+def is_managed_launcher(text: str, runtime_target: Path) -> bool:
+    """A launcher written by any interpreter is ours; only the interpreter path may differ."""
+    if text in managed_launcher_contents(runtime_target):
+        return True
+    for template in managed_launcher_contents(runtime_target):
+        prefix, _, suffix = template.partition(shlex.quote(sys.executable))
+        if not suffix:
+            prefix, _, suffix = template.partition(json.dumps(sys.executable))
+        if suffix and text.startswith(prefix) and text.endswith(suffix):
+            middle = text[len(prefix):len(text) - len(suffix)]
+            if middle and "\n" not in middle and Path(middle.strip('"\'')).name.startswith("python"):
+                return True
+    return False
+
+
 def validate_sources() -> dict[str, dict[str, str]]:
     source_hashes: dict[str, dict[str, str]] = {}
     shared = ROOT / "shared/writing/reader-facing-contract.md"
@@ -160,7 +175,7 @@ def reject_collisions(home: Path, runtime_target: Path, launcher: Path, *, check
             raise RuntimeError(f"unmanaged launcher symlink exists: {launcher}")
         if marker is None and not check:
             raise RuntimeError(f"unmanaged launcher exists: {launcher}")
-        if marker is not None and launcher.read_text(encoding="utf-8") not in managed_launcher_contents(runtime_target):
+        if marker is not None and not is_managed_launcher(launcher.read_text(encoding="utf-8"), runtime_target):
             raise RuntimeError(f"managed launcher was modified: {launcher}")
 
 

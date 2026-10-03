@@ -33,10 +33,28 @@ OBLIGATION_KEYS = ["final", "periodic", "interim"]
 MAX_ATTEMPTS = 2
 LEASE_SECONDS = 900
 VERIFY_TIMEOUT_SECONDS = 30
-PROMPT_REPORT_RE = re.compile(r"(work-report|report|汇报|报告)", re.IGNORECASE)
-PROMPT_TIMING_RE = re.compile(
-    r"(end|finish|complete|completion|after|every|periodic|cron|interim|continue|结束|完成|收尾|定时|每|临时|中途|继续|抽检)",
+# A candidate needs a request-shaped report cue plus a timing cue. A bare mention
+# of reports (mechanism discussion, skill or file names) is not a request.
+_CN_MOD = r"(?:一份|一个|一篇|一下|个|份|篇)?(?:最终|最后|结项|阶段性?|进度|中期|临时|中途|工作|总结|完整|正式|详细|简要)?的?\s?"
+PROMPT_REQUEST_RE = re.compile(
+    r"\b(?:send|give|write|produce|generate|prepare|make|deliver|share|post|provide|draft|compile|create)"
+    r"(?:\s+(?:me|us))?(?:\s+(?:up|out))?(?:\s+(?:a|an|the|one|your|my))?(?:\s+[\w-]+){0,2}?\s+(?:work[- ]?)?reports?\b"
+    r"|\breport\s+(?:back|to\s+me|when|once|after|at\s+the\s+end|every|periodically|progress|status)\b"
+    r"|(?:出|写|给我|给出|生成|发我|提交|整理|准备|做|来|输出)" + _CN_MOD + r"(?:报告|汇报|(?:work[- ]?)?report)"
+    r"|(?:汇报|报告)(?:一下|一次|给我|进度|进展)|(?:向|跟|给)我(?:汇报|报告)"
+    r"|每隔?[\d一二两三四五六七八九十半几]*个?(?:小时|分钟|天|周|轮|步|epoch|step)[^，。！？；\n]{0,4}(?:汇报|报告|report)"
+    r"|(?:完成|结束|做完|跑完|收尾|搞定)(?:后|之后|以后|时|了)[，,\s]*(?:再|就)?(?:汇报|报告)",
     re.IGNORECASE,
+)
+PROMPT_TIMING_RE = re.compile(
+    r"(end|finish|complete|completion|done|after|every|periodic|hour|cron|interim|continue|结束|完成|做完|跑完|收尾|定时|每|临时|中途|继续|抽检)",
+    re.IGNORECASE,
+)
+# Code, typographic quotations and file/identifier names are references, not
+# requests. ASCII double quotes are kept: they also delimit JSON strings.
+PROMPT_REFERENCE_RE = re.compile(
+    r"```.*?```|`[^`\n]*`|“[^”]*”|「[^」]*」|『[^』]*』|[\w./-]*\.(?:py|md|json|ya?ml|sh)\b|\b\w*report_\w+",
+    re.IGNORECASE | re.DOTALL,
 )
 SAFE_ID_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 UUID_RE = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
@@ -314,14 +332,43 @@ def pending_path(workspace_root: Path, session_id: Any) -> Path:
 def locked_pending(workspace_root: Path, session_id: Any):
     root = pending_root(workspace_root)
     root.mkdir(parents=True, exist_ok=True)
-    lock_path = root / f".{safe_session_id(session_id)}.lock"
+    lock_path = pending_lock_path(workspace_root, session_id)
     reject_symlinks(lock_path)
-    with lock_path.open("a+", encoding="utf-8") as fh:
-        fcntl.flock(fh, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(fh, fcntl.LOCK_UN)
+    while True:
+        with lock_path.open("a+", encoding="utf-8") as fh:
+            fcntl.flock(fh, fcntl.LOCK_EX)
+            try:
+                # A resolved candidate unlinks its lock; retry if we locked a removed inode.
+                with contextlib.suppress(FileNotFoundError):
+                    if os.fstat(fh.fileno()).st_ino == os.stat(lock_path).st_ino:
+                        yield
+                        return
+            finally:
+                fcntl.flock(fh, fcntl.LOCK_UN)
+
+
+def pending_lock_path(workspace_root: Path, session_id: Any) -> Path:
+    return pending_root(workspace_root) / f".{safe_session_id(session_id)}.lock"
+
+
+def resolution_path(workspace_root: Path, session_id: Any) -> Path:
+    return pending_root(workspace_root) / f"{safe_session_id(session_id)}.resolution.json"
+
+
+def drop_pending_unlocked(workspace_root: Path, session_id: Any) -> None:
+    """Remove a resolved or expired candidate's marker and lock; call under its lock."""
+    pending_path(workspace_root, session_id).unlink(missing_ok=True)
+    pending_lock_path(workspace_root, session_id).unlink(missing_ok=True)
+
+
+def write_session_resolution(workspace_root: Path, session_id: Any, record: dict[str, Any]) -> Path:
+    """Keep one compact resolution record per session: the latest candidate outcome."""
+    path = resolution_path(workspace_root, session_id)
+    fresh = not path.exists()
+    atomic_write_json(path, {"schema_version": "work-report.pending.resolution/2", "session_id": str(session_id or ""), **record})
+    if fresh:
+        record_material(path, "work-report latest intent resolution for this session", workspace=workspace_root, session_id=str(session_id or ""))
+    return path
 
 
 def ensure_pending_git_policy(workspace_root: Path) -> None:
@@ -377,6 +424,11 @@ def report_candidate_text(prompt: str) -> str:
     return "\n".join([before, *comments, after])
 
 
+def is_report_candidate(text: str) -> bool:
+    text = PROMPT_REFERENCE_RE.sub(" ", text)
+    return bool(PROMPT_REQUEST_RE.search(text) and PROMPT_TIMING_RE.search(text))
+
+
 def write_pending_prompt(workspace_root: Path, event: dict[str, Any]) -> dict[str, Any] | None:
     prompt = event.get("prompt")
     if not isinstance(prompt, str):
@@ -389,8 +441,7 @@ def write_pending_prompt(workspace_root: Path, event: dict[str, Any]) -> dict[st
         outside = re.sub(r"<task-notification>.*?</task-notification>", "", stripped, flags=re.DOTALL)
         if not outside.strip():
             return None
-    candidate = report_candidate_text(prompt)
-    if not PROMPT_REPORT_RE.search(candidate) or not PROMPT_TIMING_RE.search(candidate):
+    if not is_report_candidate(report_candidate_text(prompt)):
         return None
     ensure_pending_git_policy(workspace_root)
     with locked_pending(workspace_root, event.get("session_id")):
@@ -411,7 +462,7 @@ def write_pending_prompt(workspace_root: Path, event: dict[str, Any]) -> dict[st
             "prompt": prompt,
             "state": "needs_intent_judge",
             "attempts": 0,
-            "reason": "conservative candidate matched report and timing cue",
+            "reason": "candidate matched a report request and timing cue",
         }
         atomic_write_json(existing_path, pending)
         return pending
@@ -428,12 +479,6 @@ def bump_pending_stop(workspace_root: Path, session_id: Any) -> dict[str, Any] |
         if not isinstance(data, dict):
             path.unlink(missing_ok=True)
             return None
-        if data.get("state") == "failed_open":
-            if data.get("notified_at"):
-                return None
-            data["notified_at"] = iso_now()
-            atomic_write_json(path, data)
-            return data
         if data.get("state") == "register_failed":
             if data.get("notified_at"):
                 return None
@@ -441,24 +486,18 @@ def bump_pending_stop(workspace_root: Path, session_id: Any) -> dict[str, Any] |
             data["last_stop_at"] = iso_now()
             atomic_write_json(path, data)
             return data
-        data["attempts"] = int(data.get("attempts", 0)) + 1
-        data["last_stop_at"] = iso_now()
-        if data["attempts"] > MAX_ATTEMPTS:
-            data["state"] = "failed_open"
-            data["message"] = "Possible work-report obligation has no valid intent resolution recorded after two Stop continuations; failing open visibly."
-            data["notified_at"] = iso_now()
-            atomic_write_json(path, data)
-            atomic_write_json(
-                workspace_root / "docs" / "_local" / "reports" / ".pending" / f"{safe_session_id(session_id)}.failure.json",
-                {
-                    "schema_version": "work-report.pending.failure/1",
-                    "session_id": str(session_id or ""),
-                    "failed_at": iso_now(),
-                    "reason": "possible work-report obligation had no valid intent resolution recorded after two Stop continuations",
-                    "request_sha256": data.get("request_sha256"),
-                },
-            )
-            return data
+        if data.get("reminded_at") or data.get("state") == "failed_open":
+            # One reminder per candidate; afterwards it expires without blocking again.
+            write_session_resolution(workspace_root, session_id, {
+                "request_sha256": data.get("request_sha256"),
+                "pending_created_at": data.get("created_at"),
+                "resolved_at": iso_now(),
+                "state": "expired_unresolved",
+                "auto_enforced": False,
+            })
+            drop_pending_unlocked(workspace_root, session_id)
+            return None
+        data["reminded_at"] = data["last_stop_at"] = iso_now()
         atomic_write_json(path, data)
         return data
 
@@ -470,7 +509,7 @@ def clear_pending_if_request_matches_unlocked(workspace_root: Path, session_id: 
     with contextlib.suppress(RuntimeFailure, FileNotFoundError):
         data = load_json(path)
         if isinstance(data, dict) and data.get("request_sha256") == request_sha256:
-            path.unlink()
+            drop_pending_unlocked(workspace_root, session_id)
             return True
     return False
 
@@ -555,24 +594,17 @@ def write_pending_resolution(
     pending: dict[str, Any],
     decision: dict[str, Any],
 ) -> Path:
-    request_sha = str(pending.get("request_sha256") or "unknown")
-    path = pending_root(workspace_root) / f"{safe_session_id(session_id)}.{request_sha}.resolution.json"
-    atomic_write_json(
-        path,
-        {
-            "schema_version": "work-report.pending.resolution/1",
-            "session_id": session_id,
-            "request_sha256": pending.get("request_sha256"),
-            "pending_created_at": pending.get("created_at"),
-            "resolved_at": iso_now(),
-            "verdict": decision.get("verdict"),
-            "decision": decision,
-            "status": "not_scheduled",
-            "auto_enforced": False,
-            "reason": "non-confirmed intent decisions do not create a work-report runtime obligation",
-        },
-    )
-    return path
+    return write_session_resolution(workspace_root, session_id, {
+        "request_sha256": pending.get("request_sha256"),
+        "pending_created_at": pending.get("created_at"),
+        "resolved_at": iso_now(),
+        "state": "resolved",
+        "verdict": decision.get("verdict"),
+        "decision": decision,
+        "status": "not_scheduled",
+        "auto_enforced": False,
+        "reason": "non-confirmed intent decisions do not create a work-report runtime obligation",
+    })
 
 
 def load_manifest(task_dir: Path) -> dict[str, Any]:
@@ -1331,7 +1363,7 @@ def cmd_hook(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 "hookSpecificOutput": {
                     "hookEventName": hook_event,
                     "additionalContext": (
-                        "This prompt may contain a work-report obligation. Run the real intent Judge and then call "
+                        "This prompt may ask for a work report. If it does, run the real intent Judge and call "
                         "report_runtime.py register with the Judge JSON decision before task completion. "
                         f"Pending marker: {pending_path(root, session_id)}. Session UUID: {session_id}."
                     )
@@ -1341,13 +1373,6 @@ def cmd_hook(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     if hook_event == "Stop":
         data = bump_pending_stop(root, session_id)
         if data:
-            if data.get("state") == "failed_open":
-                return 0, {
-                    "systemMessage": (
-                        f"{data.get('message', 'Possible work-report obligation failed open visibly.')} "
-                        f"Pending marker: {pending_path(root, session_id)}."
-                    ),
-                }
             if data.get("state") == "register_failed":
                 error = data.get("last_register_error") if isinstance(data.get("last_register_error"), dict) else {}
                 verdict = error.get("verdict") or "unknown"
@@ -1364,8 +1389,9 @@ def cmd_hook(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             return 0, {
                 "decision": "block",
                 "reason": (
-                    "A possible work-report obligation from UserPromptSubmit has no valid intent resolution recorded. "
-                    "Run the real intent Judge; call register for confirmed obligations, or register the none/needs_clarification/deferred decision to clear it. "
+                    "One-time reminder: a possible work-report request from UserPromptSubmit has no intent resolution recorded. "
+                    "If the user asked for a report, run the real intent Judge and register its decision now. "
+                    "Otherwise just finish; the candidate expires unresolved at the next Stop without further reminders. "
                     f"Pending marker: {pending_path(root, session_id)}. Session UUID: {session_id}."
                 ),
             }

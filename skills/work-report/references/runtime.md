@@ -97,15 +97,18 @@ auth, CC Switch and hooks.state unchanged. Use native `/hooks` to review/trust
 installed definitions. File existence or installer PASS does not prove trust.
 Claude Code registration (no `Interrupt` event): agent-tools `docs/CLAUDE_CODE_ADAPTER.md`.
 
-- `UserPromptSubmit`: conservatively captures possible report/timing requests;
-  an actual intent Judge decides semantics. A prompt that is only a
+- `UserPromptSubmit`: captures prompts that ask for a report (a request verb
+  or "report back/when", plus a timing cue); mentions of reports, code, file or
+  skill names and quoted text are not candidates. An actual intent Judge
+  decides semantics. A prompt that is only a
   `<task-notification>` envelope is system-generated and leaves pending state
   untouched. The matcher cannot promise every
   metaphorical wording or events when the Hook is not loaded/trusted.
 - `SessionStart` and `PostToolUse`: restore state or present due reminders at
   tool boundaries.
-- `Stop`: unresolved candidates or obligations request continuation in the same
-  conversation. Only a fresh, matching, successfully revalidated delivery.json
+- `Stop`: an unresolved candidate blocks once with a reminder; at the next Stop
+  it expires as `expired_unresolved` without blocking. Registered obligations
+  request continuation in the same conversation. Only a fresh, matching, successfully revalidated delivery.json
   satisfies the obligation. Allow at most two recovery continuations, then
   record failure and show a warning rather than blocking indefinitely.
 - `Interrupt`: cancel this session's reporting obligations and respect the stop;

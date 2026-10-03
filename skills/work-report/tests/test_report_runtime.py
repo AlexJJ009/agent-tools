@@ -1285,7 +1285,7 @@ class ReportRuntimeTests(unittest.TestCase):
             {},
         )
 
-        followup = "After this, no report needed for this ordinary follow-up."
+        followup = "After this, don't send a report for this ordinary follow-up."
         request.write_text(followup, encoding="utf-8")
         followup_event = json.dumps(
             {
@@ -1301,7 +1301,7 @@ class ReportRuntimeTests(unittest.TestCase):
             self.root / "followup-none.json",
             followup,
             verdict="none",
-            evidence_quotes=["no report needed"],
+            evidence_quotes=["don't send a report"],
         )
         followup_result = self.data(
             self.run_cli(
@@ -1317,10 +1317,11 @@ class ReportRuntimeTests(unittest.TestCase):
             )
         )
         self.assertEqual(followup_result["status"], "ignored")
-        followup_resolution_path = Path(followup_result["resolution"])
-        self.assertNotEqual(deferred_resolution_path, followup_resolution_path)
-        self.assertTrue(deferred_resolution_path.exists())
-        self.assertTrue(followup_resolution_path.exists())
+        # One compact record per session holds the latest outcome; marker and lock are gone.
+        self.assertEqual(Path(followup_result["resolution"]), deferred_resolution_path)
+        self.assertEqual(json.loads(deferred_resolution_path.read_text())["decision"]["verdict"], "none")
+        pending_dir = repo / "docs" / "_local" / "reports" / ".pending"
+        self.assertEqual(sorted(p.name for p in pending_dir.iterdir()), [deferred_resolution_path.name])
 
     def test_late_new_pending_survives_old_nonconfirmed_resolution_clear(self):
         text = "After this work is complete, send a report."
@@ -1540,7 +1541,51 @@ class ReportRuntimeTests(unittest.TestCase):
             output = self.data(self.run_cli("hook", input=event, cwd=repo))
             self.assertIn("hookSpecificOutput", output, prompt)
 
-    def test_prompt_candidate_caps_then_fails_open_visibly(self):
+    def test_candidate_detector_requires_report_request_not_mention(self):
+        runtime = self.load_runtime_module()
+        positives = [
+            "After this work is complete, send a report.",
+            "Please send an end report when finished.",
+            "Report back when the training run is done.",
+            "Send me a progress report every hour.",
+            "Give me an interim work-report and continue afterwards.",
+            "完成后给我报告",
+            "完整矩阵结束后给我一份报告。",
+            "跑完实验后出一份最终报告",
+            "每隔两小时汇报一次进度",
+            "做完后汇报",
+            "结束时写个 work report 给我",
+        ]
+        negatives = [
+            "work report 每次修订都新建一个批次目录是不对的，应该在同一个批次目录里修订",
+            "report_runtime.py 的 Stop hook 完成后会阻塞两次",
+            "`work-report` skill 每次都触发 Judge，这个机制要改",
+            "The work-report Stop hook blocks after every prompt that mentions report.",
+            "Why does the report generator fail after completion?",
+            "他说：“完成后给我报告”，这是历史需求，不用管",
+            "Fix the bug in report_tool.py where finalize ignores the end batch.",
+            "汇报机制每次结束都会写 .pending 文件，帮我清理一下",
+            "完成之后看一下 docs/WORK_REPORT.md 里的说明",
+            "Continue the refactor; the report template is fine.",
+            "报告目录每次都新建，修一下",
+        ]
+        for text in positives:
+            with self.subTest(positive=text):
+                self.assertTrue(runtime.is_report_candidate(runtime.report_candidate_text(text)))
+        for text in negatives:
+            with self.subTest(negative=text):
+                self.assertFalse(runtime.is_report_candidate(runtime.report_candidate_text(text)))
+
+    def test_report_mechanism_discussion_creates_no_pending_marker(self):
+        repo, _, _ = self.make_repo_task(request_text="irrelevant")
+        text = "work report 每次修订都新建一个批次目录是不对的，应该在同一个批次目录里修订"
+        event = dict(hook_event_name="UserPromptSubmit", cwd=str(repo), session_id=self.session_id, prompt=text)
+        self.assertEqual(self.data(self.run_cli("hook", input=json.dumps(event), cwd=repo)), {})
+        stop_event = json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id})
+        self.assertEqual(self.data(self.run_cli("hook", input=stop_event, cwd=repo)), {})
+        self.assertFalse((repo / "docs/_local/reports/.pending").exists())
+
+    def test_unresolved_candidate_reminds_once_then_expires_and_cleans_up(self):
         repo, _, _ = self.make_repo_task(request_text="irrelevant")
         prompt_event = json.dumps(
             {
@@ -1551,13 +1596,17 @@ class ReportRuntimeTests(unittest.TestCase):
             }
         )
         self.run_cli("hook", input=prompt_event, cwd=repo)
+        pending_dir = repo / "docs" / "_local" / "reports" / ".pending"
         stop_event = json.dumps({"hook_event_name": "Stop", "cwd": str(repo), "session_id": self.session_id})
         self.assertEqual(self.data(self.run_cli("hook", input=stop_event, cwd=repo))["decision"], "block")
-        self.assertEqual(self.data(self.run_cli("hook", input=stop_event, cwd=repo))["decision"], "block")
-        third = self.data(self.run_cli("hook", input=stop_event, cwd=repo))
-        self.assertIn("systemMessage", third)
         self.assertEqual(self.data(self.run_cli("hook", input=stop_event, cwd=repo)), {})
-        self.assertTrue((repo / "docs" / "_local" / "reports" / ".pending" / f"{self.session_id}.failure.json").exists())
+        self.assertEqual(self.data(self.run_cli("hook", input=stop_event, cwd=repo)), {})
+        self.assertEqual(sorted(p.name for p in pending_dir.iterdir()), [f"{self.session_id}.resolution.json"])
+        record = json.loads((pending_dir / f"{self.session_id}.resolution.json").read_text())
+        self.assertEqual(record["state"], "expired_unresolved")
+        ledger = Path(os.environ["XDG_CONFIG_HOME"]).parent / "data" / "materials" / "ledger.jsonl"
+        paths = [json.loads(line)["path"] for line in ledger.read_text().splitlines()]
+        self.assertIn(str((pending_dir / f"{self.session_id}.resolution.json").resolve()), paths)
 
     def test_subagent_hook_payload_is_ignored(self):
         repo, _, _ = self.make_repo_task(request_text="irrelevant")

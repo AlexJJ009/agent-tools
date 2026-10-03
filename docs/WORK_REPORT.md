@@ -113,7 +113,15 @@ task directory; only `confirmed` creates the formal reporting obligation.
 See the [registration commands](../skills/work-report/references/runtime.md).
 
 `UserPromptSubmit` captures possible requests; it does not make the semantic
-decision. `SessionStart` and `PostToolUse` restore state or show due reminders.
+decision. A candidate needs a request-shaped report cue (send/write/give me a
+report, "report back/when", 出/写/给我…报告, 汇报一下, 每隔…汇报, 做完后汇报) plus
+a timing cue. Discussion of the reporting mechanism, inline or fenced code,
+file and identifier names (`report_runtime.py`) and typographic quotations
+(“…”, 「…」) are not candidates. An unresolved candidate blocks `Stop` once with
+a reminder; at the next `Stop` it expires as `expired_unresolved` without
+blocking. Resolving or expiring a candidate removes its marker and lock and
+keeps one `<session>.resolution.json` with the latest outcome, recorded in the
+material ledger. `SessionStart` and `PostToolUse` restore state or show due reminders.
 `Stop` revalidates a fresh matching delivery receipt and allows bounded recovery
 continuations before recording a visible failure. Interim delivery also prompts
 resumption when no subsequent original-task activity is observed. `Interrupt`

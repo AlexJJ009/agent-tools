@@ -46,6 +46,11 @@ merely to produce a diff.
 
 ## Process-material review
 
+Start from `agent-workflow materials list --workspace <repo> [--task ID]`; it
+lists every file agent-tools and agents recorded plus unrecorded files under
+known material roots. Propose a disposition for every entry in one batch; delete
+authorized ones through process-cleanup.
+
 Review materials when authorized cleanup is useful, including during active
 work. Reuse existing scoped user authorization; do not wait for whole-task
 acceptance or ask again for an already decided disposition. Task closeout has
@@ -111,31 +116,12 @@ checklist just to record this activity.
   `names` and a `rationale`. It preserves task state; every result reference,
   including withdrawn criteria, and every user-preserved artifact blocks
   retirement. Closed non-retained tasks use `task prune`.
-- For reviewed legacy process outputs, caches and obsolete state outside the
-  artifact store, use `task process-cleanup --input PATH`. The guide defines
-  the packet: explicit workspace, task/operation identity, actual authorization
-  quote/source, reviewed process roots and exact file paths, hashes, categories
-  and `archive`/`delete` dispositions. Keep protected material out of the packet.
-  Workspace mode accepts only ignored, untracked regular files; it does not discover
-  candidates, recurse through directories or decide whether content is obsolete.
-- This separate cleanup journal does not close or revise the SQLite task.
-  Recover through `task recover --task TASK_ID` or by replaying the unchanged
-  packet; journals retain their original workspace after task rebind. Inspect with
-  `task process-cleanup-status --task TASK_ID --operation OP`. Before commit,
-  `task process-cleanup-abort --task TASK_ID --operation OP` restores quarantine.
-  Do not use the SQLite operation's `task abort` for this journal.
-- For explicitly authorized duplicates under the fixed `<data-root>/archives/`
-  root, use `storage: "archives"` with exact relative `process_roots` and
-  `files[].path`, and `delete` only. This does not authorize ordinary workspace
-  deletion, journal deletion, directory recursion or changes inside tar files.
-  If relying on a retained identical copy, record per-file
-  `retained_copy: {path: absolute_path, sha256: target_hash}`; the runtime checks
-  its bytes and excludes copies in the same deletion/quarantine set.
-- Archive copies are hash-verified before originals enter local quarantine.
-  Cross-filesystem work is recoverable, not one atomic move. Check the returned
-  state before reporting completion. There is no timer, TTL or automatic archive
-  deletion: archives still occupy storage and must not be described as no
-  accumulation. Do not retire old archives without separately authorized scope.
+- For reviewed workspace process outputs, caches and obsolete state outside the
+  artifact store, build a packet from inventory paths with
+  `agent-workflow materials cleanup-packet` and run
+  `task process-cleanup --input PATH`. See
+  [process-cleanup mechanics](references/process-cleanup.md) for the packet,
+  directory retirement, journal recovery and archive storage.
 
 ## Task closeout
 

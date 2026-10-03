@@ -45,8 +45,11 @@ python3 -m agent_workflow.cli task location
 python3 -m agent_workflow.cli task list --data-root /absolute/trial-data
 ```
 
-The data root contains `tasks.sqlite3` and task-owned files under
-`artifacts/<task-id>/`. It is application data, separate from the replaceable
+`task location` also names the material ledger and the `materials list`
+inventory command.
+
+The data root contains `tasks.sqlite3`, task-owned files under
+`artifacts/<task-id>/` and the material ledger under `materials/`. It is application data, separate from the replaceable
 runtime installation and project checkout. Each machine/user has independent
 state. [ADR 0004](decisions/0004-task-runtime-application-storage.md) records
 this storage decision and its limits. Existing scenario records and explicit
@@ -401,9 +404,14 @@ with observed paths, hashes and actual authorization:
 `storage` defaults to `workspace`: `process_roots` and `files[].path` are
 exact workspace-relative paths. Each file
 must be a Git-ignored, untracked regular file within a declared root; symlinks
-and `.git` paths are rejected. No recursive directory deletion is supported.
+and `.git` paths are rejected. A `files` entry with `"kind": "dir"` retires a
+whole ignored, untracked directory as a unit: its `sha256` is a tree digest over
+relative paths, entry types, file sizes and modification times (not file bytes),
+its disposition must be `delete`, and a nested `.git` entry is rejected.
 Dispositions are `archive` or `delete`; categories are `process-output`, `cache`
 or `obsolete-state`. Unlike SQLite mutations, this packet has no `base_revision`.
+`agent-workflow materials cleanup-packet` builds this packet from selected
+inventory paths (see [Material ledger](#material-ledger-and-inventory)).
 
 ```sh
 python3 -m agent_workflow.cli task process-cleanup --input /absolute/packets/cleanup.json
@@ -419,7 +427,8 @@ contain the exact file `old-task/duplicate-report.md`. The workspace still
 identifies the task/operation; this mode does not delete ordinary workspace
 files or permit arbitrary absolute targets. Files under `cleanup/` are outside
 this archives selector. No timer, recursive directory deletion or automatic
-modification of members inside tar/zip archives is added.
+modification of members inside tar/zip archives is added; a directory entry
+is not supported in this mode.
 
 When deletion relies on a retained byte-identical copy, add
 `"retained_copy": {"path": "/absolute/retained/report.md", "sha256": "OBSERVED_SHA256"}`
@@ -446,6 +455,58 @@ separate from SQLite task records. There is no timer, TTL or automatic archive d
 Archives still consume storage; existing archives require an explicitly
 authorized, reviewed cleanup scope. [ADR 0004](decisions/0004-task-runtime-application-storage.md)
 records the storage and retirement boundary.
+
+## Material ledger and inventory
+
+Cleaner cannot clean what nobody recorded. Each agent-tools runtime appends the
+files and directories it writes to `<data-root>/materials/ledger.jsonl`, using
+the same data-root resolution as the task database. Each line is
+`{schema: "agent-tools.material/1", at, producer, event, path, kind, workspace,
+task_id, session_id, purpose}` with `event` `created`, `updated` or `removed`
+and an absolute `path`. Appends hold an exclusive file lock. A failed append
+prints a note on stderr and never fails the producer.
+
+| Producer | Recorded paths |
+|---|---|
+| `task-runtime` | `task artifact` files (removed on retire/prune/closeout delete), process-cleanup journal directories, process-cleanup removals |
+| `work-report` | the task directory, each report batch (`init`, `check`, `finalize`), the `docs/_local/reports/.pending` directory |
+| `learning-workflow` | the route record directory, or for a development-record sidecar its route files and `inputs/` / `hook-inputs/` directories |
+| `agent` | anything registered with `materials record` |
+
+An agent registers a file it wrote outside these producers, such as an ad-hoc
+script or a shared experiment directory, with one command:
+
+```sh
+agent-workflow materials record --path /absolute/path [--purpose TEXT] [--task TASK_ID] [--workspace /absolute/project]
+```
+
+`materials list` answers where a task's files are and what Cleaner can review:
+
+```sh
+agent-workflow materials list --workspace /absolute/project [--task TASK_ID] [--format markdown]
+```
+
+Each recorded path reports its latest event, producer, purpose, whether it
+exists and its size (directories: file count and total bytes). `unrecorded`
+lists files under known material roots that no ledger path or recorded ancestor
+covers: `<workspace>/docs/_local/` and `<data-root>/artifacts/<task-id>/` for
+the selected tasks. A wholly unrecorded directory two levels below
+`docs/_local/` is listed once with its counts. Totals end the output.
+
+The ledger is an inventory, not authority to delete; nothing is deleted
+automatically. Select reviewed workspace paths and build a cleanup packet whose
+digests are observed now and verified again by the cleanup run:
+
+```sh
+agent-workflow materials cleanup-packet --task TASK_ID --operation-id retire-1 \
+  --path /absolute/project/docs/_local/exp/run1 --path /absolute/project/docs/_local/scratch/old.txt \
+  --rationale "Actual review conclusion" --quote "ACTUAL USER WORDING" --source-ref "ACTUAL MESSAGE REFERENCE" > packet.json
+agent-workflow task process-cleanup --input packet.json
+```
+
+Directories become `kind: "dir"` delete entries; files use `--disposition`
+(default `delete`). Task artifacts are retired with `task retire`, not this
+packet. [ADR 0010](decisions/0010-material-ledger.md) records the decision.
 
 ## Cleaner task closeout
 

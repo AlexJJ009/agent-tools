@@ -47,9 +47,9 @@ own installation contract. Resolve learning package drift through its
 | Task/route/report records | Existing runtime storage and explicit records; no Claude copy |
 
 The adapter installs fourteen shared skills. It preserves unrelated Claude
-skills, agents, plugins and project configuration. This repository additionally
-has relative `.claude/skills` links to its existing `.agents/skills/build-eval`
-and `hillclimb`; their existing Codex evaluation backend remains unchanged.
+skills, agents, plugins and project configuration. This repository's
+`.agents/skills/build-eval` and `hillclimb` are Codex-only and have no
+`.claude/skills` links; Claude uses its native `claude-api` and `skill-creator`.
 
 The context view links to the shared writing contract. If the existing global
 entry does not directly point at Core, the view imports Core through native

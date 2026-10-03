@@ -15,8 +15,9 @@ import os
 from pathlib import Path
 import sqlite3
 import subprocess
-import sys
 import uuid
+
+from . import materials
 
 SCHEMA = 1
 
@@ -45,26 +46,11 @@ def now():
 
 
 def data_root(explicit=None):
-    """Resolve once, independent of cwd; keep the existing installer dependency-free."""
-    if explicit is not None:
-        value = Path(explicit).expanduser()
-    else:
-        config_home = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config')))
-        config = config_home / 'agent-tools/config.json'
-        value = None
-        if config.is_file():
-            options = json.loads(config.read_text())
-            if options.get('data_root'):
-                value = Path(options['data_root']).expanduser()
-        if value is None:
-            if sys.platform == 'win32':
-                value = Path(os.environ.get('LOCALAPPDATA', str(Path.home() / 'AppData/Local'))) / 'agent-tools'
-            elif sys.platform == 'darwin':
-                value = Path.home() / 'Library/Application Support/agent-tools'
-            else:
-                value = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share'))) / 'agent-tools'
-    require(value.is_absolute(), 'invalid_input', 'data-root must be absolute')
-    return value.resolve()
+    """Resolve once, independent of cwd; the material ledger shares this resolver."""
+    try:
+        return materials.data_root(explicit)
+    except ValueError as exc:
+        raise TaskError('invalid_input', str(exc)) from exc
 
 
 def git(workspace, *args):
@@ -657,8 +643,19 @@ class Store:
                     db.execute("UPDATE operations SET plan='{}' WHERE scope=? AND state='done'", ('create:' + self._create_operation(db, task['task_id']),))
                 db.execute("UPDATE operations SET state='done',result=?,plan='{}' WHERE scope=? AND id=?", (encoded(plan['result']), scope, op))
         self.fault('committed')
+        self._record_materials(plan)
         self._collect_garbage(plan['task']['task_id'])
         return plan['result']
+
+    def _record_materials(self, plan):
+        task = plan['task']
+        names = {a['path']: n for n, a in task.get('artifacts', {}).items()}
+        common = dict(workspace=task['workspace']['path'], task_id=task['task_id'], root=self.root)
+        for a in plan['deletes']:
+            materials.record(self.root / a['path'], 'task-runtime', 'task artifact', 'removed', kind='file', **common)
+        for a in plan['puts']:
+            purpose = 'task artifact ' + names.get(a['path'], '') + ': ' + str(a.get('purpose', ''))
+            materials.record(self.root / a['path'], 'task-runtime', purpose, **common)
 
     @staticmethod
     def _create_operation(db, task_id):

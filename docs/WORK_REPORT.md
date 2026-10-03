@@ -86,7 +86,16 @@ command interface. The reporting sequence is:
    in the same turn.
 
 `--record-only` initializes registration material rather than a deliverable.
-After registration, initialize a new formal batch so the snapshot is fresh.
+After registration, initialize the formal report so the snapshot is fresh. With
+`--task-dir`, `init` reuses the task's latest formal batch of the same kind
+when the request is unchanged, or with `--revise`: it refreshes `context.json`
+and the frontmatter, keeps the written body, and the digest changes, so check,
+review and finalize run again in that directory. If the batch was delivered,
+the delivered files are first copied to `<batch>/revisions/<stamp>/`, where
+`finalize --verify-only` still verifies them; check and finalize refuse to write
+there. A different kind, request or agreement, a progress obligation (interval
+or interim) whose cutoff is later than that batch, or `--new-batch`, starts
+another batch.
 New delivery checks bind the request, workflow snapshot, report, reviews and
 evidence; an older placeholder or review file alone cannot satisfy them.
 `finalize --verify-only` verifies a historical frozen report without refreshing
@@ -155,8 +164,14 @@ PRD, checklist or global index. Existing `docs/work-reports/` agreements remain
 supported. `--output-root` is for a user-specified report location, not an
 automatic fallback to an experiment directory or another workspace.
 
-Initialization validates ignored/untracked storage and configures local Git
-exclusion. Report generation does not implicitly add, commit or untrack files,
+The workspace is the enclosing Git toplevel only when the given directory is
+that toplevel, or a tracked or non-ignored path in a repository with a commit;
+otherwise it is the given directory itself, so a plain directory nested in an
+unrelated repository never writes into that repository or its
+`.git/info/exclude`. Initialization validates ignored/untracked storage and
+configures local Git exclusion. Batches, task directories and the pending
+directory are recorded in the material ledger (see the
+[Task Runtime guide](TASK_RUNTIME.md#material-ledger-and-inventory)). Report generation does not implicitly add, commit or untrack files,
 or change project `.gitignore`. Preserve excluded artifacts before removing a
 workspace. Export or publish a report only when requested.
 

@@ -29,6 +29,25 @@ def claim_worker(runtime, task_dir, owner, env, queue):
     queue.put((proc.returncode, proc.stdout, proc.stderr))
 
 
+def setUpModule():
+    """Producers append to the agent-tools material ledger; keep it out of the user's data root."""
+    global _LEDGER_TMP, _LEDGER_ENV
+    import json as _json, os as _os, tempfile as _tempfile
+    from pathlib import Path as _Path
+    from unittest import mock as _mock
+    _LEDGER_TMP = _tempfile.TemporaryDirectory(prefix='agent-tools-test-ledger-')
+    config = _Path(_LEDGER_TMP.name) / 'config'
+    (config / 'agent-tools').mkdir(parents=True)
+    (config / 'agent-tools/config.json').write_text(_json.dumps({'data_root': str(_Path(_LEDGER_TMP.name) / 'data')}))
+    _LEDGER_ENV = _mock.patch.dict(_os.environ, {'XDG_CONFIG_HOME': str(config), 'XDG_DATA_HOME': str(_Path(_LEDGER_TMP.name) / 'xdg-data')})
+    _LEDGER_ENV.start()
+
+
+def tearDownModule():
+    _LEDGER_ENV.stop()
+    _LEDGER_TMP.cleanup()
+
+
 class ReportRuntimeTests(unittest.TestCase):
     maxDiff = 4000
 
@@ -284,6 +303,26 @@ class ReportRuntimeTests(unittest.TestCase):
         decision = self.decision(self.root / 'legacy-decision.json', request.read_text())
         result = self.data(self.register(repo, legacy, request, decision))
         self.assertEqual(result['status'], 'registered', result)
+
+    def test_prompt_in_plain_dir_inside_commitless_repo_leaves_outer_repo_untouched(self):
+        outer = self.root / "team"
+        outer.mkdir()
+        self.git(outer, "init")
+        inner = outer / "artifacts" / "run"
+        inner.mkdir(parents=True)
+        event = json.dumps({"hook_event_name": "UserPromptSubmit", "cwd": str(inner), "session_id": self.session_id,
+                            "turn_id": "t1", "prompt": "Please send an end report when finished."})
+        self.assertEqual(self.data(self.run_cli("hook", input=event, cwd=inner)), {})
+        self.assertFalse((outer / "docs").exists())
+        self.assertNotIn("docs/_local", (outer / ".git/info/exclude").read_text())
+        repo, _task_dir, _request = self.make_repo_task()
+        (repo / "src").mkdir()
+        (repo / "src/a.py").write_text("x = 1\n")
+        self.git(repo, "add", "src/a.py")
+        runtime = self.load_runtime_module()
+        self.assertEqual(runtime.git_root(repo / "src"), repo.resolve())
+        with self.assertRaises(runtime.RuntimeFailure):
+            runtime.git_root(inner)
 
     def test_register_ignores_none_and_rejects_missing_git_ignore(self):
         text = "Please send an end report."

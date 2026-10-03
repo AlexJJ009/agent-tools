@@ -29,6 +29,25 @@ PNG_1X1 = bytes.fromhex(
 )
 
 
+def setUpModule():
+    """Producers append to the agent-tools material ledger; keep it out of the user's data root."""
+    global _LEDGER_TMP, _LEDGER_ENV
+    import json as _json, os as _os, tempfile as _tempfile
+    from pathlib import Path as _Path
+    from unittest import mock as _mock
+    _LEDGER_TMP = _tempfile.TemporaryDirectory(prefix='agent-tools-test-ledger-')
+    config = _Path(_LEDGER_TMP.name) / 'config'
+    (config / 'agent-tools').mkdir(parents=True)
+    (config / 'agent-tools/config.json').write_text(_json.dumps({'data_root': str(_Path(_LEDGER_TMP.name) / 'data')}))
+    _LEDGER_ENV = _mock.patch.dict(_os.environ, {'XDG_CONFIG_HOME': str(config), 'XDG_DATA_HOME': str(_Path(_LEDGER_TMP.name) / 'xdg-data')})
+    _LEDGER_ENV.start()
+
+
+def tearDownModule():
+    _LEDGER_ENV.stop()
+    _LEDGER_TMP.cleanup()
+
+
 @dataclass
 class ReportCase:
     workspace: Path
@@ -351,6 +370,99 @@ class ReportToolTests(unittest.TestCase):
         self.write_report(case, body if body is not None else self.body_with_sections(case, visual=visual))
         self.assert_pass(self.check_report(case))
         return case
+
+    def test_revision_reuses_batch_and_new_report_gets_new_batch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = self.checked_case(tmp)
+            self.write_review(case)
+            self.assert_pass(self.finalize(case))
+            body = case.report.read_text().split("\n---\n", 1)[1]
+            again = self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
+                "--request", case.workspace / "request.md", "--task-dir", case.task_dir))
+            self.assertTrue(again["reused_batch"])
+            self.assertEqual(Path(again["report"]), case.report)
+            self.assertEqual(case.report.read_text().split("\n---\n", 1)[1], body)
+            # The delivered snapshot is frozen under revisions/ and still verifies.
+            frozen = Path(again["frozen_revision"]) / "report.md"
+            self.assertEqual(frozen.parent.parent, case.report.parent / "revisions")
+            self.assert_pass(self.run_cli("finalize", "--report", frozen, "--task", case.task_id,
+                "--workspace", case.workspace, "--verify-only"))
+            self.assert_fail(self.check_report(case.__class__(**{**case.__dict__, "report": frozen})))
+            self.assert_fail(self.finalize(case))  # The refreshed snapshot needs check and review again.
+            self.assert_pass(self.check_report(case))
+            self.write_review(case)
+            self.assert_pass(self.finalize(case))
+            self.assertEqual([p.parent for p in case.task_dir.glob("*/report.md")], [case.report.parent])
+            other = case.workspace / "other-request.md"
+            other.write_text("A different request: report the deployment.\n")
+            different = self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
+                "--request", other, "--task-dir", case.task_dir))
+            self.assertFalse(different["reused_batch"])
+            revise = self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
+                "--request", other, "--task-dir", case.task_dir, "--revise"))
+            self.assertEqual(Path(revise["report"]), Path(different["report"]))
+            final = self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
+                "--request", case.workspace / "request.md", "--task-dir", case.task_dir, "--kind", "final"))
+            extra = self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
+                "--request", case.workspace / "request.md", "--task-dir", case.task_dir, "--new-batch"))
+            self.assertFalse(final["reused_batch"] or extra["reused_batch"])
+            self.assertEqual(len(list(case.task_dir.glob("*/report.md"))), 4)
+
+    def test_new_periodic_progress_tick_gets_new_batch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = self.checked_case(tmp)
+            generated = dt.datetime.fromisoformat(json.loads(case.context.read_text())["generated_at"].replace("Z", "+00:00"))
+            cutoff = (generated + dt.timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+            manifest = case.task_dir / "reporting.json"
+            def init():
+                return self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
+                    "--request", case.workspace / "request.md", "--task-dir", case.task_dir))
+            manifest.write_text(json.dumps({"periodic": {"kind": "progress", "state": "satisfied", "cutoff": cutoff}}))
+            self.assertTrue(init()["reused_batch"])  # Revision of the delivered tick.
+            manifest.write_text(json.dumps({"periodic": {"kind": "progress", "state": "pending", "cutoff": cutoff}}))
+            tick = init()
+            self.assertFalse(tick["reused_batch"])
+            self.assertNotEqual(Path(tick["report"]).parent, case.report.parent)
+            manifest.write_text(json.dumps({"periodic": {"kind": "progress", "state": "satisfied", "cutoff": cutoff}}))
+            self.assertEqual(Path(init()["report"]).parent, Path(tick["report"]).parent)  # Revising the new tick stays in its batch.
+
+    def test_outputs_are_registered_in_material_ledger(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            data = Path(tmp) / "data"
+            with patch.dict(os.environ, {"XDG_DATA_HOME": str(data), "XDG_CONFIG_HOME": str(Path(tmp) / "config")}):
+                case = self.checked_case(tmp)
+            ledger = data / "agent-tools/materials/ledger.jsonl"
+            entries = [json.loads(line) for line in ledger.read_text().splitlines()]
+            self.assertEqual([(e["path"], e["kind"], e["event"]) for e in entries], [
+                (str(case.task_dir), "dir", "created"), (str(case.report.parent), "dir", "created"),
+                (str(case.report.parent), "dir", "updated")])
+            self.assertEqual({(e["producer"], e["task_id"]) for e in entries}, {("work-report", case.task_id)})
+
+    def test_plain_directory_inside_commitless_repo_is_its_own_workspace(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            outer = Path(tmp).resolve() / "team"
+            outer.mkdir()
+            self.git(outer, "init")  # No commit, like an empty shared team repository.
+            inner = outer / "artifacts" / "run"
+            inner.mkdir(parents=True)
+            case = self.init_report(inner)
+            self.assertEqual(case.output_root, inner / "docs/_local/reports")
+            self.assertEqual(json.loads(case.context.read_text())["workspace"], str(inner))
+            self.assertFalse((outer / "docs").exists())
+            exclude = outer / ".git/info/exclude"
+            self.assertNotIn("docs/_local", exclude.read_text() if exclude.exists() else "")
+
+    def test_tracked_subdirectory_still_resolves_to_its_repo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = self.make_workspace(tmp, git=True)
+            (workspace / "src").mkdir()
+            (workspace / "src/a.py").write_text("x = 1\n")
+            self.git(workspace, "add", "src/a.py")
+            self.git(workspace, "commit", "-m", "src")
+            request = workspace / "request.md"
+            request.write_text("Report the change.\n")
+            result = self.assert_pass(self.run_cli("init", "--workspace", workspace / "src", "--title", "t", "--request", request))
+            self.assertTrue(Path(result["report"]).is_relative_to(workspace.resolve() / "docs/_local/reports"))
 
     def test_record_only_does_not_publish_report(self):
         with tempfile.TemporaryDirectory() as tmp:

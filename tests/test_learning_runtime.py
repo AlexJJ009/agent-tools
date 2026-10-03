@@ -10,6 +10,25 @@ import unittest
 from learning_workflow import runtime as r, hooks
 
 
+def setUpModule():
+    """Producers append to the agent-tools material ledger; keep it out of the user's data root."""
+    global _LEDGER_TMP, _LEDGER_ENV
+    import json as _json, os as _os, tempfile as _tempfile
+    from pathlib import Path as _Path
+    from unittest import mock as _mock
+    _LEDGER_TMP = _tempfile.TemporaryDirectory(prefix='agent-tools-test-ledger-')
+    config = _Path(_LEDGER_TMP.name) / 'config'
+    (config / 'agent-tools').mkdir(parents=True)
+    (config / 'agent-tools/config.json').write_text(_json.dumps({'data_root': str(_Path(_LEDGER_TMP.name) / 'data')}))
+    _LEDGER_ENV = _mock.patch.dict(_os.environ, {'XDG_CONFIG_HOME': str(config), 'XDG_DATA_HOME': str(_Path(_LEDGER_TMP.name) / 'xdg-data')})
+    _LEDGER_ENV.start()
+
+
+def tearDownModule():
+    _LEDGER_ENV.stop()
+    _LEDGER_TMP.cleanup()
+
+
 class RouteTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
@@ -22,6 +41,18 @@ class RouteTests(unittest.TestCase):
         self.root=Path(r.init(self.q,self.decision,self.work,'session-a')['record'])
         self.source=self.work/'lesson.md'; self.source.write_text('# Lesson\n\nAn evidence-bounded note.\n')
         self.state=self.base/'hooks'
+
+    def test_route_record_is_registered_in_material_ledger(self):
+        from unittest.mock import patch
+        import os
+        from learning_workflow import materials
+        data = self.base / 'data'
+        with patch.dict(os.environ, {'XDG_CONFIG_HOME': str(self.base / 'config'), 'XDG_DATA_HOME': str(data)}):
+            root = Path(r.init(self.q, self.decision, self.work, 'session-b')['record'])
+            entries = materials.load()
+        self.assertEqual([(e['path'], e['kind'], e['producer'], e['session_id']) for e in entries],
+                         [(str(root), 'dir', 'learning-workflow', 'session-b')])
+        self.assertEqual(entries[0]['workspace'], str(self.work.resolve()))
 
     def test_local_default_and_explicit_existing_record(self):
         self.assertEqual(self.root.parent, self.work / 'docs/_local/tasks')

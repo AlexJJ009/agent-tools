@@ -104,7 +104,9 @@ def main(argv=None):
         elif args.action == 'artifact-read':
             output = store.artifact_read(args.task, args.name)
         else:
-            output = {'data_root': str(store.root), 'database': str(store.db), 'schema_version': 1}
+            output = {'data_root': str(store.root), 'database': str(store.db), 'schema_version': 1,
+                      'materials_ledger': str(store.root / 'materials/ledger.jsonl'),
+                      'materials': 'agent-workflow materials list --workspace W [--task ID] lists files recorded for a task plus unrecorded files under known roots'}
         if getattr(args, 'format', 'json') == 'markdown':
             print(render_markdown(output))
         else:

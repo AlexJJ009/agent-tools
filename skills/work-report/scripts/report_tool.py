@@ -15,6 +15,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -87,10 +88,46 @@ def git_root(path: Path) -> Path | None:
     return Path(proc.stdout.strip()).resolve()
 
 
+def repo_owns(root: Path, path: Path) -> bool:
+    """A nested path belongs to the enclosing repo only if that repo has a commit and tracks or does not ignore it."""
+    if run_git(["rev-parse", "--verify", "-q", "HEAD"], root).returncode != 0:
+        return False
+    rel = git_relative(root, path)
+    tracked = run_git(["ls-files", "--", rel], root)
+    if tracked.returncode == 0 and tracked.stdout.strip():
+        return True
+    return run_git(["check-ignore", "-q", "--", rel], root).returncode == 1
+
+
 def canonical_workspace(path: Path) -> Path:
     base = path.expanduser().resolve()
     root = git_root(base)
-    return root or base
+    if root is not None and (root == base or repo_owns(root, base)):
+        return root
+    return base
+
+
+def own_git_root(workspace: Path) -> Path | None:
+    """The canonical workspace's own repo; never an unrelated enclosing one."""
+    root = git_root(workspace)
+    return root if root == workspace.resolve() else None
+
+
+_MATERIALS: Any = None
+
+
+def record_material(path: Path, purpose: str, event: str = "created", **fields: Any) -> None:
+    """Append to the agent-tools material ledger; a failure never affects reporting."""
+    global _MATERIALS
+    try:
+        if _MATERIALS is None:
+            import importlib.util
+            spec = importlib.util.spec_from_file_location("agent_tools_materials", Path(__file__).resolve().with_name("materials.py"))
+            _MATERIALS = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(_MATERIALS)
+        _MATERIALS.record(path, "work-report", purpose, event, **fields)
+    except Exception as exc:  # noqa: BLE001
+        print(f"agent-tools materials: not recorded {path}: {exc}", file=sys.stderr)
 
 
 def nearest_existing(path: Path) -> Path:
@@ -233,7 +270,7 @@ def validate_rubric(rubric: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[
 
 
 def git_status(workspace: Path) -> dict[str, str]:
-    if git_root(workspace) is None:
+    if own_git_root(workspace) is None:
         return {"head": "", "status": ""}
     head = run_git(["rev-parse", "HEAD"], workspace)
     status = run_git(["status", "--short"], workspace)
@@ -271,8 +308,10 @@ def tracked_or_staged(root: Path, *paths: Path) -> list[str]:
 
 def ensure_git_policy(workspace: Path, output_root: Path, *, configure: bool, artifacts: list[Path] | None = None) -> list[dict[str, str]]:
     warnings: list[dict[str, str]] = []
-    workspace_git = git_root(workspace)
+    workspace_git = own_git_root(workspace)
     output_git = git_root(output_root)
+    if workspace_git is None and is_relative_to(output_root, workspace):
+        output_git = None  # A non-Git workspace nested in another repo stays outside that repo's rules.
     if output_git is None:
         return warnings
 
@@ -348,6 +387,50 @@ def render_report_template(context: dict[str, Any], rubric: dict[str, Any], scri
         "window_end": context["window_end"],
     }
     return "---\n" + yaml.safe_dump(fm, allow_unicode=True, sort_keys=False).strip() + "\n---\n\n" + body
+
+
+def open_batch(task_dir: Path, kind: str, request_sha256: str, revise: bool = False) -> Path | None:
+    """Latest formal batch of this kind for the same request (or any request with --revise)."""
+    def recency(path: Path) -> tuple[int, str]:  # Batch names have one-second resolution.
+        try:
+            return (path.parent / "context.json").stat().st_mtime_ns, path.parent.name
+        except OSError:
+            return 0, path.parent.name
+
+    for path in sorted(task_dir.glob("*/report.md"), key=recency, reverse=True):
+        if path.is_symlink() or not REPORT_RE.match(path.parent.name):
+            continue
+        try:
+            data = load_json_strict(path.parent / "context.json")
+        except ValidationFailure:
+            continue
+        if isinstance(data, dict) and data.get("schema_version") == CONTEXT_SCHEMA and data.get("kind") == kind:
+            if revise:
+                return path.parent
+            if (data.get("request") or {}).get("sha256") != request_sha256:
+                return None  # A different request is a different report.
+            if kind == "progress" and progress_tick_after(task_dir, str(data.get("generated_at", ""))):
+                return None  # A new interval/interim obligation is a new report, not a revision.
+            return path.parent
+    return None
+
+
+def progress_tick_after(task_dir: Path, generated_at: str) -> bool:
+    """An open progress obligation whose cutoff is later than the batch snapshot."""
+    try:
+        manifest = load_json_strict(task_dir / "reporting.json") if (task_dir / "reporting.json").is_file() else {}
+        snapshot = parse_iso(generated_at, "generated_at")
+    except ValidationFailure:
+        return False
+    for key in ("periodic", "interim"):
+        obligation = manifest.get(key) if isinstance(manifest, dict) else None
+        if isinstance(obligation, dict) and obligation.get("kind") == "progress" and obligation.get("state") in {"pending", "failed"}:
+            try:
+                if parse_iso(str(obligation.get("cutoff", "")), "cutoff") > snapshot:
+                    return True
+            except ValidationFailure:
+                continue
+    return False
 
 
 def first_context(task_dir: Path) -> dict[str, Any] | None:
@@ -461,7 +544,10 @@ def cmd_init(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         task_dir = output_root / task_id
         initial_inventory = git_status(workspace) or {"status": "unavailable"}
 
-    report_id = f"{stamp()}-{args.kind}-{secrets.token_hex(3)}"
+    record_only = getattr(args, "record_only", False)
+    reused = None if record_only or getattr(args, "new_batch", False) or not args.task_dir else open_batch(
+        task_dir, args.kind, request_hash, getattr(args, "revise", False))
+    report_id = reused.name if reused else f"{stamp()}-{args.kind}-{secrets.token_hex(3)}"
     report_dir = task_dir / report_id
     state_path = state_path or (task_dir / "working-state.md")
     generated_at = iso_now()
@@ -474,11 +560,12 @@ def cmd_init(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         raise ValidationFailure([issue("invalid_window", "window_end must be <= generated_at")], warnings)
 
     reject_symlinks(task_dir, include_leaf=task_dir.exists())
-    reject_symlinks(report_dir, include_leaf=False)
+    reject_symlinks(report_dir, include_leaf=bool(reused))
     output_root.mkdir(parents=True, exist_ok=True)
     try:
         task_dir.mkdir(exist_ok=bool(args.task_dir))
-        report_dir.mkdir()
+        if not reused:
+            report_dir.mkdir()
     except FileExistsError as exc:
         raise ValidationFailure([issue("exclusive_create_failed", f"refusing to overwrite existing report path: {exc.filename}")], warnings)
 
@@ -519,18 +606,32 @@ def cmd_init(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         context["workflow"] = workflow
     parse_iso(context["window_start"], "window_start")
     context_path = report_dir / "context.json"
-    record_only = getattr(args, "record_only", False)
     report_path = report_dir / ("draft.md" if record_only else "report.md")
+    revision = archive_delivered(report_dir) if reused else None
     atomic_write_json(context_path, context)
-    report_path.write_text(render_report_template(context, rubric, script_path), encoding="utf-8")
+    if reused:
+        # Revision in place: refresh the frozen snapshot and frontmatter, keep the written body.
+        _, body = frontmatter(report_path.read_text(encoding="utf-8"))
+        template_meta, _ = frontmatter(render_report_template(context, rubric, script_path))
+        report_path.write_text("---\n" + yaml.safe_dump(template_meta, allow_unicode=True, sort_keys=False).strip()
+                               + "\n---\n" + body, encoding="utf-8")
+    else:
+        report_path.write_text(render_report_template(context, rubric, script_path), encoding="utf-8")
     artifacts = [report_path, context_path]
     if is_relative_to(state_path, output_root):
         artifacts.append(state_path)
     warnings.extend(ensure_git_policy(workspace, output_root, configure=True, artifacts=artifacts))
+    fields = {"workspace": workspace, "task_id": task_id}
+    if not args.task_dir:
+        record_material(task_dir, "work-report task directory: " + args.title, kind="dir", **fields)
+    record_material(report_dir, ("revised " if reused else "") + ("draft" if record_only else args.kind) + " report batch",
+                    "updated" if reused else "created", kind="dir", **fields)
     return 0, {
         "status": "pass",
         "task_id": task_id,
         "report_id": report_id,
+        "reused_batch": bool(reused),
+        "frozen_revision": str(revision) if revision else None,
         ("draft" if record_only else "report"): str(report_path),
         "context": str(context_path),
         "state": str(state_path),
@@ -658,6 +759,39 @@ def strip_line_suffix(path: Path) -> Path:
     return path
 
 
+def batch_of(report_dir: Path) -> Path:
+    """A delivered revision lives in <batch>/revisions/<stamp>/ and keeps its batch identity."""
+    return report_dir.parent.parent if report_dir.parent.name == "revisions" else report_dir
+
+
+def physical(path: Path, report_dir: Path) -> Path:
+    """Map a path inside the batch to the frozen revision copy that holds it."""
+    batch = batch_of(report_dir)
+    return report_dir / path.relative_to(batch) if batch != report_dir and is_relative_to(path, batch) else path
+
+
+def logical(path: Path, report_dir: Path) -> Path:
+    batch = batch_of(report_dir)
+    return batch / path.relative_to(report_dir) if batch != report_dir and is_relative_to(path, report_dir) else path
+
+
+def archive_delivered(batch: Path) -> Path | None:
+    """Before revising a delivered batch in place, freeze the delivered snapshot under revisions/."""
+    receipt = batch / "delivery.json"
+    try:
+        delivered = receipt.is_file() and load_json_strict(receipt).get("status") == "pass"
+    except (ValidationFailure, AttributeError):
+        delivered = False
+    if not delivered:
+        return None
+    target = batch / "revisions" / f"{stamp()}-{secrets.token_hex(2)}"
+    reject_symlinks(target, include_leaf=False)
+    shutil.copytree(batch, target, ignore=lambda d, names: ["revisions"] if Path(d) == batch else [])
+    for name in ["checks.json", "review.json", "cold-read.json", "delivery.json"]:
+        (batch / name).unlink(missing_ok=True)  # The revised report needs fresh checks, review and delivery.
+    return target
+
+
 def resolve_local(ref: str, report_dir: Path) -> Path:
     parsed = urlparse(ref)
     raw = unquote(parsed.path) if parsed.scheme == "file" else ref.split("#", 1)[0]
@@ -721,7 +855,7 @@ def validate_report(report: Path, task_id: str, workspace: Path, *, current_work
         except (OSError, ToolFailure):
             unchanged = False
         if not unchanged:
-            issues.append(issue("workflow_snapshot_stale", "workflow changed since this snapshot; initialize a new report batch"))
+            issues.append(issue("workflow_snapshot_stale", "workflow changed since this snapshot; rerun init with --task-dir to refresh it"))
     if context.get("task_id") != task_id:
         issues.append(issue("task_mismatch", "context task_id does not match --task"))
     if Path(context["workspace"]).resolve() != workspace.resolve():
@@ -729,11 +863,14 @@ def validate_report(report: Path, task_id: str, workspace: Path, *, current_work
     output_root = Path(context["output_root"]).resolve()
     if report.name != "report.md":
         issues.append(issue("report_name_invalid", "report file must be named report.md"))
-    if not is_relative_to(report, output_root) or report.parent.parent.parent.resolve() != output_root:
+    batch = batch_of(report_dir)
+    if not is_relative_to(report, output_root) or batch.parent.parent.resolve() != output_root:
         issues.append(issue("output_root_mismatch", "report path must be exactly under context output_root/task/report"))
-    if not REPORT_RE.match(report_dir.name) or context.get("report_id") != report_dir.name:
+    if not REPORT_RE.match(batch.name) or context.get("report_id") != batch.name:
         issues.append(issue("report_id_invalid", "report directory name and context report_id must match approved format"))
-    if report_dir.parent.name != task_id or not TASK_RE.match(task_id):
+    if current_workflow and batch != report_dir:
+        issues.append(issue("revision_frozen", "a delivered revision is read-only; use finalize --verify-only"))
+    if batch.parent.name != task_id or not TASK_RE.match(task_id):
         issues.append(issue("task_id_invalid", "task id/path must match approved format"))
 
     policy_artifacts = [report, context_path]
@@ -779,7 +916,7 @@ def validate_report(report: Path, task_id: str, workspace: Path, *, current_work
     cited_files: list[Path] = []
     image_count = 0
     for ref, is_image in local_links:
-        path = resolve_local(ref, report_dir)
+        path = physical(resolve_local(ref, batch), report_dir)
         if not path.exists():
             issues.append(issue("local_reference_missing", f"missing local reference: {ref}"))
             continue
@@ -825,7 +962,7 @@ def digest_manifest(report: Path, cited_files: list[Path]) -> tuple[str, list[di
         if name in {"checks.json", "review.json", "delivery.json"}:
             continue
         digest = sha256_file(resolved)
-        evidence.append({"path": str(resolved), "sha256": digest})
+        evidence.append({"path": str(logical(resolved, report_dir)), "sha256": digest})
     manifest = {"schema_version": "work-report.digest/1", "files": evidence}
     raw = json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(raw).hexdigest(), evidence
@@ -834,6 +971,8 @@ def digest_manifest(report: Path, cited_files: list[Path]) -> tuple[str, list[di
 def cmd_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     workspace = canonical_workspace(safe_absolute(Path(args.workspace)))
     report = safe_absolute(Path(args.report))
+    if batch_of(report.parent) != report.parent:
+        raise ValidationFailure([issue("revision_frozen", "a delivered revision is read-only; use finalize --verify-only")])
     try:
         context, issues, warnings, cited = validate_report(report, args.task, workspace)
         artifact_digest, evidence = digest_manifest(report, cited)
@@ -862,6 +1001,7 @@ def cmd_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "evidence": evidence,
     }
     atomic_write_json(report.parent / "checks.json", obj)
+    record_material(report.parent, "report batch checked", "updated", kind="dir", workspace=workspace, task_id=args.task)
     return (0 if not issues else 1), obj
 
 
@@ -1010,7 +1150,7 @@ def cmd_finalize(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             issues.append(issue("checks_not_pass", "checks.json must have status pass"))
         if checks.get("artifact_digest") != digest:
             issues.append(issue("checks_digest_mismatch", "checks artifact_digest does not match current report"))
-        if checks.get("task_id") != args.task or checks.get("report_id") != report.parent.name:
+        if checks.get("task_id") != args.task or checks.get("report_id") != batch_of(report.parent).name:
             issues.append(issue("checks_metadata_mismatch", "checks task/report metadata does not match"))
     rubric, _, rub_warnings = load_rubric(Path(__file__).resolve(), context.get("rubric_version", "2.0.1"))
     warnings.extend(rub_warnings)
@@ -1046,6 +1186,7 @@ def cmd_finalize(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         ensure_git_policy(workspace, Path(context["output_root"]), configure=False,
                           artifacts=[receipt_path])
         atomic_write_json(receipt_path, receipt)
+        record_material(report.parent, "report batch delivered", "updated", kind="dir", workspace=workspace, task_id=args.task)
         obj["delivery"] = str(receipt_path)
     return (0 if not issues else 1), obj
 
@@ -1066,6 +1207,10 @@ def build_parser() -> argparse.ArgumentParser:
     init.add_argument("--window-end")
     init.add_argument("--record-only", action="store_true",
                       help="start process recording with draft.md, not a deliverable report.md")
+    init.add_argument("--revise", action="store_true",
+                      help="revise the task's latest batch of this kind even though the request changed")
+    init.add_argument("--new-batch", action="store_true",
+                      help="start another batch even though this task already has one of this kind")
     init.set_defaults(func=cmd_init)
     check = sub.add_parser("check")
     check.add_argument("--report", required=True)

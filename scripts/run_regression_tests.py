@@ -2,9 +2,11 @@
 """Run scoped component regressions."""
 import argparse
 import fnmatch
+import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -76,6 +78,8 @@ def select_suites(paths):
                               'tests/fixtures/learning_workflow/', 'tests/fixtures/teaching/',
                               'scripts/install_learning_', 'scripts/teaching_')):
             selected.add('learning')
+        elif path in ('shared/materials.py', 'scripts/sync_shared_materials.py'):
+            selected.update(('task-runtime', 'workflow-records', 'learning', 'reports', 'report-integration', 'installation'))
         elif path.startswith(('shared/writing/', 'skills/academic-writing/',
                               'skills/reviewer-brief/references/writing-contract',
                               'skills/work-report/references/writing-contract',
@@ -158,7 +162,10 @@ def main():
         codes = [subprocess.run([sys.executable, __file__, name], cwd=ROOT).returncode for name in selected]
         return int(any(codes))
     sys.path.insert(0, str(ROOT))
-    return run_directory(ROOT / SUITES[args.suite], group=args.suite if args.suite in ROOT_GROUPS else None)
+    # Producers append to the material ledger; keep test runs out of the user's data root.
+    with tempfile.TemporaryDirectory(prefix='agent-tools-test-data-') as data:
+        os.environ['XDG_DATA_HOME'] = data
+        return run_directory(ROOT / SUITES[args.suite], group=args.suite if args.suite in ROOT_GROUPS else None)
 
 
 if __name__ == '__main__':

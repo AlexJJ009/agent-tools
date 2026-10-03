@@ -12,6 +12,7 @@ import contextlib
 import datetime as dt
 import fcntl
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -154,11 +155,47 @@ def run_git(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", *args], cwd=str(cwd), text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
-def git_root(path: Path) -> Path:
+def git_toplevel(path: Path) -> Path:
     proc = run_git(["rev-parse", "--show-toplevel"], path if path.is_dir() else path.parent)
     if proc.returncode != 0:
         raise RuntimeFailure("git_root_missing", f"not inside a Git workspace: {path}")
     return Path(proc.stdout.strip()).resolve()
+
+
+def git_root(path: Path) -> Path:
+    """Workspace repo: the toplevel itself, or a tracked/non-ignored path in a repo with a commit.
+
+    A plain directory nested in an unrelated (for example commitless) repo is not
+    that repo's workspace, so its pending prompts never touch the outer repo.
+    """
+    root = git_toplevel(path)
+    base = (path if path.is_dir() else path.parent).resolve()
+    if root == base:
+        return root
+    if run_git(["rev-parse", "--verify", "-q", "HEAD"], root).returncode == 0:
+        rel = git_relative(root, base)
+        tracked = run_git(["ls-files", "--", rel], root)
+        if tracked.returncode == 0 and tracked.stdout.strip():
+            return root
+        if run_git(["check-ignore", "-q", "--", rel], root).returncode == 1:
+            return root
+    raise RuntimeFailure("git_root_missing", f"not a Git workspace or a tracked path inside one: {path}")
+
+
+_MATERIALS: Any = None
+
+
+def record_material(path: Path, purpose: str, event: str = "created", **fields: Any) -> None:
+    """Append to the agent-tools material ledger; a failure never affects the runtime."""
+    global _MATERIALS
+    try:
+        if _MATERIALS is None:
+            spec = importlib.util.spec_from_file_location("agent_tools_materials", Path(__file__).resolve().with_name("materials.py"))
+            _MATERIALS = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(_MATERIALS)
+        _MATERIALS.record(path, "work-report", purpose, event, **fields)
+    except Exception as exc:  # noqa: BLE001
+        print(f"agent-tools materials: not recorded {path}: {exc}", file=sys.stderr)
 
 
 def git_relative(root: Path, path: Path) -> str:
@@ -167,7 +204,7 @@ def git_relative(root: Path, path: Path) -> str:
 
 def require_task_dir_policy(task_dir: Path, workspace: Path) -> tuple[Path, Path]:
     root = git_root(workspace)
-    if git_root(task_dir) != root:
+    if git_toplevel(task_dir) != root:
         raise RuntimeFailure("task_dir_git_mismatch", "task-dir must belong to the workspace Git root")
     reports_root = (root / "docs" / "_local" / "reports").resolve()
     legacy_root = (root / "docs" / "work-reports").resolve()
@@ -289,7 +326,10 @@ def locked_pending(workspace_root: Path, session_id: Any):
 
 def ensure_pending_git_policy(workspace_root: Path) -> None:
     root = pending_root(workspace_root)
+    fresh = not root.exists()
     root.mkdir(parents=True, exist_ok=True)
+    if fresh:
+        record_material(root, "work-report pending prompts and intent resolutions", kind="dir", workspace=workspace_root)
     ignored = run_git(["check-ignore", "-q", "--", str(root / ".probe")], workspace_root)
     if ignored.returncode == 1:
         exclude_proc = run_git(["rev-parse", "--git-path", "info/exclude"], workspace_root)

@@ -41,6 +41,7 @@ task, not from writing an ADR. Record actual decisions, not invented alternative
 - [Task state, application storage and process-material retirement](0004-task-runtime-application-storage.md)
 - [Retire Linear Workflow (source removed 2026-10-03)](0006-retire-linear-workflow.md)
 - [One learning workflow with domain-specific methods](0009-learning-domain-ownership.md)
+- [Record written materials in one application ledger](0010-material-ledger.md)
 
 The 2026-09-30 consolidation folded 0001 and 0005 into 0004. Operational content
 from 0007 and 0008 remains in component guides and CONTRIBUTING; the applicable

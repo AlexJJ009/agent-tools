@@ -59,7 +59,7 @@ def main(argv=None) -> int:
         for required in ['SKILL.md', 'references/rubric.yaml', 'references/judge.md',
                          'references/runtime.md', 'references/intent-judge.md',
                          'assets/report.md', 'scripts/report_tool.py',
-                         'scripts/report_runtime.py', 'scripts/report_scheduler.py',
+                         'scripts/report_runtime.py', 'scripts/report_scheduler.py', 'scripts/materials.py',
                     'scripts/report_timer.py', 'references/timer.md',
                     'references/writing-contract.md', 'references/legacy/section-aliases.json',
                     'references/legacy/rubric-2.0.1.yaml']:
@@ -69,6 +69,9 @@ def main(argv=None) -> int:
         packaged_contract = ROOT / "skills/work-report/references/writing-contract.md"
         if shared.is_file() and packaged_contract.read_bytes() != shared.read_bytes():
             raise RuntimeError("packaged writing contract differs from canonical source")
+        materials = ROOT / 'shared/materials.py'
+        if materials.is_file() and materials.read_bytes() != (source / 'scripts/materials.py').read_bytes():
+            raise RuntimeError('vendored materials module differs; run scripts/sync_shared_materials.py --write')
         packaged = ROOT / 'skills/reviewer-brief/references/writing-contract.md'
         if packaged.is_file() and packaged.read_bytes() != (source / 'references/writing-contract.md').read_bytes():
             raise RuntimeError('generated reviewer-brief writing contract differs from canonical source')

@@ -26,7 +26,7 @@ class WorkReportInstallTests(unittest.TestCase):
         for rel in ['SKILL.md', 'references/rubric.yaml', 'references/judge.md',
                     'references/runtime.md', 'references/intent-judge.md',
                     'assets/report.md', 'scripts/report_tool.py',
-                    'scripts/report_runtime.py', 'scripts/report_scheduler.py',
+                    'scripts/report_runtime.py', 'scripts/report_scheduler.py', 'scripts/materials.py',
                     'scripts/report_timer.py', 'references/timer.md',
                     'references/writing-contract.md', 'references/legacy/section-aliases.json',
                     'references/legacy/rubric-2.0.1.yaml']:

@@ -1,8 +1,10 @@
 """Explicit legacy process-file cleanup; its journal is not a SQLite task transaction.
 
 Cleaner owns semantic scope, retention and reference review. This module checks
-exact files, records authorization, and recovers only the operation's own moves.
-There is no discovery, recursive deletion, scheduler, or task-state mutation.
+exact files or explicitly declared directories (tree digest), records
+authorization, and recovers only the operation's own moves. There is no
+discovery, scheduler, or task-state mutation. Completed removals are appended to
+the material ledger.
 """
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -18,6 +20,7 @@ import subprocess
 import time
 import math
 
+from . import materials
 from .task_store import TaskError, digest, require
 
 
@@ -50,6 +53,32 @@ def _hash(path):
     require(stat.S_ISREG(path.stat().st_mode), 'unsafe_path', f'not a regular file: {path}')
     with path.open('rb') as f:
         return hashlib.file_digest(f, 'sha256').hexdigest()
+
+
+def _tree_digest(path):
+    """Directory identity without hashing every byte: relative path, type, size, mtime; links not followed."""
+    _plain_path(path)
+    require(stat.S_ISDIR(path.lstat().st_mode), 'unsafe_path', f'not a directory: {path}')
+    rows = []
+    for current, dirs, files in os.walk(path):
+        dirs.sort()
+        for name in sorted(dirs + files):
+            item = Path(current) / name
+            require(name.lower() != '.git', 'unsafe_path', f'nested repository inside directory: {item}')
+            info = item.lstat()
+            rel = item.relative_to(path).as_posix()
+            if stat.S_ISLNK(info.st_mode):
+                rows.append([rel, 'link', os.readlink(item)])
+            elif stat.S_ISDIR(info.st_mode):
+                rows.append([rel, 'dir'])
+            else:
+                require(stat.S_ISREG(info.st_mode), 'unsafe_path', f'special file inside directory: {item}')
+                rows.append([rel, 'file', info.st_size, info.st_mtime_ns])
+    return digest(rows)
+
+
+def _measure(path, entry):
+    return _tree_digest(path) if entry.get('kind') == 'dir' else _hash(path)
 
 
 def _now():
@@ -156,7 +185,9 @@ def _request(request):
     require(isinstance(files, list) and files, 'invalid_input', 'explicit nonempty file list required')
     names = set()
     for item in files:
-        require(isinstance(item, dict) and {'path', 'sha256', 'disposition', 'category'} <= set(item) <= {'path', 'sha256', 'disposition', 'category', 'retained_copy'}, 'invalid_input', 'invalid file entry')
+        require(isinstance(item, dict) and {'path', 'sha256', 'disposition', 'category'} <= set(item) <= {'path', 'sha256', 'disposition', 'category', 'retained_copy', 'kind'}, 'invalid_input', 'invalid file entry')
+        require(item.get('kind', 'file') in ('file', 'dir'), 'invalid_input', 'kind must be file or dir')
+        require(item.get('kind') != 'dir' or (item['disposition'] == 'delete' and 'retained_copy' not in item), 'invalid_input', 'a directory entry supports delete only')
         name = item['path']
         require(isinstance(name, str) and name and '\\' not in name and '\x00' not in name,
                 'unsafe_path', 'path must be a relative POSIX file path')
@@ -266,7 +297,7 @@ def _run_cleanup(data_root, request, *, fault=None):
         for i, item in enumerate(request['files']):
             path = _eligible(content_root, item['path'], storage)
             require(path.exists(), 'source_missing', str(path))
-            require(_hash(path) == item['sha256'], 'content_conflict', str(path))
+            require(_measure(path, item) == item['sha256'], 'content_conflict', str(path))
             quarantine = path.with_name('.cleanup-' + digest([request['task_id'], request['operation_id']])[:24] + '-' + str(i))
             _plain_path(quarantine)
             require(not quarantine.exists(), 'content_conflict', 'quarantine already exists')
@@ -282,6 +313,8 @@ def _run_cleanup(data_root, request, *, fault=None):
             journal['last_error'] = previous_error
         _retained(request, content_root)
         _save(journal_path, journal)
+        materials.record(directory, 'task-runtime', 'process-cleanup journal ' + request['operation_id'],
+                         kind='dir', workspace=info['path'], task_id=request['task_id'], root=Path(data_root).expanduser())
         checkpoint('planned', -1)
     require(journal['status'] != 'aborted', 'operation_aborted', 'use a new operation ID after abort')
     if journal['status'] == 'prepared':
@@ -292,11 +325,11 @@ def _run_cleanup(data_root, request, *, fault=None):
             _plain_path(quarantine)
             if quarantine.exists():
                 require(not path.exists(), 'content_conflict', 'source recreated while quarantined')
-                require(_hash(quarantine) == entry['sha256'], 'content_conflict', 'quarantine changed')
+                require(_measure(quarantine, entry) == entry['sha256'], 'content_conflict', 'quarantine changed')
                 source = quarantine
             else:
                 require(path.exists(), 'source_missing', 'source and quarantine are missing')
-                require(_hash(path) == entry['sha256'], 'content_conflict', 'source changed')
+                require(_measure(path, entry) == entry['sha256'], 'content_conflict', 'source changed')
                 source = path
             if entry['disposition'] == 'archive':
                 archive = directory / f'{i}.archive'
@@ -313,16 +346,16 @@ def _run_cleanup(data_root, request, *, fault=None):
                 require(_hash(archive) == entry['sha256'], 'content_conflict', 'archive changed')
                 checkpoint('archived', i)
             if source == path:
-                require(_hash(path) == entry['sha256'], 'content_conflict', 'source changed before move')
+                require(_measure(path, entry) == entry['sha256'], 'content_conflict', 'source changed before move')
                 os.rename(path, quarantine)
                 _sync(path.parent)
                 checkpoint('quarantined', i)
-                require(_hash(quarantine) == entry['sha256'], 'content_conflict', 'source changed during move')
+                require(_measure(quarantine, entry) == entry['sha256'], 'content_conflict', 'source changed during move')
         # Check the whole plan again before making disposal irreversible.
         for i, entry in enumerate(journal['entries']):
             path = _eligible(content_root, entry['path'], storage)
             require(not path.exists(), 'content_conflict', 'source recreated before commit')
-            require(_hash(Path(entry['quarantine'])) == entry['sha256'], 'content_conflict', 'quarantine changed before commit')
+            require(_measure(Path(entry['quarantine']), entry) == entry['sha256'], 'content_conflict', 'quarantine changed before commit')
             if entry['disposition'] == 'archive':
                 require(_hash(directory / f'{i}.archive') == entry['sha256'], 'content_conflict', 'archive changed before commit')
         _retained(request, content_root)
@@ -340,8 +373,16 @@ def _run_cleanup(data_root, request, *, fault=None):
             require(_hash(directory / f'{i}.archive') == entry['sha256'], 'content_conflict', 'archive changed before disposal')
         _retained(request, content_root, entry)
         if quarantine.exists():
-            require(_hash(quarantine) == entry['sha256'], 'content_conflict', 'quarantine changed before disposal')
-            quarantine.unlink()
+            if entry.get('kind') == 'dir':
+                # A partially removed tree no longer matches its digest; resume removal.
+                if entry['state'] != 'disposing':
+                    require(_tree_digest(quarantine) == entry['sha256'], 'content_conflict', 'quarantine changed before disposal')
+                    entry['state'] = 'disposing'
+                    _save(journal_path, journal)
+                shutil.rmtree(quarantine)
+            else:
+                require(_hash(quarantine) == entry['sha256'], 'content_conflict', 'quarantine changed before disposal')
+                quarantine.unlink()
             _sync(path.parent)
         checkpoint('disposed', i)
         entry['state'] = 'done'
@@ -350,6 +391,10 @@ def _run_cleanup(data_root, request, *, fault=None):
     journal['completed_at'] = _now()
     _resolve_error(journal)
     _save(journal_path, journal)
+    for entry in journal['entries']:
+        materials.record(content_root / entry['path'], 'task-runtime', 'process-cleanup ' + entry['disposition'], 'removed',
+                         kind=entry.get('kind', 'file'), workspace=info['path'], task_id=request['task_id'],
+                         root=Path(data_root).expanduser())
     return journal
 
 
@@ -409,11 +454,12 @@ def abort_cleanup(data_root, task_id, operation_id):
             if quarantine.exists():
                 require(not path.exists(), 'content_conflict', 'source recreated; cannot restore')
                 # Restore the exact surviving bytes even when an editor changed them.
-                require(stat.S_ISREG(quarantine.stat().st_mode), 'unsafe_path', 'not regular quarantine')
+                mode = quarantine.lstat().st_mode
+                require(stat.S_ISDIR(mode) if entry.get('kind') == 'dir' else stat.S_ISREG(mode), 'unsafe_path', 'unexpected quarantine type')
                 os.rename(quarantine, path)
                 _sync(path.parent)
             else:
-                require(path.is_file(), 'source_missing', 'source and quarantine missing during abort')
+                require(path.is_dir() if entry.get('kind') == 'dir' else path.is_file(), 'source_missing', 'source and quarantine missing during abort')
         journal['status'] = 'aborted'
         _resolve_error(journal)
         _save(directory / 'journal.json', journal)

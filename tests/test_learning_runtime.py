@@ -23,6 +23,18 @@ class RouteTests(unittest.TestCase):
         self.source=self.work/'lesson.md'; self.source.write_text('# Lesson\n\nAn evidence-bounded note.\n')
         self.state=self.base/'hooks'
 
+    def test_route_record_is_registered_in_material_ledger(self):
+        from unittest.mock import patch
+        import os
+        from learning_workflow import materials
+        data = self.base / 'data'
+        with patch.dict(os.environ, {'XDG_CONFIG_HOME': str(self.base / 'config'), 'XDG_DATA_HOME': str(data)}):
+            root = Path(r.init(self.q, self.decision, self.work, 'session-b')['record'])
+            entries = materials.load()
+        self.assertEqual([(e['path'], e['kind'], e['producer'], e['session_id']) for e in entries],
+                         [(str(root), 'dir', 'learning-workflow', 'session-b')])
+        self.assertEqual(entries[0]['workspace'], str(self.work.resolve()))
+
     def test_local_default_and_explicit_existing_record(self):
         self.assertEqual(self.root.parent, self.work / 'docs/_local/tasks')
         task_id = r.read(self.root)['task_id']

@@ -111,6 +111,9 @@ def validate_sources() -> dict[str, dict[str, str]]:
         raise RuntimeError("missing generated reviewer-brief writing contract")
     if canonical.is_file() and packaged.read_bytes() != canonical.read_bytes():
         raise RuntimeError("generated writing contract differs; run work-report/scripts/sync_writing_contract.py --write")
+    materials = ROOT / "shared/materials.py"
+    if materials.is_file() and materials.read_bytes() != (ROOT / "agent_workflow/materials.py").read_bytes():
+        raise RuntimeError("vendored materials module differs; run scripts/sync_shared_materials.py --write")
     for skill in SKILLS:
         source = ROOT / "skills" / skill
         if not source.is_dir():

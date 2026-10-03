@@ -15,6 +15,7 @@ def parser():
     p = argparse.ArgumentParser(description=__doc__)
     sub = p.add_subparsers(dest='command', required=True)
     sub.add_parser('task', help='local task state, checklist queries and owned artifact closeout')
+    sub.add_parser('materials', help='record and list files agent-tools and agents wrote (Cleaner inventory)')
     init = sub.add_parser('init', help='preserve query and Agent-authored extraction/context')
     init.add_argument('--query', type=Path, required=True)
     init.add_argument('--repo', type=Path, default=Path.cwd())
@@ -55,6 +56,9 @@ def main(argv=None):
     if argv and argv[0] == "task":
         from .task_cli import main as task_main
         return task_main(argv[1:])
+    if argv and argv[0] == "materials":
+        from .materials_cli import main as materials_main
+        return materials_main(argv[1:])
     args = parser().parse_args(argv)
     query_only = False
     try:

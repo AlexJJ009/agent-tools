@@ -18,6 +18,8 @@ import re
 import tempfile
 import uuid
 
+from . import materials
+
 
 class RouteError(ValueError):
     """A route or covered operation violates its declared contract."""
@@ -160,6 +162,11 @@ def save(root, record):
     return record
 
 
+def note_material(record, path, purpose, event='created', kind=None):
+    materials.record(path, 'learning-workflow', purpose, event, kind=kind, workspace=record['workspace_root'],
+                     task_id=record['task_id'], session_id=record['session_id'])
+
+
 def init(query, decision, workspace, session_id, task_id=None, record=None):
     validate_decision(decision)
     require(isinstance(session_id, str) and bool(session_id.strip()), 'session id is required')
@@ -193,6 +200,13 @@ def init(query, decision, workspace, session_id, task_id=None, record=None):
                   'inputs':{'initial':{'path':request_name, 'sha256':sha(data), 'status':'classified'}},
                   'history':[{'kind':'classification','input_id':'initial','revision':1,'at':now(),'decision':decision}]}
         save(root, result)
+    if dev:  # The development record directory has its own owner; register only route files.
+        for name in (request_name, 'routing.json', 'routing.md'):
+            note_material(result, root / name, 'route sidecar in development record')
+        for name in ('inputs', 'hook-inputs'):  # Later user-input snapshots land here.
+            note_material(result, root / name, 'route input snapshots', kind='dir')
+    else:
+        note_material(result, root, 'learning route record', kind='dir')
     return {'record':str(root), 'route_revision':1}
 
 

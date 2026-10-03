@@ -81,6 +81,9 @@ def source_files() -> list[tuple[Path, Path]]:
     academic = ROOT / "skills/academic-writing/references/writing-contract.md"
     if not academic.is_file() or academic.read_bytes() != (ROOT / "shared/writing/reader-facing-contract.md").read_bytes():
         raise InstallError("academic-writing contract is missing or differs from canonical source")
+    materials = ROOT / "shared/materials.py"
+    if materials.is_file() and materials.read_bytes() != (ROOT / "learning_workflow/materials.py").read_bytes():
+        raise InstallError("vendored materials module differs; run scripts/sync_shared_materials.py --write")
     return sources
 
 

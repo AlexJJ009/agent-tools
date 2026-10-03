@@ -79,9 +79,9 @@ run establishes coverage of product behavior for which no test exists.
 ## CI and historical checks
 
 `agent-tools-regression` runs affected suites on PRs and main pushes. Manual
-workflow dispatch runs all active suites. The job's status remains named
-`linear-workflow-runtime` only because the existing GitHub ruleset requires that
-name; renaming it requires changing the ruleset in the same step. There is no
+workflow dispatch runs all active suites. The `main` ruleset requires its
+`regression` status check; renaming the job requires changing the ruleset in the
+same step. There is no
 Linear planning gate. CI repeats regression tests; it is not another independent
 test population. Independent review evaluates requirements, implementation and
 gaps, not another numerical suite.

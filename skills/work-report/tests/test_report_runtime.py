@@ -1088,6 +1088,13 @@ class ReportRuntimeTests(unittest.TestCase):
         self.assertEqual(submit("\n" + notification + "\n", "notification-after-request"), {})
         self.assertEqual(pending_file.read_bytes(), original)
 
+        self.assertEqual(submit(notification + "\n" + notification, "multiple-notifications"), {})
+        self.assertEqual(pending_file.read_bytes(), original)
+
+        between = notification + "\n完成后给我报告\n" + notification
+        self.assertIn("hookSpecificOutput", submit(between, "request-between-notifications"))
+        self.assertEqual(json.loads(pending_file.read_text())["prompt"], between)
+
         pasted = notification + "\n照这个格式，完成后给我报告"
         self.assertIn("hookSpecificOutput", submit(pasted, "pasted-notification"))
         self.assertEqual(json.loads(pending_file.read_text())["prompt"], pasted)

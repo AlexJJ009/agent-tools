@@ -283,7 +283,7 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
         for name in (
             "install.sh", "sync_agent_context.py", "sync_agent_context_cron.sh",
             "codex_project_memory.py", "agent_context_sync.config.example.json",
-            "bin", "scripts", "config", "skills",
+            "bin", "scripts", "config", "skills", "shared",
         ):
             source = ROOT / name
             if source.is_dir():

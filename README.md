@@ -116,7 +116,8 @@ For context sync, the recommended deployment model is one central tool directory
   auto memory into Codex-readable project context.
 - `agent_context_sync.config.json` — local machine config, ignored by git.
 - `agent_context_sync.config.example.json` — template for other machines.
-- `logs/` — daily heartbeat logs.
+- `logs/` — daily heartbeat logs (installed copies write them to the data
+  root's `logs/`, see below).
 
 ## Install On A New Machine
 
@@ -212,6 +213,23 @@ local proxy candidates used by the Codex wrapper. Use
 For a full repeatable server setup that also installs the latest Codex CLI,
 Claude Code, GitHub CLI, `cc-switch-cli`, `ripgrep`, and Codex API providers
 from fresh keys/Base URLs, follow `docs/CLI_SERVER_BOOTSTRAP.md`.
+
+`install.sh` copies the software into the install root
+`~/.local/lib/agent-tools` (override with `--install-dir` or
+`AGENT_TOOLS_INSTALL_ROOT`); the learning bundle and Claude views go to
+`learning-workflow/` and `claude/` inside it. Task state, materials, archives
+and logs stay in the data root (`~/.local/share/agent-tools` on Linux/WSL).
+The installer refuses an install root that equals, contains or lies inside the
+data root. Each reinstall syncs against the manifest
+`.agent-tools-manifest.json`: files an earlier install wrote and no longer
+ships are deleted, other files are listed as unmanaged and kept. When an
+earlier release was installed with `--install-dir <data root>`, the installer
+repoints skills, hooks, launchers, the Codex instruction block and crontab,
+then deletes the released software copies from the data root (modified copies
+move to `archives/legacy-install-<stamp>/`) and records each removal in the
+material ledger. Data and unknown items are listed and left alone.
+`install.sh --check` reports install-root drift and software left in the data
+root.
 
 The installer writes `agent_context_sync.config.json` using the actual paths on the current machine. Context synchronization is manual by default; use `--cron` only to explicitly enable an hourly heartbeat. Experiment Registry has been removed.
 
@@ -574,10 +592,12 @@ Only an explicit `--cron` installation adds an entry like:
 
 The cron script is self-locating. It finds `sync_agent_context.py` and `agent_context_sync.config.json` relative to its own directory, so the directory can live anywhere as long as the crontab points to the correct installed path.
 
-Logs are written to:
+Logs are written to the data root, and logs older than
+`AGENT_CONTEXT_SYNC_LOG_DAYS` (default 30; `0` keeps all) are deleted on each
+run:
 
 ```bash
-agent-tools/logs/sync-YYYYMMDD.log
+~/.local/share/agent-tools/logs/sync-YYYYMMDD.log
 ```
 
 ## Project-Local Wrappers

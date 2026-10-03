@@ -19,10 +19,15 @@ EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop
 TOOL_EVENTS = ("PreToolUse", "PostToolUse")
 
 
+def view_root(home: Path) -> Path:
+    """The one location of the generated Claude views: inside the software install root."""
+    return learning.layout.install_root(home) / "claude"
+
+
 def hook_groups(home: Path) -> dict[str, list[dict]]:
     """Build native groups using the current shared installer commands."""
     home = Path(home).resolve()
-    bundle = home / ".local/share/agent-tools/learning-workflow"
+    bundle = learning.bundle_root(home)
     groups = {}
     for event in EVENTS:
         native = [learning.managed_group(event, bundle, home), workflow.managed_group(event, home)]
@@ -36,7 +41,7 @@ def hook_groups(home: Path) -> dict[str, list[dict]]:
             for handler in group["hooks"]:
                 handler.pop("additionalContextLimit", None)
                 handler["command"] = shlex.join([
-                    sys.executable, str(home / ".local/share/agent-tools/claude/native_hook.py"),
+                    sys.executable, str(view_root(home) / "native_hook.py"),
                     "--", *shlex.split(handler["command"]),
                 ])
         groups[event] = native

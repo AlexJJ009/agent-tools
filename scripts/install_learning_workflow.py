@@ -33,6 +33,17 @@ OLD_SKILLS = SKILLS[:5]
 EVENTS = ("SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop")
 MARKER = "learning-workflow/1"
 
+from scripts import install_layout as layout  # noqa: E402  (ROOT is on sys.path)
+
+
+def bundle_root(home: Path) -> Path:
+    """The one location of the installed bundle: inside the software install root."""
+    return layout.install_root(home) / "learning-workflow"
+
+
+def legacy_bundle(home: Path) -> Path:
+    return home / layout.LEGACY_DATA_LAYOUT / "learning-workflow"
+
 
 class InstallError(RuntimeError):
     pass
@@ -45,7 +56,7 @@ def digest(path: Path) -> str:
         return hashlib.sha256(path.read_bytes()).hexdigest()
     values = []
     for child in sorted(path.rglob("*")):
-        if "__pycache__" in child.parts or child.suffix == ".pyc":
+        if "__pycache__" in child.parts or child.suffix == ".pyc" or child.name == layout.MANIFEST:
             continue
         if child.is_file() or child.is_symlink():
             values.append((child.relative_to(path).as_posix(), digest(child)))
@@ -253,6 +264,27 @@ def update_hooks(data: dict[str, Any], bundle: Path, home: Path, *, remove: bool
     return changed
 
 
+def strip_managed(data: dict[str, Any], bundle: Path, home: Path) -> None:
+    """Drop this bundle's groups even if recorded under another interpreter; refuse foreign edits."""
+    def key(group: Any) -> Any:
+        if not isinstance(group, dict) or not isinstance(group.get("hooks"), list):
+            return None
+        handlers = [dict(h, command=shlex.split(h["command"])[1:]) if isinstance(h, dict) and isinstance(h.get("command"), str) else h
+                    for h in group["hooks"]]
+        return json.dumps(dict(group, hooks=handlers), sort_keys=True)
+    for event in EVENTS:
+        expected = key(managed_group(event, bundle, home))
+        groups = data["hooks"].get(event, [])
+        kept = [group for group in groups if key(group) != expected]
+        if any(isinstance(group, dict) and any(isinstance(h, dict) and h.get("statusMessage") == MARKER
+                                                for h in group.get("hooks", [])) for group in kept):
+            raise InstallError(f"managed hook changed or conflicts in {event}; preserve it")
+        if kept:
+            data["hooks"][event] = kept
+        else:
+            data["hooks"].pop(event, None)
+
+
 def atomic_json(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary = tempfile.mkstemp(prefix=".learning-workflow-", dir=path.parent)
@@ -349,7 +381,8 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
     guard = target_guard(home)
     check_knowledge_alias_location(home)
     sources = source_files()
-    bundle = home / ".local/share/agent-tools/learning-workflow"
+    bundle = bundle_root(home)
+    layout.require_separate(bundle.parent)
     state = home / ".local/state/learning-workflow/install.json"
     legacy_backup = home / ".local/state/learning-workflow/legacy-read-paper"
     links = link_plan(home, bundle, read_papers_root)
@@ -426,7 +459,7 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
             raise InstallError("staged runtime cannot start: " + run.stderr.strip())
         bundle.parent.mkdir(parents=True, exist_ok=True)
         try:
-            shutil.copytree(staged, bundle, ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+            layout.sync_tree(bundle, layout.tree_files(staged))
         except Exception:
             if bundle.is_dir():
                 shutil.rmtree(bundle)
@@ -500,12 +533,119 @@ def install(home: Path, *, legacy_root: Path | None, read_papers_root: Path | No
             "hooks_configured": with_hooks, "hook_trust": "not_verified", "source_items": len(sources)}
 
 
+def upgrade(home: Path) -> dict[str, Any]:
+    """Replace an unmodified installed bundle with the current source, moving it to bundle_root.
+
+    Recorded install choices (links, ReadPapers scope, hooks, writing entry) are kept.
+    Links, hook groups and the writing entry are repointed; the old bundle is deleted
+    unless another consumer (e.g. the Claude adapter) still points into it.
+    """
+    guard = target_guard(home)
+    state, manifest = installed_manifest(home)
+    old, new = Path(manifest["bundle"]), bundle_root(home)
+    layout.require_separate(new.parent)
+    if not old.is_dir() or digest(old) != manifest["bundle_digest"]:
+        raise InstallError("installed bundle changed; preserve it and resolve manually")
+    if new != old and (new.exists() or new.is_symlink()):
+        raise InstallError(f"unmanaged bundle target preserved: {new}")
+    read_papers_root = Path(manifest["read_papers_root"]) if manifest.get("read_papers_root") else None
+    recorded = {Path(raw): entry for raw, entry in manifest["links"].items()}
+    # A Codex alias that first install skipped needs explicit legacy authority; do not add it here.
+    plan = {path: target for path, target in link_plan(home, new, read_papers_root).items()
+            if path in recorded or path.parent != home / ".codex/skills"}
+    for path, entry in recorded.items():
+        if not path.is_symlink() or path.resolve(strict=False) != Path(entry["installed_target"]).resolve(strict=False):
+            raise InstallError(f"managed skill link is missing or changed: {path}")
+        if path not in plan:
+            raise InstallError(f"recorded link is no longer shipped; roll back to remove it: {path}")
+    for path in plan:
+        if path not in recorded and (path.exists() or path.is_symlink()):
+            raise InstallError(f"unmanaged target preserved: {path}")
+    sources = source_files()
+    hooks_path, instructions = home / ".codex/hooks.json", home / ".codex/AGENTS.md"
+    hook_data = load_hooks(hooks_path) if manifest["hooks_installed"] else None
+    if hook_data is not None:
+        strip_managed(hook_data, old, home)
+        update_hooks(hook_data, new, home, remove=False)
+    writing = manifest.get("writing_entry")
+    instruction_text = None
+    if writing:
+        current = instructions.read_text(encoding="utf-8") if instructions.is_file() else ""
+        if instructions.is_symlink() or current.count(writing["block"]) != 1:
+            raise InstallError("reader-facing instruction block changed; preserve and resolve it")
+        instruction_text = current.replace(writing["block"], writing_entry(home, new))
+    before = {path: path.read_bytes() for path in (hooks_path, instructions) if path.is_file()}
+    old_digest = digest(old)
+    new.parent.mkdir(parents=True, exist_ok=True)
+    work = Path(tempfile.mkdtemp(prefix=".learning-workflow-", dir=new.parent))
+    candidate, backup = work / "candidate", work / "previous"
+    moved = swapped = False
+    try:
+        staged = work / "staged"
+        staged.mkdir()
+        copy_payload(staged)
+        payload_digest = digest(staged)
+        run = subprocess.run([sys.executable, str(staged / "bin/learning-workflow"), "--help"],
+                             capture_output=True, text=True)
+        if run.returncode:
+            raise InstallError("staged runtime cannot start: " + run.stderr.strip())
+        layout.sync_tree(candidate, layout.tree_files(staged))
+        if new == old:
+            old.rename(backup)
+            swapped = True
+        candidate.rename(new)
+        moved = True
+        for path, target in plan.items():
+            if path.is_symlink():
+                path.unlink()
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.symlink_to(target, target_is_directory=path.name != "learning-workflow")
+        if hook_data is not None:
+            atomic_json(hooks_path, hook_data)
+        if instruction_text is not None:
+            instructions.write_text(instruction_text, encoding="utf-8")
+            writing = {**writing, "block": writing_entry(home, new), "installed": instruction_text}
+        links = {str(path): {**recorded.get(path, {"kind": "absent"}), "installed_target": str(target)}
+                 for path, target in plan.items()}
+        retired = list(manifest.get("retired_bundles", []))
+        if new != old:
+            retired.append({"path": str(old), "digest": old_digest})
+        atomic_json(state, {**manifest, "bundle": str(new), "bundle_digest": payload_digest, "links": links,
+                            "source_digest": {str(relative): digest(source) for source, relative in sources},
+                            "writing_entry": writing, "retired_bundles": retired, "guard": guard})
+    except Exception:
+        for path, entry in recorded.items():
+            if path.is_symlink():
+                path.unlink()
+            path.symlink_to(entry["installed_target"], target_is_directory=path.name != "learning-workflow")
+        for path in plan:
+            if path not in recorded and path.is_symlink():
+                path.unlink()
+        for path, data in before.items():
+            path.write_bytes(data)
+        if moved:
+            shutil.rmtree(new)
+        if swapped:
+            backup.rename(old)
+        raise
+    finally:
+        if work.exists():
+            shutil.rmtree(work)
+    users = [] if new == old else layout.references(home, old)
+    if new != old and not users:
+        shutil.rmtree(old)
+        from shared import materials
+        materials.record(old, layout.PRODUCER, "learning bundle moved to the install root", "removed", kind="dir")
+    return {"status": "updated", "client": "codex", "bundle": str(new), "previous_bundle": str(old),
+            "previous_bundle_kept_for": users, "links": len(plan), "hooks_configured": hook_data is not None}
+
+
 def installed_manifest(home: Path) -> tuple[Path, dict[str, Any]]:
     path = home / ".local/state/learning-workflow/install.json"
     if not path.is_file():
         raise InstallError("no managed learning workflow installation")
     data = json.loads(path.read_text(encoding="utf-8"))
-    if data.get("schema_version") != MARKER or data.get("bundle") != str(home / ".local/share/agent-tools/learning-workflow"):
+    if data.get("schema_version") != MARKER or data.get("bundle") not in (str(bundle_root(home)), str(legacy_bundle(home))):
         raise InstallError("invalid managed install manifest")
     return path, data
 
@@ -516,6 +656,8 @@ def check(home: Path) -> dict[str, Any]:
     if str(home / ".codex/skills/knowledge-deposition-doc") in manifest["links"]:
         check_knowledge_alias_location(home)
     bundle = Path(manifest["bundle"])
+    if bundle != bundle_root(home):
+        raise InstallError(f"bundle is at its old location {bundle}; rerun the installer to move it to {bundle_root(home)}")
     if not bundle.is_dir() or digest(bundle) != manifest["bundle_digest"]:
         raise InstallError("installed bundle is missing or changed")
     for raw, entry in manifest["links"].items():
@@ -642,6 +784,10 @@ def main(argv: list[str] | None = None) -> int:
             report = check(home)
         elif args.rollback:
             report = rollback(home)
+        elif (home / ".local/state/learning-workflow/install.json").exists():
+            if any(value for key, value in vars(args).items() if key not in ("check", "rollback")):
+                parser.error("an installed bundle is updated with its recorded choices; roll back to change them")
+            report = upgrade(home)
         else:
             report = install(home, legacy_root=args.legacy_root.resolve() if args.legacy_root else None,
                              legacy_knowledge_source=args.legacy_knowledge_source.resolve() if args.legacy_knowledge_source else None,

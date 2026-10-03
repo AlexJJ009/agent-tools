@@ -134,6 +134,12 @@ receive this system-level compatibility patch.
   --no-agent-core
 ```
 
+The software copy goes to `~/.local/lib/agent-tools`; task data stays in
+`~/.local/share/agent-tools`. Do not pass `--install-dir` pointing at the data
+root: the installer refuses overlapping roots. A host installed that way by an
+earlier release is migrated on the next run (see the README install section);
+check it afterwards with `./install.sh --check`.
+
 On ordinary Linux SSH servers, this installer also installs or hardens
 `fail2ban` for `sshd`. The managed jail is intentionally strict:
 `sshd[mode=aggressive]`, `maxretry = 3`, `findtime = 1h`, `bantime = -1`, and

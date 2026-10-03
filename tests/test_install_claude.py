@@ -25,7 +25,7 @@ class ClaudeInstallTests(unittest.TestCase):
         self.core = self.base / "agent-core"
         self.core_source = self.core / "adapters/claude/CLAUDE.md"
         self.write(self.core_source, "# Core fixture\n@../../core/SOUL.md\n")
-        bundle = self.home / ".local/share/agent-tools/learning-workflow"
+        bundle = self.home / ".local/lib/agent-tools/learning-workflow"
         for name in adapter.workflow.SKILLS:
             self.write(self.home / ".agents/skills" / name / "SKILL.md", f"# Shared {name}\n")
         for name in adapter.learning.SKILLS:
@@ -102,7 +102,7 @@ class ClaudeInstallTests(unittest.TestCase):
         self.install()
         state = adapter.load_state(self.home)
         self.assertEqual(state["core_source"], str(self.core_source.resolve()))
-        generated = (self.home / adapter.CONTEXT).read_text()
+        generated = adapter.context_path(self.home).read_text()
         self.assertIn(f"@{self.core_source.resolve()}\n", generated)
         self.assertEqual(existing.read_bytes(), before_user)
         self.assertEqual(self.core_source.read_bytes(), before_core)
@@ -121,7 +121,7 @@ class ClaudeInstallTests(unittest.TestCase):
 
     def test_check_refuses_missing_core_source(self):
         self.install()
-        generated = (self.home / adapter.CONTEXT).read_text()
+        generated = adapter.context_path(self.home).read_text()
         # The default global view already imports Core, so no duplicate import.
         self.assertNotIn(f"@{self.core_source.resolve()}\n", generated)
         self.core_source.unlink()
@@ -251,11 +251,12 @@ class ClaudeInstallTests(unittest.TestCase):
 
     def test_context_parent_escape_rejects_remove_without_external_deletion(self):
         self.install()
-        generated = self.home / adapter.CONTEXT
+        generated = adapter.context_path(self.home)
         outside = self.base / "outside-context"
         outside.mkdir()
         generated.rename(outside / "context.md")
         (generated.parent / "native_hook.py").unlink()
+        (generated.parent / adapter.learning.layout.MANIFEST).unlink()
         generated.parent.rmdir()
         generated.parent.symlink_to(outside, target_is_directory=True)
         before = self.snapshot()
@@ -269,7 +270,7 @@ class ClaudeInstallTests(unittest.TestCase):
         settings["env"]["ANTHROPIC_API_KEY"] = "changed-test-only"
         settings["hooks"]["Stop"].insert(0, {"hooks": [{"type": "command", "command": "echo private-hook"}]})
         self.write(self.settings_path, json.dumps(settings))
-        old_native = (self.home / adapter.NATIVE).read_bytes()
+        old_native = adapter.native_path(self.home).read_bytes()
         new_native = old_native + b"\n# fixture native source upgrade\n"
         hook_groups = adapter.hooks.hook_groups
         def upgraded_groups(home):
@@ -281,7 +282,7 @@ class ClaudeInstallTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "source updated"):
                 adapter.check(self.home)
             self.assertEqual(self.install()["status"], "updated")
-            self.assertEqual((self.home / adapter.NATIVE).read_bytes(), new_native)
+            self.assertEqual(adapter.native_path(self.home).read_bytes(), new_native)
             state = adapter.load_state(self.home)
             self.assertEqual(state["managed_hooks"]["Stop"][0]["hooks"][0]["timeout"], 31)
             after = adapter.read_settings(self.home)
@@ -310,12 +311,12 @@ class ClaudeInstallTests(unittest.TestCase):
         expected = deepcopy(self.foreign)
         expected["env"]["ANTHROPIC_API_KEY"] = "changed-test-only"
         self.assertEqual(adapter.read_settings(self.home), expected)
-        self.assertFalse((self.home / adapter.NATIVE).exists())
+        self.assertFalse(adapter.native_path(self.home).exists())
 
     def test_upgrade_failure_restores_published_native_context_settings_state(self):
         self.install()
         before = self.snapshot()
-        source = (self.home / adapter.NATIVE).read_bytes() + b"\n# fixture upgraded\n"
+        source = adapter.native_path(self.home).read_bytes() + b"\n# fixture upgraded\n"
         atomic_write = adapter.atomic_write
         failed = False
         def fail_publication_once(path, data):
@@ -334,7 +335,7 @@ class ClaudeInstallTests(unittest.TestCase):
 
     def test_user_native_edits_refuse_refresh_and_removal_without_writes(self):
         self.install()
-        native = self.home / adapter.NATIVE
+        native = adapter.native_path(self.home)
         native.write_bytes(native.read_bytes() + b"\n# user private change\n")
         before = self.snapshot()
         for operation in (adapter.check, adapter.remove, lambda home: self.install()):
@@ -384,7 +385,7 @@ class ClaudeInstallTests(unittest.TestCase):
         failed = False
         def fail_native_unlink_once(path, *args, **kwargs):
             nonlocal failed
-            if path == self.home / adapter.NATIVE and not failed:
+            if path == adapter.native_path(self.home) and not failed:
                 failed = True
                 raise OSError("simulated native removal failure")
             return unlink(path, *args, **kwargs)

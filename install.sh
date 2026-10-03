@@ -2,7 +2,8 @@
 set -euo pipefail
 
 SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_DIR="${AGENT_TOOLS_HOME:-$SOURCE_DIR}"
+# Empty: scripts/install_layout.py resolves the software install root (~/.local/lib/agent-tools).
+INSTALL_DIR="${AGENT_TOOLS_HOME:-}"
 SCHEDULE="17 * * * *"
 MAX_DEPTH="3"
 SCOPE="all"
@@ -2297,7 +2298,9 @@ Usage:
   install.sh [options]
 
 Options:
-  --install-dir PATH       Install/copy tools to PATH. Default: this directory.
+  --install-dir PATH       Install the software copy to PATH. Default:
+                           $AGENT_TOOLS_INSTALL_ROOT or ~/.local/lib/agent-tools.
+                           Refused when PATH and the data root overlap.
   --root PATH              Add a scan root. Repeatable. Default: current directory.
   --max-depth N            Directory scan depth. Default: 3.
   --schedule CRON_EXPR     Cron schedule. Default: "17 * * * *".
@@ -2392,8 +2395,9 @@ Options:
   --cron                   Install the context-sync cron heartbeat (opt-in).
   --no-cron                Do not add cron (default); existing jobs are unchanged.
   --no-agent-core          Do not auto-verify or run ~/agent-core/scripts/install.sh.
-  --check                  Install nothing. Byte-compare managed skill copies
-                           against the source tree; exit 1 on any drift.
+  --check                  Install nothing. Byte-compare the install root and
+                           managed skill copies against the source tree, flag
+                           software left in the data root; exit 1 on any drift.
   --claude-code MODE      never|existing|latest. Default: never. Opt in to
                           shared packages and the native Claude adapter;
                           latest also installs/updates the native CLI.
@@ -2614,16 +2618,26 @@ case "$CLAUDE_CODE_MODE" in
 esac
 run_codex_target_guard before
 
+EXPLICIT_SCAN_ROOTS="${#SCAN_ROOTS[@]}"
 if [[ ${#SCAN_ROOTS[@]} -eq 0 ]]; then
   SCAN_ROOTS+=("$(pwd)")
 fi
+
+# Software and application data stay in separate, non-overlapping roots.
+select_python_bin
+LAYOUT="$SOURCE_DIR/scripts/install_layout.py"
+layout_args=(--source "$SOURCE_DIR")
+[[ -n "$INSTALL_DIR" ]] && layout_args+=(--install-root "$INSTALL_DIR")
+INSTALL_DIR="$("$PYTHON_BIN" "$LAYOUT" roots "${layout_args[@]}")"
+DATA_ROOT="$("$PYTHON_BIN" "$LAYOUT" data-root)"
 
 if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
   SOURCE_REAL="$(cd "$SOURCE_DIR" && pwd -P)"
   linear_status=0
   claude_status=0
-  check_codex_patch_safety_skill_drift "$SOURCE_REAL"
-  patch_status="$?"
+  # The Skill link targets the install root copy, which the layout check compares to source.
+  patch_status=0
+  check_codex_patch_safety_skill_drift "$INSTALL_DIR" || patch_status=1
   select_python_bin
   if ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/retired_package_cleanup.py" check \
     --record "$SOURCE_REAL/config/retired-packages/linear-workflow.json" \
@@ -2633,7 +2647,9 @@ if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
   if [[ "$CLAUDE_CODE_MODE" != never ]] && ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/install_claude.py" --check; then
     claude_status=1
   fi
-  [[ "$patch_status" -eq 0 && "$linear_status" -eq 0 && "$claude_status" -eq 0 ]]
+  layout_status=0
+  "$PYTHON_BIN" "$LAYOUT" check --source "$SOURCE_REAL" --install-root "$INSTALL_DIR" || layout_status=1
+  [[ "$patch_status" -eq 0 && "$linear_status" -eq 0 && "$claude_status" -eq 0 && "$layout_status" -eq 0 ]]
   exit "$?"
 fi
 
@@ -2646,23 +2662,11 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   rm -rf "$INSTALL_REAL/linear_workflow" "$INSTALL_REAL/docs/linear-workflow" "$INSTALL_REAL/docs/linear-templates" \
     "$INSTALL_REAL/config/managed-packages/linear-workflow.json" "$INSTALL_REAL/scripts/managed_package_installer.py"
   rmdir "$INSTALL_REAL/config/managed-packages" 2>/dev/null || true
-  cp "$SOURCE_DIR/sync_agent_context.py" "$INSTALL_REAL/"
-  cp "$SOURCE_DIR/sync_agent_context_cron.sh" "$INSTALL_REAL/"
-  cp "$SOURCE_DIR/codex_project_memory.py" "$INSTALL_REAL/"
-  cp "$SOURCE_DIR/migrate_codex_provider_bucket.py" "$INSTALL_REAL/"
-  cp "$SOURCE_DIR/install.sh" "$INSTALL_REAL/"
-  [[ -d "$SOURCE_DIR/bin" ]] && cp -R "$SOURCE_DIR/bin" "$INSTALL_REAL/"
-  [[ -d "$SOURCE_DIR/scripts" ]] && cp -R "$SOURCE_DIR/scripts" "$INSTALL_REAL/"
-  [[ -d "$SOURCE_DIR/config" ]] && cp -R "$SOURCE_DIR/config" "$INSTALL_REAL/"
-  [[ -f "$SOURCE_DIR/README.md" ]] && cp "$SOURCE_DIR/README.md" "$INSTALL_REAL/"
-  [[ -d "$SOURCE_DIR/docs" ]] && cp -R "$SOURCE_DIR/docs" "$INSTALL_REAL/"
-  [[ -d "$SOURCE_DIR/skills" ]] && cp -R "$SOURCE_DIR/skills" "$INSTALL_REAL/"
-  [[ -d "$SOURCE_DIR/adapters" ]] && cp -R "$SOURCE_DIR/adapters" "$INSTALL_REAL/"
-  [[ -d "$SOURCE_DIR/agent_workflow" ]] && cp -R "$SOURCE_DIR/agent_workflow" "$INSTALL_REAL/"
-  [[ -d "$SOURCE_DIR/learning_workflow" ]] && cp -R "$SOURCE_DIR/learning_workflow" "$INSTALL_REAL/"
-  [[ -d "$SOURCE_DIR/project_adapters" ]] && cp -R "$SOURCE_DIR/project_adapters" "$INSTALL_REAL/"
-  [[ -d "$SOURCE_DIR/shared" ]] && cp -R "$SOURCE_DIR/shared" "$INSTALL_REAL/"
-  [[ -f "$SOURCE_DIR/agent_context_sync.config.example.json" ]] && cp "$SOURCE_DIR/agent_context_sync.config.example.json" "$INSTALL_REAL/"
+  # Manifest sync: update changed files, delete files the previous install wrote
+  # that are no longer shipped, and report (never delete) unmanaged files.
+  "$PYTHON_BIN" "$LAYOUT" sync --source "$SOURCE_REAL" --install-root "$INSTALL_REAL"
+  # Bundles installed by the Python installers live in the same install root.
+  export AGENT_TOOLS_INSTALL_ROOT="$INSTALL_REAL"
 fi
 
 chmod +x "$INSTALL_REAL/sync_agent_context.py" "$INSTALL_REAL/sync_agent_context_cron.sh" "$INSTALL_REAL/codex_project_memory.py" "$INSTALL_REAL/migrate_codex_provider_bucket.py" "$INSTALL_REAL/install.sh"
@@ -2673,7 +2677,7 @@ if [[ -d "$INSTALL_REAL/scripts" ]]; then
   chmod +x "$INSTALL_REAL"/scripts/*
 fi
 
-mkdir -p "$INSTALL_REAL/logs"
+mkdir -p "$DATA_ROOT/logs"
 configure_tmux_mouse_mode
 configure_local_bin_path
 configure_fail2ban_hardening
@@ -2731,19 +2735,37 @@ select_python_bin
   --record "$INSTALL_REAL/config/retired-packages/linear-workflow.json" \
   --repo-root "$INSTALL_REAL" --home "$HOME" --platform unix
 select_python_bin
+# Repoint existing learning bundle and Claude views, which earlier releases put in the data root.
+if [[ "$(uname -s)" == Linux ]]; then
+  if [[ "$CLAUDE_CODE_MODE" == never && -f "$HOME/.local/state/learning-workflow/install.json" ]]; then
+    "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_learning_workflow.py" \
+      || echo "WARNING: learning workflow bundle not updated; old layout items it uses stay in place." >&2
+  fi
+  if [[ "$CLAUDE_CODE_MODE" == never && -f "$HOME/.local/state/agent-tools/claude/install.json" ]]; then
+    "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_claude.py" \
+      || echo "WARNING: Claude adapter views not updated; old layout items it uses stay in place." >&2
+  fi
+fi
 
-"$PYTHON_BIN" - "$INSTALL_REAL/agent_context_sync.config.json" "$MAX_DEPTH" "$SCOPE" "$DIRECTION" "$PREFER" "$MODE" "${SCAN_ROOTS[@]}" <<'PY'
+"$PYTHON_BIN" - "$INSTALL_REAL/agent_context_sync.config.json" "$DATA_ROOT/agent_context_sync.config.json" "$EXPLICIT_SCAN_ROOTS" "$MAX_DEPTH" "$SCOPE" "$DIRECTION" "$PREFER" "$MODE" "${SCAN_ROOTS[@]}" <<'PY'
 import json
 import sys
 from pathlib import Path
 
 config_path = Path(sys.argv[1])
-max_depth = int(sys.argv[2])
-scope = sys.argv[3]
-direction = sys.argv[4]
-prefer = sys.argv[5]
-mode = sys.argv[6]
-roots = [str(Path(root).expanduser().resolve()) for root in sys.argv[7:]]
+legacy_path = Path(sys.argv[2])  # written into the data root by earlier releases
+explicit_roots = sys.argv[3] != "0"
+max_depth = int(sys.argv[4])
+scope = sys.argv[5]
+direction = sys.argv[6]
+prefer = sys.argv[7]
+mode = sys.argv[8]
+roots = [str(Path(root).expanduser().resolve()) for root in sys.argv[9:]]
+if not explicit_roots and not config_path.exists() and legacy_path.is_file():
+    try:
+        roots = json.loads(legacy_path.read_text(encoding="utf-8"))["scan_roots"] or roots
+    except (ValueError, KeyError, TypeError):
+        pass
 
 config = {
     "scan_roots": roots,
@@ -2762,9 +2784,14 @@ if [[ "$INSTALL_CRON" -eq 1 ]]; then
   (crontab -l 2>/dev/null | grep -v 'sync_agent_context_cron.sh' || true; printf '%s %s\n' "$SCHEDULE" "$CRON_CMD") | crontab -
 fi
 
+# All consumers now point at the install root; remove software left in the data
+# root by earlier --install-dir <data root> installs. Data and unknown items stay.
+"$PYTHON_BIN" "$INSTALL_REAL/scripts/install_layout.py" migrate --source "$SOURCE_REAL" --install-root "$INSTALL_REAL"
+
 
 
 echo "Installed agent context sync tools in $INSTALL_REAL"
+echo "Data root (task state, materials, logs): $DATA_ROOT"
 echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
 echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
 echo "agent-tools PATH: $LOCAL_BIN_PATH_STATUS"

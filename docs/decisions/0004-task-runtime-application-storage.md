@@ -71,5 +71,9 @@ The [system documentation index](../README.md) owns documentation placement; the
   acceptance. Archives still require review and authorization to retire.
 - Shared source contains current interfaces, reusable tests and design rationale;
   private progress does not become another maintained documentation set.
+- Installed software lives in its own install root, `~/.local/lib/agent-tools`
+  on Linux/WSL. Installers refuse an install root that overlaps the data root
+  and delete only files their previous manifest recorded; software copies that
+  older releases left in the data root are removed after consumers move.
 - These storage and ownership decisions do not prove native Hook execution,
   remote installation readiness or plugin packaging.

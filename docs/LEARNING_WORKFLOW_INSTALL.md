@@ -3,8 +3,10 @@
 Use Python 3.11+ for this installer and its TOML Hook registration support. It handles one Linux/WSL user profile. It copies the Python
 runtime, seven reusable skills plus the legacy `knowledge-deposition-doc` entry, the ReadPapers adapter resource tree, and the
 reader-facing writing contract into
-`~/.local/share/agent-tools/learning-workflow`. Installed skill links point to
-that copy and survive relocation of the source checkout. It does not run the
+`~/.local/lib/agent-tools/learning-workflow`, inside the software install root
+(`AGENT_TOOLS_INSTALL_ROOT` overrides it; a root overlapping the data root is
+refused). Installed skill links point to that copy and survive relocation of
+the source checkout. It does not run the
 repository-wide `install.sh` or change Codex providers, authentication, or
 development acceptance records.
 
@@ -25,9 +27,12 @@ Core's corresponding installer change must also be adopted so a later Core
 install does not overwrite this entry. This installer does not deploy Core's
 source changes or manage Claude/native Win11 entries.
 
-An existing managed bundle must pass its old check/rollback before reinstall;
-this is not an in-place updater. Preserve its recorded project/legacy paths and
-hook choices when preparing the replacement. Do not infer a live deployment
+Rerunning the installer without options updates an existing, unmodified bundle
+with its recorded links, ReadPapers scope and hook choices. A bundle recorded at
+the old `~/.local/share/agent-tools/learning-workflow` location is moved: links,
+hook groups and the `~/.codex/AGENTS.md` block are repointed, and the old copy is
+deleted once no consumer points into it (otherwise `install.sh` removes it later).
+A changed bundle is refused; to change recorded choices, roll back and install again. Do not infer a live deployment
 from a source edit or a disposable-profile test.
 
 An explicit

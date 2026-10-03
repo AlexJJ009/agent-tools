@@ -144,7 +144,9 @@ def refresh_command_for(root: Path) -> str:
     try:
         script_ref = script.relative_to(root.resolve())
     except ValueError:
-        script_ref = script
+        # A repository that ships the tool (agent-tools itself) keeps its relative
+        # command, so syncing from the installed copy does not rewrite its files.
+        script_ref = script.name if (root / script.name).is_file() else script
     python = Path(sys.executable).name or "python3"
     if python == "python":
         python = "python3"

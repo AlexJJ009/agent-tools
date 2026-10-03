@@ -93,7 +93,9 @@ auth, CC Switch and hooks.state unchanged. Use native `/hooks` to review/trust
 installed definitions. File existence or installer PASS does not prove trust.
 
 - `UserPromptSubmit`: conservatively captures possible report/timing requests;
-  an actual intent Judge decides semantics. The matcher cannot promise every
+  an actual intent Judge decides semantics. A prompt that is only a
+  `<task-notification>` envelope is system-generated and leaves pending state
+  untouched. The matcher cannot promise every
   metaphorical wording or events when the Hook is not loaded/trusted.
 - `SessionStart` and `PostToolUse`: restore state or present due reminders at
   tool boundaries.

@@ -116,6 +116,11 @@ old-response text and source metadata. Malformed or unknown envelopes retain
 conservative matching. The original prompt bytes and digest remain unchanged
 for the intent Judge; candidate filtering does not decide user intent.
 
+A prompt whose whole trimmed text is a Claude Code `<task-notification>`
+envelope (background subagent or shell completion) is system-generated and
+neither creates nor replaces a pending marker. Text before or after the
+envelope keeps normal candidate matching.
+
 Registration errors do not imply delivery or erase a real Judge call. Preserve
 the pending diagnostics, repair the reported cause, and continue independently
 authorized work. Do not fabricate context, normalize request bytes or delete

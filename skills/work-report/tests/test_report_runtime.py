@@ -1067,6 +1067,38 @@ class ReportRuntimeTests(unittest.TestCase):
                 self.assertEqual(pending["prompt"], text)
                 self.assertEqual(pending["request_sha256"], hashlib.sha256(text.encode()).hexdigest())
 
+    def test_task_notification_prompt_neither_creates_nor_replaces_pending(self):
+        notification = ("<task-notification>\n<task-id>a0418ce7</task-id>\n<status>completed</status>\n"
+                        "<result>Final report: send a progress report every hour after completion.</result>\n"
+                        "</task-notification>")
+        request = "完成后给我报告"
+        repo, _, _ = self.make_repo_task(request_text=request)
+        pending_file = repo / "docs/_local/reports/.pending" / f"{self.session_id}.json"
+
+        def submit(prompt, turn_id):
+            event = dict(hook_event_name="UserPromptSubmit", cwd=str(repo),
+                         session_id=self.session_id, turn_id=turn_id, prompt=prompt)
+            return self.data(self.run_cli("hook", input=json.dumps(event), cwd=repo))
+
+        self.assertEqual(submit(notification, "notification-only"), {})
+        self.assertFalse(pending_file.exists())
+
+        self.assertIn("hookSpecificOutput", submit(request, "real-request"))
+        original = pending_file.read_bytes()
+        self.assertEqual(submit("\n" + notification + "\n", "notification-after-request"), {})
+        self.assertEqual(pending_file.read_bytes(), original)
+
+        self.assertEqual(submit(notification + "\n" + notification, "multiple-notifications"), {})
+        self.assertEqual(pending_file.read_bytes(), original)
+
+        between = notification + "\n完成后给我报告\n" + notification
+        self.assertIn("hookSpecificOutput", submit(between, "request-between-notifications"))
+        self.assertEqual(json.loads(pending_file.read_text())["prompt"], between)
+
+        pasted = notification + "\n照这个格式，完成后给我报告"
+        self.assertIn("hookSpecificOutput", submit(pasted, "pasted-notification"))
+        self.assertEqual(json.loads(pending_file.read_text())["prompt"], pasted)
+
     def test_malformed_or_unknown_annotations_keep_conservative_matching(self):
         for payload in ['broken JSON 完成前给我报告', json.dumps({"annotation": "完成前给我报告"}, ensure_ascii=False),
                         json.dumps([{"text": "old", "comment": "完成前给我报告"}], ensure_ascii=False)]:

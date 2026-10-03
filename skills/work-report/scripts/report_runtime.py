@@ -341,6 +341,14 @@ def write_pending_prompt(workspace_root: Path, event: dict[str, Any]) -> dict[st
     prompt = event.get("prompt")
     if not isinstance(prompt, str):
         return None
+    # Claude Code delivers background task completions as a UserPromptSubmit whose
+    # whole prompt is one or more <task-notification> envelopes; the event JSON has
+    # no origin field. Such system text must neither create nor replace a marker.
+    stripped = prompt.strip()
+    if stripped.startswith("<task-notification>"):
+        outside = re.sub(r"<task-notification>.*?</task-notification>", "", stripped, flags=re.DOTALL)
+        if not outside.strip():
+            return None
     candidate = report_candidate_text(prompt)
     if not PROMPT_REPORT_RE.search(candidate) or not PROMPT_TIMING_RE.search(candidate):
         return None

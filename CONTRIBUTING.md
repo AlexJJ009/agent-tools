@@ -1,8 +1,7 @@
 # Contributing
 
-Follow the current user-authorized task scope. Linear Workflow is deprecated
-and disabled; no Linear Batch is required. Retained source does not justify
-running its historical internals on every PR.
+Follow the current user-authorized task scope. Linear Workflow is retired and
+its source was removed; no Linear Batch is required.
 
 ## Reconcile documentation before delivery
 
@@ -82,29 +81,21 @@ run establishes coverage of product behavior for which no test exists.
 `agent-tools-regression` runs affected suites on PRs and main pushes. Manual
 workflow dispatch runs all active suites. The job's status remains named
 `linear-workflow-runtime` only because the existing GitHub ruleset requires that
-name. There is no Linear planning gate. CI repeats regression tests; it is not
-another independent test population. Independent review evaluates requirements,
-implementation and gaps, not another numerical suite.
+name; renaming it requires changing the ruleset in the same step. There is no
+Linear planning gate. CI repeats regression tests; it is not another independent
+test population. Independent review evaluates requirements, implementation and
+gaps, not another numerical suite.
 
-Historical Linear internals are manual-only. To validate their packaged schemas
-and compatibility behavior locally:
-
-```bash
-python -m pip install ./linear_workflow/shared/runtime
-python scripts/run_regression_tests.py linear-compatibility
-```
-
-Manual CI dispatch can include them with `historical_compatibility`. The old
-acceptance-harness self-tests are also explicit-only:
+The old acceptance-harness self-tests are explicit-only:
 
 ```bash
 python scripts/run_regression_tests.py workflow-acceptance
 ```
 
 The `repository` alias deliberately runs all top-level tests, including those
-historical harness self-tests. Normal `active`/affected runs do not. Historical
-code retention is not approval to activate retired Skills. Keep active installer
-checks that prevent reactivation or preserve modified/user-owned files.
+historical harness self-tests. Normal `active`/affected runs do not. Keep active
+installer checks that remove stale retired copies only when verified and
+preserve modified/user-owned files.
 
 Native hook activation, native Windows deployment, semantic Judge accuracy,
 writing quality and live service behavior need their own real-scene checks.

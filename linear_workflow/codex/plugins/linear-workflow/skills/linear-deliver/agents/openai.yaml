@@ -1,6 +1,0 @@
-interface:
-  display_name: "Linear Deliver (Disabled)"
-  short_description: "Deprecated and disabled; retained source only"
-  default_prompt: "$linear-deliver is disabled. Explain its retirement and stop."
-policy:
-  allow_implicit_invocation: false

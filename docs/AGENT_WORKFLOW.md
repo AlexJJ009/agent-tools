@@ -77,7 +77,7 @@ For `command_json` checks, the verifier JSON must expose both the observed value
 
 ## Boundaries
 
-The suite is a local workflow aid. It is not a tamper-proof identity system, a production admission controller, a Linear Ready Batch, or a replacement for human merge authority.
+The suite is a local workflow aid. It is not a tamper-proof identity system, a production admission controller, or a replacement for human merge authority.
 
 `human_status=confirmed` must come from actual user feedback or an earlier still-valid review of the same object. The tool cannot infer it from a model report. Human feedback capture is the responsibility of the caller that invokes `approve`, and the feedback JSON must include the current target digest emitted by `agent-workflow target`.
 

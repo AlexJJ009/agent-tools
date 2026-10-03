@@ -2,7 +2,7 @@
 
 Date: 2026-09-30
 
-Status: Accepted
+Status: Accepted; amended 2026-10-03 (source removed)
 
 ## Context and Problem Statement
 
@@ -45,3 +45,12 @@ task state. Component-specific installation options belong in their guides.
   current instructions for planning, delivery or installation.
 - Source changes alone do not prove that every previously installed client has
   been updated; deployment results must identify the profiles actually changed.
+
+### Status update (2026-10-03)
+
+The source, compatibility tests, templates and guide were removed from the
+repository; commits before that change keep them. Installers still remove
+verified stale client copies using
+`config/retired-packages/linear-workflow.json`, which records fingerprints of
+the last shipped copies, and keep runtime data under
+`~/.local/share/linear-workflow`.

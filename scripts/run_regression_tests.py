@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run scoped regressions; retired Linear internals require an explicit invocation."""
+"""Run scoped component regressions."""
 import argparse
 import fnmatch
 from pathlib import Path
@@ -22,7 +22,7 @@ ROOT_GROUPS = {
     'report-integration': ('test_report_*', 'test_install_work_report*'),
     'test-runner': ('test_regression_runner.py',),
     'installation': ('test_install_*', 'test_codex_*', 'test_configure_*',
-                     'test_direct_configuration_*', 'test_linear_*', 'test_managed_*'),
+                     'test_direct_configuration_*', 'test_retired_*'),
 }
 SUITES = {
     'repository': 'tests',
@@ -31,9 +31,8 @@ SUITES = {
     'worktrees': 'skills/manage-worktrees/tests',
     'win11-patch': 'skills/codex-win11-patch-safety/tests',
     'proxy-relay': 'tools/win11-proxy-relay/runtime/tests',
-    'linear-compatibility': 'linear_workflow/shared/runtime/tests',
 }
-ACTIVE = tuple(name for name in SUITES if name not in ('repository', 'linear-compatibility', 'workflow-acceptance'))
+ACTIVE = tuple(name for name in SUITES if name not in ('repository', 'workflow-acceptance'))
 
 
 def root_group(filename):
@@ -48,7 +47,7 @@ def select_suites(paths):
     selected = set()
     for path in paths:
         nested = next((name for name, directory in SUITES.items()
-                       if name not in ROOT_GROUPS and name not in ('repository', 'linear-compatibility', 'workflow-acceptance')
+                       if name not in ROOT_GROUPS and name not in ('repository', 'workflow-acceptance')
                        and path.startswith(directory + '/')), None)
         if nested:
             selected.add(nested)
@@ -73,9 +72,6 @@ def select_suites(paths):
             selected.update(('task-runtime', 'evaluation-fixtures'))
         elif path.startswith('agent_workflow/'):
             selected.update(('task-runtime', 'workflow-records', 'installation'))
-        elif path.startswith('linear_workflow/'):
-            # Managed retirement still consumes package descriptors/source identity.
-            selected.add('installation')
         elif path.startswith(('learning_workflow/', 'project_adapters/read_papers/',
                               'tests/fixtures/learning_workflow/', 'tests/fixtures/teaching/',
                               'scripts/install_learning_', 'scripts/teaching_')):

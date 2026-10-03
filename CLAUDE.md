@@ -19,8 +19,7 @@ python3 sync_agent_context.py sync . --direction bidirectional
 Project-local skills are mirrored into `.claude/skills` when present.
 If a request matches one of these descriptions, read `.claude/skills/<name>/SKILL.md` first, then load only the referenced files needed for the task.
 
-- `build-eval`: Build a runnable evaluation for an agent, application, or skill: representative cases, calibrated graders, baseline runs, and a reviewable report. Uses the local Codex CLI subscription.
-- `hillclimb`: Improve an agent, application, or skill against an existing evaluation, with scoped changes, held-out cases, and regression checks. Uses the local Codex CLI subscription.
+- No project-local skills found.
 
 ## Mirrored AGENTS.md
 
@@ -30,11 +29,10 @@ The section below is copied verbatim from `AGENTS.md`.
 
 Use docs/README.md for current system docs and decisions.
 
-- Linear Workflow is deprecated and disabled. Do not invoke `linear-plan`,
-  `linear-deliver`, or their plugin/command adapters. Source under
-  `linear_workflow/` remains for historical inspection and compatibility
-  maintenance; old Batch approvals do not reactivate it. Use the current
-  task runtime and the user's task instructions for ongoing work.
+- Linear Workflow is retired and its source was removed (ADR 0006). Do not
+  invoke stale `linear-plan` or `linear-deliver` copies; old Batch approvals
+  do not reactivate it. Use the current task runtime and the user's task
+  instructions for ongoing work.
 
 - Linux and WSL2 machine bootstrap must persist tmux mouse mode for the Unix
   user running the tools. The durable config is a managed block in

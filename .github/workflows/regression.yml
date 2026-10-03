@@ -5,18 +5,13 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      historical_compatibility:
-        description: "Also build and test retired Linear internals"
-        type: boolean
-        default: false
 
 permissions:
   contents: read
 
 jobs:
   regression:
-    # Preserve the existing required status context; the ruleset still names it.
+    # Legacy status name: ruleset 20623617 requires this context. Rename both together.
     name: linear-workflow-runtime
     runs-on: ubuntu-latest
     steps:
@@ -65,12 +60,3 @@ jobs:
           else
             python scripts/run_regression_tests.py active --changed-from "$BASE_SHA"
           fi
-      - name: Build and install historical compatibility package
-        if: github.event_name == 'workflow_dispatch' && inputs.historical_compatibility
-        run: |
-          python -m pip wheel --no-deps --wheel-dir "$RUNNER_TEMP/wheels" ./linear_workflow/shared/runtime
-          python -m venv "$RUNNER_TEMP/linear-workflow-venv"
-          "$RUNNER_TEMP/linear-workflow-venv/bin/python" -m pip install "$RUNNER_TEMP"/wheels/*.whl
-      - name: Test historical compatibility package
-        if: github.event_name == 'workflow_dispatch' && inputs.historical_compatibility
-        run: '"$RUNNER_TEMP/linear-workflow-venv/bin/python" scripts/run_regression_tests.py linear-compatibility'

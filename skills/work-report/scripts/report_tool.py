@@ -390,7 +390,13 @@ def render_report_template(context: dict[str, Any], rubric: dict[str, Any], scri
 
 def open_batch(task_dir: Path, kind: str) -> Path | None:
     """Latest formal batch of this kind in the task; revisions reuse it instead of starting another."""
-    for path in sorted(task_dir.glob("*/report.md"), reverse=True):
+    def recency(path: Path) -> tuple[int, str]:  # Batch names have one-second resolution.
+        try:
+            return (path.parent / "context.json").stat().st_mtime_ns, path.parent.name
+        except OSError:
+            return 0, path.parent.name
+
+    for path in sorted(task_dir.glob("*/report.md"), key=recency, reverse=True):
         if path.is_symlink() or not REPORT_RE.match(path.parent.name):
             continue
         try:
@@ -398,8 +404,28 @@ def open_batch(task_dir: Path, kind: str) -> Path | None:
         except ValidationFailure:
             continue
         if isinstance(data, dict) and data.get("schema_version") == CONTEXT_SCHEMA and data.get("kind") == kind:
+            if kind == "progress" and progress_tick_after(task_dir, str(data.get("generated_at", ""))):
+                return None  # A new interval/interim obligation is a new report, not a revision.
             return path.parent
     return None
+
+
+def progress_tick_after(task_dir: Path, generated_at: str) -> bool:
+    """An open progress obligation whose cutoff is later than the batch snapshot."""
+    try:
+        manifest = load_json_strict(task_dir / "reporting.json") if (task_dir / "reporting.json").is_file() else {}
+        snapshot = parse_iso(generated_at, "generated_at")
+    except ValidationFailure:
+        return False
+    for key in ("periodic", "interim"):
+        obligation = manifest.get(key) if isinstance(manifest, dict) else None
+        if isinstance(obligation, dict) and obligation.get("kind") == "progress" and obligation.get("state") in {"pending", "failed"}:
+            try:
+                if parse_iso(str(obligation.get("cutoff", "")), "cutoff") > snapshot:
+                    return True
+            except ValidationFailure:
+                continue
+    return False
 
 
 def first_context(task_dir: Path) -> dict[str, Any] | None:

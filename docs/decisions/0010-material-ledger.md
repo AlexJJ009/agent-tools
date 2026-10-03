@@ -53,10 +53,14 @@ recorded directory as a unit by tree digest. Completed removals append
   have one answer, and unrecorded leftovers under known roots become visible.
 * Good, because large experiment directories can be retired as one reviewed
   unit without listing every file in the packet.
+* Good, because recorded paths, unregistered files in a task's artifact
+  directory and the manage-worktrees artifact base can be retired outside the
+  workspace; the ledger entry or known root is the scope evidence.
 * Bad, because files written by agents outside the runtimes appear only if the
   agent registers them or they fall under a known root.
 * Bad, because the ledger only grows; there is no compaction yet.
 * Neutral: the ledger is not authority to delete and nothing is deleted
-  automatically. Review, user authorization, Git-ignored/untracked checks and
-  journaled recovery from ADR 0004 still apply. The directory tree digest
+  automatically. Review, user authorization, Git checks (ignored/untracked in
+  the workspace, untracked elsewhere) and journaled recovery from ADR 0004
+  still apply. The directory tree digest
   covers paths, types, sizes and modification times, not file bytes.

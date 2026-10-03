@@ -29,6 +29,25 @@ PNG_1X1 = bytes.fromhex(
 )
 
 
+def setUpModule():
+    """Producers append to the agent-tools material ledger; keep it out of the user's data root."""
+    global _LEDGER_TMP, _LEDGER_ENV
+    import json as _json, os as _os, tempfile as _tempfile
+    from pathlib import Path as _Path
+    from unittest import mock as _mock
+    _LEDGER_TMP = _tempfile.TemporaryDirectory(prefix='agent-tools-test-ledger-')
+    config = _Path(_LEDGER_TMP.name) / 'config'
+    (config / 'agent-tools').mkdir(parents=True)
+    (config / 'agent-tools/config.json').write_text(_json.dumps({'data_root': str(_Path(_LEDGER_TMP.name) / 'data')}))
+    _LEDGER_ENV = _mock.patch.dict(_os.environ, {'XDG_CONFIG_HOME': str(config), 'XDG_DATA_HOME': str(_Path(_LEDGER_TMP.name) / 'xdg-data')})
+    _LEDGER_ENV.start()
+
+
+def tearDownModule():
+    _LEDGER_ENV.stop()
+    _LEDGER_TMP.cleanup()
+
+
 @dataclass
 class ReportCase:
     workspace: Path
@@ -374,6 +393,24 @@ class ReportToolTests(unittest.TestCase):
                 "--request", case.workspace / "request.md", "--task-dir", case.task_dir, "--new-batch"))
             self.assertFalse(final["reused_batch"] or extra["reused_batch"])
             self.assertEqual(len(list(case.task_dir.glob("*/report.md"))), 3)
+
+    def test_new_periodic_progress_tick_gets_new_batch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            case = self.checked_case(tmp)
+            generated = dt.datetime.fromisoformat(json.loads(case.context.read_text())["generated_at"].replace("Z", "+00:00"))
+            cutoff = (generated + dt.timedelta(hours=1)).isoformat().replace("+00:00", "Z")
+            manifest = case.task_dir / "reporting.json"
+            def init():
+                return self.assert_pass(self.run_cli("init", "--workspace", case.workspace, "--title", "case",
+                    "--request", case.workspace / "request.md", "--task-dir", case.task_dir))
+            manifest.write_text(json.dumps({"periodic": {"kind": "progress", "state": "satisfied", "cutoff": cutoff}}))
+            self.assertTrue(init()["reused_batch"])  # Revision of the delivered tick.
+            manifest.write_text(json.dumps({"periodic": {"kind": "progress", "state": "pending", "cutoff": cutoff}}))
+            tick = init()
+            self.assertFalse(tick["reused_batch"])
+            self.assertNotEqual(Path(tick["report"]).parent, case.report.parent)
+            manifest.write_text(json.dumps({"periodic": {"kind": "progress", "state": "satisfied", "cutoff": cutoff}}))
+            self.assertEqual(Path(init()["report"]).parent, Path(tick["report"]).parent)  # Revising the new tick stays in its batch.
 
     def test_outputs_are_registered_in_material_ledger(self):
         with tempfile.TemporaryDirectory() as tmp:

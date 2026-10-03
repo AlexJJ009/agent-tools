@@ -43,6 +43,77 @@ def workspace_info(path):
             'id': digest({'common': str(common), 'git_dir': str(git_dir)})[:24]}
 
 
+def _under(path, parent):
+    return path == parent or parent in path.parents
+
+
+def _slug(value):
+    slug = re.sub(r'[^A-Za-z0-9._-]+', '-', value.strip().replace('/', '--'))
+    return re.sub(r'[-_.]{2,}', '-', slug).strip('-._')
+
+
+def artifact_roots(workspace):
+    """manage-worktrees artifact bases `<repo-parent>/_artifacts/<repo>` for this workspace's repository."""
+    common = _git(workspace, 'rev-parse', '--path-format=absolute', '--git-common-dir')
+    if common.returncode != 0 or Path(common.stdout.strip()).name != '.git':
+        return []
+    main = Path(common.stdout.strip()).resolve().parent
+    names = {_slug(main.name)}
+    url = _git(main, 'config', '--get', 'remote.origin.url').stdout.strip()
+    if url:
+        names.add(_slug(url.rstrip('/').rsplit('/', 1)[-1].rsplit(':', 1)[-1].removesuffix('.git')))
+    parents = {main.parent}
+    configs = [main / '.agent-wt.json', Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'agent-wt/config.json']
+    for config in configs:
+        try:
+            value = json.loads(config.read_text()).get('worktree_root') if config.is_file() else None
+        except (OSError, ValueError, AttributeError):
+            value = None
+        if value:
+            root = Path(str(value)).expanduser()
+            parents.add((root if root.is_absolute() else main / root).resolve().parent)
+    if os.environ.get('AGENT_WT_ROOT'):
+        parents.add(Path(os.environ['AGENT_WT_ROOT']).expanduser().resolve().parent)
+    return sorted({parent / '_artifacts' / name for parent in parents for name in names if name})
+
+
+def _external_checker(data_root, workspace, task_id):
+    """Absolute targets outside the workspace need scope evidence: an unregistered file under this
+    task's artifact directory, a managed artifact root of this repository, or a ledger entry."""
+    data = Path(data_root).expanduser().resolve()
+    task_dir = data / 'artifacts' / task_id
+    managed = artifact_roots(workspace)
+    cache = {}
+
+    def registered():
+        if 'registered' not in cache:
+            from .task_store import Store
+            task = Store(data).read(task_id, detail=True)
+            cache['registered'] = [data / a['path'] for a in task['artifacts'].values()]
+        return cache['registered']
+
+    def recorded(path):
+        if 'ledger' not in cache:
+            cache['ledger'] = {e['path']: e['event'] for e in materials.load(data)}
+        return cache['ledger'].get(str(path)) in materials.EVENTS[:2]
+
+    def check(path):
+        require(not _under(data, path) and not _under(workspace, path), 'unsafe_path', 'refusing the data root, the workspace or an ancestor')
+        if _under(path, data):
+            require(_under(path, task_dir) and path != task_dir, 'unsafe_path', 'only this task artifact directory is eligible under the data root')
+            require(not any(_under(r, path) for r in registered()), 'cleanup_blocked', 'registered task artifact; use task retire')
+        else:
+            known = any(_under(path, m) and path != m for m in managed) or any(recorded(a) for a in [path, *path.parents])
+            require(known, 'unsafe_path', 'not a recorded or known material path')
+        owner = _git(path.parent, 'rev-parse', '--show-toplevel')
+        if owner.returncode == 0:
+            top = Path(owner.stdout.strip()).resolve()
+            require(path != top, 'unsafe_path', 'refusing a Git worktree root')
+            tracked = _git(top, '--literal-pathspecs', 'ls-files', '--', str(path))
+            require(tracked.returncode == 0 and not tracked.stdout.strip(), 'unsafe_path', 'tracked by Git')
+    return check
+
+
 def _plain_path(path):
     for p in [path, *path.parents]:
         require(not p.is_symlink(), 'unsafe_path', f'symlink forbidden: {p}')
@@ -176,11 +247,17 @@ def _request(request):
     require(isinstance(auth, dict) and all(isinstance(auth.get(k), str) and auth[k].strip()
             for k in ('quote', 'source_ref')), 'invalid_input', 'authorization quote and source_ref required')
     require(isinstance(request['workspace'], str) and Path(request['workspace']).is_absolute(), 'invalid_input', 'absolute workspace required')
-    require(request.get('storage', 'workspace') in ('workspace', 'archives'), 'invalid_input', 'invalid storage mode')
+    require(request.get('storage', 'workspace') in ('workspace', 'archives', 'external'), 'invalid_input', 'invalid storage mode')
+    external = request.get('storage') == 'external'
+    def valid(name):
+        p = PurePosixPath(name)
+        if external:  # Absolute, normalized; ':' is common in run directory names.
+            return p.is_absolute() and len(p.parts) > 1 and all(x not in ('.', '..') and x.lower() != '.git' for x in p.parts[1:])
+        return name not in ('', '.') and not name.startswith('/') and all(x not in ('.', '..') and x.lower() != '.git' and ':' not in x for x in p.parts)
     roots = request['process_roots']
     require(isinstance(roots, list) and roots, 'invalid_input', 'explicit process_roots required')
     for name in roots:
-        require(isinstance(name, str) and name not in ('', '.') and not name.startswith('/') and '\\' not in name and PurePosixPath(name).as_posix() == name and all(x not in ('.', '..') and x.lower() != '.git' and ':' not in x for x in PurePosixPath(name).parts), 'unsafe_path', 'invalid process root')
+        require(isinstance(name, str) and '\\' not in name and '\x00' not in name and PurePosixPath(name).as_posix() == name and valid(name), 'unsafe_path', 'invalid process root')
     files = request['files']
     require(isinstance(files, list) and files, 'invalid_input', 'explicit nonempty file list required')
     names = set()
@@ -190,10 +267,8 @@ def _request(request):
         require(item.get('kind') != 'dir' or (item['disposition'] == 'delete' and 'retained_copy' not in item), 'invalid_input', 'a directory entry supports delete only')
         name = item['path']
         require(isinstance(name, str) and name and '\\' not in name and '\x00' not in name,
-                'unsafe_path', 'path must be a relative POSIX file path')
-        p = PurePosixPath(name)
-        require(not p.is_absolute() and p.as_posix() == name and all(x not in ('.', '..') and x.lower() != '.git' and ':' not in x for x in p.parts),
-                'unsafe_path', f'unsafe relative path: {name}')
+                'unsafe_path', 'path must be a POSIX path')
+        require(PurePosixPath(name).as_posix() == name and valid(name), 'unsafe_path', f'unsafe path: {name}')
         require(any(PurePosixPath(name).is_relative_to(PurePosixPath(root)) and name != root for root in roots), 'unsafe_path', 'file outside declared process roots')
         require(item['category'] in ('process-output', 'cache', 'obsolete-state'), 'invalid_input', 'invalid category')
         require(name not in names, 'invalid_input', 'duplicate file')
@@ -212,6 +287,9 @@ def _eligible(workspace, name, storage='workspace'):
     require(path.parent.is_dir(), 'unsafe_path', 'parent directory missing')
     if storage == 'archives':
         return path
+    if callable(storage):  # external: absolute path with ledger/known-root scope evidence
+        storage(path)
+        return path
     owner = _git(path.parent, 'rev-parse', '--show-toplevel')
     require(owner.returncode == 0 and Path(owner.stdout.strip()).resolve() == workspace,
             'workspace_mismatch', 'file belongs to another worktree or nested repository')
@@ -223,7 +301,8 @@ def _eligible(workspace, name, storage='workspace'):
 
 
 def _content_root(data_root, request, workspace):
-    root = Path(data_root).expanduser() / 'archives' if request.get('storage') == 'archives' else workspace
+    storage = request.get('storage')
+    root = Path(data_root).expanduser() / 'archives' if storage == 'archives' else Path(workspace.anchor) if storage == 'external' else workspace
     _plain_path(root)
     require(root.is_dir(), 'unsafe_path', 'content storage directory missing')
     return root
@@ -270,6 +349,8 @@ def _run_cleanup(data_root, request, *, fault=None):
     require(not root.resolve().is_relative_to(workspace), 'unsafe_path', 'cleanup storage must be outside workspace')
     content_root = _content_root(data_root, request, workspace)
     storage = request.get('storage', 'workspace')
+    if storage == 'external':
+        storage = _external_checker(data_root, workspace, request['task_id'])
     def checkpoint(stage, index):
         if fault:
             fault(stage, index)
@@ -447,6 +528,8 @@ def abort_cleanup(data_root, task_id, operation_id):
         require(workspace_info(workspace) == journal['workspace'], 'workspace_mismatch', 'worktree changed')
         content_root = _content_root(data_root, journal['request'], workspace)
         storage = journal['request'].get('storage', 'workspace')
+        if storage == 'external':
+            storage = _external_checker(data_root, workspace, journal['request']['task_id'])
         for entry in journal['entries']:
             path = _eligible(content_root, entry['path'], storage)
             quarantine = Path(entry['quarantine'])

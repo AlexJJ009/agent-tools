@@ -29,6 +29,25 @@ def claim_worker(runtime, task_dir, owner, env, queue):
     queue.put((proc.returncode, proc.stdout, proc.stderr))
 
 
+def setUpModule():
+    """Producers append to the agent-tools material ledger; keep it out of the user's data root."""
+    global _LEDGER_TMP, _LEDGER_ENV
+    import json as _json, os as _os, tempfile as _tempfile
+    from pathlib import Path as _Path
+    from unittest import mock as _mock
+    _LEDGER_TMP = _tempfile.TemporaryDirectory(prefix='agent-tools-test-ledger-')
+    config = _Path(_LEDGER_TMP.name) / 'config'
+    (config / 'agent-tools').mkdir(parents=True)
+    (config / 'agent-tools/config.json').write_text(_json.dumps({'data_root': str(_Path(_LEDGER_TMP.name) / 'data')}))
+    _LEDGER_ENV = _mock.patch.dict(_os.environ, {'XDG_CONFIG_HOME': str(config), 'XDG_DATA_HOME': str(_Path(_LEDGER_TMP.name) / 'xdg-data')})
+    _LEDGER_ENV.start()
+
+
+def tearDownModule():
+    _LEDGER_ENV.stop()
+    _LEDGER_TMP.cleanup()
+
+
 class ReportRuntimeTests(unittest.TestCase):
     maxDiff = 4000
 

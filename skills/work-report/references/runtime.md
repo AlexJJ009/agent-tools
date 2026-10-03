@@ -36,8 +36,8 @@ questions without asking the user to approve a report.
    task directory. A pre-registration draft or placeholder report has an older
    snapshot and cannot satisfy freshness, even for an interim report. Revisions
    rerun `init` with the same task directory, which refreshes the snapshot of the
-   existing batch of that kind in place; a different kind or `--new-batch` starts
-   another batch.
+   existing batch of that kind in place; a different kind, a newly due interval
+   or interim progress obligation, or `--new-batch` starts another batch.
 
 Default output is this worktree's `docs/_local/reports/` with Git exclusion.
 Reuse an existing request and canonical state under `docs/_local/tasks/<task-id>/`

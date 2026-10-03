@@ -90,7 +90,8 @@ After registration, initialize the formal report so the snapshot is fresh. With
 `--task-dir`, `init` reuses the task's latest formal batch of the same kind:
 it refreshes `context.json` and the frontmatter, keeps the written body, and the
 digest changes, so check, review and finalize run again in that directory. A
-different kind or agreement, or `--new-batch`, starts another batch.
+different kind or agreement, a progress obligation (interval or interim) whose
+cutoff is later than that batch, or `--new-batch`, starts another batch.
 New delivery checks bind the request, workflow snapshot, report, reviews and
 evidence; an older placeholder or review file alone cannot satisfy them.
 `finalize --verify-only` verifies a historical frozen report without refreshing

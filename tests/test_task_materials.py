@@ -176,6 +176,53 @@ class InventoryTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(json.loads(out)['code'], 'unsafe_path')
 
+    def fill(self, directory, count=5):
+        directory.mkdir(parents=True)
+        for i in range(count):
+            (directory / f'{i}.out').write_text(str(i))
+        return directory
+
+    def test_unregistered_files_in_task_artifact_dir_are_retireable(self):
+        self.store.mutate('artifact', {'operation_id': 'a-1', 'task_id': self.task, 'base_revision': 1,
+                                       'name': 'notes', 'content': 'keep me'})
+        experiments = self.fill(self.data / 'artifacts' / self.task / 'experiments')
+        unrecorded = {u['path']: u for u in inventory(self.store, self.repo)['unrecorded']}
+        self.assertEqual(unrecorded[str(experiments)]['files'], 5)
+        packet = self.packet(experiments)
+        self.assertEqual(packet['storage'], 'external')
+        self.assertEqual(run_cleanup(self.data, packet)['status'], 'complete')
+        self.assertFalse(experiments.exists())
+        registered = self.data / self.store.read(self.task, detail=True)['artifacts']['notes']['path']
+        self.assertTrue(registered.is_file())
+        with self.assertRaises(TaskError) as cm:
+            run_cleanup(self.data, self.packet(registered, op='retire-registered'))
+        self.assertEqual(cm.exception.code, 'cleanup_blocked')
+
+    def test_managed_artifact_root_is_discovered_and_retireable(self):
+        run = self.fill(self.repo.parent / '_artifacts/repo/main/eval-2026-10-01T10:00')
+        worktree = self.repo.parent / '_worktrees/repo/feature'
+        self.git('worktree', 'add', '-q', '-b', 'feature', str(worktree))
+        from agent_workflow.process_cleanup import artifact_roots
+        self.assertEqual(artifact_roots(worktree), [self.repo.parent / '_artifacts/repo'])
+        unrecorded = {u['path']: u for u in inventory(self.store, self.repo)['unrecorded']}
+        self.assertEqual(unrecorded[str(run)]['files'], 5)
+        self.assertEqual(run_cleanup(self.data, self.packet(run))['status'], 'complete')
+        self.assertFalse(run.exists())
+
+    def test_recorded_external_path_is_retireable_and_unrecorded_is_refused(self):
+        shared = self.fill(self.repo.parent / 'shared/exp-a')
+        stray = self.fill(self.repo.parent / 'shared/exp-b')
+        self.cli(materials_main, 'record', '--path', shared, '--task', self.task)
+        self.assertEqual(run_cleanup(self.data, self.packet(shared))['status'], 'complete')
+        self.assertFalse(shared.exists())
+        self.assertEqual(materials.load(self.data)[-1]['event'], 'removed')
+        for target, op in ((stray, 'stray'), (self.data / 'cleanup', 'journals')):
+            with self.subTest(target=target), self.assertRaises(TaskError) as cm:
+                target.mkdir(exist_ok=True)
+                run_cleanup(self.data, self.packet(target, op=op))
+            self.assertEqual(cm.exception.code, 'unsafe_path')
+        self.assertTrue(stray.exists())
+
 
 if __name__ == '__main__':
     unittest.main()

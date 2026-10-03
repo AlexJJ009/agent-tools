@@ -88,7 +88,8 @@ Use `--record-only` to create `draft.md` and state for registration, not a deliv
 report. Reuse `--task-dir` for one agreement and `--state` for an existing working
 state. With `--task-dir`, `init` reuses the task's latest formal batch of the
 same kind: revisions stay in that directory and the digest is recomputed. A
-different kind or agreement, or `--new-batch`, starts another batch; the
+different kind or agreement, a newly due interval or interim progress
+obligation, or `--new-batch`, starts another batch; the
 registration draft never serves as the formal report. A temporary interim report alongside another active obligation gets its
 own task directory and references the original state; do not cancel the earlier
 obligation. Preserve the original goal and resume point in that state.

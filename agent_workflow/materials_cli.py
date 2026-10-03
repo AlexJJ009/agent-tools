@@ -14,7 +14,7 @@ import sys
 
 from . import materials
 from .task_store import Store, TaskError, require
-from .process_cleanup import _hash, _tree_digest, workspace_info
+from .process_cleanup import _hash, _tree_digest, artifact_roots, workspace_info
 
 
 def _under(path, parent):
@@ -79,6 +79,7 @@ def inventory(store, workspace=None, task_id=None):
     if task_id is not None:
         require(tasks, 'not_found', 'task not found' + (' in this workspace' if workspace else ''))
         workspace = workspace or Path(tasks[0]['workspace'])
+    managed = artifact_roots(workspace) if workspace else []
     latest = {}
     for entry in materials.load(store.root):
         latest[entry['path']] = entry
@@ -86,7 +87,7 @@ def inventory(store, workspace=None, task_id=None):
     items = []
     for path, entry in latest.items():
         p = Path(path)
-        if workspace and not (entry.get('workspace') == str(workspace) or _under(p, workspace)):
+        if workspace and not (entry.get('workspace') == str(workspace) or _under(p, workspace) or any(_under(p, m) for m in managed)):
             continue
         if task_id and entry.get('task_id') != task_id:
             continue
@@ -102,6 +103,7 @@ def inventory(store, workspace=None, task_id=None):
     roots = []
     if workspace:
         roots.append((workspace / 'docs/_local', 2))
+    roots += [(m, 2) for m in managed]  # manage-worktrees: <repo-parent>/_artifacts/<repo>/<branch-slug>/...
     roots += [(store.root / 'artifacts' / t['task_id'], 1) for t in tasks]
     unrecorded = [u for root, depth in roots for u in _unrecorded(root, covered, depth)]
     totals = {'recorded': len(items), 'recorded_bytes': sum(i['bytes'] for i in items if i['exists']),
@@ -131,23 +133,30 @@ def cleanup_packet(store, args):
     task = store.read(args.task)
     info = workspace_info(task['workspace']['path'])
     workspace = Path(info['path'])
+    paths = [Path(raw).expanduser().absolute() for raw in args.path]
+    inside = [_under(p, workspace) and p != workspace for p in paths]
+    # Outside the workspace the ledger, the task artifact directory or a managed artifact root
+    # is the scope evidence; process-cleanup checks it again.
+    external = not any(inside)
+    require(external or all(inside), 'invalid_input', 'build separate packets for workspace and external paths')
     files, roots = [], set()
-    for raw in args.path:
-        path = Path(raw).expanduser().absolute()
-        require(_under(path, workspace) and path != workspace, 'unsafe_path', f'not inside the task workspace: {path}')
-        rel = path.relative_to(workspace).as_posix()
+    for path in paths:
+        name = str(path) if external else path.relative_to(workspace).as_posix()
         kind = 'dir' if path.is_dir() and not path.is_symlink() else 'file'
-        entry = {'path': rel, 'sha256': _tree_digest(path) if kind == 'dir' else _hash(path),
+        entry = {'path': name, 'sha256': _tree_digest(path) if kind == 'dir' else _hash(path),
                  'disposition': 'delete' if kind == 'dir' else args.disposition, 'category': args.category}
         if kind == 'dir':
             entry['kind'] = 'dir'
         files.append(entry)
-        roots.add(Path(rel).parent.as_posix())
+        roots.add(str(path.parent) if external else Path(name).parent.as_posix())
     require('.' not in roots, 'unsafe_path', 'workspace top-level entries need an explicit process-cleanup packet')
-    return {'workspace': str(workspace), 'task_id': args.task, 'operation_id': args.operation_id,
-            'authorization': {'quote': args.quote, 'source_ref': args.source_ref},
-            'process_materials_reviewed': True, 'rationale': args.rationale,
-            'process_roots': sorted(roots), 'files': files}
+    packet = {'workspace': str(workspace), 'task_id': args.task, 'operation_id': args.operation_id,
+              'authorization': {'quote': args.quote, 'source_ref': args.source_ref},
+              'process_materials_reviewed': True, 'rationale': args.rationale,
+              'process_roots': sorted(roots), 'files': files}
+    if external:
+        packet['storage'] = 'external'
+    return packet
 
 
 def parser():
@@ -167,7 +176,7 @@ def parser():
     pk = sub.add_parser('cleanup-packet', help='build a task process-cleanup packet for selected inventory paths')
     pk.add_argument('--task', required=True)
     pk.add_argument('--operation-id', required=True)
-    pk.add_argument('--path', action='append', required=True, help='absolute path inside the task workspace; repeatable')
+    pk.add_argument('--path', action='append', required=True, help='absolute inventory path; repeatable; workspace and external paths need separate packets')
     pk.add_argument('--disposition', choices=('delete', 'archive'), default='delete', help='files only; directories are deleted as a unit')
     pk.add_argument('--category', choices=('process-output', 'cache', 'obsolete-state'), default='process-output')
     pk.add_argument('--rationale', required=True)

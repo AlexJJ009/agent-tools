@@ -15,6 +15,10 @@ artifact store. [SKILL.md](../SKILL.md) owns the review and authorization rules;
   entry (`kind: "dir"`, `delete` only) identified by a tree digest over relative
   paths, types, sizes and modification times. It does not decide whether content
   is obsolete. Completed removals are appended to the material ledger.
+- Inventory paths outside the workspace (unregistered files under the task's
+  `<data-root>/artifacts/<task-id>/`, the `<repo-parent>/_artifacts/<repo>/`
+  worktree artifact base, or ledger-recorded paths) get an `external` packet
+  with absolute paths; the guide lists what is refused.
 - This separate cleanup journal does not close or revise the SQLite task.
   Recover through `task recover --task TASK_ID` or by replaying the unchanged
   packet; journals retain their original workspace after task rebind. Inspect with

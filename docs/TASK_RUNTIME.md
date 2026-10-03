@@ -489,9 +489,12 @@ agent-workflow materials list --workspace /absolute/project [--task TASK_ID] [--
 Each recorded path reports its latest event, producer, purpose, whether it
 exists and its size (directories: file count and total bytes). `unrecorded`
 lists files under known material roots that no ledger path or recorded ancestor
-covers: `<workspace>/docs/_local/` and `<data-root>/artifacts/<task-id>/` for
-the selected tasks. A wholly unrecorded directory two levels below
-`docs/_local/` is listed once with its counts. Totals end the output.
+covers: `<workspace>/docs/_local/`, `<data-root>/artifacts/<task-id>/` for
+the selected tasks, and the repository's manage-worktrees artifact base
+`<repo-parent>/_artifacts/<repo>/` (shared by the main checkout and its
+worktrees). A wholly unrecorded directory two levels below `docs/_local/` or the
+artifact base, or one level below a task artifact directory, is listed once with
+its counts. Totals end the output.
 
 The ledger is an inventory, not authority to delete; nothing is deleted
 automatically. Select reviewed workspace paths and build a cleanup packet whose
@@ -505,8 +508,19 @@ agent-workflow task process-cleanup --input packet.json
 ```
 
 Directories become `kind: "dir"` delete entries; files use `--disposition`
-(default `delete`). Task artifacts are retired with `task retire`, not this
-packet. [ADR 0010](decisions/0010-material-ledger.md) records the decision.
+(default `delete`). Registered task artifacts are retired with `task retire`,
+not this packet.
+
+Paths outside the workspace produce a packet with `"storage": "external"`, whose
+`process_roots` and `files[].path` are absolute. Each target needs scope
+evidence, checked again by the cleanup run: an unregistered file or directory
+under this task's `<data-root>/artifacts/<task-id>/`, a path inside the
+repository's `<repo-parent>/_artifacts/<repo>/`, or a path whose own or ancestor
+latest ledger event is `created` or `updated`. The data root, the workspace,
+their ancestors, other data-root paths (journals, database, other tasks), Git
+worktree roots, Git-tracked paths and directories containing `.git` are refused.
+Authorization, the journal, quarantine and digest verification are unchanged.
+Workspace and external paths need separate packets. [ADR 0010](decisions/0010-material-ledger.md) records the decision.
 
 ## Cleaner task closeout
 

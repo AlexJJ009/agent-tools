@@ -9,7 +9,7 @@ This is Agent Tools' learning-document capability, normally selected by Main or 
 
 ## Writing and revision
 
-- Use relevant learning state or inspected sources and stated reader assumptions; no prior session or completed practice is required. Explain prerequisite knowledge and mark evidence gaps. Direct manuscript drafting and revision belong to `academic-writing`.
+- Use relevant learning state or inspected sources and stated reader assumptions. Explain prerequisite knowledge and mark evidence gaps. Direct manuscript drafting and revision belong to `academic-writing`.
 - Choose the requested artifact form: tutorial, blog, study note, review memo, or audit report.
 - Preserve source boundaries and provisional labels.
 - Use `retrieval-practice` when practice serves the learning request; respect prose-only or deferred-practice requests. Select retention targets to fit the learner's effort, without a fixed question mix. Keep answers separate in live practice; a self-study document may include a separate or folded key.
@@ -25,4 +25,4 @@ Before claiming curation complete, read the actual `artifact-index.json` and exp
 
 Read `references/artifact-compilation.md` for artifact patterns. Use `../teaching-reconstruction/references/artifact-contract.md` only for legacy v1 ReadPapers manifests; use `../teaching-reconstruction/references/portable-learning-record.md` for new portable learning records when a durable record is needed.
 
-Use `../teaching-reconstruction/assets/learning-artifact-template.md` only when a v1 ReadPapers artifact is appropriate. Apply W1–W9 from `../work-report/references/writing-contract.md` to reader-facing prose. A blog draft is a writing artifact; external publication needs its own authorization.
+Use `../teaching-reconstruction/assets/learning-artifact-template.md` only when a v1 ReadPapers artifact is appropriate. The shared writing contract applies. A blog draft is a writing artifact; external publication needs its own authorization.

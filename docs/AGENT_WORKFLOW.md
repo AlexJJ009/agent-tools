@@ -185,8 +185,9 @@ This does not change the legacy schema-1 gate's audit behavior. `status` may
 record the first observed evidence invalidation; repeated unchanged status
 reads do not append updates.
 
-Maintain one current recovery note in place, without per-stage narrative
-copies. The runtime replaces its marked state block and retires its exact old
+Maintain one current recovery note in place in the task record, never in
+AGENTS.md, CLAUDE.md or another auto-loaded instruction file, without per-stage
+narrative copies. The runtime replaces its marked state block and retires its exact old
 initializer placeholder; it does not rewrite arbitrary Agent-authored prose.
 SessionStart displays the current canonical phase, while a registered Stop
 obligation retains its originally agreed phase. These are separate scopes.

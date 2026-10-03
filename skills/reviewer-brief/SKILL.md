@@ -7,15 +7,14 @@ description: Prepare bounded independent reviewer input and human review briefs 
 
 Use this skill when a human or independent reviewer needs a bounded review target. The goal is to make review possible, not to ask someone to inspect the whole repository.
 
-Use the existing task, PR description or conversation for review navigation; create a separate brief file only when requested or required by an existing review agreement. Give an independent reviewer a bounded prompt with the applicable requirements, evidence and diff anchors. A review brief does not require a new task or checklist.
+Use the existing task, PR description or conversation for review navigation; write a separate brief file only when requested or required by an existing review agreement. Give an independent reviewer a bounded prompt with the applicable requirements, evidence and diff anchors.
 
-Read the packaged [shared writing contract](references/writing-contract.md). Reuse its expression discipline and local path:line link convention: every important claim should connect requirement, current observation, evidence link, and consequence. This is evidence-presentation reuse only. Do not run Work Report Judge as acceptance, duplicate Work Report state, or treat Work Report PASS as code review, human approval, or formal-run authorization.
+The [shared writing contract](references/writing-contract.md) applies, including its path:line links: connect each important claim to requirement, current observation, evidence link, and consequence. A Work Report PASS is not code review, human approval, or formal-run authorization.
 
 ## Reuse the current state
 
-For a selected current task, read `agent-workflow task read` and `task checklist` as needed; use its task ID, revision and actual result evidence. Without a task record, use the user request, current code/diff and checks already run. For an explicitly selected legacy record, read its existing workflow revision and actual observations. Do not create both storage models for review.
-Use the existing choice explanation, sources, scoped feedback and pending items;
-do not create a second acceptance ledger. A report already containing the
+For a selected current task, read `agent-workflow task read` and `task checklist` as needed; use its task ID, revision and actual result evidence. Without a task record, use the user request, current code/diff and checks already run. For an explicitly selected legacy record, read its existing workflow revision and actual observations.
+Use the existing choice explanation, sources, scoped feedback and pending items. A report already containing the
 necessary explanation can be cited directly. A short brief only expands the
 current decision or acceptance step and does not trigger full report structure
 or the report Judge. Independent code review remains a different reader task.
@@ -38,7 +37,7 @@ When a separate human brief is requested, reuse its established location; a lega
 - recommended decision and concrete consequence
 - items that are context only
 
-Do not ask the user to review all code. On a current task, record actual scoped acceptance through `task feedback`; reviewer approval is not user acceptance. Only an existing legacy record uses `human_status=confirmed` and `approve --feedback <human-feedback.json>` bound to its current `agent-workflow target` digest. Never create that legacy record just to prepare a brief.
+Do not ask the user to review all code. On a current task, record actual scoped acceptance through `task feedback`; reviewer approval is not user acceptance. Only an existing legacy record uses `human_status=confirmed` and `approve --feedback <human-feedback.json>` bound to its current `agent-workflow target` digest.
 
 ## Independent Reviewer Prompt
 

@@ -20,6 +20,6 @@ Read `references/practice-design.md` for check types and scoring notes. Use `../
 
 Read `references/domain-practice.md` when selecting paper, code/architecture, tool-use, or writing exercises. Read `references/review-follow-through.md` for actual attempts, repeated practice, and later-review follow-up. These rules share one practice owner while preserving different domain objectives; they do not create a scheduler or grant permission to send reminders.
 
-In live practice, including check-only mode, present the task and conditions before the learner's attempt; keep the answer key separate until they answer or ask for it. For a requested offline self-study document, a separate or folded key is appropriate. A supplied answer is assistance, not evidence of unaided retrieval. Practice completion is not a condition for delivering a requested explanation or artifact.
+In live practice, including check-only mode, present the task and conditions before the learner's attempt; keep the answer key separate until they answer or ask for it. For a requested offline self-study document, a separate or folded key is appropriate. A supplied answer is assistance, not evidence of unaided retrieval.
 
-Apply W1–W9 from `../work-report/references/writing-contract.md` without hiding essential context.
+The shared writing contract applies.

@@ -208,6 +208,21 @@ class RouteTests(unittest.TestCase):
             self.assertEqual(r.read(root)['session_id'],'project-session')
             self.assertEqual(len(list((self.work/'project-record').rglob('routing.json'))),1)
 
+    def test_claude_skill_roots_are_default_discovery(self):
+        d=dict(self.decision,activity='learning',workspace_context='readpapers',
+               readpapers_root=str(self.work),selected_skills=['read-paper'],authorized_actions=['zotero_read'])
+        root=Path(r.init(self.q,d,self.work,'claude-session',record=self.work/'claude-record')['record'])
+        home=self.base/'isolated-home'
+        from unittest.mock import patch
+        with patch.object(Path,'home',return_value=home):
+            for base in (self.work,home):
+                skill=base/'.claude/skills/read-paper/SKILL.md'
+                skill.parent.mkdir(parents=True); skill.write_text('# Adapter\n')
+                self.assertEqual(r.check_action(root,'zotero_read',base_revision=1)['status'],'allowed')
+                skill.unlink()
+            with self.assertRaisesRegex(r.RouteError,'capability unavailable'):
+                r.check_action(root,'zotero_read',base_revision=1)
+
     def test_cli_rejects_pending_without_hook(self):
         r.input_record(self.root,'new',self.q)
         result=subprocess.run([sys.executable,'-m','learning_workflow','curate','--record',str(self.root),'--source',str(self.source),'--destination','notes','--title','x','--topic','x','--base-revision','2'],capture_output=True,text=True)

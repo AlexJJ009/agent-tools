@@ -580,6 +580,16 @@ configure_claude_desktop_ssh() {
   claude_link="$usr_local_bin/claude"
   node_link="$usr_local_bin/node"
 
+  # PATH may already find claude through the managed link; never point the link at itself.
+  if [[ "$claude_target" == "$claude_link" ]]; then
+    claude_target="$(resolve_existing_path "$claude_link")"
+    if [[ -z "$claude_target" || "$claude_target" == "$claude_link" || ! -x "$claude_target" ]]; then
+      CLAUDE_DESKTOP_SSH_STATUS="skipped: claude on PATH is the managed link and does not resolve ($claude_link)"
+      echo "Claude Desktop SSH compatibility skipped: $claude_link does not resolve to an executable." >&2
+      return
+    fi
+  fi
+
   if ! run_script_as_root_if_available "$env_file" -- <<'SH'
 set -eu
 env_file="$1"

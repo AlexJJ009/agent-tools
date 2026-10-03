@@ -171,9 +171,17 @@ def record_prompt(root, binding, event):
     return input_id
 
 
+def codex_internal(event):
+    # Codex's own memory consolidation runs as a session; it is not user work.
+    memories = (Path(os.environ.get('CODEX_HOME') or Path.home() / '.codex').expanduser() / 'memories').resolve()
+    cwd, prompt = event.get('cwd'), event.get('prompt')
+    return (isinstance(cwd, str) and Path(cwd).resolve().is_relative_to(memories)
+            or isinstance(prompt, str) and prompt.lstrip().startswith(('Memory Writing Agent', '## Memory Writing Agent')))
+
+
 def process(event, *, state_root=None):
     name = event.get('hook_event_name')
-    if name not in EVENTS or event.get('agent_id') or event.get('agent_type'):
+    if name not in EVENTS or event.get('agent_id') or event.get('agent_type') or codex_internal(event):
         return {}
     state_root = Path(state_root or default_state_root()).resolve()
     key = locate(event, state_root)

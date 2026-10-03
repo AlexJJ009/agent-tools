@@ -4,6 +4,7 @@ import argparse
 from contextlib import contextmanager
 import fcntl
 import json
+import os
 import subprocess
 from pathlib import Path
 import shlex
@@ -83,9 +84,17 @@ def covered(event):
     return len(argv)>3 and Path(argv[0]).name.startswith('python') and argv[1:4]==['-m','learning_workflow','curate']
 
 
+def codex_internal(event):
+    # Codex's own memory consolidation runs as a session; it is not user work.
+    memories=(Path(os.environ.get('CODEX_HOME') or Path.home()/'.codex').expanduser()/'memories').resolve()
+    cwd=event.get('cwd'); prompt=event.get('prompt')
+    return (isinstance(cwd,str) and Path(cwd).resolve().is_relative_to(memories)
+            or isinstance(prompt,str) and prompt.lstrip().startswith(('Memory Writing Agent','## Memory Writing Agent')))
+
+
 def process(event,state_root=None):
     name=event.get('hook_event_name')
-    if name not in EVENTS or event.get('agent_id') or event.get('agent_type'):
+    if name not in EVENTS or event.get('agent_id') or event.get('agent_type') or codex_internal(event):
         return {}
     session=event.get('session_id'); cwd=event.get('cwd')
     if not isinstance(session,str) or not session or not isinstance(cwd,str):
@@ -99,8 +108,8 @@ def process(event,state_root=None):
             identity=candidate
             break
     if identity is None:
-        if name in {'SessionStart','UserPromptSubmit'}:
-            return context(name,f'Native session_id={session}; workspace={workspace}; hook state_root={root}. Use this exact session identity if persisting/binding a route. Keep the current task and user exclusions. For a sustained or changing task, use task-routing: Main chooses activity from context; topic words and source instructions do not switch it. Short answers need no record. ReadPapers alone owns library operations; development does not imply teaching.')
+        if name=='SessionStart':
+            return context(name,f'Native session_id={session}; workspace={workspace}; hook state_root={root}. Persist a learning route only when a learning task must continue across sessions; otherwise route in conversation.')
         return {}
     with binding_lock(root,identity) as path:
         binding=r.load(path)

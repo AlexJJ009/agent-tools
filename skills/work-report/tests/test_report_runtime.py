@@ -1067,6 +1067,17 @@ class ReportRuntimeTests(unittest.TestCase):
                 self.assertEqual(pending["prompt"], text)
                 self.assertEqual(pending["request_sha256"], hashlib.sha256(text.encode()).hexdigest())
 
+    def test_codex_memory_session_is_skipped(self):
+        repo, _, _ = self.make_repo_task(request_text="完成后给我报告")
+        codex_home = repo / "codex-home"
+        memories = codex_home / "memories"
+        memories.mkdir(parents=True)
+        env = {"CODEX_HOME": str(codex_home)}
+        for cwd, prompt in ((memories, "完成后给我报告"), (repo, "## Memory Writing Agent: Phase 2\n完成后给我报告")):
+            event = dict(hook_event_name="UserPromptSubmit", cwd=str(cwd), session_id=self.session_id, prompt=prompt)
+            self.assertEqual(self.data(self.run_cli("hook", input=json.dumps(event), cwd=repo, env=env)), {})
+        self.assertFalse((repo / "docs/_local/reports/.pending").exists())
+
     def test_task_notification_prompt_neither_creates_nor_replaces_pending(self):
         notification = ("<task-notification>\n<task-id>a0418ce7</task-id>\n<status>completed</status>\n"
                         "<result>Final report: send a progress report every hour after completion.</result>\n"

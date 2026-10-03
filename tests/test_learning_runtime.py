@@ -80,7 +80,10 @@ class RouteTests(unittest.TestCase):
         with self.assertRaisesRegex(r.RouteError,'does not match'):
             hooks.bind(self.root,'session-b',self.work,self.state)
         other=hooks.process(dict(hook_event_name='UserPromptSubmit',session_id='session-b',cwd=str(self.work),prompt='Stop'),self.state)
-        self.assertIn('Short answers need no record',str(other))
+        self.assertEqual(other,{})
+        start=hooks.process(dict(hook_event_name='SessionStart',session_id='session-b',cwd=str(self.work)),self.state)
+        self.assertIn('Native session_id=session-b;',str(start))
+        self.assertIn('must continue across sessions',str(start))
         self.assertEqual(r.read(self.root)['route_revision'],1)
         hooks.process(self.event('UserPromptSubmit',prompt='先不要整理',turn_id='second'),self.state)
         self.assertEqual(r.read(self.root)['route_revision'],2)
@@ -207,6 +210,15 @@ class RouteTests(unittest.TestCase):
             self.assertEqual(r.check_action(root,'zotero_read',base_revision=3)['status'],'allowed')
             self.assertEqual(r.read(root)['session_id'],'project-session')
             self.assertEqual(len(list((self.work/'project-record').rglob('routing.json'))),1)
+
+    def test_codex_memory_sessions_are_skipped(self):
+        from unittest.mock import patch
+        hooks.bind(self.root,'session-a',self.work,self.state)
+        memories=self.base/'codex-home/memories'; memories.mkdir(parents=True)
+        with patch.dict('os.environ',{'CODEX_HOME':str(self.base/'codex-home')}):
+            self.assertEqual(hooks.process(dict(hook_event_name='SessionStart',session_id='m',cwd=str(memories)),self.state),{})
+            self.assertEqual(hooks.process(self.event('UserPromptSubmit',prompt='## Memory Writing Agent: Phase 2\n...'),self.state),{})
+        self.assertEqual(r.read(self.root)['route_revision'],1)
 
     def test_claude_skill_roots_are_default_discovery(self):
         d=dict(self.decision,activity='learning',workspace_context='readpapers',

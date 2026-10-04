@@ -308,7 +308,6 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
         # invoking it with --kill-running-codex would affect the test host.
         destination.mkdir()
         for name in (
-            "agent_context_sync.config.example.json",
             "bin", "scripts", "config", "skills", "shared",
         ):
             source = ROOT / name

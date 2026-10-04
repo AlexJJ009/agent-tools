@@ -547,7 +547,7 @@ model_auto_compact_token_limit_scope = "{auto_compact_scope}"
 [features]
 fast_mode = true
 hooks = true
-memories = true
+memories = false
 goals = true
 terminal_resize_reflow = true
 remote_control = true

@@ -254,7 +254,7 @@ model_provider = "custom"
 [features]
 fast_mode = true
 hooks = true
-memories = true
+memories = false
 goals = true
 terminal_resize_reflow = true
 remote_control = true

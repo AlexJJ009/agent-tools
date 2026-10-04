@@ -203,6 +203,7 @@ def install(home: Path, core: Path, legacy_roots: list[Path]) -> dict:
         raise ValueError("Claude hooks are disabled; preserve this setting and resolve it explicitly")
     learning.layout.require_separate(hooks.view_root(home).parent)
     merged = hooks.merge_install(settings, home)
+    merged["autoMemoryEnabled"] = False
     links = link_plan(home, sources, None if core_view.exists() else str(core_source))
     plan = {}
     for raw, target in links.items():
@@ -295,11 +296,13 @@ def refresh(home: Path, state: dict) -> dict:
     moved = (old_context, old_native) != (new_context, new_native)
     if (not moved and not relink and state["context"] == expected_context
             and state["native_sha256"] == hashlib.sha256(expected_native).hexdigest()
-            and state["managed_hooks"] == expected_hooks):
+            and state["managed_hooks"] == expected_hooks
+            and read_settings(home).get("autoMemoryEnabled") is False):
         return check(home)
     if moved and any(p.exists() or p.is_symlink() for p in (new_context, new_native)):
         raise ValueError(f"unmanaged Claude view preserved: {new_context.parent}")
     settings = hooks.merge_install(hooks.remove_owned(read_settings(home), home, state["managed_hooks"]), home)
+    settings["autoMemoryEnabled"] = False
     manifest = new_context.parent / learning.layout.MANIFEST
     paths = [old_context, old_native, old_context.parent / learning.layout.MANIFEST, manifest,
              home / ".claude/settings.json", home / STATE]

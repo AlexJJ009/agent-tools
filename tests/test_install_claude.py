@@ -71,6 +71,7 @@ class ClaudeInstallTests(unittest.TestCase):
         restored = deepcopy(self.foreign)
         restored["env"]["ANTHROPIC_API_KEY"] = "edited-test-only"
         restored["permissions"] = {"allow": ["Read"]}
+        restored["autoMemoryEnabled"] = False
         self.assertEqual(adapter.read_settings(self.home), restored)
         for raw in state["links"]:
             self.assertFalse((self.home / raw).exists())
@@ -91,6 +92,23 @@ class ClaudeInstallTests(unittest.TestCase):
         adapter.remove(self.home)
         self.assertEqual(core_view.read_text(), "# Existing user context\n")
         self.assertEqual(os.readlink(skill), str(target))
+
+    def test_install_and_refresh_disable_memory_preserving_provider_settings(self):
+        initial = deepcopy(self.foreign)
+        initial["autoMemoryEnabled"] = True
+        self.write(self.settings_path, json.dumps(initial))
+        self.install()
+        settings = adapter.read_settings(self.home)
+        self.assertIs(settings["autoMemoryEnabled"], False)
+        self.assertEqual(settings["env"], initial["env"])
+        settings["autoMemoryEnabled"] = True
+        settings["model"] = "edited-fixture"
+        self.write(self.settings_path, json.dumps(settings))
+        self.install()
+        refreshed = adapter.read_settings(self.home)
+        self.assertIs(refreshed["autoMemoryEnabled"], False)
+        self.assertEqual(refreshed["model"], "edited-fixture")
+        self.assertEqual(refreshed["env"], initial["env"])
 
     def test_unrelated_existing_global_context_imports_core_without_writing_through_link(self):
         existing = self.base / "user-context.md"
@@ -310,6 +328,7 @@ class ClaudeInstallTests(unittest.TestCase):
             adapter.remove(self.home)
         expected = deepcopy(self.foreign)
         expected["env"]["ANTHROPIC_API_KEY"] = "changed-test-only"
+        expected["autoMemoryEnabled"] = False
         self.assertEqual(adapter.read_settings(self.home), expected)
         self.assertFalse(adapter.native_path(self.home).exists())
 

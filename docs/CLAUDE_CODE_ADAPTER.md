@@ -5,6 +5,10 @@ native context, skill and hook locations. Skill prose, Core prose, task records
 and runtime semantics remain shared. Native Windows installation is not covered
 by this Unix adapter.
 
+Installation and refresh set `autoMemoryEnabled = false`. Automatic agent
+memory is disabled; project rules belong in project instructions/docs and
+unfinished work belongs in task state. Existing unrelated settings are preserved.
+
 ## Install
 
 Run as the intended Unix user, without sudo. Agent Core should be available at

@@ -14,7 +14,7 @@ private reports describe bounded development work and are not deployment proof.
 - [Work Report timer](WORK_REPORT_LIGHT_TIMER.md): timed prompts and their delivery limits.
 - [Installation](INSTALLATION.md): general installers, target guards and machine defaults.
 - [Context synchronization](CONTEXT_SYNC.md): bridge configuration, commands, conflicts and cron.
-- [Project memory](CODEX_PROJECT_MEMORY.md): Markdown memory sync, migration and stale-copy handling.
+- [Retired project memory](CODEX_PROJECT_MEMORY.md): Disabled memory defaults and migration to maintained project docs.
 - [CLI server bootstrap](CLI_SERVER_BOOTSTRAP.md): server setup.
 - [Claude Code adapter](CLAUDE_CODE_ADAPTER.md): shared context, skill links and native hooks on Linux/WSL.
 - [Repository overview](../README.md): other maintained tools and platform guides.

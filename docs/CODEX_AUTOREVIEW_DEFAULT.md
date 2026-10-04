@@ -46,7 +46,7 @@ Set the feature flags under `[features]`:
 ```toml
 [features]
 hooks = true
-memories = true
+memories = false
 goals = true
 terminal_resize_reflow = true
 remote_control = true
@@ -144,7 +144,7 @@ env var before running:
 | model provider id | `CODEX_MODEL_PROVIDER_ID` | `custom` |
 | `[features].fast_mode` | `CODEX_FEATURE_FAST_MODE` | `true` |
 | `[features].hooks` | `CODEX_FEATURE_HOOKS` | `true` |
-| `[features].memories` | `CODEX_FEATURE_MEMORIES` | `true` |
+| `[features].memories` | `CODEX_FEATURE_MEMORIES` | `false` |
 | `[features].goals` | `CODEX_FEATURE_GOALS` | `true` |
 | `[features].terminal_resize_reflow` | `CODEX_FEATURE_TERMINAL_RESIZE_REFLOW` | `true` |
 | `[features].remote_control` | `CODEX_FEATURE_REMOTE_CONTROL` | `true` |
@@ -261,7 +261,7 @@ Ensure the `[features]` table contains the full default feature set:
 [features]
 fast_mode = true
 hooks = true
-memories = true
+memories = false
 goals = true
 terminal_resize_reflow = true
 remote_control = true

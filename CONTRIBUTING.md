@@ -64,7 +64,6 @@ Partial skips remain visible and do not establish platform coverage.
 | `installation` | Cross-profile writes, unsafe defaults and destructive removal of foreign installations affect user state | Isolated profiles and real helpers on installer/dependency changes. Native-platform source checks remain limited |
 | `worktrees` | Git worktree operations must respect paths, ownership, unsupported flags and existing state | Temporary Git repositories on component/installer changes |
 | `win11-patch` | Patcher parsing, state preservation and snapshot payloads protect native update preparation | Component-only fixture checks; Linux CI does not prove native App activation or rollback |
-| `proxy-relay` | Generated configuration and selection rules must reject failed probes and preserve manual choices | Component-only deterministic inputs; mocked transport does not prove a live network route |
 | `evaluation-fixtures` | Historical-case oracles and the optional evaluation driver must reject deliberately broken outputs | Only their own/fixture changes; evaluator tests are not Agent evaluations |
 | `test-runner` | Wrong suite selection, empty discovery and swallowed failure/skip results would hide missing coverage | Fast tests on runner/CI changes; not a second product acceptance suite |
 

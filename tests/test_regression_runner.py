@@ -49,7 +49,6 @@ class ComponentSelectionTests(unittest.TestCase):
             'skills/work-report/references/writing-contract.md': {'reports', 'report-integration', 'learning', 'installation'},
             'skills/manage-worktrees/scripts/agent_wt.py': {'worktrees', 'installation'},
             'skills/codex-win11-patch-safety/scripts/patch_release.py': {'win11-patch', 'installation'},
-            'tools/win11-proxy-relay/runtime/probe.py': {'proxy-relay'},
             'config/retired-packages/linear-workflow.json': {'installation'},
             'tests/test_retired_package_cleanup.py': {'installation'},
             'tests/test_task_store.py': {'task-runtime'},
@@ -74,8 +73,8 @@ class ComponentSelectionTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertEqual(runner.select_suites([path]), runner.ACTIVE)
         self.assertEqual(set(runner.select_suites(['docs/README.md', 'learning_workflow/runtime.py',
-                                                  'tools/win11-proxy-relay/runtime/probe.py'])),
-                         {'learning', 'proxy-relay'})
+                                                  'skills/work-report/scripts/report_tool.py'])),
+                         {'learning', 'reports', 'report-integration'})
 
     def test_current_modules_have_one_owner_and_unknown_tests_fail_explicitly(self):
         for path in (runner.ROOT / 'tests').glob('test_*.py'):

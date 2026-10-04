@@ -51,6 +51,10 @@ class AgentWtTests(unittest.TestCase):
         run(["git", "commit", "-m", "initial"], self.repo)
         self.env = os.environ.copy()
         self.env["AGENT_WT_STATE_HOME"] = str(self.base / "state")
+        # Direct calls and CLI subprocesses must share the same isolated registry.
+        state_env = mock.patch.dict(os.environ, {"AGENT_WT_STATE_HOME": self.env["AGENT_WT_STATE_HOME"]})
+        state_env.start()
+        self.addCleanup(state_env.stop)
 
     def cli(self, *args, cwd=None, check=True):
         completed = run(

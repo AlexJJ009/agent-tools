@@ -68,7 +68,7 @@ class ComponentSelectionTests(unittest.TestCase):
         for path, expected in cases.items():
             with self.subTest(path=path):
                 self.assertEqual(set(runner.select_suites([path])), expected)
-        for path in ('install.sh', '.github/workflows/regression.yml',
+        for path in ('scripts/install.sh', '.github/workflows/regression.yml',
                      'scripts/run_regression_tests.py', 'scripts/codex_target_guard.py', 'new_runtime/new_module.py'):
             with self.subTest(path=path):
                 self.assertEqual(runner.select_suites([path]), runner.ACTIVE)

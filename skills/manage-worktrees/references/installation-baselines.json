@@ -120,6 +120,32 @@
         "scripts/install_skill.py": "698fcedd25f93593f50e31ff7445a26fc2e435dbbd227d2e2161ecfb1577ca10",
         "tests/test_agent_wt.py": "3c98ab5783bd214b2366f62efff3ad34deb6fac7e8fce9bba15eabbeef6c00c9"
       }
+    },
+    {
+      "commit": "30c5b29fa49cf0e9912b4b54fb8448f1a1b1e8e6",
+      "files": {
+        "SKILL.md": "efa911e60cb8e321dd22571543097aca51a4f85fe97fdc1e2cf52ed86c224e88",
+        "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
+        "references/adapters.md": "962184a8ffb4e69ab11edf110dc925ffb1ff4c9187c2ab9998e19c5181733ed6",
+        "references/installation-baselines.json": "da432d917ab577640e1923fa37e5b654d9055ea2057d72f68529429d39c145b7",
+        "references/policies.md": "6d8225c09a4bd721bb31ab0fe46602087a19a76cdcf326c8638b5846087d652d",
+        "scripts/agent_wt.py": "0438764502ac16af4ec6242d64ea672852843e18eeaaf2ae809e86f7ea044532",
+        "scripts/install_skill.py": "698fcedd25f93593f50e31ff7445a26fc2e435dbbd227d2e2161ecfb1577ca10",
+        "tests/test_agent_wt.py": "3c98ab5783bd214b2366f62efff3ad34deb6fac7e8fce9bba15eabbeef6c00c9"
+      }
+    },
+    {
+      "commit": "7c468b530aa7470321c2617bdc988362895bb171",
+      "files": {
+        "SKILL.md": "efa911e60cb8e321dd22571543097aca51a4f85fe97fdc1e2cf52ed86c224e88",
+        "agents/openai.yaml": "00eda7081742c98875cd4932fb079543df9a05628e2824d72e08c50720537966",
+        "references/adapters.md": "962184a8ffb4e69ab11edf110dc925ffb1ff4c9187c2ab9998e19c5181733ed6",
+        "references/installation-baselines.json": "da432d917ab577640e1923fa37e5b654d9055ea2057d72f68529429d39c145b7",
+        "references/policies.md": "6d8225c09a4bd721bb31ab0fe46602087a19a76cdcf326c8638b5846087d652d",
+        "scripts/agent_wt.py": "0438764502ac16af4ec6242d64ea672852843e18eeaaf2ae809e86f7ea044532",
+        "scripts/install_skill.py": "698fcedd25f93593f50e31ff7445a26fc2e435dbbd227d2e2161ecfb1577ca10",
+        "tests/test_agent_wt.py": "029b0040d1d383717d6cf9594003fb12ca93c91a2579cd5868bbf56f075ca0ea"
+      }
     }
   ]
 }

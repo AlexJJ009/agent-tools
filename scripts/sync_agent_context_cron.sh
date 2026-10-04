@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 TOOL="${AGENT_CONTEXT_SYNC_TOOL:-$SCRIPT_DIR/sync_agent_context.py}"
-CONFIG="${AGENT_CONTEXT_SYNC_CONFIG:-$SCRIPT_DIR/agent_context_sync.config.json}"
+CONFIG="${AGENT_CONTEXT_SYNC_CONFIG:-$SCRIPT_DIR/../agent_context_sync.config.json}"
 LOG_DAYS="${AGENT_CONTEXT_SYNC_LOG_DAYS:-30}"
 LOCK_FILE="/tmp/agent-context-sync.lock"
 PYTHON_BIN="${PYTHON_BIN:-}"
@@ -19,7 +19,7 @@ fi
 # Logs are application data: they live in the data root, not the software install root.
 if [[ -n "${AGENT_CONTEXT_SYNC_LOG_DIR:-}" ]]; then
   LOG_DIR="$AGENT_CONTEXT_SYNC_LOG_DIR"
-elif data_root="$("$PYTHON_BIN" "$SCRIPT_DIR/scripts/install_layout.py" data-root 2>/dev/null)" && [[ -n "$data_root" ]]; then
+elif data_root="$("$PYTHON_BIN" "$SCRIPT_DIR/install_layout.py" data-root 2>/dev/null)" && [[ -n "$data_root" ]]; then
   LOG_DIR="$data_root/logs"
 else
   LOG_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/agent-tools/logs"

@@ -294,7 +294,7 @@ class RetiredPackageCleanupTests(unittest.TestCase):
             target = Path(tmp) / "not-created"
             for flag in ("--linear-workflow", "--linear-workflow-only"):
                 result = subprocess.run(
-                    ["bash", str(ROOT / "install.sh"), flag, "--install-dir", str(target)],
+                    ["bash", str(ROOT / "scripts" / "install.sh"), flag, "--install-dir", str(target)],
                     capture_output=True, text=True, errors="replace",
                 )
                 self.assertEqual(result.returncode, 2, result.stderr)

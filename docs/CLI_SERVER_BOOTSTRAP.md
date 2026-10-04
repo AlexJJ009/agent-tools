@@ -100,7 +100,7 @@ cd "$HOME/agent-tools"
 Run the machine defaults, but let the provider script below own Codex API
 provider config. Use `--codex-proxy-wrapper never` on ordinary Linux servers.
 Only use the WSL2 proxy wrapper modes from `CODEX_REMOTE_CONTROL.md` when the
-host actually needs that topology. `install.sh` updates `cc-switch-cli` from
+host actually needs that topology. `scripts/install.sh` updates `cc-switch-cli` from
 the latest GitHub release by default. That update uses bounded curl
 timeouts/retries and probes local proxy candidates in `auto` mode, which helps
 hosts where direct `release-assets.githubusercontent.com` downloads are slow.
@@ -123,7 +123,7 @@ step skips cleanly. Use `--no-claude-desktop-ssh` only for hosts that should not
 receive this system-level compatibility patch.
 
 ```bash
-./install.sh \
+./scripts/install.sh \
   --root "$HOME" \
   --max-depth 3 \
   --codex-proxy-wrapper never \
@@ -138,7 +138,7 @@ The software copy goes to `~/.local/lib/agent-tools`; task data stays in
 `~/.local/share/agent-tools`. Do not pass `--install-dir` pointing at the data
 root: the installer refuses overlapping roots. A host installed that way by an
 earlier release is migrated on the next run (see the README install section);
-check it afterwards with `./install.sh --check`.
+check it afterwards with `./scripts/install.sh --check`.
 
 On ordinary Linux SSH servers, this installer also installs or hardens
 `fail2ban` for `sshd`. The managed jail is intentionally strict:
@@ -458,9 +458,9 @@ If the machine already used Codex before the stable `custom` bucket convention,
 run the local migration script once after closing Codex:
 
 ```bash
-python3 ~/agent-tools/migrate_codex_provider_bucket.py --target custom
-python3 ~/agent-tools/migrate_codex_provider_bucket.py --target custom --all-non-target-providers
-python3 ~/agent-tools/migrate_codex_provider_bucket.py --target custom --all-non-target-providers --apply --yes --kill-running-codex
+python3 ~/agent-tools/scripts/migrate_codex_provider_bucket.py --target custom
+python3 ~/agent-tools/scripts/migrate_codex_provider_bucket.py --target custom --all-non-target-providers
+python3 ~/agent-tools/scripts/migrate_codex_provider_bucket.py --target custom --all-non-target-providers --apply --yes --kill-running-codex
 ```
 
 The dry-run shows every source bucket and every cc-switch template that would
@@ -481,7 +481,7 @@ the old config/key can keep using the old in-memory provider until restarted.
 If the dry-run reports missing resume index data, repair it explicitly:
 
 ```bash
-python3 ~/agent-tools/migrate_codex_provider_bucket.py \
+python3 ~/agent-tools/scripts/migrate_codex_provider_bucket.py \
   --target custom \
   --all-non-target-providers \
   --repair-resume-index \
@@ -495,7 +495,7 @@ exist. It can fix moved `rollout_path` values, backfill missing
 for cross-machine migration, first transfer the resume data as described in
 `docs/AUTODL_AI_TOOLS_BOOTSTRAP.md`.
 
-`install.sh` does not migrate provider history during ordinary installation.
+`scripts/install.sh` does not migrate provider history during ordinary installation.
 Use `--dry-run-codex-provider-bucket-migration` for inspection and
 `--apply-codex-provider-bucket-migration` for an explicitly selected repair.
 Stopping running Codex requires the separate

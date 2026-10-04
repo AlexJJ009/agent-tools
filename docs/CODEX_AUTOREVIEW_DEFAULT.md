@@ -5,13 +5,14 @@ permission posture and tolerate long compression or streaming pauses.
 It also installs a short-term SQLite log guard for Codex builds that write
 high-volume diagnostic rows to `logs_2.sqlite`.
 
-**As of the current `install.sh`, every section below is applied
-automatically.** Re-run `./install.sh` (with or without `--root` flags) and the
-target state lands in `~/.codex/config.toml` exactly as written here. The rest
-of this document is the rationale, override knobs, and manual fallback when
-running `install.sh` is not an option.
-
-Tested with `codex-cli 0.130.0`.
+`scripts/install.sh` manages these defaults when the corresponding options are
+enabled. Existing provider/auth and approval-reviewer settings, platform-specific
+paths and explicit overrides affect the result; the example below is not an
+exact rewrite guarantee. Use `--check` and inspect the target user's actual
+configuration after installation. Manual fallback belongs to the same target
+profile and must preserve its existing credentials.
+Historical baseline: `codex-cli 0.130.0`; check the target CLI before relying on
+version-sensitive options.
 
 ## Target State
 
@@ -118,13 +119,13 @@ Codex is actually launched.
 
 ## One-Shot Setup
 
-The recommended path is `./install.sh` from the agent-tools checkout, which
+The recommended path is `./scripts/install.sh` from the agent-tools checkout, which
 applies the entire target state (top-level keys, provider block, `[features]`)
 in one pass and re-runs cleanly any number of times:
 
 ```bash
 cd ~/agent-tools
-./install.sh --root ~/projects --max-depth 3
+./scripts/install.sh --root ~/projects --max-depth 3
 ```
 
 To override individual defaults without editing the script, set the matching
@@ -189,8 +190,8 @@ Win11 state must be changed through `scripts\install-win11.ps1` on Windows;
 the legacy WSL-to-Windows mode is rejected.
 
 ```bash
-./install.sh --codex-app-fast-wsl-windows never
-./install.sh --no-codex-app-fast-mode
+./scripts/install.sh --codex-app-fast-wsl-windows never
+./scripts/install.sh --no-codex-app-fast-mode
 ```
 
 This normal install step is intentionally config-only. It does not patch signed
@@ -198,12 +199,15 @@ macOS app bundles, and it does not edit `app.asar`. For Codex Desktop
 Connections, the installer has a separate route:
 
 ```bash
-./install.sh --codex-desktop-connection-fast-mode auto
-./install.sh --codex-desktop-connection-fast-mode always
-./install.sh --no-codex-desktop-connection-fast-mode
+./scripts/install.sh --codex-desktop-connection-fast-mode auto
+./scripts/install.sh --codex-desktop-connection-fast-mode always
+./scripts/install.sh --no-codex-desktop-connection-fast-mode
 ```
 
-In `auto` mode from WSL/Win11, it prepares a writable patched copy of the
+This is the legacy bundle helper. Current Win11 updates and activation use the
+[versioned safety workflow](../skills/codex-win11-patch-safety/SKILL.md); unknown
+builds require an exact-release candidate and verification. The legacy helper
+in `auto` mode from WSL/Win11 prepares a writable patched copy of the
 Microsoft Store Codex app and writes launchers under
 `%LOCALAPPDATA%\OpenAI\CodexDesktopPatched`. On macOS, `auto` attempts to patch
 the installed `Codex.app` bundle and reports a warning if it is not writable.
@@ -309,14 +313,14 @@ Default flow:
 When asked to apply this on a new server or WSL2 machine:
 
 1. Confirm which Unix user launches Codex.
-2. Run `./install.sh` (with appropriate `--root` flags). It writes all eight
+2. Run `./scripts/install.sh` (with appropriate `--root` flags). It writes all eight
    managed top-level keys (`approval_policy`, `sandbox_mode`,
    `approvals_reviewer`, `model`, `model_reasoning_effort`,
    `service_tier`, `stream_idle_timeout_ms`, `stream_max_retries`,
    `model_provider`), the `custom` provider, and the full `[features]` block
    (`fast_mode`, `hooks`,
    `memories`, `goals`, `terminal_resize_reflow`, `remote_control`).
-3. If `install.sh` cannot run, use the One-Shot Setup or Manual Setup block
+3. If `scripts/install.sh` cannot run, use the One-Shot Setup or Manual Setup block
    above to patch `${CODEX_HOME:-$HOME/.codex}/config.toml` directly.
 4. Preserve `[projects.*]`, `[mcp_servers.*]`, `[tui]`, `[notice]`, and other
    TOML tables. The installer already does this.
@@ -328,7 +332,7 @@ When asked to apply this on a new server or WSL2 machine:
 8. Tell the user that only new Codex sessions pick up the new default.
 
 To deviate from the defaults, set the matching env var before running
-`install.sh`:
+`scripts/install.sh`:
 `CODEX_APPROVAL_POLICY`, `CODEX_SANDBOX_MODE`, `CODEX_APPROVALS_REVIEWER`,
 `CODEX_MODEL`, `CODEX_MODEL_REASONING_EFFORT`, `CODEX_SERVICE_TIER`,
 `CODEX_STREAM_IDLE_TIMEOUT_MS`, `CODEX_STREAM_MAX_RETRIES`,
@@ -340,7 +344,7 @@ To deviate from the defaults, set the matching env var before running
 To remove the temporary SQLite log guard after OpenAI fixes the logging issue:
 
 ```bash
-./install.sh --disable-codex-sqlite-log-guard
+./scripts/install.sh --disable-codex-sqlite-log-guard
 ```
 
 ## Rollback

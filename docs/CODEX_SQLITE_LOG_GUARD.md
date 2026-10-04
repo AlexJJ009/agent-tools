@@ -31,10 +31,10 @@ TRACE SQLite logging.
 
 ## Installer Behavior
 
-`install.sh` enables the guard by default:
+`scripts/install.sh` enables the guard by default:
 
 ```bash
-./install.sh --root ~/projects
+./scripts/install.sh --root ~/projects
 ```
 
 On Linux servers, it patches:
@@ -56,20 +56,20 @@ invocation of this helper.
 Skip the guard:
 
 ```bash
-./install.sh --no-codex-sqlite-log-guard
+./scripts/install.sh --no-codex-sqlite-log-guard
 ```
 
 Remove it after OpenAI fixes the underlying issue:
 
 ```bash
-./install.sh --disable-codex-sqlite-log-guard
+./scripts/install.sh --disable-codex-sqlite-log-guard
 ```
 
 Use `--codex-sqlite-log-guard-vacuum` only after stopping Codex processes:
 
 ```bash
 pkill -f 'codex|Codex|node_repl' || true
-./install.sh --disable-codex-sqlite-log-guard --codex-sqlite-log-guard-vacuum
+./scripts/install.sh --disable-codex-sqlite-log-guard --codex-sqlite-log-guard-vacuum
 ```
 
 The vacuum option checkpoints WAL and compacts the DB. It is intentionally not

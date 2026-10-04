@@ -45,13 +45,13 @@ failure. Common candidates are:
 The installer can do this probe automatically:
 
 ```bash
-CODEX_PROXY_PORTS="7897 7890 7891 10809 10808 8080" ./install.sh --codex-proxy-wrapper auto
+CODEX_PROXY_PORTS="7897 7890 7891 10809 10808 8080" ./scripts/install.sh --codex-proxy-wrapper auto
 ```
 
 When the port is known, make it explicit:
 
 ```bash
-CODEX_PROXY_URL=http://127.0.0.1:7897 ./install.sh --codex-proxy-wrapper always
+CODEX_PROXY_URL=http://127.0.0.1:7897 ./scripts/install.sh --codex-proxy-wrapper always
 ```
 
 For ordinary Linux servers, check direct connectivity first:
@@ -85,7 +85,7 @@ codex app-server daemon version
 Future server installs should make the intent explicit:
 
 ```bash
-./install.sh --root /data-1 --codex-proxy-wrapper never
+./scripts/install.sh --root /data-1 --codex-proxy-wrapper never
 ```
 
 ## Target State

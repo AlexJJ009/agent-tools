@@ -56,7 +56,7 @@ def select_suites(paths):
         if path == '.gitignore':
             selected.update(('workflow-records', 'reports'))
             continue
-        if path.startswith('.github/') or path in ('install.sh', 'scripts/install-win11.ps1',
+        if path.startswith('.github/') or path in ('scripts/install.sh', 'scripts/install-win11.ps1',
                                                   'scripts/run_regression_tests.py', 'scripts/codex_target_guard.py'):
             return ACTIVE
         if path.startswith('.agents/skills/'):

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 # Empty: scripts/install_layout.py resolves the software install root (~/.local/lib/agent-tools).
 INSTALL_DIR="${AGENT_TOOLS_HOME:-}"
 SCHEDULE="17 * * * *"
@@ -1882,7 +1882,7 @@ PY
 }
 
 run_codex_provider_bucket_migration() {
-  local script="$INSTALL_REAL/migrate_codex_provider_bucket.py"
+  local script="$INSTALL_REAL/scripts/migrate_codex_provider_bucket.py"
   local args=()
   local status
 
@@ -2692,7 +2692,7 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   export AGENT_TOOLS_INSTALL_ROOT="$INSTALL_REAL"
 fi
 
-chmod +x "$INSTALL_REAL/sync_agent_context.py" "$INSTALL_REAL/sync_agent_context_cron.sh" "$INSTALL_REAL/codex_project_memory.py" "$INSTALL_REAL/migrate_codex_provider_bucket.py" "$INSTALL_REAL/install.sh"
+chmod +x "$INSTALL_REAL/scripts/sync_agent_context.py" "$INSTALL_REAL/scripts/sync_agent_context_cron.sh" "$INSTALL_REAL/scripts/codex_project_memory.py" "$INSTALL_REAL/scripts/migrate_codex_provider_bucket.py" "$INSTALL_REAL/scripts/install.sh"
 if [[ -d "$INSTALL_REAL/bin" ]]; then
   chmod +x "$INSTALL_REAL"/bin/*
 fi
@@ -2803,7 +2803,7 @@ config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
 PY
 
 if [[ "$INSTALL_CRON" -eq 1 ]]; then
-  CRON_CMD="$INSTALL_REAL/sync_agent_context_cron.sh"
+  CRON_CMD="$INSTALL_REAL/scripts/sync_agent_context_cron.sh"
   (crontab -l 2>/dev/null | grep -v 'sync_agent_context_cron.sh' || true; printf '%s %s\n' "$SCHEDULE" "$CRON_CMD") | crontab -
 fi
 
@@ -2878,7 +2878,7 @@ else
   echo "agent-wt not installed (--no-agent-wt)."
 fi
 if [[ "$INSTALL_CRON" -eq 1 ]]; then
-  echo "Cron: $SCHEDULE $INSTALL_REAL/sync_agent_context_cron.sh"
+  echo "Cron: $SCHEDULE $INSTALL_REAL/scripts/sync_agent_context_cron.sh"
 else
   echo "Cron not added (opt in with --cron; existing jobs unchanged)."
 fi

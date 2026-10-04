@@ -93,8 +93,8 @@ Do not assume every host uses port `7897`. Probe the current host first, or set
 the exact proxy URL:
 
 ```bash
-CODEX_PROXY_URL=http://127.0.0.1:7897 ./install.sh --codex-proxy-wrapper always
-CODEX_PROXY_PORTS="7897 7890 7891 10809 10808 8080" ./install.sh --codex-proxy-wrapper auto
+CODEX_PROXY_URL=http://127.0.0.1:7897 ./scripts/install.sh --codex-proxy-wrapper always
+CODEX_PROXY_PORTS="7897 7890 7891 10809 10808 8080" ./scripts/install.sh --codex-proxy-wrapper auto
 ```
 
 The installer probes candidate ports against:
@@ -112,19 +112,19 @@ For WSL2 with automatic proxy detection:
 
 ```bash
 cd ~/agent-tools
-./install.sh --root ~/projects --codex-proxy-wrapper auto
+./scripts/install.sh --root ~/projects --codex-proxy-wrapper auto
 ```
 
 For a known proxy port:
 
 ```bash
-CODEX_PROXY_URL=http://127.0.0.1:7897 ./install.sh --root ~/projects --codex-proxy-wrapper always
+CODEX_PROXY_URL=http://127.0.0.1:7897 ./scripts/install.sh --root ~/projects --codex-proxy-wrapper always
 ```
 
 For a normal Linux server with no local proxy:
 
 ```bash
-./install.sh --root /data-1 --codex-proxy-wrapper never
+./scripts/install.sh --root /data-1 --codex-proxy-wrapper never
 ```
 
 The installer patches Codex config, optionally installs the proxy wrapper, and
@@ -147,7 +147,7 @@ cd /path/to/project
 codex-here
 ```
 
-The launcher installed by `agent-tools/install.sh` lives at:
+The launcher installed by `agent-tools/scripts/install.sh` lives at:
 
 ```bash
 ~/.local/bin/codex-here
@@ -245,5 +245,5 @@ codex app-server daemon restart
 ```
 
 If rerunning the standalone installer replaces `~/.local/bin/codex` with a
-symlink to the standalone binary, rerun `agent-tools/install.sh` to restore the
+symlink to the standalone binary, rerun `agent-tools/scripts/install.sh` to restore the
 proxy wrapper.

@@ -7,7 +7,7 @@ reader-facing writing contract into
 (`AGENT_TOOLS_INSTALL_ROOT` overrides it; a root overlapping the data root is
 refused). Installed skill links point to that copy and survive relocation of
 the source checkout. It does not run the
-repository-wide `install.sh` or change Codex providers, authentication, or
+repository-wide `scripts/install.sh` or change Codex providers, authentication, or
 development acceptance records.
 
 Run `python3 scripts/install_learning_workflow.py --help` in the source
@@ -31,7 +31,7 @@ Rerunning the installer without options updates an existing, unmodified bundle
 with its recorded links, ReadPapers scope and hook choices. A bundle recorded at
 the old `~/.local/share/agent-tools/learning-workflow` location is moved: links,
 hook groups and the `~/.codex/AGENTS.md` block are repointed, and the old copy is
-deleted once no consumer points into it (otherwise `install.sh` removes it later).
+deleted once no consumer points into it (otherwise `scripts/install.sh` removes it later).
 A changed bundle is refused; to change recorded choices, roll back and install again. Do not infer a live deployment
 from a source edit or a disposable-profile test.
 

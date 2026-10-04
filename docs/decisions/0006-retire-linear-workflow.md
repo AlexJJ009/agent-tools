@@ -1,4 +1,4 @@
-# Retire Linear Workflow While Preserving Its Source
+# Retire Linear Workflow
 
 Date: 2026-09-30
 
@@ -7,50 +7,43 @@ Status: Accepted; amended 2026-10-03 (source removed)
 ## Context and Problem Statement
 
 The user retired Linear Workflow from active use. Its planning and delivery
-skills, installation defaults and repository instructions previously directed
-new tasks into Linear Batches. Keeping those entrypoints active would continue
-routing work into a workflow the user no longer wants.
+skills and installation defaults previously directed new tasks into Linear
+Batches. Continuing to ship those entrypoints would route work into a workflow
+the user no longer wants. An old approval or Ready Batch does not reactivate it.
+
+The initial retirement kept the historical implementation for inspection,
+while disabling execution. On 2026-10-03 the obsolete source, compatibility
+tests, templates and guide were removed; Git history preserves that material.
 
 ## Considered Options
 
-- Delete the historical implementation and its compatibility tests.
 - Keep installing and advertising the workflow despite retirement.
-- Disable entrypoints and default installation while preserving source.
+- Disable entrypoints while retaining historical source in the active checkout.
+- Remove the obsolete implementation and use Git history for reference.
 
 ## Decision Outcome
 
-Disable Linear Workflow and exclude it from default installation. Mark the
-canonical skills, generated adapters and metadata as deprecated; invocation
-stops without entering the historical workflow. An old approval or Ready Batch
-does not reactivate it. Current contributions use the authorized task scope
-and repository checks, without mandatory Linear identities.
+Linear Workflow is excluded from active use and installation. Its source,
+schemas, validators, templates and compatibility tests are absent from the
+current repository. Commits before removal remain available for historical
+inspection; a new explicit decision is required to reintroduce the workflow.
 
-Keep the runtime, schemas, contracts, validators and compatibility tests. Their
-continued presence supports historical inspection and maintenance; it does not
-authorize workflow execution. Reactivation requires an explicit new decision.
-This decision does not retire the local task runtime or unrelated Linear access.
-Historical tests run only on explicit request; current regression and CI policy
+Current contributions follow the authorized task scope and repository checks,
+without mandatory Linear identities or a second checklist. The local Task
+Runtime and unrelated Linear access remain available. Current validation policy
 belongs in [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
-Apply the same ownership distinction to installed workflows: an existing legacy
-contract retains its selected controls, but ordinary tasks must not acquire a
-second checklist or a retired planning gate. Installation does not migrate live
-task state. Component-specific installation options belong in their guides.
+Installers remove verified stale client copies using
+`config/retired-packages/linear-workflow.json`, which records fingerprints of
+the last shipped copies. Existing runtime data under
+`~/.local/share/linear-workflow` remains separate; source retirement does not
+migrate or delete live task state.
 
 ### Consequences
 
-- Existing source remains inspectable and testable.
-- Generated adapters retain their identity and contract versions but stop use.
-- Historical technical references describe the former workflow; they are not
-  current instructions for planning, delivery or installation.
-- Source changes alone do not prove that every previously installed client has
-  been updated; deployment results must identify the profiles actually changed.
-
-### Status update (2026-10-03)
-
-The source, compatibility tests, templates and guide were removed from the
-repository; commits before that change keep them. Installers still remove
-verified stale client copies using
-`config/retired-packages/linear-workflow.json`, which records fingerprints of
-the last shipped copies, and keep runtime data under
-`~/.local/share/linear-workflow`.
+- The active checkout no longer advertises or maintains the retired workflow.
+- Historical rationale and implementation remain accessible in Git history.
+- Fingerprinted cleanup removes known shipped copies without treating arbitrary
+  user-modified files as disposable.
+- Source changes do not prove every installed client was updated; deployment
+  claims must identify the actual profiles checked.

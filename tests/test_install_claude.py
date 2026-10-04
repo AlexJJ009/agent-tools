@@ -464,7 +464,7 @@ class ClaudeNativeCliTests(unittest.TestCase):
 
 class ClaudeInstallerFlagsTests(unittest.TestCase):
     def test_optional_shell_flags_using_only_extracted_parser(self):
-        source = (adapter.ROOT / "install.sh").read_text()
+        source = (adapter.ROOT / "scripts" / "install.sh").read_text()
         arms = re.search(r"    --claude-code\).*?(?=    --no-registry\))", source, re.S).group()
         validate = re.search(r'case "\$CLAUDE_CODE_MODE" in.*?\nesac', source, re.S).group()
         parser = ('set -eu\nCLAUDE_CODE_MODE=never\nwhile [[ $# -gt 0 ]]; do\ncase "$1" in\n'

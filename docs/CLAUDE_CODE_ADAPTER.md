@@ -22,8 +22,8 @@ python3 scripts/install_claude.py --install-packages --install-cli
 The machine installer offers the same opt-in:
 
 ```sh
-./install.sh --root ~/projects --claude-code existing
-./install.sh --root ~/projects --claude-code latest
+./scripts/install.sh --root ~/projects --claude-code existing
+./scripts/install.sh --root ~/projects --claude-code latest
 ```
 
 `never` is the default for `--claude-code`; `--no-claude-code` skips this adapter

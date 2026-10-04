@@ -232,7 +232,7 @@ function Invoke-CodexProviderBucketMigration {
     [Parameter(Mandatory = $true)][string]$TargetCcSwitchDb
   )
 
-  $script = Join-Path $RepoRoot "migrate_codex_provider_bucket.py"
+  $script = Join-Path $RepoRoot "scripts\migrate_codex_provider_bucket.py"
   $args = @(
     "--target", "custom",
     "--codex-dir", $TargetCodexHome,

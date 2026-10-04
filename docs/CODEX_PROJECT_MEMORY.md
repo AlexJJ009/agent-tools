@@ -1,150 +1,88 @@
-# Codex Project Memory
+# Project Memory Sync and Migration
 
-Codex native memories are user-level generated state under `~/.codex/memories/`.
-They are useful, but they are not the same as Claude Code's per-project auto
-memory directory.
+Use `scripts/codex_project_memory.py` to share explicit project Markdown memory
+between Claude Code and Codex. Native generated Codex memories are a separate,
+user-level store; copying Claude memory there is not this tool's interface.
 
-To get project-level memory behavior, use an explicit project-local layer:
+## Storage and ownership
 
-```text
-<project>/.codex/project-memory/
-├── MEMORY.md
-└── imported-claude-memory/
-    ├── MEMORY.md
-    └── ...
-```
+| Store | Location | Maintained source |
+|---|---|---|
+| Claude project memory | `~/.claude/projects/<encoded-project>/memory/` | Claude index and topic files |
+| Explicit Codex project memory | `<project>/.codex/project-memory/` | Codex index and topic files |
+| Claude imported into Codex | `.codex/project-memory/imported-claude-memory/` | Generated copy of Claude source |
+| Codex imported into Claude | `memory/imported-codex-memory/` | Generated copy of Codex source |
+| Native Codex recall | `~/.codex/memories/` and native memory database | Codex-generated state |
 
-Then add a short instruction to the project context (`CLAUDE.md` or `AGENTS.md`)
-telling Codex when to read `.codex/project-memory/MEMORY.md`.
+The encoded Claude path is derived from the project Git root by replacing `/`
+with `-`. Run this tool under the user who owns the target project memory.
+Edit durable notes in their source directory, not in an imported mirror.
+Keep reusable lessons and context; dated process status and transient recovery
+notes are not permanent instructions. Do not copy credentials or raw session
+transcripts into memory.
 
-## Why This Exists
+## Inspect and synchronize
 
-Codex's own memory system should remain enabled and untouched:
-
-```toml
-[features]
-memories = true
-```
-
-But project-specific memory is better stored in the repo or worktree, because:
-
-- it follows the project across machines and WSL2 distributions;
-- it can be reviewed like normal Markdown;
-- it can reuse Claude Code auto-memory topic files;
-- it avoids hand-editing Codex's generated `~/.codex/memories/` files.
-
-## Setup
-
-From the project root:
+From the Agent Tools checkout:
 
 ```bash
-python /data-1/agent-tools/codex_project_memory.py sync . --direction both
+python3 scripts/codex_project_memory.py status /path/to/project --search-native
+python3 scripts/codex_project_memory.py sync /path/to/project --direction both
+python3 scripts/codex_project_memory.py status /path/to/project
 ```
 
-What it does:
+`sync` finds the Git root, initializes `.codex/project-memory/MEMORY.md`, and
+adds a guarded instruction block to `CLAUDE.md` when present, otherwise
+`AGENTS.md`. That block asks Codex to read the index for history-dependent work
+and open only relevant topic files. It copies Markdown into the imported
+folders, excludes recursive reimports, and writes links in the indexes.
 
-- creates `.codex/project-memory/MEMORY.md` if missing;
-- adds a guarded `Codex Project Memory` instruction block to `CLAUDE.md` when
-  present, otherwise `AGENTS.md`;
-- if Claude Code auto memory exists at
-  `~/.claude/projects/<encoded-project>/memory/`, copies Markdown files into
-  `.codex/project-memory/imported-claude-memory/`;
-- if Codex project memory contains topic files that Claude does not have,
-  copies them into
-  `~/.claude/projects/<encoded-project>/memory/imported-codex-memory/`;
-- updates the project-memory index with a link to the imported Claude memory.
-
-If the project uses the Claude/Codex bridge, refresh it after setup:
+Directions are `both`, `claude-to-codex`, and `codex-to-claude`. `.` may replace
+the target path when running inside the target project, using the installed
+helper's absolute path:
 
 ```bash
-python /data-1/agent-tools/sync_agent_context.py sync . --direction bidirectional
+python3 ~/.local/lib/agent-tools/scripts/codex_project_memory.py sync . --direction both
 ```
 
-## Status Check
+Existing differing imported files are reported as conflicts unless `--force`
+is selected. Inspect the source and destination before choosing a winner.
+Sync copies source Markdown; it does not delete imported files whose source
+was removed. During cleanup, reconcile those stale copies and their indexes
+explicitly so a later sync cannot reintroduce a retired lesson.
+
+If the project uses the context bridge, refresh it after the memory update:
 
 ```bash
-python /data-1/agent-tools/codex_project_memory.py status .
+python3 scripts/sync_agent_context.py sync /path/to/project --direction bidirectional
 ```
 
-Expected output includes:
+See [context synchronization](CONTEXT_SYNC.md) for bridge conflict behavior.
 
-```text
-memory_index=<project>/.codex/project-memory/MEMORY.md exists=True
-CLAUDE.md=exists project_memory_instruction=True
-```
+## Migrate existing memories
 
-or, for Codex-only projects:
+Claude auto memory is already distilled project context and can seed the
+explicit Codex layer through the sync command above. Review it first for
+obsolete topology, dated experiments, duplicate rules and secrets. Do not copy
+all Claude JSONL conversations as a substitute for selecting useful lessons.
 
-```text
-AGENTS.md=exists project_memory_instruction=True
-```
+When `status --search-native` reports matching Codex-native snippets, inspect
+only relevant entries and summarize useful project lessons into a topic file
+under `.codex/project-memory/`. Then synchronize that explicit note. Preserve
+source attribution and limits; native rollout summaries contain historical
+observations and do not establish current machine state.
 
-## How Codex Should Use It
+The native Codex `memories` feature is independent of explicit project memory.
+Preserve the target user's chosen setting rather than enabling it as a migration
+requirement. In particular, PHAI's memories-off comparison started on
+2026-10-03 and remains subject to the user's decision; installing or syncing
+project memory is not authorization to end that experiment.
 
-The installed instruction tells Codex:
+## Check the result
 
-- read `.codex/project-memory/MEMORY.md` before history-dependent work;
-- open only topic files relevant to the task;
-- treat dated experiment status as stale until verified;
-- avoid storing secrets.
-
-This gives Codex a project-level recall path similar to Claude Code auto memory,
-while keeping Codex's native generated memories intact.
-
-## Importing Claude Code Auto Memory
-
-Claude Code stores project auto memory under:
-
-```bash
-~/.claude/projects/<encoded-project>/memory/
-```
-
-For `/data-1/verl07/verl`, the path is:
-
-```bash
-/root/.claude/projects/-data-1-verl07-verl/memory/
-```
-
-The project-memory tool derives that path from the git root by replacing `/`
-with `-`.
-
-The imported directories are generated mirrors. Re-running sync refreshes them
-from their source side:
-
-```bash
-python /data-1/agent-tools/codex_project_memory.py sync . --direction both
-```
-
-Edit source notes in `.codex/project-memory/` or Claude memory, not in
-`imported-*` directories.
-
-## Bidirectional Sync
-
-See `AGENT_MEMORY_SYNC.md` for the full agent workflow. The short version:
-
-```bash
-python /data-1/agent-tools/codex_project_memory.py status . --search-native
-python /data-1/agent-tools/codex_project_memory.py sync . --direction both
-```
-
-If `--search-native` reports relevant hits under `~/.codex/memories/`, summarize
-durable Codex-native lessons into `.codex/project-memory/*.md`, then run sync
-again. Do not copy raw generated Codex native memory files wholesale.
-
-## Portability
-
-This is portable to other servers and WSL2 machines as long as:
-
-- the project has `AGENTS.md` or `CLAUDE.md`, or the tool is allowed to create
-  `AGENTS.md`;
-- Codex is run from the same project root or a subdirectory;
-- the project context tells Codex to read `.codex/project-memory/MEMORY.md`;
-- if importing Claude memory, Claude Code has already created the matching
-  `~/.claude/projects/<encoded-project>/memory/` directory.
-
-## Limits
-
-This is not a native Codex memory backend. It is a project-context convention
-that Codex can follow. Keep the index short and concrete. For hard rules that
-must always apply, keep them in `AGENTS.md` / `CLAUDE.md`; for detailed
-workflow knowledge, link topic files from project memory.
+`status` reports whether the index and project instruction block exist. Open
+the actual indexes and selected imported topic files to verify content and
+conflicts; file existence alone does not prove useful or current memory.
+Before acting on remembered services, proxy settings, checkpoint paths or
+running experiments, check the live target host. Keep hard project rules in
+`AGENTS.md` / `CLAUDE.md` and detailed lessons in topic files.

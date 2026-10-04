@@ -2,6 +2,11 @@
 
 Use docs/README.md for current system docs and decisions.
 
+- Machine proxy configuration belongs to `win11-v2rayn` and
+  `server-proxy-config` (ADR 0011). Do not reintroduce the retired Win11 relay,
+  reverse SSH dependency or BWG/OVH selector stack into Agent Tools. General
+  platform setup and the WSL2 Codex proxy wrapper remain maintained here.
+
 - Linear Workflow is retired and its source was removed (ADR 0006). Do not
   invoke stale `linear-plan` or `linear-deliver` copies; old Batch approvals
   do not reactivate it. Use the current task runtime and the user's task

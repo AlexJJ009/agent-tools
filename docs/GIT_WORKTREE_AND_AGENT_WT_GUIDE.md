@@ -490,7 +490,7 @@ the prototype branch was not merged.
 | `README.md` | revise | Keep the discoverability entry, but describe only the approved five commands and Codex support boundary. |
 | `bin/agent-wt` | revise | Keep a thin Unix launcher; make interpreter discovery and errors deterministic. |
 | `docs/GIT_WORKTREE_AND_AGENT_WT_GUIDE.md` | revise | Keep the teaching-first structure and server audit, but remove dependency-execution and verified-portability claims that exceed v1. |
-| `install.sh` | revise | Keep guarded launcher/Skill wiring; install exactly one Codex user Skill at `.codex/skills/manage-worktrees`; migrate verified matching `.agents` entries and reject conflicting contents. Do not install a Claude copy. |
+| `scripts/install.sh` | revise | Keep guarded launcher/Skill wiring; install exactly one Codex user Skill at `.codex/skills/manage-worktrees`; migrate verified matching `.agents` entries and reject conflicting contents. Do not install a Claude copy. |
 | `skills/manage-worktrees/SKILL.md` | revise | Keep intent interpretation; return unsupported clone guidance at permission boundaries and never run dependency setup. |
 | `skills/manage-worktrees/agents/openai.yaml` | retain | The display metadata and default prompt match the approved Skill boundary. |
 | `skills/manage-worktrees/references/policies.md` | revise | Keep the decision matrix; rename clone as guidance rather than a v1 execution mode and document all path-policy layers. |
@@ -498,7 +498,7 @@ the prototype branch was not merged.
 | `skills/manage-worktrees/scripts/agent_wt.py` | revise | Keep the standard-library core and five commands. Replace `--setup`, silent Win11 locking, Unix-only allocated-size use, unversioned JSON, incomplete error codes, and incomplete path policy. |
 | `skills/manage-worktrees/tests/test_agent_wt.py` | replace | Expand from happy-path smoke tests to contract, collision, policy precedence, no-mutation, scan-bound, Win11 path/state/locking, and subprocess-quoting tests. |
 | `tests/test_install_target_guard_wiring.py` | revise | Restore it on the approved base, then assert guard-before-write and duplicate-free current/legacy Skill locations on Unix and Win11. |
-| Prototype-only Codex patch-safety hunks mixed into `install.sh` | remove | They are outside DRAGAI-94 and already have independent ownership; the immutable snapshot preserves them for audit, but the Delivery import does not reintroduce them. |
+| Prototype-only Codex patch-safety hunks mixed into `scripts/install.sh` | remove | They are outside DRAGAI-94 and already have independent ownership; the immutable snapshot preserves them for audit, but the Delivery import does not reintroduce them. |
 
 No prototype line receives completion credit from this table alone. The later
 Issue sections bind each retained behavior to targeted tests, candidate CI, and

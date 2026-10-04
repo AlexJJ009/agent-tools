@@ -15,7 +15,7 @@ def function(source, name):
 
 class ClaudeDesktopSshTests(unittest.TestCase):
     def run_step(self, root, path):
-        source = (ROOT / "install.sh").read_text(encoding="utf-8")
+        source = (ROOT / "scripts" / "install.sh").read_text(encoding="utf-8")
         script = "\n".join([
             "set -euo pipefail",
             'run_script_as_root_if_available() { local -a a=(); while [[ $1 != -- ]]; do a+=("$1"); shift; done; shift; bash -s -- "${a[@]}" "$@"; }',

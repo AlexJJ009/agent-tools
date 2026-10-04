@@ -79,7 +79,7 @@ For each SSH host, prefer the same helper after copying or installing
 
 ```bash
 cd ~/agent-tools
-./install.sh --root "$HOME" --max-depth 2 \
+./scripts/install.sh --root "$HOME" --max-depth 2 \
   --codex-proxy-wrapper never \
   --no-codex-remote-control \
   --no-registry \
@@ -131,13 +131,13 @@ python3 scripts/configure_codex_app_fast_mode.py
 Or run the full installer for the Mac user:
 
 ```bash
-./install.sh --root "$HOME/projects" --max-depth 3
+./scripts/install.sh --root "$HOME/projects" --max-depth 3
 ```
 
 Use a narrower install if only the Fast config should be patched:
 
 ```bash
-./install.sh --root "$HOME" --max-depth 1 \
+./scripts/install.sh --root "$HOME" --max-depth 1 \
   --no-codex-config \
   --no-codex-here \
   --no-cc-switch-update \
@@ -190,7 +190,7 @@ Copy or unpack `agent-tools` on the host, then run:
 ```bash
 ssh HOST_ALIAS '
   cd ~/agent-tools &&
-  ./install.sh --root "$HOME" --max-depth 2 \
+  ./scripts/install.sh --root "$HOME" --max-depth 2 \
     --codex-proxy-wrapper never \
     --no-codex-remote-control \
     --no-registry \
@@ -285,7 +285,7 @@ python3 scripts/setup_codex_desktop_connection_fast_mode.py \
 Equivalent installer route:
 
 ```bash
-./install.sh --codex-desktop-connection-fast-mode auto
+./scripts/install.sh --codex-desktop-connection-fast-mode auto
 ```
 
 After patching, restart Codex App, open a fresh SSH Connection thread, send a

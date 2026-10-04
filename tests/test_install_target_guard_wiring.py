@@ -35,7 +35,7 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             "AGENT_TOOLS_CODEX_PROVIDER_BUCKET_KILL_RUNNING": "0",
         })
         command = [
-            "bash", str((source_root or ROOT) / "install.sh"),
+            "bash", str((source_root or ROOT) / "scripts/install.sh"),
             "--root", str(home / "projects"),
             "--no-fail2ban-hardening", "--no-cc-switch-update",
             "--no-codex-config", "--no-codex-here",
@@ -308,8 +308,7 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
         # invoking it with --kill-running-codex would affect the test host.
         destination.mkdir()
         for name in (
-            "install.sh", "sync_agent_context.py", "sync_agent_context_cron.sh",
-            "codex_project_memory.py", "agent_context_sync.config.example.json",
+            "agent_context_sync.config.example.json",
             "bin", "scripts", "config", "skills", "shared",
         ):
             source = ROOT / name
@@ -317,7 +316,7 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
                 shutil.copytree(source, destination / name, ignore=shutil.ignore_patterns("__pycache__"))
             else:
                 shutil.copy2(source, destination / name)
-        (destination / "migrate_codex_provider_bucket.py").write_text(
+        (destination / "scripts" / "migrate_codex_provider_bucket.py").write_text(
             "import json, os, sys\n"
             "from pathlib import Path\n"
             "with (Path(os.environ['HOME']) / 'migration-calls.jsonl').open('a') as output:\n"

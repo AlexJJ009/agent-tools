@@ -132,7 +132,7 @@ def repo_root_from_script() -> Path:
 
 
 def tool_dir() -> Path:
-    return Path(__file__).resolve().parent
+    return Path(__file__).resolve().parents[1]
 
 
 def default_config_path() -> Path:
@@ -146,7 +146,8 @@ def refresh_command_for(root: Path) -> str:
     except ValueError:
         # A repository that ships the tool (agent-tools itself) keeps its relative
         # command, so syncing from the installed copy does not rewrite its files.
-        script_ref = script.name if (root / script.name).is_file() else script
+        shipped = Path("scripts") / script.name
+        script_ref = shipped if (root / shipped).is_file() else script
     python = Path(sys.executable).name or "python3"
     if python == "python":
         python = "python3"

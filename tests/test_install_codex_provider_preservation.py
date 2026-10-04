@@ -16,7 +16,7 @@ def extract_shell_function(script: str, name: str, next_name: str) -> str:
 
 class InstallCodexProviderPreservationTests(unittest.TestCase):
     def test_configure_defaults_preserves_existing_provider_endpoint_and_auth(self):
-        install_text = (ROOT / "install.sh").read_text(encoding="utf-8")
+        install_text = (ROOT / "scripts" / "install.sh").read_text(encoding="utf-8")
         function = extract_shell_function(
             install_text,
             "configure_codex_defaults",

@@ -12,22 +12,37 @@ private reports describe bounded development work and are not deployment proof.
 - [Architecture decisions](decisions/README.md): adopted choices and their reasons.
 - [Work Report](WORK_REPORT.md): report generation, delivery contracts and installation.
 - [Work Report timer](WORK_REPORT_LIGHT_TIMER.md): timed prompts and their delivery limits.
+- [Installation](INSTALLATION.md): general installers, target guards and machine defaults.
+- [Context synchronization](CONTEXT_SYNC.md): bridge configuration, commands, conflicts and cron.
+- [Project memory](CODEX_PROJECT_MEMORY.md): Markdown memory sync, migration and stale-copy handling.
 - [CLI server bootstrap](CLI_SERVER_BOOTSTRAP.md): server setup.
 - [Claude Code adapter](CLAUDE_CODE_ADAPTER.md): shared context, skill links and native hooks on Linux/WSL.
 - [Repository overview](../README.md): other maintained tools and platform guides.
+
+## Platform and operation guides
+
+- [AutoDL bootstrap](AUTODL_AI_TOOLS_BOOTSTRAP.md): container/server tools and proxy inputs.
+- [Codex defaults](CODEX_AUTOREVIEW_DEFAULT.md): approval posture, streams and configuration.
+- [WSL2 proxy](CODEX_WSL2_PROXY.md): host-specific Windows proxy access.
+- [Remote control](CODEX_REMOTE_CONTROL.md): standalone CLI and app-server setup.
+- [SQLite log guard](CODEX_SQLITE_LOG_GUARD.md): temporary diagnostic-log protection.
+- [macOS Fast Mode](CODEX_APP_FAST_MODE_MACOS_GUIDE.md): local and SSH configuration.
+- [Connections Fast diagnostics](CODEX_DESKTOP_CONNECTION_FAST_MODE_PATCH.md): historical bundle behavior and provider verification.
+- [Win11 versioned patch safety](../skills/codex-win11-patch-safety/SKILL.md): exact release selection, same-profile staging and activation.
+- [Browser tools](CODEX_PLAYWRIGHT_TOOLS.md): machine-local Playwright/Chromium setup.
+- [Managed worktrees](GIT_WORKTREE_AND_AGENT_WT_GUIDE.md): admission, layout and audit.
 
 ## Documentation Responsibilities
 
 The two README files serve different entry points; neither is a second progress
 register. The [repository README](../README.md) introduces the tools, file map
-and setup entry points. Its existing context-sync usage reference remains the
-maintained guide for that component. This README is the navigation index for
+and setup entry points. Detailed context-sync usage belongs in [its component guide](CONTEXT_SYNC.md). This README is the navigation index for
 current component guides and architectural decisions; it does not repeat their
 commands, behavior descriptions or decision status.
 
 | Material | Maintained responsibility | Update when |
 |---|---|---|
-| Root `README.md` | Repository purpose, tool inventory, setup entry points, and the existing context-sync usage reference | Repository entry points or that component's usage change |
+| Root `README.md` | Repository purpose, component inventory and setup entry points | Repository entry points or that component's usage change |
 | `docs/README.md` | Links to current system guides and decisions | A guide is added, moved, replaced, or its responsibility changes |
 | Component guides | Implemented usage, interfaces, operational steps and limitations | The corresponding behavior changes |
 | `docs/decisions/NNNN-*.md` | Significant adopted choices, context, reasons and consequences | A material decision is adopted or superseded |

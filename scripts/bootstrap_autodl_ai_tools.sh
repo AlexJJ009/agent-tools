@@ -428,7 +428,7 @@ configure_github_and_clone() {
 
 run_agent_tools_install() {
   log "Running agent-tools install.sh"
-  (cd "$AGENT_TOOLS_DIR" && ./install.sh \
+  (cd "$AGENT_TOOLS_DIR" && ./scripts/install.sh \
     --root "$HOME" \
     --max-depth 3 \
     --codex-proxy-wrapper never \
@@ -837,7 +837,7 @@ print(json.dumps({
 }, ensure_ascii=False, sort_keys=True))
 PY
 
-  python3 "$AGENT_TOOLS_DIR/migrate_codex_provider_bucket.py" \
+  python3 "$AGENT_TOOLS_DIR/scripts/migrate_codex_provider_bucket.py" \
     --target "$CODEX_MODEL_PROVIDER_ID" \
     --all-non-target-providers \
     --skip-live-config \

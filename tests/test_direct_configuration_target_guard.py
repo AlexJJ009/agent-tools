@@ -62,7 +62,7 @@ class DirectConfigurationTargetGuardTests(unittest.TestCase):
 
     def test_provider_bucket_apply_rejects_polluted_profile_without_writes(self):
         self.assert_rejected_before_write(
-            ROOT / "migrate_codex_provider_bucket.py",
+            ROOT / "scripts" / "migrate_codex_provider_bucket.py",
             "--codex-dir",
             CODEX_HOME_PLACEHOLDER,
             "--cc-switch-db",

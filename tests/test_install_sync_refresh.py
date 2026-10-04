@@ -23,11 +23,12 @@ class RefreshCommandTests(unittest.TestCase):
             install, repo, other = (Path(tmp) / n for n in ("lib", "repo", "other"))
             for d in (install, repo, other):
                 d.mkdir()
-            shutil.copy2(ROOT / "sync_agent_context.py", install / "sync_agent_context.py")
-            (repo / "sync_agent_context.py").write_text("# shipped copy\n")
-            tool = load(install / "sync_agent_context.py")
-            self.assertIn(" sync_agent_context.py sync .", tool.refresh_command_for(repo))
-            self.assertIn(str(install / "sync_agent_context.py"), tool.refresh_command_for(other))
+                (d / "scripts").mkdir()
+            shutil.copy2(ROOT / "scripts" / "sync_agent_context.py", install / "scripts/sync_agent_context.py")
+            (repo / "scripts/sync_agent_context.py").write_text("# shipped copy\n")
+            tool = load(install / "scripts/sync_agent_context.py")
+            self.assertIn(" scripts/sync_agent_context.py sync .", tool.refresh_command_for(repo))
+            self.assertIn(str(install / "scripts/sync_agent_context.py"), tool.refresh_command_for(other))
 
 
 if __name__ == "__main__":

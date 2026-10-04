@@ -1,9 +1,8 @@
 # Project Memory (Retired From Active Use)
 
-Automatic Codex and Claude Code memory was disabled and the audited memory
-stores on reachable profiles were cleared by the user's decision on 2026-10-04.
-OVH `15.204.46.107` could not be accessed and remains unverified. Project rules and
-architecture belong in the owning project's maintained instructions and docs;
+Automatic Codex and Claude Code memory is disabled by the user's decision.
+Project rules and architecture belong in the owning project's maintained
+instructions and docs;
 unfinished work belongs in current task state. Do not create or synchronize a
 separate agent memory library during installation or ordinary project work.
 
@@ -20,6 +19,6 @@ profiles use `autoMemoryEnabled = false`. Provider switches and reinstallations
 must preserve this decision without changing auth, model or approval settings.
 
 Memory cleanup does not authorize deleting conversations, credentials,
-maintained project docs, business data or current task state. Retained pricing
-and EmailEngine deployment information was moved into its owning projects,
-with historical observations distinguished from current facts.
+maintained project docs, business data or current task state. Migrate necessary
+information into its owning project, distinguishing historical observations
+from current facts.

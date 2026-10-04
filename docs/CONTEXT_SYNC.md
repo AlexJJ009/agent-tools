@@ -7,6 +7,9 @@ copies. Project memory is a separate component; see [project memory](CODEX_PROJE
 
 ## Config
 
+The tracked example is `config/agent_context_sync.config.example.json`.
+It documents configuration keys without storing a machine's live settings.
+
 `agent_context_sync.config.json` is intentionally machine-local:
 
 ```json

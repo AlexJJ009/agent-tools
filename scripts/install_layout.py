@@ -30,12 +30,13 @@ MANIFEST = '.agent-tools-manifest.json'
 SCHEMA = 'agent-tools.install-manifest/1'
 PRODUCER = 'agent-tools-installer'
 # Top-level items install.sh ships into the install root.
-SHIPPED_FILES = ('README.md', 'agent_context_sync.config.example.json')
+SHIPPED_FILES = ('README.md',)
 RELOCATED_SCRIPTS = ('install.sh', 'pack.sh', 'sync_agent_context.py', 'sync_agent_context_cron.sh',
                      'codex_project_memory.py', 'migrate_codex_provider_bucket.py')
 SHIPPED_DIRS = ('bin', 'scripts', 'config', 'docs', 'skills', 'adapters', 'agent_workflow',
                 'learning_workflow', 'project_adapters', 'shared')
-RETIRED = ('linear_workflow', 'goal_plan', 'experiment_registry')  # shipped by earlier releases
+RETIRED = ('linear_workflow', 'goal_plan', 'experiment_registry',
+           'agent_context_sync.config.example.json')  # old root copy; example now ships in config/
 BUNDLES = ('learning-workflow', 'claude')  # owned by their own installers inside the install root
 GENERATED = ('agent_context_sync.config.json',)  # written by install.sh
 FOREIGN = ('codex_target_guard.py',)  # scripts/codex_fleet_guard.py helper

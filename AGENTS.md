@@ -2,6 +2,11 @@
 
 Use docs/README.md for current system docs and decisions.
 
+- Automatic Codex and Claude Code memory is disabled by the user's decision.
+  Do not enable it during installation or provider switching. Maintain project
+  rules in project instructions/docs and unfinished work in task state, rather
+  than generating a separate memory library.
+
 - Machine proxy configuration belongs to `win11-v2rayn` and
   `server-proxy-config` (ADR 0011). Do not reintroduce the retired Win11 relay,
   reverse SSH dependency or BWG/OVH selector stack into Agent Tools. General

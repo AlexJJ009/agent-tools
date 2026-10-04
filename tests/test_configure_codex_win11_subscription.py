@@ -56,7 +56,7 @@ class ConfigureCodexWin11SubscriptionTests(unittest.TestCase):
             self.assertEqual(data["model_auto_compact_token_limit_scope"], "total")
             self.assertEqual(data["model_providers"]["custom"]["stream_idle_timeout_ms"], 1800000)
             self.assertEqual(data["model_providers"]["custom"]["stream_max_retries"], 20)
-            self.assertTrue(data["features"]["memories"])
+            self.assertFalse(data["features"]["memories"])
 
     def test_cc_switch_provider_config_includes_context_defaults(self):
         text = MODULE.cc_switch_provider_config(
@@ -69,6 +69,9 @@ class ConfigureCodexWin11SubscriptionTests(unittest.TestCase):
         self.assertEqual(data["model_context_window"], 500000)
         self.assertEqual(data["model_auto_compact_token_limit"], 430000)
         self.assertEqual(data["model_auto_compact_token_limit_scope"], "total")
+        self.assertFalse(data["features"]["memories"])
+        self.assertFalse(data["memories"]["generate_memories"])
+        self.assertFalse(data["memories"]["use_memories"])
         provider = data["model_providers"]["custom"]
         self.assertNotIn("model_context_window", provider)
         self.assertEqual(provider["base_url"], MODULE.DEFAULT_BASE_URL)

@@ -18,7 +18,7 @@ import uuid
 
 SCHEMA = "work-report.scheduler/1"
 DEFAULT_TIMEOUT = 600
-MODEL = "gpt-5.5"
+MODEL = "gpt-6.1-sol"
 REASONING = "medium"
 MARKER_PREFIX = "work-report-v2-schedule:"
 

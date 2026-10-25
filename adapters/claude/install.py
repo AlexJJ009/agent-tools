@@ -233,6 +233,8 @@ def install(home: Path, core: Path) -> dict:
         if stale.is_file() and not stale.is_symlink():
             stale.unlink()
             changes.append("native_hook")
+    # Nothing writes this view manifest any more; it would keep listing native_hook.py.
+    (layout.install_root(home) / "claude" / layout.MANIFEST).unlink(missing_ok=True)
     (home / OLD_STATE).unlink(missing_ok=True)
     return {**check(home, core), "status": "updated" if changes or result["linked"] or result["removed"] else "checked",
             "changes": changes, "preserved": result["preserved"]}

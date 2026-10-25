@@ -122,6 +122,7 @@ class ClaudeInstallTests(unittest.TestCase):
         legacy = self.home / '.local/share/agent-tools'
         self.write(legacy / 'claude/native_hook.py', '# retired adapter\n')
         self.write(self.lib / 'claude/native_hook.py', '# retired adapter\n')
+        self.write(self.lib / 'claude/.agent-tools-manifest.json', '{"files": {"native_hook.py": "x"}}\n')
         self.write(self.home / adapter.OLD_STATE, '{}')
         bundle = legacy / 'learning-workflow/skills'
         self.write(bundle / 'academic-writing/SKILL.md', 'old')
@@ -142,6 +143,7 @@ class ClaudeInstallTests(unittest.TestCase):
         self.assertEqual(os.readlink(rule), str(self.lib / 'claude/context.md'))
         self.assertFalse((legacy / 'claude/native_hook.py').exists())
         self.assertFalse((self.lib / 'claude/native_hook.py').exists())
+        self.assertFalse((self.lib / 'claude/.agent-tools-manifest.json').exists())
         self.assertFalse((self.home / adapter.OLD_STATE).exists())
 
     def test_unmanaged_directory_in_the_way_is_preserved_and_reported(self):

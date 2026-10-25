@@ -1,6 +1,0 @@
-interface:
-  display_name: "Infrastructure Verification"
-  short_description: "Check consumed inputs, effects and resource lifecycle"
-  default_prompt: "Use $infra-verification to verify actual runtime readback, lifecycle and affected evidence."
-policy:
-  allow_implicit_invocation: true

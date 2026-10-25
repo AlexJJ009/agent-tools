@@ -28,7 +28,7 @@ def profile_env(home):
     crontab.write_text('#!/bin/sh\nif [ "$1" = "-l" ]; then cat "$HOME/test-crontab" 2>/dev/null; '
                        'else cat > "$HOME/test-crontab"; fi\n')
     crontab.chmod(0o755)
-    # The work-report installer only warms its uv script environment; layout is not under test there.
+    # The old release's report installer only warms its uv script environment.
     uv = fake / 'uv'
     uv.write_text('#!/bin/sh\nexit 0\n')
     uv.chmod(0o755)
@@ -227,6 +227,7 @@ class InstallerLayoutTests(unittest.TestCase):
         self.old_layout()
         self.assertTrue((self.data / 'learning-workflow/bin/learning-workflow').is_file())
         self.assertTrue((self.data / 'claude/native_hook.py').is_file())
+        self.assertIn('native_hook.py', (self.home / '.claude/settings.json').read_text())
         # Data, unknown items and a locally modified software copy.
         (self.data / 'artifacts/t1').mkdir(parents=True)
         (self.data / 'artifacts/t1/out.txt').write_text('task output')
@@ -239,18 +240,22 @@ class InstallerLayoutTests(unittest.TestCase):
         check = self.run_install('--check', check=False)
         self.assertNotEqual(check.returncode, 0)
         self.assertIn('software_in_data_root', check.stdout)
+        self.run_install()
+        # Hooks and launchers registered by the retired learning runtime are the operator's to remove;
+        # until then their bundle stays in use and the install does not delete it.
+        self.run_install()
+        self.assertTrue((self.data / 'learning-workflow/bin/learning-workflow').is_file())
+        self.assertNotIn('native_hook.py', (self.home / '.claude/settings.json').read_text())
+        (self.home / '.codex/hooks.json').unlink()
+        (self.home / '.codex/AGENTS.md').unlink()
+        (self.home / '.local/bin/learning-workflow').unlink()
         result = self.run_install()
-        # Every consumer now resolves into the install root.
         self.assert_no_data_root_consumers()
         for name in ('task-routing', 'academic-writing'):
-            self.assertTrue(os.path.realpath(self.home / '.agents/skills' / name).startswith(str(self.lib)))
-            self.assertTrue(os.path.realpath(self.home / '.claude/skills' / name).startswith(str(self.lib)))
+            self.assertEqual(os.readlink(self.home / '.agents/skills' / name), str(self.lib / 'skills' / name))
+            self.assertEqual(os.readlink(self.home / '.claude/skills' / name), str(self.lib / 'skills' / name))
         self.assertEqual(os.path.realpath(self.home / '.claude/rules/agent-tools.md'), str(self.lib / 'claude/context.md'))
-        self.assertEqual(os.path.realpath(self.home / '.local/bin/learning-workflow'),
-                         str(self.lib / 'learning-workflow/bin/learning-workflow'))
-        self.assertIn(str(self.lib / 'learning-workflow/bin/learning-workflow-hook'), (self.home / '.codex/hooks.json').read_text())
-        self.assertIn(str(self.lib / 'claude/native_hook.py'), (self.home / '.claude/settings.json').read_text())
-        self.assertIn(str(self.lib / 'learning-workflow/shared/writing'), (self.home / '.codex/AGENTS.md').read_text())
+        self.assertNotIn('native_hook.py', (self.home / '.claude/settings.json').read_text())
         self.assertIn(str(self.lib / 'scripts/sync_agent_context_cron.sh'), (self.home / 'test-crontab').read_text())
         # Released copies removed, the modified one archived, data and unknown items untouched.
         groups = layout.classify(self.data)
@@ -261,16 +266,13 @@ class InstallerLayoutTests(unittest.TestCase):
         self.assertTrue(archived[0].read_text().endswith('local note\n'))
         self.assertEqual(snapshot(self.data / 'artifacts') | snapshot(self.data / 'views'), data_before)
         self.assertTrue((self.data / 'install.sh.new').is_file())
-        ledger = [json.loads(line) for line in (self.data / 'materials/ledger.jsonl').read_text().splitlines()]
-        removed = {Path(e['path']).name for e in ledger if e['event'] == 'removed'}
-        self.assertTrue({'install.sh', 'scripts', 'learning-workflow', 'native_hook.py', 'context.md', 'README.md'} <= removed, removed)
-        # Installed runtimes work from the new place; checks pass; reinstall is a no-op.
-        self.run_python('scripts/install_learning_workflow.py', '--check')
+        # Checks pass; reinstall is a no-op.
         self.run_python('scripts/install_claude.py', '--check')
+        self.run_python('scripts/install_skills.py', '--check')
         self.assertEqual(self.run_install('--check').returncode, 0)
-        before = snapshot(self.home, skip=('materials',))
+        before = snapshot(self.home)
         self.run_install()
-        self.assertEqual(snapshot(self.home, skip=('materials',)), before)
+        self.assertEqual(snapshot(self.home), before)
 
 
 class CronLogRetentionTests(unittest.TestCase):

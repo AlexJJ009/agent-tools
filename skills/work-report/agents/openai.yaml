@@ -1,6 +1,0 @@
-interface:
-  display_name: "Work Report"
-  short_description: "Write factual progress reports with independent reading review"
-  default_prompt: "Use $work-report to explain this task's current result, reasons, evidence, scope and next decision in the user's language."
-policy:
-  allow_implicit_invocation: true

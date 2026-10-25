@@ -1,6 +1,0 @@
-interface:
-  display_name: "Acceptance Gate"
-  short_description: "Check an existing legacy protected-action contract"
-  default_prompt: "Use $acceptance-gate to inspect the explicitly selected existing legacy formal-run or protected-action contract."
-policy:
-  allow_implicit_invocation: false

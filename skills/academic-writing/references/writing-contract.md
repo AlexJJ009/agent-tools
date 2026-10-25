@@ -1,13 +1,12 @@
 # Shared writing contract
 
-This is the canonical maintained source for reader-facing work across Work Report,
-reviewer-brief, teaching, and academic writing. Packaged copies in Work Report and
-reviewer-brief and academic-writing are generated so each can be installed independently.
-Academic Writing owns the reusable expression methods; Work Report owns report
-content selection, its six-section template, and reporting timing. This contract
-is their single maintained expression source, not another reporting workflow. Run
-`skills/work-report/scripts/sync_writing_contract.py --write` from the repository
-to regenerate them, or `--check` to detect drift.
+This is the canonical maintained source for reader-facing work: teaching, academic
+writing and any other output a reader must act on. The copy packaged in
+academic-writing is generated so that skill can be installed independently.
+Academic Writing owns the reusable expression methods; this contract is their
+single maintained expression source, not a reporting workflow. Run
+`scripts/sync_writing_contract.py --write` from the repository to regenerate the
+copy, or `--check` to detect drift.
 
 | ID | Required writing behavior |
 |---|---|
@@ -27,7 +26,7 @@ state the claim, show the observation, and explain the inferential connection,
 including limits and adverse evidence. A reverse outline can expose missing
 paragraph purposes or transitions during revision. These methods also apply to
 short explanations without activating manuscript drafting, CARS, teaching, a
-formal Work Report, or an independent Judge. Read this contract when it is not
+formal reporting, or an independent Judge. Read this contract when it is not
 already in context; reuse it thereafter and judge the actual prose.
 
 A **readback** is an actual observed value or state, not an expected-value echo.
@@ -47,8 +46,8 @@ current choice or acceptance step. A teaching explanation must expose the
 prerequisite that makes the next idea understandable; a practice prompt gives
 the task and conditions before revealing an answer at the appropriate stage.
 A manuscript paragraph follows its scientific argument and reader expectations.
-Work Reports retain their six semantic sections and report Judge; neither
-requirement transfers to another genre. Use plain paragraphs for a simple
+A status report keeps its own genre's sections; they do not transfer to
+another genre. Use plain paragraphs for a simple
 finding; tables and figures serve a real comparison. No quota rewards length,
 jargon or decoration.
 

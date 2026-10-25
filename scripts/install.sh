@@ -21,6 +21,7 @@ FAIL2BAN_SSHD_BANACTION="${FAIL2BAN_SSHD_BANACTION:-iptables-multiport[blocktype
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
 INSTALL_AGENT_WT=1
+INSTALL_LEARNING_SKILLS=1
 INSTALL_CC_SWITCH_CLI_UPDATE="${INSTALL_CC_SWITCH_CLI_UPDATE:-1}"
 CC_SWITCH_UPDATE_PROXY_MODE="${CC_SWITCH_UPDATE_PROXY_MODE:-auto}"
 CC_SWITCH_UPDATE_CONNECT_TIMEOUT="${CC_SWITCH_UPDATE_CONNECT_TIMEOUT:-10}"
@@ -81,7 +82,7 @@ select_python_bin() {
     return
   fi
 
-  # Prefer 3.11+: install_agent_workflow.py requires it (its launcher uses
+  # Prefer 3.11+; 3.10 still works for the installer helpers.
   # python -P). uv-managed interpreters count when the system one is older;
   # glob them read-only, since running uv may write its cache before the guard.
   local minor uv_dir="${UV_PYTHON_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/uv/python}"
@@ -97,7 +98,7 @@ raise SystemExit(0 if sys.version_info >= (3, int(sys.argv[1])) else 1)
 PY
         PYTHON_BIN="$candidate"
         if [[ "$minor" == 10 ]]; then
-          echo "WARNING: no Python 3.11+ found; using $PYTHON_BIN (agent-workflow install needs 3.11+)." >&2
+          echo "WARNING: no Python 3.11+ found; using $PYTHON_BIN." >&2
         fi
         return 0
       fi
@@ -2123,6 +2124,7 @@ Options:
   --no-codex-here          Do not install ~/.local/bin/codex-here.
   --no-agent-wt            Do not install the agent-wt launcher or
                            the current-scope Codex manage-worktrees Skill.
+  --no-learning-skills     Do not link the learning/writing skills into ~/.agents/skills.
   --linear-workflow, --linear-workflow-only
                            Removed: rejected. --no-linear-workflow is a no-op.
   --no-cc-switch-update    Do not update cc-switch-cli from the latest GitHub
@@ -2165,8 +2167,8 @@ Options:
                            managed skill copies against the source tree, flag
                            software left in the data root; exit 1 on any drift.
   --claude-code MODE      never|existing|latest. Default: never. Opt in to
-                          shared packages and the native Claude adapter;
-                          latest also installs/updates the native CLI.
+                          the Claude adapter (skill links, context view, no
+                          hooks); latest also installs/updates the native CLI.
   --no-claude-code        Skip the optional Claude adapter (existing state kept).
   -h, --help               Show this help.
 EOF
@@ -2235,6 +2237,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-agent-wt)
       INSTALL_AGENT_WT=0
+      shift
+      ;;
+    --no-learning-skills)
+      INSTALL_LEARNING_SKILLS=0
       shift
       ;;
     --no-cc-switch-update)
@@ -2354,6 +2360,7 @@ DATA_ROOT="$("$PYTHON_BIN" "$LAYOUT" data-root)"
 
 if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
   SOURCE_REAL="$(cd "$SOURCE_DIR" && pwd -P)"
+  export AGENT_TOOLS_INSTALL_ROOT="$INSTALL_DIR"
   linear_status=0
   claude_status=0
   select_python_bin
@@ -2363,6 +2370,9 @@ if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
     linear_status=1
   fi
   if [[ "$CLAUDE_CODE_MODE" != never ]] && ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/install_claude.py" --check; then
+    claude_status=1
+  fi
+  if [[ "$INSTALL_LEARNING_SKILLS" -eq 1 ]] && ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/install_skills.py" --check; then
     claude_status=1
   fi
   layout_status=0
@@ -2383,9 +2393,9 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   # Manifest sync: update changed files, delete files the previous install wrote
   # that are no longer shipped, and report (never delete) unmanaged files.
   "$PYTHON_BIN" "$LAYOUT" sync --source "$SOURCE_REAL" --install-root "$INSTALL_REAL"
-  # Bundles installed by the Python installers live in the same install root.
-  export AGENT_TOOLS_INSTALL_ROOT="$INSTALL_REAL"
 fi
+# The Python installers resolve the same install root.
+export AGENT_TOOLS_INSTALL_ROOT="$INSTALL_REAL"
 
 chmod +x "$INSTALL_REAL/scripts/sync_agent_context.py" "$INSTALL_REAL/scripts/sync_agent_context_cron.sh" "$INSTALL_REAL/scripts/migrate_codex_provider_bucket.py" "$INSTALL_REAL/scripts/install.sh"
 if [[ -d "$INSTALL_REAL/bin" ]]; then
@@ -2431,7 +2441,7 @@ if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
 fi
 if [[ "$CLAUDE_CODE_MODE" != never ]]; then
   select_python_bin
-  claude_args=(--install-packages --agent-core-home "$AGENT_CORE_DIR")
+  claude_args=(--agent-core-home "$AGENT_CORE_DIR")
   if [[ "$CLAUDE_CODE_MODE" == latest ]]; then
     claude_args+=(--install-cli)
   else
@@ -2449,16 +2459,14 @@ select_python_bin
   --record "$INSTALL_REAL/config/retired-packages/linear-workflow.json" \
   --repo-root "$INSTALL_REAL" --home "$HOME" --platform unix
 select_python_bin
-# Repoint existing learning bundle and Claude views, which earlier releases put in the data root.
-if [[ "$(uname -s)" == Linux ]]; then
-  if [[ "$CLAUDE_CODE_MODE" == never && -f "$HOME/.local/state/learning-workflow/install.json" ]]; then
-    "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_learning_workflow.py" \
-      || echo "WARNING: learning workflow bundle not updated; old layout items it uses stay in place." >&2
-  fi
-  if [[ "$CLAUDE_CODE_MODE" == never && -f "$HOME/.local/state/agent-tools/claude/install.json" ]]; then
-    "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_claude.py" \
-      || echo "WARNING: Claude adapter views not updated; old layout items it uses stay in place." >&2
-  fi
+if [[ "$INSTALL_LEARNING_SKILLS" -eq 1 ]]; then
+  "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_skills.py" \
+    || echo "WARNING: learning/writing skills were not linked into ~/.agents/skills." >&2
+fi
+# A Claude adapter from an earlier release registered hooks; migrate it even without --claude-code.
+if [[ "$(uname -s)" == Linux && "$CLAUDE_CODE_MODE" == never && -f "$HOME/.local/state/agent-tools/claude/install.json" ]]; then
+  "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_claude.py" --agent-core-home "$AGENT_CORE_DIR" \
+    || echo "WARNING: Claude adapter not migrated; retired hook entries may remain in ~/.claude/settings.json." >&2
 fi
 
 "$PYTHON_BIN" - "$INSTALL_REAL/agent_context_sync.config.json" "$DATA_ROOT/agent_context_sync.config.json" "$EXPLICIT_SCAN_ROOTS" "$MAX_DEPTH" "$SCOPE" "$DIRECTION" "$PREFER" "$MODE" "${SCAN_ROOTS[@]}" <<'PY'
@@ -2505,7 +2513,7 @@ fi
 
 
 echo "Installed agent context sync tools in $INSTALL_REAL"
-echo "Data root (task state, materials, logs): $DATA_ROOT"
+echo "Data root (logs): $DATA_ROOT"
 echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
 echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
 echo "agent-tools PATH: $LOCAL_BIN_PATH_STATUS"

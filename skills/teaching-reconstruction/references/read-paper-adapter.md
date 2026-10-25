@@ -1,6 +1,6 @@
 # ReadPapers material adapter
 
-Use `project_adapters/read_papers/read-paper/SKILL.md` for Zotero lookup, import, formal close reading, PDF or LaTeX attachment access, and ZotLit note management in the configured ReadPapers scope. Its project configuration resolves source and note roots; never infer them from this repository or a fixed machine path.
+Use the `read-paper` skill, maintained in the ReadPapers tooling repository and installed only for the ReadPapers project, for Zotero lookup, import, formal close reading, PDF or LaTeX attachment access, and ZotLit note management in the configured ReadPapers scope. Its project configuration resolves source and note roots; never infer them from this repository or a fixed machine path.
 
 Outside ReadPapers, teaching may consume evidence already supplied by the user or a cited project. Do not turn a paper title, citation, or manuscript draft into implicit Zotero mutation or note creation. If full library lookup or close reading is needed, record the concrete pending ReadPapers task; do not create another conversation automatically.
 

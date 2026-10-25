@@ -1,6 +1,0 @@
-interface:
-  display_name: "Intent to Contract"
-  short_description: "Discover key choices and preserve scoped requirements"
-  default_prompt: "Use $intent-to-contract to inspect this request and code, surface material choices, and maintain a sourced task agreement."
-policy:
-  allow_implicit_invocation: true

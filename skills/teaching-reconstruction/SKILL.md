@@ -9,7 +9,7 @@ Use this as the orchestrator for learning. Infer the learner's mental model, ide
 
 ## Route first
 
-Use `task-routing` and the live request to determine whether the current activity is learning. The legacy `scripts/route_teaching_intent.py` is not an authority for arbitrary natural-language classification. Once learning is selected, the orchestrator owns broad learning requests and calls focused skills when their work is needed:
+Use `task-routing` and the live request to determine whether the current activity is learning. Once learning is selected, the orchestrator owns broad learning requests and calls focused skills when their work is needed:
 
 1. `teaching-dag-builder` for local prerequisite DAGs and frontier.
 2. `evidence-anchor` for source-specific claim support.
@@ -40,7 +40,7 @@ For Zotero library operations, adding a paper, formal close reading, or ZotLit n
 
 ## Progressive resources
 
-- For legacy v1 ReadPapers manifests, templates and Stop binding, read `references/v1-readpapers-delivery.md`. Elsewhere, use `references/portable-learning-record.md` when a durable record is needed and a genre-appropriate artifact structure.
+- For legacy v1 ReadPapers manifests, templates and standalone validation, read `references/v1-readpapers-delivery.md`. Elsewhere, use `references/portable-learning-record.md` when a durable record is needed and a genre-appropriate artifact structure.
 - Use `THIRD_PARTY_NOTICES.md` when provenance for adapted teaching workflow ideas is needed.
 - The shared writing contract applies. Preserve the teaching sequence; keep essential prerequisites visible and exercise answers back until the intended stage.
 

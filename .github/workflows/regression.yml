@@ -47,9 +47,6 @@ jobs:
             suites="$(python scripts/run_regression_tests.py active --changed-from "$base_sha" --list)"
           fi
           echo "suites=$suites" >> "$GITHUB_OUTPUT"
-      - name: Install report test dependencies
-        if: contains(steps.scope.outputs.suites, 'reports')
-        run: python -m pip install markdown-it-py==4.0.0 PyYAML==6.0.2
       - name: Run affected component regressions
         env:
           BASE_SHA: ${{ steps.scope.outputs.base }}

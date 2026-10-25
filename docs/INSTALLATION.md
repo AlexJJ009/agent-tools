@@ -62,19 +62,9 @@ For ordinary Linux servers without a local proxy wrapper:
 ./scripts/install.sh --root /data-1 --codex-proxy-wrapper never
 ```
 
-The installer always enables Codex Fast defaults for the current platform's
-Codex home. On macOS this is the same `~/.codex/config.toml` used by the Codex
-App and CLI. A WSL2 run no longer patches a mounted Windows Codex profile: run
-`scripts\install-win11.ps1` from native Windows for Win11 state. The legacy
-`--codex-app-fast-wsl-windows always` mode is rejected on WSL.
-
-The installer also enables the short-term Codex SQLite log guard by default.
-This installs a trigger in `logs_2.sqlite` that ignores new diagnostic log
-rows, protecting SSD write endurance on long streaming or automation runs. On
-WSL2 it applies only to the WSL Codex home. Run `scripts\install-win11.ps1`
-for the native Win11 database. Use `--no-codex-sqlite-log-guard` to skip it, or
-`--disable-codex-sqlite-log-guard` after OpenAI fixes the upstream logging bug.
-See `docs/CODEX_SQLITE_LOG_GUARD.md`.
+The installer writes the Codex Fast defaults (`service_tier`, `[features].fast_mode`) into the
+current platform's Codex home config. A WSL2 run does not write a mounted Windows Codex
+profile: run `scripts\install-win11.ps1` from native Windows for Win11 state.
 When running installer helpers, `scripts/install.sh` probes for a working Python 3.10+
 binary first (`python3.13` through `python3.10`, then version-checked
 `python3`/`python`) before falling back, which avoids hosts where the default
@@ -102,18 +92,20 @@ from fresh keys/Base URLs, follow `docs/CLI_SERVER_BOOTSTRAP.md`.
 
 `scripts/install.sh` copies the software into the install root
 `~/.local/lib/agent-tools` (override with `--install-dir` or
-`AGENT_TOOLS_INSTALL_ROOT`); the learning bundle and Claude views go to
-`learning-workflow/` and `claude/` inside it. Task state, materials, archives
-and logs stay in the data root (`~/.local/share/agent-tools` on Linux/WSL).
-The installer refuses an install root that equals, contains or lies inside the
+`AGENT_TOOLS_INSTALL_ROOT`); the Claude context view goes to `claude/` inside it.
+Logs stay in the data root (`~/.local/share/agent-tools` on Linux/WSL). The
+installer refuses an install root that equals, contains or lies inside the
 data root. Each reinstall syncs against the manifest
 `.agent-tools-manifest.json`: files an earlier install wrote and no longer
-ships are deleted, other files are listed as unmanaged and kept. When an
+ships (for example the retired task runtime and learning runtime
+packages) are deleted, other files are listed as unmanaged and kept. When an
 earlier release was installed with `--install-dir <data root>`, the installer
-repoints skills, hooks, launchers, the Codex instruction block and crontab,
-then deletes the released software copies from the data root (modified copies
-move to `archives/legacy-install-<stamp>/`) and records each removal in the
-material ledger. Data and unknown items are listed and left alone.
+repoints launchers, instruction files and crontab, then deletes the released
+software copies from the data root (modified copies move to
+`archives/legacy-install-<stamp>/`). Data and unknown items are listed and left
+alone. The learning and writing skills are linked from the install root into
+`~/.agents/skills/` (`--no-learning-skills` skips this); see
+[learning and writing skills](LEARNING_WORKFLOW.md).
 `scripts/install.sh --check` reports install-root drift and software left in the data
 root.
 
@@ -163,8 +155,7 @@ read-only: it verifies the platform, Unix/Windows profile boundary, Codex
 provider shape, CC Switch database validation, and current provider without
 printing secrets.
 
-The standalone Fast-mode, SQLite-log, Win11 bearer-token, and provider-bucket
-scripts call the same guard themselves before writes. The guard therefore
+The standalone provider-bucket script calls the same guard themselves before writes. The guard therefore
 remains effective when a script is invoked outside `scripts/install.sh`; it is not a
 convention that callers may skip.
 
@@ -268,31 +259,6 @@ stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 ```
 
-For Codex App, this config-level Fast default is the baseline. Win11 App updates
-and patch activation use the [versioned safety workflow](../skills/codex-win11-patch-safety/SKILL.md).
-The legacy helper described below remains a distinct installer capability, not
-an exact-release update procedure. The installer can
-also prepare Codex Desktop so WSL/SSH Connections preserve the selected
-`serviceTier`:
-
-- On Win11/WSL, `--codex-desktop-connection-fast-mode auto` prepares a writable
-  patched copy of the Microsoft Store app and writes launchers plus a
-  `Codex Fast Connections` Desktop/Start Menu shortcut. Each run mirrors the
-  current Store package again, and is not a verified update route for an unknown Store build. For Codex Desktop `26.616.x`, this local step is not
-  sufficient by itself; the tokenrouter NewAPI channel must also apply the
-  scoped `/v1/responses` Codex `service_tier = "priority"` override documented
-  in `docs/CODEX_DESKTOP_CONNECTION_FAST_MODE_PATCH.md`.
-- On macOS, `auto` attempts to patch the installed `Codex.app` bundle when it
-  is writable. Use `--codex-desktop-connection-fast-mode always` when patch
-  failure should fail the install, or `--no-codex-desktop-connection-fast-mode`
-  to leave the app bundle untouched.
-
-Follow `docs/CODEX_DESKTOP_CONNECTION_FAST_MODE_PATCH.md` for launch, version
-routing, provider override, and verification. A correctly configured app-server
-should report Fast-capable settings, but the authoritative check is the real
-provider log and billing row for the request. In the current newapi -> sub2api
-chain, the value to verify is `priority`; `fast` is only a legacy/UI alias.
-
 Before running the Codex provider-bucket migration, the installer updates
 `cc-switch-cli` from the latest GitHub release installer. Use
 `--no-cc-switch-update` only when the target machine cannot or should not reach
@@ -326,11 +292,6 @@ This configures the following defaults:
 - **Feature flags** (`[features]` block). Enables `fast_mode`, `hooks`, `memories`,
   `goals`, `terminal_resize_reflow`, and `remote_control`. The installer also
   removes the deprecated `codex_hooks` key if present.
-- **Temporary SQLite log guard** (`logs_2.sqlite` trigger). Blocks new
-  high-volume diagnostic log rows as a short-term SSD protection patch. It does
-  not affect `state_5.sqlite`, sessions, auth, memories, goals, plugins, Fast
-  Mode, Connections, or cc-switch provider billing. Disable with
-  `--disable-codex-sqlite-log-guard` once upstream logging is fixed.
 
 The installer also installs:
 
@@ -368,14 +329,8 @@ env vars: `CODEX_APPROVAL_POLICY`, `CODEX_SANDBOX_MODE`,
 `CODEX_FEATURE_TERMINAL_RESIZE_REFLOW` / `CODEX_FEATURE_REMOTE_CONTROL`
 (each accepts `true` or `false`).
 
-The temporary SQLite log guard is controlled separately:
-`INSTALL_CODEX_SQLITE_LOG_GUARD`, `CODEX_SQLITE_LOG_GUARD_MODE`
-(`enable|disable|status`), `CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS`
-(`auto|always|never`), and `CODEX_SQLITE_LOG_GUARD_VACUUM` (`0|1`).
-
 `--no-codex-config` skips the broader default rewrite, proxy wrapper and
-remote-control start. Explicit provider-migration options remain independent. It does not skip the small Codex App Fast
-config patch; add `--no-codex-app-fast-mode` when that should also be disabled.
+remote-control start. Explicit provider-migration options remain independent.
 
 When Codex config patching is enabled, the installer also scans existing
 project-level `.codex/config.toml` files under the configured `--root` paths and

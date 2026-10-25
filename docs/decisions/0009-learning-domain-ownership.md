@@ -2,7 +2,7 @@
 
 Date: 2026-09-30
 
-Status: Accepted for source implementation; installed-profile cutover is separate.
+Status: Accepted for source implementation; installed-profile cutover is separate. Superseded in part by [ADR 0012](0012-retire-workflow-runtime.md) (the learning runtime and the knowledge-deposition-doc alias were removed; the skill ownership split remains).
 
 ## Context and Problem Statement
 

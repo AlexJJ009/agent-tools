@@ -2,7 +2,7 @@
 
 Date: 2026-09-29
 
-Status: Accepted
+Status: Accepted; superseded in part by [ADR 0012](0012-retire-workflow-runtime.md) (the learning runtime, routes and Stop hook it relies on were removed; the teaching artifact validator remains as a standalone script).
 
 ## Context and Problem Statement
 

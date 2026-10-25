@@ -37,11 +37,9 @@ import/setup error. Production bypass switches are not a testing requirement.
 ## Run and scope regressions
 
 Use Python 3.11+ in an isolated environment, with Git, Bash and Node.js on PATH.
-Only the report parser suite needs additional packages, at the versions used by
-`skills/work-report/scripts/report_tool.py`:
+The suites need no third-party packages.
 
 ```bash
-python -m pip install markdown-it-py==4.0.0 PyYAML==6.0.2
 python scripts/run_regression_tests.py active
 python scripts/run_regression_tests.py active --changed-from origin/main --list
 python scripts/run_regression_tests.py active --changed-from origin/main
@@ -56,23 +54,18 @@ Partial skips remain visible and do not establish platform coverage.
 
 | Suite | Reason to keep this boundary | Thinner execution / limits |
 |---|---|---|
-| `task-runtime` | Revision conflicts, evidence validity, cleanup ownership, interrupted recovery and query consistency can corrupt or misrepresent real task state | Temporary SQLite/filesystem scenarios on Task Runtime or shared fixture changes; no model runs |
-| `workflow-records` | Existing legacy records still use installed Agent Workflow authorization, snapshots and hooks | Separate from retired Linear; run on its runtime/installer changes, not every task edit |
-| `learning` | Installed routing/actions, teaching structure, staged Git input and package rollback have different consumers | Rule matrices use direct validator calls; representative CLI/hook tests check integration. No teaching-quality claim |
-| `report-integration` | Installers, timer and hook adapters can misconfigure otherwise correct report code | Run with affected report adapters; no live model or scheduler service required |
-| `reports` | Report evidence, receipt invalidation, scheduling and delivery state must agree at their actual boundaries | Parser rules plus representative real runtime/finalizer integration. Stub Judges do not prove writing quality |
-| `installation` | Cross-profile writes, unsafe defaults and destructive removal of foreign installations affect user state | Isolated profiles and real helpers on installer/dependency changes. Native-platform source checks remain limited |
+| `claude-adapter` | Settings edits, skill links and the generated context view touch the user's Claude profile and must keep foreign settings and entries | Temporary profiles with fixture install roots; no Claude CLI and no hook execution |
+| `learning` | The kept teaching artifact validator, vault pre-commit check and the shared writing contract copy must stay consistent | Rule matrices use direct validator calls; a few CLI/Git cases check integration. No teaching-quality claim |
+| `installation` | Cross-profile writes, unsafe defaults, skill-link replacement and destructive removal of foreign installations affect user state | Isolated profiles and real helpers on installer/dependency changes. Native-platform source checks remain limited |
 | `worktrees` | Git worktree operations must respect paths, ownership, unsupported flags and existing state | Temporary Git repositories on component/installer changes |
-| `win11-patch` | Patcher parsing, state preservation and snapshot payloads protect native update preparation | Component-only fixture checks; Linux CI does not prove native App activation or rollback |
-| `evaluation-fixtures` | Historical-case oracles and the optional evaluation driver must reject deliberately broken outputs | Only their own/fixture changes; evaluator tests are not Agent evaluations |
+| `project-evals` | Project-local build-eval and hillclimb skills must reject deliberately broken outputs | Only their own changes; evaluator tests are not Agent evaluations |
 | `test-runner` | Wrong suite selection, empty discovery and swallowed failure/skip results would hide missing coverage | Fast tests on runner/CI changes; not a second product acceptance suite |
 
 The selector in `scripts/run_regression_tests.py` owns component dependencies.
 Shared installer/guard/CI changes and unknown production paths conservatively
 select all active suites; known component changes select their consumers.
 Documentation-only changes run whitespace checking and still need content
-review; unchanged runtimes are not evidence about prose. Report dependencies
-are installed only when the report suite is selected. No selector or green CI
+review; unchanged runtimes are not evidence about prose. No selector or green CI
 run establishes coverage of product behavior for which no test exists.
 
 ## CI and historical checks
@@ -85,17 +78,9 @@ Linear planning gate. CI repeats regression tests; it is not another independent
 test population. Independent review evaluates requirements, implementation and
 gaps, not another numerical suite.
 
-The old acceptance-harness self-tests are explicit-only:
-
-```bash
-python scripts/run_regression_tests.py workflow-acceptance
-```
-
-The `repository` alias deliberately runs all top-level tests, including those
-historical harness self-tests. Normal `active`/affected runs do not. Keep active
+The `repository` alias runs every top-level test module in one pass. Keep active
 installer checks that remove stale retired copies only when verified and
 preserve modified/user-owned files.
 
-Native hook activation, native Windows deployment, semantic Judge accuracy,
-writing quality and live service behavior need their own real-scene checks.
+Native Windows deployment, writing quality and live service behavior need their own real-scene checks.
 They must not be claimed from these deterministic suites.

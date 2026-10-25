@@ -8,6 +8,8 @@ param(
   [switch]$NoLinearWorkflow,
   [switch]$NoCodexManualRemoteConnect,
   [string]$ManualRemoteConnectScript = "C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1",
+  # Removed with the Win11 Codex configurator and SQLite log guard (ADR 0012); accepted and ignored.
+  # This script no longer writes Win11 Codex config, so -NoCodexConfig has nothing to skip.
   [switch]$NoCodexConfig,
   [switch]$NoCodexSqliteLogGuard,
   [switch]$DisableCodexSqliteLogGuard,
@@ -133,20 +135,6 @@ function Copy-Managed {
   }
 }
 
-function Install-CodexPatchSafetySkill {
-  param(
-    [Parameter(Mandatory = $true)][string]$RepoRoot,
-    [Parameter(Mandatory = $true)][string]$TargetHome
-  )
-
-  $source = Join-Path $RepoRoot "skills\codex-win11-patch-safety"
-  if (-not (Test-Path -LiteralPath (Join-Path $source "SKILL.md"))) {
-    throw "Codex patch safety skill missing: $source"
-  }
-  Copy-Managed $source (Join-Path $TargetHome ".codex\skills\codex-win11-patch-safety")
-  Write-Host "Installed Codex Win11 patch safety skill."
-}
-
 function Install-AgentWt {
   param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
@@ -193,38 +181,6 @@ function Install-CodexManualRemoteConnect {
   Write-Host "Codex manual remote-connect helper installed: $TargetScript"
 }
 
-function Install-CodexWin11SubscriptionConfig {
-  param(
-    [Parameter(Mandatory = $true)][string]$RepoRoot,
-    [Parameter(Mandatory = $true)][string]$TargetCodexHome,
-    [Parameter(Mandatory = $true)][string]$TargetCcSwitchDb
-  )
-
-  $script = Join-Path $RepoRoot "scripts\configure_codex_win11_subscription.py"
-  Invoke-AgentToolsPython $script `
-    --codex-home $TargetCodexHome `
-    --cc-switch-db $TargetCcSwitchDb
-}
-
-function Install-CodexSqliteLogGuard {
-  param(
-    [Parameter(Mandatory = $true)][string]$RepoRoot,
-    [Parameter(Mandatory = $true)][string]$TargetCodexHome
-  )
-
-  $script = Join-Path $RepoRoot "scripts\configure_codex_sqlite_log_guard.py"
-  $mode = "enable"
-  if ($DisableCodexSqliteLogGuard) {
-    $mode = "disable"
-  }
-
-  $args = @("--mode", $mode, "--codex-home", $TargetCodexHome)
-  if ($CodexSqliteLogGuardVacuum) {
-    $args += "--vacuum"
-  }
-  Invoke-AgentToolsPython $script @args
-}
-
 function Invoke-CodexProviderBucketMigration {
   param(
     [Parameter(Mandatory = $true)][string]$RepoRoot,
@@ -256,8 +212,6 @@ function Invoke-CodexProviderBucketMigration {
 
 Assert-CodexTargetGuard -RepoRoot $Root -TargetUserHome $UserHome -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
 
-Install-CodexPatchSafetySkill -RepoRoot $Root -TargetHome $UserHome
-
 if (-not $NoAgentWt) {
   Install-AgentWt -RepoRoot $Root -TargetHome $UserHome -TargetCodexHome $CodexHome
 } else {
@@ -271,18 +225,6 @@ if (-not $NoCodexManualRemoteConnect) {
   Install-CodexManualRemoteConnect -RepoRoot $Root -TargetHome $UserHome -TargetScript $ManualRemoteConnectScript
 } else {
   Write-Host "Codex manual remote-connect helper not installed (-NoCodexManualRemoteConnect)."
-}
-
-if (-not $NoCodexConfig) {
-  Install-CodexWin11SubscriptionConfig -RepoRoot $Root -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
-} else {
-  Write-Host "Win11 Codex subscription config not changed (-NoCodexConfig)."
-}
-
-if (-not $NoCodexSqliteLogGuard) {
-  Install-CodexSqliteLogGuard -RepoRoot $Root -TargetCodexHome $CodexHome
-} else {
-  Write-Host "Codex SQLite log guard not changed (-NoCodexSqliteLogGuard)."
 }
 
 if (-not $NoCodexProviderBucketMigration -and ($ApplyCodexProviderBucketMigration -or $DryRunCodexProviderBucketMigration -or $KillRunningCodexProviderBucketMigration)) {

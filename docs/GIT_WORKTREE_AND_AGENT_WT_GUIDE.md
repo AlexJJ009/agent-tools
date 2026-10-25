@@ -209,7 +209,7 @@ Hugging Face Hub cache 已经使用 blobs + snapshots + symlinks 在 revision �
 
 ### 6.2 为什么不默认放 `/tmp`
 
-- reboot、tmp cleaner 或系统策略可能删除；
+- reboot、tmp 清理任务或系统策略可能删除；
 - 无 owner/task/TTL 时无法区分活跃和孤儿；
 - 路径不稳定，不适合长任务和恢复。
 
@@ -498,7 +498,7 @@ the prototype branch was not merged.
 | `skills/manage-worktrees/scripts/agent_wt.py` | revise | Keep the standard-library core and five commands. Replace `--setup`, silent Win11 locking, Unix-only allocated-size use, unversioned JSON, incomplete error codes, and incomplete path policy. |
 | `skills/manage-worktrees/tests/test_agent_wt.py` | replace | Expand from happy-path smoke tests to contract, collision, policy precedence, no-mutation, scan-bound, Win11 path/state/locking, and subprocess-quoting tests. |
 | `tests/test_install_target_guard_wiring.py` | revise | Restore it on the approved base, then assert guard-before-write and duplicate-free current/legacy Skill locations on Unix and Win11. |
-| Prototype-only Codex patch-safety hunks mixed into `scripts/install.sh` | remove | They are outside DRAGAI-94 and already have independent ownership; the immutable snapshot preserves them for audit, but the Delivery import does not reintroduce them. |
+| Prototype-only Codex Win11 patch hunks mixed into `scripts/install.sh` | remove | They are outside DRAGAI-94 and already have independent ownership; the immutable snapshot preserves them for audit, but the Delivery import does not reintroduce them. |
 
 No prototype line receives completion credit from this table alone. The later
 Issue sections bind each retained behavior to targeted tests, candidate CI, and

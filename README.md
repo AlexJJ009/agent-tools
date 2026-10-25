@@ -1,7 +1,7 @@
 # Agent Tools
 
-Tools for agent workflows, learning and writing, project context synchronization,
-and machine setup. [System guides](docs/README.md) describe current interfaces;
+Tools for learning and writing skills, project context synchronization,
+managed worktrees and machine setup. [System guides](docs/README.md) describe current interfaces;
 [architecture decisions](docs/decisions/README.md) explain adopted boundaries.
 
 ## Setup
@@ -20,33 +20,23 @@ for managed install/data roots, platform options, cron, guards and rollback;
 configures per-server providers. Build a portable archive with
 `./scripts/pack.sh`.
 
-The development workflow suite has a separate Linux/WSL installer:
-
-```bash
-python3 scripts/install_agent_workflow.py
-python3 scripts/install_agent_workflow.py --check
-```
-
-It installs skills under `~/.agents/skills/` and runtime under
-`~/.local/share/agent-workflow/`; see [agent workflow](docs/AGENT_WORKFLOW.md).
+The installer links the learning and writing skills from the install root into
+`~/.agents/skills/`; `--claude-code existing` also links them into
+`~/.claude/skills/`. Agent Tools registers no Codex or Claude hooks and keeps no
+task state; see [ADR 0012](docs/decisions/0012-retire-workflow-runtime.md).
 
 ## Components
 
 | Component | Source and entry points | Guide |
 |---|---|---|
 | Project context sync | `scripts/sync_agent_context.py`, `scripts/sync_agent_context_cron.sh` | [Context synchronization](docs/CONTEXT_SYNC.md) |
-| Project memory | `scripts/codex_project_memory.py` | [Memory sync and migration](docs/CODEX_PROJECT_MEMORY.md) |
-| Task state and material inventory | `agent_workflow/`, installed `agent-workflow` | [Task runtime](docs/TASK_RUNTIME.md) |
-| Development skills | `skills/{intent-to-contract,infra-verification,cleaner,acceptance-gate,reviewer-brief}/` | [Agent workflow](docs/AGENT_WORKFLOW.md) |
-| Learning and writing | `learning_workflow/`, `skills/` | [Learning workflow](docs/LEARNING_WORKFLOW.md) |
-| Work Report | `skills/work-report/` | [Reports](docs/WORK_REPORT.md), [timer](docs/WORK_REPORT_LIGHT_TIMER.md) |
+| Learning and writing skills | `skills/{academic-writing,teaching-reconstruction,evidence-anchor,retrieval-practice,teaching-dag-builder,learning-artifact-compiler,task-routing}/`, `shared/writing/` | [Learning skills](docs/LEARNING_WORKFLOW.md) |
 | Managed worktrees | `bin/agent-wt`, `skills/manage-worktrees/` | [Worktrees](docs/GIT_WORKTREE_AND_AGENT_WT_GUIDE.md) |
-| Claude Code adapter | `adapters/claude/`, `scripts/install_claude.py` | [Claude adapter](docs/CLAUDE_CODE_ADAPTER.md) |
-| Win11 Codex patch safety | `skills/codex-win11-patch-safety/` | [Versioned patch workflow](skills/codex-win11-patch-safety/SKILL.md) |
-| Codex setup and repair | `scripts/configure_codex_*.py`, `scripts/migrate_codex_provider_bucket.py` | [Platform guides](docs/README.md#platform-and-operation-guides) |
+| Claude Code adapter | `adapters/claude/`, `scripts/install_claude.py`, `scripts/install_skills.py` | [Claude adapter](docs/CLAUDE_CODE_ADAPTER.md) |
+| Codex setup and repair | `scripts/migrate_codex_provider_bucket.py` | [Platform guides](docs/README.md#platform-and-operation-guides) |
 | Workspace launcher | `bin/codex-here` | [Remote control](docs/CODEX_REMOTE_CONTROL.md) |
 
-Software installs under `~/.local/lib/agent-tools`; application data and logs
+Software installs under `~/.local/lib/agent-tools`; logs
 stay under `~/.local/share/agent-tools`. Reinstallation removes obsolete managed
 software and keeps unrelated files. Machine-local configuration and private
 outputs remain untracked. [CONTRIBUTING.md](CONTRIBUTING.md) defines repository

@@ -3,7 +3,7 @@
 One central Agent Tools installation per machine mirrors Claude Code
 (`CLAUDE.md`, `.claude/`) and Codex (`AGENTS.md`, `.codex/`) project context.
 Projects receive bridge files and mirrored configuration rather than full tool
-copies. Project memory is a separate component; see [project memory](CODEX_PROJECT_MEMORY.md).
+copies.
 
 ## Config
 
@@ -51,13 +51,6 @@ python3 scripts/sync_agent_context.py heartbeat
 Sync one project:
 
 ```bash
-python3 scripts/sync_agent_context.py sync /path/to/project --direction bidirectional
-```
-
-Initialize project-level Codex memory:
-
-```bash
-python3 scripts/codex_project_memory.py sync /path/to/project --direction both
 python3 scripts/sync_agent_context.py sync /path/to/project --direction bidirectional
 ```
 

@@ -1,165 +1,64 @@
-# Learning workflow runtime
+# Learning and writing skills
 
-The Main Agent reads the user's current request, exclusions, active agreement,
-and source scope. It supplies the semantic decision. `learning-workflow` stores
-and checks that decision; it does not classify keywords or certify meaning.
-Use Python 3.11+ on Linux/WSL for the installed suite: registration reads TOML with `tomllib`, and local file locks use `fcntl`. Native Windows execution is not supported by this installer.
-
-See [installation and rollback](LEARNING_WORKFLOW_INSTALL.md) for the supported local profile setup.
+Seven skills carry the learning and writing methods: `task-routing`,
+`academic-writing`, `teaching-reconstruction`, `teaching-dag-builder`,
+`evidence-anchor`, `retrieval-practice` and `learning-artifact-compiler`. They are
+plain skills: instructions and reference files with no CLI, hooks, background
+service or stored state. Each session works from the user's request and the
+conversation; when a session resumes, the user restates the context
+([ADR 0012](decisions/0012-retire-workflow-runtime.md)).
 
 ## Ownership
 
-The seven reusable skills (`task-routing`, `academic-writing`, `teaching-reconstruction`, `teaching-dag-builder`, `evidence-anchor`, `retrieval-practice`, `learning-artifact-compiler`) belong at user scope. Agent Tools also owns `knowledge-deposition-doc` as a compatibility entry for the former Agent Core workflow, not an eighth independent teaching process. The packaged `read-paper` adapter is installed only in an explicitly selected ReadPapers project; that project owns its library configuration, notes, ZotLit regions and reader data. Packaging the adapter does not authorize library operations in other projects. Development acceptance and Work Report retain their own contracts.
+Agent Core provides stable user and collaboration context. The Main Agent selects
+the current activity from the latest request, exclusions and source scope
+(`task-routing`); learning uses the teaching orchestrator and its domain
+methods, while ordinary code investigation stays delivery. Code learning covers
+problem solving, task decomposition, module decoupling, architecture and
+ownership, control flow and engineering trade-offs. Paper learning retains
+motivation, problem, contribution, assumptions and experimental evidence. Both use
+one shared writing contract and one practice owner. See
+[the ownership decision](decisions/0009-learning-domain-ownership.md).
 
-Agent Core provides stable user/collaboration context. Main selects the current
-activity; learning uses the teaching orchestrator and domain methods, while
-ordinary code investigation stays delivery. Code learning covers problem
-solving, task decomposition, module decoupling, architecture/ownership, control
-flow, and engineering trade-offs. Paper learning retains motivation, problem,
-contribution, assumptions, and experimental evidence. Both use one shared
-writing contract and one practice owner.
+`learning-artifact-compiler` writes or revises a requested standalone learning
+document. It can work from inspected sources without a previous teaching session
+or completed exercises. It writes the finished note to the destination the user
+named. Full initial drafts and substantial feedback-driven revisions are supported;
+small interactive units are an option, not a requirement. Retention and practice
+normally focus on up to three abilities per learning session, without limiting the
+document's coverage. Material review, reading progress, actual attempts and
+selected retention remain separate.
 
-`learning-artifact-compiler` means writing or revising a requested standalone
-learning document. It can work from inspected sources without a previous
-teaching session or completed exercises. Full initial drafts and substantial
-feedback-driven revisions are supported; small interactive units are an option,
-not a universal requirement. Retention/practice normally focuses on up to three
-abilities per learning session, without limiting the document's coverage.
-Material review, reading progress, actual attempts, and selected retention remain
-separate. See [the ownership decision](decisions/0009-learning-domain-ownership.md).
+Practice follow-through is an Agent instruction, not a background service. Nothing
+schedules review, delivers notifications, captures answers or synchronizes
+calendar events; existing queues remain with their owning project.
 
-Practice follow-through is an Agent instruction, not a background service. The
-current runtime does not schedule review, deliver notifications, capture answers,
-or synchronize calendar events. Existing queues remain with their owning project;
-calendar writes use the authorized calendar capability, never the teaching
-manifest validator. Old v2 design notes are historical proposals, not proof that
-their scheduler/state services exist.
+The `read-paper` skill (Zotero library, formal close reading, ZotLit notes)
+belongs to the ReadPapers tooling repository, not to Agent Tools. The teaching
+skill keeps the frozen v1 ReadPapers artifact contract and its standalone
+validator, `skills/teaching-reconstruction/scripts/validate_teaching_artifact.py`
+(also used by the vault pre-commit asset). Existing ZotLit managed regions are
+never rewritten.
 
-## Minimal use
+## Writing contract
 
-Run `learning-workflow decision-schema` for field types and an example packet.
-Skill instructions and CLI help are English; request snapshots and generated
-content may be in the user's chosen language. Create a route record only when a
-learning/writing task must continue across sessions or tasks; otherwise route in
-conversation. On a persisted route, record and classify later input only when it
-changes the route; a bound session's Hook saves prompts as pending input, which
-must be classified before curation. Request and decision packets are transient
-inputs under `docs/_local/scratch/<task-id>/`.
+W1-W9 are maintained at `shared/writing/reader-facing-contract.md`.
+`scripts/sync_writing_contract.py --write` regenerates the copy packaged in
+`academic-writing` (`--check` detects drift). `academic-writing` supports direct
+draft, revision and argument review without teaching state.
 
-```sh
-learning-workflow init --query request.txt --decision decision.json \
-  --workspace /path/to/project --session-id ACTUAL_NATIVE_SESSION_ID
-learning-workflow show --record /path/returned/by/init
-learning-workflow input --record /path/to/record --input-id turn-2 --query turn-2.txt
-learning-workflow classify --record /path/to/record --input-id turn-2 \
-  --decision next-decision.json --base-revision 2
-```
+## Installation
 
-`input` advances the revision. Read its result before classifying. Identical
-input/decision retries are idempotent; changed content under the same ID is an
-error. Stale updates fail. If a newer input has already been classified, an older
-pending input can only be resolved with the current decision; it cannot restore
-an earlier activity or remove newer exclusions. Classification/read operations
-remain available while input is pending.
+`scripts/install.sh` copies the skills to `~/.local/lib/agent-tools/skills/<name>`
+and `scripts/install_skills.py` links them into `~/.agents/skills/<name>`, where
+Codex discovers them (`--no-learning-skills` skips this). With
+`--claude-code existing|latest`, the [Claude adapter](CLAUDE_CODE_ADAPTER.md)
+links the same directories into `~/.claude/skills/<name>`.
 
-New records default to ignored `docs/_local/tasks/<task-id>/` in the current worktree. Add `/docs/_local/` to the repository ignore rules when adopting this convention. Explicit record locations and existing task IDs remain valid; no bulk migration is performed.
-
-`routing.json` is canonical and contains the versioned decision under `decision`,
-request snapshots, input states, and a compact history. `task.md` is a derived
-view. A development task uses `development_record_ref: {path, revision}` and
-stores the route in the existing record directory, with `routing.md` as its view.
-The reference `path` is a directory containing `checklist.yaml` or a
-project-equivalent `task.md`; it is not the Markdown file itself. Omit `--record`
-or use that same directory. Read the revision from the actual project record.
-It never overwrites the development `request.txt`, `task.md`, or checklist.
-A reference is not a second authorization or acceptance record.
-
-## Covered operations and limits
-
-Use `learning-workflow check-action --help` and `learning-workflow curate --help`
-for the exact flags and required revision/path inputs.
-
-`check-action` checks a named action at the expected route revision. Ordinary
-reads can continue with pending input. Dependent writes require resolved input,
-available selected skills and declared output paths. Default skill lookup includes
-user and workspace `.agents/skills`, `.codex/skills` and `.claude/skills`;
-explicit `skill_roots` replaces this search list. A failed
-capability check is recovered in the existing task record. For an inspected
-location correction, snapshot the preserved request with a distinct recovery
-input ID and classify at the returned revision; this creates no new authority.
-Library/close-reading
-checks additionally require the explicit configured ReadPapers scope and the
-project adapter. Remote read scopes use canonical `host:/absolute/path`
-locators, with no traversal segments. A code read never authorizes an experiment.
-Experiments and external publication must use their existing authorization
-mechanism; this runtime does not launch either.
-
-These checks validate supplied facts, not the truth of a model's permission
-claim. Main must ground scopes in the user request and actual project config.
-They do not intercept arbitrary Python, shell, MCP, filesystem access or chat.
-There is no central daemon, hidden classification request, or general sandbox.
-
-`curate` is a real guarded write entry: it rechecks state even with Hooks off,
-copies a finished note, and creates one `artifact-index.json` in the selected
-knowledge directory. An explicit stable `project_id` plus source-relative path
-identifies an entry. A directory basename is insufficient. Reimport updates the
-same entry but refuses to overwrite a curated file edited since the last import.
-Source project ID/revision/path and artifact digest retain provenance. An absent
-Git revision remains null. Main must still review self-containedness and privacy.
-Use `inspect-index --index PATH [--source-root DIR]` after relocation to read
-actual artifact/source availability; missing source access is not synchronization.
-Curation cannot place artifacts inside the route's internal state directory.
-
-## Native Hook boundary
-
-`learning-workflow bind --record DIR --session-id ID --workspace DIR
---state-root DIR [--on-stop]` binds one actual session/workspace pair. Unbound
-SessionStart adds only the actual host identity and a one-line persistence
-rule; unbound UserPromptSubmit adds nothing. They do not create a persistent
-record or start a classifier. Codex's internal memory-writing session
-(`$CODEX_HOME/memories` or a `Memory Writing Agent` prompt) is ignored by all
-three hook runtimes. Bound input is saved before Main classifies it. Hosts
-lacking turn IDs only provide content-level prompt retry identity; repeated
-identical requests cannot be distinguished there without an explicit
-`input-id`. The Claude adapter supplies Claude's `prompt_id` as `turn_id`.
-
-For a requested legacy v1 teaching deliverable governed by the
-[teaching artifact contract](../skills/teaching-reconstruction/references/artifact-contract.md),
-bind its actual output paths explicitly:
-
-```sh
-learning-workflow bind --record /path/to/record --session-id ACTUAL_NATIVE_SESSION_ID \
-  --workspace /path/to/project --teaching-artifact /path/to/output.md
-```
-
-Each artifact must already be an exact current `decision.output_targets` entry.
-Portable learning notes and other genre-specific outputs use their own applicable
-checks; do not bind them to the v1 manifest validator. Repeat
-`--teaching-artifact` for each applicable current legacy v1 teaching output. Rebind after route
-changes so the delivery uses the current revision. The Hook validates these
-objects, including missing or malformed required artifacts; reading an old
-template or mentioning a path does not register it. Plain answers and ordinary
-reports do not become teaching artifacts. `--on-stop` is a separate explicit
-routing closeout obligation, not a requirement for ordinary learning.
-
-The adapter declares five events. PreToolUse/PostToolUse recognize direct
-`learning-workflow curate` and `python -m learning_workflow curate` invocations
-for `Bash` and `exec_command`-shaped payloads. Compound shell commands and other
-tools are outside automatic coverage. The real curation entry validates even
-with Hooks disabled. PostToolUse records an observation, never acceptance.
-Registration checks and local tests do not prove event delivery by a particular
-native host; verify host trust/loading separately before making that claim.
-
-## Migration compatibility
-
-The old keyword router remains importable, but a prompt without an explicit
-Main decision returns `semantic-decision-required`, never a teaching route.
-The v1 teaching validator, fixtures and Zotero resolver retain their original
-bytes/behavior. Existing ZotLit managed regions are not rewritten. New portable
-learning records are opt-in; no bulk conversion is performed.
-
-W1–W9 are maintained at `shared/writing/reader-facing-contract.md`. Generated
-copies let the report and brief work independently. Their six-section reporting
-and report Judge stay genre-specific. `academic-writing` supports direct draft,
-revision and argument review without teaching state. ReadPapers' adapter stays
-project-local; other repositories may consume supplied evidence.
+The linker replaces discovery links left by earlier releases (the learning bundle
+or the old data-root locations) and removes links to retired skills that point into
+agent-tools locations. It preserves any other entry in those directories, including
+real directories, and reports them. Hooks, `~/.codex/AGENTS.md` instruction blocks, launchers, the bundle directory in
+the install root and the route state written by the earlier learning runtime are not
+touched by the installer; remove them by hand (paths in
+[ADR 0012](decisions/0012-retire-workflow-runtime.md)).

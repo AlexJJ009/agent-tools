@@ -1,6 +1,6 @@
 # Portable learning record
 
-Use this small `learning-record/1` JSON document for new durable learning in code, architecture, logs, or other material outside the ReadPapers library. It is separate from the `task-route/1` record and the frozen `teaching-reconstruction:v1` manifest. The v1 validator continues to validate v1 documents only. Never silently convert or rewrite old notes.
+Use this small `learning-record/1` JSON document for new durable learning in code, architecture, logs, or other material outside the ReadPapers library. It is separate from the frozen `teaching-reconstruction:v1` manifest. The v1 validator continues to validate v1 documents only. Never silently convert or rewrite old notes.
 
 ```json
 {
@@ -24,5 +24,5 @@ For authorized later review, follow the sibling `retrieval-practice` skill's
 `learning_checks`, and the existing owning queue rather than duplicating answers
 in several stores. Keep material review and reading progress separate from
 attempt results; a complete document may have no observed attempts. Additional
-follow-up fields are optional conventions, not a new runtime-validated schema
+follow-up fields are optional conventions, not a validated schema
 or automatic scheduler. Do not retrofit them into frozen v1 manifests.

@@ -35,35 +35,23 @@ class RegressionRunnerTests(unittest.TestCase):
 class ComponentSelectionTests(unittest.TestCase):
     def test_related_components_run_and_unrelated_platforms_do_not(self):
         cases = {
-            'adapters/claude/native_hook.py': {'claude-adapter'},
-            'scripts/install_claude.py': {'claude-adapter'},
-            '.claude/skills/build-eval': {'claude-adapter'},
-            'tests/test_claude_hooks.py': {'claude-adapter'},
+            'adapters/claude/install.py': {'claude-adapter', 'installation'},
+            'scripts/install_claude.py': {'claude-adapter', 'installation'},
+            'scripts/install_skills.py': {'claude-adapter', 'installation'},
             'tests/test_install_claude.py': {'claude-adapter'},
             '.agents/skills/build-eval/SKILL.md': {'project-evals'},
             'tests/test_project_eval_skills.py': {'project-evals'},
-            'agent_workflow/task_store.py': {'task-runtime', 'workflow-records', 'installation'},
-            'learning_workflow/runtime.py': {'learning'},
-            'skills/work-report/scripts/report_tool.py': {'reports', 'report-integration'},
-            'skills/work-report/tests/test_report_tool.py': {'reports'},
-            'skills/work-report/references/writing-contract.md': {'reports', 'report-integration', 'learning', 'installation'},
+            'skills/teaching-reconstruction/scripts/validate_teaching_artifact.py': {'learning', 'installation'},
             'skills/manage-worktrees/scripts/agent_wt.py': {'worktrees', 'installation'},
-            'skills/codex-win11-patch-safety/scripts/patch_release.py': {'win11-patch', 'installation'},
             'config/retired-packages/linear-workflow.json': {'installation'},
             'tests/test_retired_package_cleanup.py': {'installation'},
-            'tests/test_task_store.py': {'task-runtime'},
-            'scripts/verify_workflow_increment.py': set(),
-            'tests/test_workflow_increment_acceptance.py': set(),
-            'scripts/evaluate_task_runtime.py': {'evaluation-fixtures'},
-            'tests/fixtures/task_runtime/oracle.py': {'evaluation-fixtures', 'task-runtime'},
-            'scripts/install_agent_workflow_hooks.py': {'workflow-records', 'installation'},
-            'tests/test_install_learning_workflow.py': {'learning'},
-            'tests/test_install_work_report.py': {'report-integration'},
+            'tests/test_install_skills.py': {'installation'},
+            'tests/test_teaching_validator.py': {'learning'},
             'tests/test_regression_runner.py': {'test-runner'},
-            'docs/TASK_RUNTIME.md': set(),
+            'docs/README.md': set(),
             'CONTRIBUTING.md': set(),
-            '.gitignore': {'workflow-records', 'reports'},
-            'skills/work-report/scripts/sync_writing_contract.py': {'learning', 'reports', 'report-integration', 'installation'},
+            'shared/writing/reader-facing-contract.md': {'learning', 'claude-adapter', 'installation'},
+            'scripts/sync_writing_contract.py': {'learning', 'claude-adapter', 'installation'},
         }
         for path, expected in cases.items():
             with self.subTest(path=path):
@@ -72,9 +60,9 @@ class ComponentSelectionTests(unittest.TestCase):
                      'scripts/run_regression_tests.py', 'scripts/codex_target_guard.py', 'new_runtime/new_module.py'):
             with self.subTest(path=path):
                 self.assertEqual(runner.select_suites([path]), runner.ACTIVE)
-        self.assertEqual(set(runner.select_suites(['docs/README.md', 'learning_workflow/runtime.py',
-                                                  'skills/work-report/scripts/report_tool.py'])),
-                         {'learning', 'reports', 'report-integration'})
+        self.assertEqual(set(runner.select_suites(['docs/README.md', 'skills/task-routing/SKILL.md',
+                                                  'bin/agent-wt'])),
+                         {'learning', 'worktrees', 'installation'})
 
     def test_current_modules_have_one_owner_and_unknown_tests_fail_explicitly(self):
         for path in (runner.ROOT / 'tests').glob('test_*.py'):

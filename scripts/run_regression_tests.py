@@ -2,38 +2,27 @@
 """Run scoped component regressions."""
 import argparse
 import fnmatch
-import os
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 # One test file belongs to one automatic group. The repository alias is retained
 # for a deliberate full top-level run; it is not also run by `active`.
 ROOT_GROUPS = {
-    'claude-adapter': ('test_claude_*', 'test_install_claude.py'),
+    'claude-adapter': ('test_install_claude.py',),
     'project-evals': ('test_project_eval_skills.py',),
-    'evaluation-fixtures': ('test_task_runtime_cases.py', 'test_task_eval_runner.py'),
-    'workflow-acceptance': ('test_workflow_increment_acceptance.py',),
-    'task-runtime': ('test_task_*', 'test_process_cleanup.py'),
-    'workflow-records': ('test_workflow_*', 'test_agent_workflow*'),
-    'learning': ('test_learning_*', 'test_teaching_*', 'test_scoped_teaching_*',
-                 'test_writing_contract_*', 'test_install_learning_*'),
-    'report-integration': ('test_report_*', 'test_install_work_report*'),
+    'learning': ('test_teaching_*', 'test_writing_contract_*'),
     'test-runner': ('test_regression_runner.py',),
-    'installation': ('test_install_*', 'test_codex_*', 'test_configure_*',
-                     'test_direct_configuration_*', 'test_retired_*'),
+    'installation': ('test_install_*', 'test_codex_*', 'test_direct_configuration_*', 'test_retired_*'),
 }
 SUITES = {
     'repository': 'tests',
     **{name: 'tests' for name in ROOT_GROUPS},
-    'reports': 'skills/work-report/tests',
     'worktrees': 'skills/manage-worktrees/tests',
-    'win11-patch': 'skills/codex-win11-patch-safety/tests',
 }
-ACTIVE = tuple(name for name in SUITES if name not in ('repository', 'workflow-acceptance'))
+ACTIVE = tuple(name for name in SUITES if name != 'repository')
 
 
 def root_group(filename):
@@ -48,55 +37,28 @@ def select_suites(paths):
     selected = set()
     for path in paths:
         nested = next((name for name, directory in SUITES.items()
-                       if name not in ROOT_GROUPS and name not in ('repository', 'workflow-acceptance')
+                       if name not in ROOT_GROUPS and name != 'repository'
                        and path.startswith(directory + '/')), None)
         if nested:
             selected.add(nested)
-            continue
-        if path == '.gitignore':
-            selected.update(('workflow-records', 'reports'))
             continue
         if path.startswith('.github/') or path in ('scripts/install.sh', 'scripts/install-win11.ps1',
                                                   'scripts/run_regression_tests.py', 'scripts/codex_target_guard.py'):
             return ACTIVE
         if path.startswith('.agents/skills/'):
             selected.add('project-evals')
-        elif path.startswith(('adapters/claude/', 'scripts/install_claude.py', '.claude/skills/')):
-            selected.add('claude-adapter')
+        elif path.startswith(('adapters/claude/', 'scripts/install_claude.py', 'scripts/install_skills.py')):
+            selected.update(('claude-adapter', 'installation'))
         elif path.startswith('tests/test_'):
             selected.add(root_group(Path(path).name))
-        elif path.startswith('scripts/verify_workflow_increment.py'):
-            continue  # Explicit historical acceptance harness, not a live consumer.
-        elif path.startswith('scripts/evaluate_task_runtime.py'):
-            selected.add('evaluation-fixtures')
-        elif path.startswith('tests/fixtures/task_runtime/'):
-            selected.update(('task-runtime', 'evaluation-fixtures'))
-        elif path.startswith('agent_workflow/'):
-            selected.update(('task-runtime', 'workflow-records', 'installation'))
-        elif path.startswith(('learning_workflow/', 'project_adapters/read_papers/',
-                              'tests/fixtures/learning_workflow/', 'tests/fixtures/teaching/',
-                              'scripts/install_learning_', 'scripts/teaching_')):
-            selected.add('learning')
-        elif path in ('shared/materials.py', 'scripts/sync_shared_materials.py'):
-            selected.update(('task-runtime', 'workflow-records', 'learning', 'reports', 'report-integration', 'installation'))
-        elif path.startswith(('shared/writing/', 'skills/academic-writing/',
-                              'skills/reviewer-brief/references/writing-contract',
-                              'skills/work-report/references/writing-contract',
-                              'skills/work-report/scripts/sync_writing_contract.py')):
-            selected.update(('learning', 'reports', 'report-integration', 'installation'))
-        elif path.startswith(('skills/work-report/', 'scripts/install_work_report', 'scripts/report_')):
-            selected.update(('reports', 'report-integration'))
+        elif path.startswith(('shared/writing/', 'skills/academic-writing/', 'scripts/sync_writing_contract.py')):
+            selected.update(('learning', 'claude-adapter', 'installation'))
+        elif path.startswith(('skills/teaching-', 'skills/task-routing/', 'skills/retrieval-practice/',
+                              'skills/evidence-anchor/', 'skills/learning-artifact-compiler/',
+                              'tests/fixtures/teaching/')):
+            selected.update(('learning', 'installation'))
         elif path.startswith(('skills/manage-worktrees/', 'bin/agent-wt')):
             selected.update(('worktrees', 'installation'))
-        elif path.startswith('skills/codex-win11-patch-safety/'):
-            selected.update(('win11-patch', 'installation'))
-        elif path.startswith(('skills/teaching-', 'skills/task-routing/', 'skills/retrieval-practice/',
-                              'skills/evidence-anchor/', 'skills/learning-artifact-compiler/')):
-            selected.add('learning')
-        elif path.startswith(('skills/cleaner/', 'skills/intent-to-contract/', 'skills/infra-verification/',
-                              'skills/acceptance-gate/', 'skills/reviewer-brief/', 'scripts/workflow_',
-                              'scripts/verify_workflow_', 'scripts/install_agent_workflow')):
-            selected.update(('workflow-records', 'installation'))
         elif path.startswith(('scripts/', 'config/', 'bin/')):
             selected.add('installation')
         elif path.startswith('docs/') or path in ('README.md', 'CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md', 'LICENSE'):
@@ -159,10 +121,7 @@ def main():
         codes = [subprocess.run([sys.executable, __file__, name], cwd=ROOT).returncode for name in selected]
         return int(any(codes))
     sys.path.insert(0, str(ROOT))
-    # Producers append to the material ledger; keep test runs out of the user's data root.
-    with tempfile.TemporaryDirectory(prefix='agent-tools-test-data-') as data:
-        os.environ['XDG_DATA_HOME'] = data
-        return run_directory(ROOT / SUITES[args.suite], group=args.suite if args.suite in ROOT_GROUPS else None)
+    return run_directory(ROOT / SUITES[args.suite], group=args.suite if args.suite in ROOT_GROUPS else None)
 
 
 if __name__ == '__main__':

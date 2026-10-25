@@ -39,8 +39,6 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             "--root", str(home / "projects"),
             "--no-fail2ban-hardening", "--no-cc-switch-update",
             "--no-codex-config", "--no-codex-here",
-            "--no-codex-app-fast-mode", "--no-codex-desktop-connection-fast-mode",
-            "--no-codex-sqlite-log-guard",
             "--codex-proxy-wrapper", "never", "--no-codex-remote-control",
             "--no-claude-desktop-ssh",
             "--no-agent-core",
@@ -100,8 +98,6 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             self.assertFalse(legacy.exists())
             self.assertFalse((home / "test-crontab").exists())
             self.assertFalse(claude.exists())
-            is_wsl = "microsoft" in Path("/proc/version").read_text().lower()
-            self.assertEqual((home / ".codex/skills/codex-win11-patch-safety").exists(), is_wsl)
             self.assertTrue((home / ".local" / "bin" / "agent-wt").exists())
             for client in (".codex", ".claude"):
                 for skill in ("linear-plan", "linear-deliver"):
@@ -301,6 +297,17 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2)
             self.assertIn("Experiment Registry installation was removed", result.stderr)
             self.assertEqual(self.installation_snapshot(home), before)
+
+    def test_removed_codex_patch_options_are_accepted_and_ignored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            result = self.run_isolated_unix_install(home, extra_args=(
+                "--no-codex-app-fast-mode", "--codex-desktop-connection-fast-mode", "never",
+                "--codex-sqlite-log-guard-wsl-windows", "never", "--no-codex-sqlite-log-guard"))
+            self.assertIn("Removed option ignored (ADR 0012): --codex-desktop-connection-fast-mode", result.stderr)
+            self.assertIn("Removed option ignored (ADR 0012): --codex-sqlite-log-guard-wsl-windows", result.stderr)
+            self.assertNotIn("unknown argument", result.stderr)
+            self.assertTrue((home / ".codex/skills/manage-worktrees/SKILL.md").is_file())
 
     @staticmethod
     def stage_installer_source(destination):

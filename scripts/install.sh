@@ -21,6 +21,7 @@ FAIL2BAN_SSHD_BANACTION="${FAIL2BAN_SSHD_BANACTION:-iptables-multiport[blocktype
 INSTALL_CODEX_CONFIG=1
 INSTALL_CODEX_HERE=1
 INSTALL_AGENT_WT=1
+INSTALL_LEARNING_SKILLS=1
 INSTALL_CC_SWITCH_CLI_UPDATE="${INSTALL_CC_SWITCH_CLI_UPDATE:-1}"
 CC_SWITCH_UPDATE_PROXY_MODE="${CC_SWITCH_UPDATE_PROXY_MODE:-auto}"
 CC_SWITCH_UPDATE_CONNECT_TIMEOUT="${CC_SWITCH_UPDATE_CONNECT_TIMEOUT:-10}"
@@ -37,18 +38,8 @@ CODEX_PROVIDER_BUCKET_ALLOW_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALLOW_R
 CODEX_PROVIDER_BUCKET_KILL_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_KILL_RUNNING:-0}"
 INSTALL_CODEX_PROXY_WRAPPER="${INSTALL_CODEX_PROXY_WRAPPER:-auto}"
 INSTALL_CODEX_REMOTE_CONTROL="${INSTALL_CODEX_REMOTE_CONTROL:-1}"
-INSTALL_CODEX_APP_FAST_MODE="${INSTALL_CODEX_APP_FAST_MODE:-1}"
-INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE="${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE:-auto}"
-CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH="${CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH:-0}"
-CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE="${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE:-both}"
-CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME="${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME:-Codex Fast Connections}"
-INSTALL_CODEX_SQLITE_LOG_GUARD="${INSTALL_CODEX_SQLITE_LOG_GUARD:-1}"
-CODEX_SQLITE_LOG_GUARD_MODE="${CODEX_SQLITE_LOG_GUARD_MODE:-enable}"
-CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS="${CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS:-never}"
-CODEX_SQLITE_LOG_GUARD_VACUUM="${CODEX_SQLITE_LOG_GUARD_VACUUM:-0}"
 INSTALL_CLAUDE_DESKTOP_SSH="${INSTALL_CLAUDE_DESKTOP_SSH:-1}"
 CLAUDE_CODE_MODE="${CLAUDE_CODE_MODE:-never}"
-CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS:-never}"
 CODEX_STREAM_IDLE_TIMEOUT_MS="${CODEX_STREAM_IDLE_TIMEOUT_MS:-1800000}"
 CODEX_STREAM_MAX_RETRIES="${CODEX_STREAM_MAX_RETRIES:-20}"
 CODEX_MODEL_CONTEXT_WINDOW="${CODEX_MODEL_CONTEXT_WINDOW:-500000}"
@@ -75,13 +66,10 @@ CODEX_PROXY_MAX_TIME="${CODEX_PROXY_MAX_TIME:-6}"
 AGENT_CORE_DIR="${AGENT_CORE_HOME:-$HOME/agent-core}"
 INSTALL_AGENT_CORE_ENTRIES=1
 AGENT_CORE_ENTRIES_STATUS=""
-CODEX_PATCH_SAFETY_SKILL_STATUS=""
 AGENT_WT_STATUS=""
 LOCAL_BIN_PATH_STATUS=""
 CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS=""
 CLAUDE_DESKTOP_SSH_STATUS=""
-CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS=""
-CODEX_SQLITE_LOG_GUARD_STATUS=""
 CODEX_TARGET_GUARD_STATUS=""
 FAIL2BAN_HARDENING_STATUS=""
 SCAN_ROOTS=()
@@ -94,8 +82,8 @@ select_python_bin() {
     return
   fi
 
-  # Prefer 3.11+: install_agent_workflow.py requires it (its launcher uses
-  # python -P). uv-managed interpreters count when the system one is older;
+  # Prefer 3.11+; 3.10 still works for the installer helpers.
+  # uv-managed interpreters count when the system one is older;
   # glob them read-only, since running uv may write its cache before the guard.
   local minor uv_dir="${UV_PYTHON_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/uv/python}"
   local -a uv_pythons=()
@@ -110,7 +98,7 @@ raise SystemExit(0 if sys.version_info >= (3, int(sys.argv[1])) else 1)
 PY
         PYTHON_BIN="$candidate"
         if [[ "$minor" == 10 ]]; then
-          echo "WARNING: no Python 3.11+ found; using $PYTHON_BIN (agent-workflow install needs 3.11+)." >&2
+          echo "WARNING: no Python 3.11+ found; using $PYTHON_BIN." >&2
         fi
         return 0
       fi
@@ -1179,182 +1167,6 @@ PY
   fi
 }
 
-configure_codex_app_fast_mode() {
-  local script="$INSTALL_REAL/scripts/configure_codex_app_fast_mode.py"
-  local args=()
-
-  if [[ "$INSTALL_CODEX_APP_FAST_MODE" -eq 0 ]]; then
-    echo "Codex App Fast mode config not changed (--no-codex-app-fast-mode)."
-    return
-  fi
-
-  if [[ ! -f "$script" ]]; then
-    echo "Codex App Fast mode config skipped: missing $script" >&2
-    return 1
-  fi
-
-  select_python_bin
-
-  case "$CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS" in
-    auto)
-      ;;
-    always)
-      if grep -qi microsoft /proc/version 2>/dev/null; then
-        echo "refusing WSL-to-Win11 config writes; run scripts/install-win11.ps1 from native Windows instead" >&2
-        return 2
-      fi
-      ;;
-    never)
-      ;;
-    *)
-      echo "invalid Codex App Fast mode WSL-Windows mode: $CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS" >&2
-      exit 2
-      ;;
-  esac
-
-  "$PYTHON_BIN" "$script" \
-    --service-tier "$CODEX_SERVICE_TIER" \
-    --fast-mode "$CODEX_FEATURE_FAST_MODE" \
-    "${args[@]}"
-}
-
-configure_codex_sqlite_log_guard() {
-  local script="$INSTALL_REAL/scripts/configure_codex_sqlite_log_guard.py"
-  local args=()
-
-  CODEX_SQLITE_LOG_GUARD_STATUS="skipped"
-
-  if [[ "$INSTALL_CODEX_SQLITE_LOG_GUARD" -eq 0 ]]; then
-    CODEX_SQLITE_LOG_GUARD_STATUS="skipped: disabled"
-    echo "Codex SQLite log guard not changed (--no-codex-sqlite-log-guard)."
-    return
-  fi
-
-  if [[ ! -f "$script" ]]; then
-    CODEX_SQLITE_LOG_GUARD_STATUS="skipped: missing $script"
-    echo "Codex SQLite log guard skipped: missing $script" >&2
-    return 1
-  fi
-
-  case "$CODEX_SQLITE_LOG_GUARD_MODE" in
-    enable|disable|status)
-      ;;
-    *)
-      echo "invalid Codex SQLite log guard mode: $CODEX_SQLITE_LOG_GUARD_MODE (expected enable|disable|status)" >&2
-      exit 2
-      ;;
-  esac
-
-  case "$CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS" in
-    auto)
-      ;;
-    always)
-      if grep -qi microsoft /proc/version 2>/dev/null; then
-        echo "refusing WSL-to-Win11 SQLite writes; run scripts/install-win11.ps1 from native Windows instead" >&2
-        return 2
-      fi
-      ;;
-    never)
-      ;;
-    *)
-      echo "invalid Codex SQLite log guard WSL-Windows mode: $CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS" >&2
-      exit 2
-      ;;
-  esac
-
-  if [[ "$CODEX_SQLITE_LOG_GUARD_VACUUM" -eq 1 ]]; then
-    args+=(--vacuum)
-  fi
-
-  select_python_bin
-  "$PYTHON_BIN" "$script" --mode "$CODEX_SQLITE_LOG_GUARD_MODE" "${args[@]}"
-  CODEX_SQLITE_LOG_GUARD_STATUS="mode=${CODEX_SQLITE_LOG_GUARD_MODE}, wsl_windows=${CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS}, vacuum=${CODEX_SQLITE_LOG_GUARD_VACUUM}"
-}
-
-should_setup_codex_desktop_connection_fast_mode() {
-  local mode="$INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE"
-
-  case "$mode" in
-    always)
-      return 0
-      ;;
-    never)
-      return 1
-      ;;
-    auto)
-      if [[ -x /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe ]]; then
-        return 0
-      fi
-      if [[ "$(uname -s 2>/dev/null || true)" == "Darwin" ]]; then
-        return 0
-      fi
-      return 1
-      ;;
-    *)
-      echo "invalid Codex Desktop Connection Fast mode: $mode (expected auto|always|never)" >&2
-      return 2
-      ;;
-  esac
-}
-
-setup_codex_desktop_connection_fast_mode() {
-  local script="$INSTALL_REAL/scripts/setup_codex_desktop_connection_fast_mode.py"
-  local platform_arg="auto"
-  local launch_arg=()
-  local shortcut_args=()
-  local rc
-
-  CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="skipped: mode=${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE}"
-
-  if [[ "$INSTALL_CODEX_APP_FAST_MODE" -eq 0 ]]; then
-    CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="skipped: Codex App Fast mode config disabled"
-    return
-  fi
-
-  if [[ ! -f "$script" ]]; then
-    CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="skipped: missing $script"
-    echo "Codex Desktop Connection Fast mode setup skipped: missing $script." >&2
-    return
-  fi
-
-  set +e
-  should_setup_codex_desktop_connection_fast_mode
-  rc=$?
-  set -e
-  if [[ "$rc" -ne 0 ]]; then
-    if [[ "$rc" -eq 2 ]]; then
-      exit 2
-    fi
-    return
-  fi
-
-  if [[ -x /mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe ]]; then
-    platform_arg="win11"
-  elif [[ "$(uname -s 2>/dev/null || true)" == "Darwin" ]]; then
-    platform_arg="macos"
-  fi
-
-  if [[ "$CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH" -eq 1 ]]; then
-    launch_arg=(--launch)
-  fi
-  shortcut_args=(
-    --shortcut-scope "$CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE"
-    --shortcut-name "$CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME"
-  )
-
-  select_python_bin
-  if "$PYTHON_BIN" "$script" --platform "$platform_arg" "${launch_arg[@]}" "${shortcut_args[@]}"; then
-    CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="configured: platform=${platform_arg}, route=version-routed, launch=${CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH}"
-  else
-    CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS="failed: platform=${platform_arg}"
-    echo "Codex Desktop Connection Fast mode setup failed." >&2
-    if [[ "$INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE" == "always" ]]; then
-      return 1
-    fi
-    return 0
-  fi
-}
-
 sync_codex_config_from_cc_switch_current() {
   local output provider_id
 
@@ -2143,37 +1955,6 @@ install_agent_wt() {
   AGENT_WT_STATUS="$launcher_target; Codex=$codex_skill_target"
 }
 
-install_codex_patch_safety_skill() {
-  if ! grep -qi microsoft /proc/version 2>/dev/null; then
-    CODEX_PATCH_SAFETY_SKILL_STATUS="skipped: native Linux; Win11 maintenance Skill is WSL-only"
-    return
-  fi
-  local source="$INSTALL_REAL/skills/codex-win11-patch-safety"
-  local target="${CODEX_HOME:-$HOME/.codex}/skills/codex-win11-patch-safety"
-
-  if [[ ! -f "$source/SKILL.md" ]]; then
-    CODEX_PATCH_SAFETY_SKILL_STATUS="failed: missing $source/SKILL.md"
-    echo "Codex Win11 patch safety skill source is missing: $source" >&2
-    return 1
-  fi
-  backup_and_link "$source" "$target"
-  CODEX_PATCH_SAFETY_SKILL_STATUS="$target -> $source"
-}
-
-check_codex_patch_safety_skill_drift() {
-  if ! grep -qi microsoft /proc/version 2>/dev/null; then return 0; fi
-  local source="$1/skills/codex-win11-patch-safety"
-  local target="${CODEX_HOME:-$HOME/.codex}/skills/codex-win11-patch-safety"
-  local expected current
-
-  expected="$(readlink -f -- "$source")"
-  current="$(readlink -f -- "$target" 2>/dev/null || true)"
-  if [[ ! -L "$target" || "$current" != "$expected" ]]; then
-    echo "Codex Win11 patch safety skill drift: $target -> ${current:-missing}; expected $expected" >&2
-    return 1
-  fi
-}
-
 backup_and_copy_managed() {
   local source="$1"
   local target="$2"
@@ -2343,6 +2124,9 @@ Options:
   --no-codex-here          Do not install ~/.local/bin/codex-here.
   --no-agent-wt            Do not install the agent-wt launcher or
                            the current-scope Codex manage-worktrees Skill.
+  Codex desktop, Fast mode and SQLite log guard options (removed, ADR 0012)
+                           are accepted and ignored so old invocations keep working.
+  --no-learning-skills     Do not link the learning/writing skills into ~/.agents/skills.
   --linear-workflow, --linear-workflow-only
                            Removed: rejected. --no-linear-workflow is a no-op.
   --no-cc-switch-update    Do not update cc-switch-cli from the latest GitHub
@@ -2374,43 +2158,6 @@ Options:
   --codex-proxy-ports LIST Space-separated proxy port candidates. Default: "7897 7890 7891 10809 10808 8080".
   --no-codex-remote-control
                            Do not run "codex remote-control start" after config.
-  --no-codex-app-fast-mode
-                           Do not patch Codex App/CLI Fast defaults in
-                           config.toml.
-  --codex-app-fast-wsl-windows MODE
-                           Also patch the Windows Codex App home when running
-                           from WSL: auto|always|never. Default: never. WSL writes are refused.
-  --codex-desktop-connection-fast-mode MODE
-                           Version-route Codex Desktop WSL/SSH Connection
-                           Fast repair and prepare the local bundle:
-                           auto|always|never. Default: auto.
-                           auto prepares a writable Win11 Store-app copy from
-                           WSL and patches macOS Codex.app when writable.
-                           Codex Desktop 26.616+ is marked as requiring a
-                           scoped provider-side priority override plus log
-                           verification.
-  --no-codex-desktop-connection-fast-mode
-                           Do not patch or prepare Codex Desktop bundles for
-                           Connection Fast Mode.
-  --launch-codex-desktop-fast-mode
-                           Launch the prepared Codex Desktop after patching.
-  --codex-desktop-fast-shortcut-scope MODE
-                           Win11 shortcut locations: none|desktop|start-menu|both.
-                           Default: both.
-  --codex-desktop-fast-shortcut-name NAME
-                           Win11 shortcut name. Default: Codex Fast Connections.
-  --no-codex-sqlite-log-guard
-                           Do not install the temporary logs_2.sqlite insert
-                           guard for Codex SSD write amplification.
-  --disable-codex-sqlite-log-guard
-                           Remove the temporary logs_2.sqlite insert guard.
-                           Use after OpenAI fixes the logging issue.
-  --codex-sqlite-log-guard-wsl-windows MODE
-                           Also patch Windows Codex homes when running from
-                           WSL: auto|always|never. Default: never. WSL writes are refused.
-  --codex-sqlite-log-guard-vacuum
-                           Checkpoint WAL and VACUUM after guard changes.
-                           Use only after stopping Codex processes.
   --no-claude-desktop-ssh  Do not configure existing Claude Code for Claude
                            Desktop SSH root/bypass compatibility.
   --no-registry            Compatibility no-op; registry installation was removed.
@@ -2422,8 +2169,8 @@ Options:
                            managed skill copies against the source tree, flag
                            software left in the data root; exit 1 on any drift.
   --claude-code MODE      never|existing|latest. Default: never. Opt in to
-                          shared packages and the native Claude adapter;
-                          latest also installs/updates the native CLI.
+                          the Claude adapter (skill links, context view, no
+                          hooks); latest also installs/updates the native CLI.
   --no-claude-code        Skip the optional Claude adapter (existing state kept).
   -h, --help               Show this help.
 EOF
@@ -2494,6 +2241,19 @@ while [[ $# -gt 0 ]]; do
       INSTALL_AGENT_WT=0
       shift
       ;;
+    --no-codex-app-fast-mode|--no-codex-desktop-connection-fast-mode|--launch-codex-desktop-fast-mode|--no-codex-sqlite-log-guard|--disable-codex-sqlite-log-guard|--codex-sqlite-log-guard-vacuum)
+      echo "Removed option ignored (ADR 0012): $1" >&2
+      shift
+      ;;
+    --codex-app-fast-wsl-windows|--codex-desktop-connection-fast-mode|--codex-desktop-fast-shortcut-scope|--codex-desktop-fast-shortcut-name|--codex-sqlite-log-guard-wsl-windows)
+      echo "Removed option ignored (ADR 0012): $1" >&2
+      shift
+      [[ $# -gt 0 ]] && shift
+      ;;
+    --no-learning-skills)
+      INSTALL_LEARNING_SKILLS=0
+      shift
+      ;;
     --no-cc-switch-update)
       INSTALL_CC_SWITCH_CLI_UPDATE=0
       shift
@@ -2548,51 +2308,6 @@ while [[ $# -gt 0 ]]; do
       ;;
     --no-codex-remote-control)
       INSTALL_CODEX_REMOTE_CONTROL=0
-      shift
-      ;;
-    --no-codex-app-fast-mode)
-      INSTALL_CODEX_APP_FAST_MODE=0
-      shift
-      ;;
-    --codex-app-fast-wsl-windows)
-      CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS="$2"
-      shift 2
-      ;;
-    --codex-desktop-connection-fast-mode)
-      INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE="$2"
-      shift 2
-      ;;
-    --no-codex-desktop-connection-fast-mode)
-      INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE=never
-      shift
-      ;;
-    --launch-codex-desktop-fast-mode)
-      CODEX_DESKTOP_CONNECTION_FAST_MODE_LAUNCH=1
-      shift
-      ;;
-    --codex-desktop-fast-shortcut-scope)
-      CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE="$2"
-      shift 2
-      ;;
-    --codex-desktop-fast-shortcut-name)
-      CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME="$2"
-      shift 2
-      ;;
-    --no-codex-sqlite-log-guard)
-      INSTALL_CODEX_SQLITE_LOG_GUARD=0
-      shift
-      ;;
-    --disable-codex-sqlite-log-guard)
-      INSTALL_CODEX_SQLITE_LOG_GUARD=1
-      CODEX_SQLITE_LOG_GUARD_MODE=disable
-      shift
-      ;;
-    --codex-sqlite-log-guard-wsl-windows)
-      CODEX_SQLITE_LOG_GUARD_INCLUDE_WSL_WINDOWS="$2"
-      shift 2
-      ;;
-    --codex-sqlite-log-guard-vacuum)
-      CODEX_SQLITE_LOG_GUARD_VACUUM=1
       shift
       ;;
     --no-claude-desktop-ssh)
@@ -2656,11 +2371,9 @@ DATA_ROOT="$("$PYTHON_BIN" "$LAYOUT" data-root)"
 
 if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
   SOURCE_REAL="$(cd "$SOURCE_DIR" && pwd -P)"
+  export AGENT_TOOLS_INSTALL_ROOT="$INSTALL_DIR"
   linear_status=0
   claude_status=0
-  # The Skill link targets the install root copy, which the layout check compares to source.
-  patch_status=0
-  check_codex_patch_safety_skill_drift "$INSTALL_DIR" || patch_status=1
   select_python_bin
   if ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/retired_package_cleanup.py" check \
     --record "$SOURCE_REAL/config/retired-packages/linear-workflow.json" \
@@ -2670,9 +2383,12 @@ if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
   if [[ "$CLAUDE_CODE_MODE" != never ]] && ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/install_claude.py" --check; then
     claude_status=1
   fi
+  if [[ "$INSTALL_LEARNING_SKILLS" -eq 1 ]] && ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/install_skills.py" --check; then
+    claude_status=1
+  fi
   layout_status=0
   "$PYTHON_BIN" "$LAYOUT" check --source "$SOURCE_REAL" --install-root "$INSTALL_DIR" || layout_status=1
-  [[ "$patch_status" -eq 0 && "$linear_status" -eq 0 && "$claude_status" -eq 0 && "$layout_status" -eq 0 ]]
+  [[ "$linear_status" -eq 0 && "$claude_status" -eq 0 && "$layout_status" -eq 0 ]]
   exit "$?"
 fi
 
@@ -2688,11 +2404,11 @@ if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
   # Manifest sync: update changed files, delete files the previous install wrote
   # that are no longer shipped, and report (never delete) unmanaged files.
   "$PYTHON_BIN" "$LAYOUT" sync --source "$SOURCE_REAL" --install-root "$INSTALL_REAL"
-  # Bundles installed by the Python installers live in the same install root.
-  export AGENT_TOOLS_INSTALL_ROOT="$INSTALL_REAL"
 fi
+# The Python installers resolve the same install root.
+export AGENT_TOOLS_INSTALL_ROOT="$INSTALL_REAL"
 
-chmod +x "$INSTALL_REAL/scripts/sync_agent_context.py" "$INSTALL_REAL/scripts/sync_agent_context_cron.sh" "$INSTALL_REAL/scripts/codex_project_memory.py" "$INSTALL_REAL/scripts/migrate_codex_provider_bucket.py" "$INSTALL_REAL/scripts/install.sh"
+chmod +x "$INSTALL_REAL/scripts/sync_agent_context.py" "$INSTALL_REAL/scripts/sync_agent_context_cron.sh" "$INSTALL_REAL/scripts/migrate_codex_provider_bucket.py" "$INSTALL_REAL/scripts/install.sh"
 if [[ -d "$INSTALL_REAL/bin" ]]; then
   chmod +x "$INSTALL_REAL"/bin/*
 fi
@@ -2720,10 +2436,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   configure_codex_defaults
   normalize_codex_provider_auth
   configure_codex_features
-  configure_codex_app_fast_mode
   check_codex_fast_mode
-  setup_codex_desktop_connection_fast_mode
-  configure_codex_sqlite_log_guard
   configure_codex_project_hooks_features
   configure_codex_proxy_wrapper
   start_codex_remote_control
@@ -2739,7 +2452,7 @@ if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
 fi
 if [[ "$CLAUDE_CODE_MODE" != never ]]; then
   select_python_bin
-  claude_args=(--install-packages --agent-core-home "$AGENT_CORE_DIR")
+  claude_args=(--agent-core-home "$AGENT_CORE_DIR")
   if [[ "$CLAUDE_CODE_MODE" == latest ]]; then
     claude_args+=(--install-cli)
   else
@@ -2749,7 +2462,6 @@ if [[ "$CLAUDE_CODE_MODE" != never ]]; then
   "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_claude.py" "${claude_args[@]}"
 fi
 configure_claude_desktop_ssh
-install_codex_patch_safety_skill
 if [[ "$INSTALL_AGENT_WT" -eq 1 ]]; then
   install_agent_wt
 fi
@@ -2758,16 +2470,14 @@ select_python_bin
   --record "$INSTALL_REAL/config/retired-packages/linear-workflow.json" \
   --repo-root "$INSTALL_REAL" --home "$HOME" --platform unix
 select_python_bin
-# Repoint existing learning bundle and Claude views, which earlier releases put in the data root.
-if [[ "$(uname -s)" == Linux ]]; then
-  if [[ "$CLAUDE_CODE_MODE" == never && -f "$HOME/.local/state/learning-workflow/install.json" ]]; then
-    "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_learning_workflow.py" \
-      || echo "WARNING: learning workflow bundle not updated; old layout items it uses stay in place." >&2
-  fi
-  if [[ "$CLAUDE_CODE_MODE" == never && -f "$HOME/.local/state/agent-tools/claude/install.json" ]]; then
-    "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_claude.py" \
-      || echo "WARNING: Claude adapter views not updated; old layout items it uses stay in place." >&2
-  fi
+if [[ "$INSTALL_LEARNING_SKILLS" -eq 1 ]]; then
+  "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_skills.py" \
+    || echo "WARNING: learning/writing skills were not linked into ~/.agents/skills." >&2
+fi
+# A Claude adapter from an earlier release registered hooks; migrate it even without --claude-code.
+if [[ "$(uname -s)" == Linux && "$CLAUDE_CODE_MODE" == never && -f "$HOME/.local/state/agent-tools/claude/install.json" ]]; then
+  "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_claude.py" --agent-core-home "$AGENT_CORE_DIR" \
+    || echo "WARNING: Claude adapter not migrated; retired hook entries may remain in ~/.claude/settings.json." >&2
 fi
 
 "$PYTHON_BIN" - "$INSTALL_REAL/agent_context_sync.config.json" "$DATA_ROOT/agent_context_sync.config.json" "$EXPLICIT_SCAN_ROOTS" "$MAX_DEPTH" "$SCOPE" "$DIRECTION" "$PREFER" "$MODE" "${SCAN_ROOTS[@]}" <<'PY'
@@ -2814,7 +2524,7 @@ fi
 
 
 echo "Installed agent context sync tools in $INSTALL_REAL"
-echo "Data root (task state, materials, logs): $DATA_ROOT"
+echo "Data root (logs): $DATA_ROOT"
 echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
 echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
 echo "agent-tools PATH: $LOCAL_BIN_PATH_STATUS"
@@ -2844,10 +2554,6 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex stream max retries: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_STREAM_MAX_RETRIES}"
   echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (WebSocket enabled)"
   echo "Codex [features]: fast_mode=${CODEX_FEATURE_FAST_MODE} hooks=${CODEX_FEATURE_HOOKS} memories=${CODEX_FEATURE_MEMORIES} goals=${CODEX_FEATURE_GOALS} terminal_resize_reflow=${CODEX_FEATURE_TERMINAL_RESIZE_REFLOW} remote_control=${CODEX_FEATURE_REMOTE_CONTROL}"
-  echo "Codex App Fast mode config: enabled=${INSTALL_CODEX_APP_FAST_MODE}, wsl_windows=${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS}"
-  echo "Codex Desktop Connection Fast mode: mode=${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE}, status=${CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS}"
-  echo "Codex Desktop Fast shortcut: scope=${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE}, name=${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME}"
-  echo "Codex SQLite log guard: ${CODEX_SQLITE_LOG_GUARD_STATUS}"
   echo "Codex target guard: ${CODEX_TARGET_GUARD_STATUS}"
   if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
     echo "Codex provider bucket migration: target=${CODEX_MODEL_PROVIDER_ID}, apply=${APPLY_CODEX_PROVIDER_BUCKET_MIGRATION}, all_non_target=${CODEX_PROVIDER_BUCKET_ALL_NON_TARGET}"
@@ -2857,14 +2563,7 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex proxy wrapper mode: $INSTALL_CODEX_PROXY_WRAPPER"
   echo "Codex proxy port candidates: $CODEX_PROXY_PORTS"
 else
-  echo "Codex App Fast mode config: enabled=${INSTALL_CODEX_APP_FAST_MODE}, wsl_windows=${CODEX_APP_FAST_MODE_INCLUDE_WSL_WINDOWS}"
-  configure_codex_app_fast_mode
   check_codex_fast_mode
-  setup_codex_desktop_connection_fast_mode
-  configure_codex_sqlite_log_guard
-  echo "Codex Desktop Connection Fast mode: mode=${INSTALL_CODEX_DESKTOP_CONNECTION_FAST_MODE}, status=${CODEX_DESKTOP_CONNECTION_FAST_MODE_STATUS}"
-  echo "Codex Desktop Fast shortcut: scope=${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_SCOPE}, name=${CODEX_DESKTOP_CONNECTION_FAST_MODE_SHORTCUT_NAME}"
-  echo "Codex SQLite log guard: ${CODEX_SQLITE_LOG_GUARD_STATUS}"
   echo "Codex config not changed (--no-codex-config)."
 fi
 if [[ "$INSTALL_CODEX_HERE" -eq 1 ]]; then
@@ -2889,4 +2588,3 @@ else
   echo "agent-core entries not checked (--no-agent-core)."
 fi
 echo "Linear Workflow removed; verified client copies cleaned, runtime data retained."
-echo "Codex Win11 patch safety skill: ${CODEX_PATCH_SAFETY_SKILL_STATUS}"

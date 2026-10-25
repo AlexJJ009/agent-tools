@@ -1,6 +1,0 @@
-interface:
-  display_name: "Behavior-Preserving Cleanup"
-  short_description: "Clean related code and materials; keep handoff state current"
-  default_prompt: "Use $cleaner to clean the current change and related materials, preserve useful evidence, and update affected handoff state."
-policy:
-  allow_implicit_invocation: true

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Install root, managed file sync and old-layout migration for Agent Tools.
 
-Software lives in the install root (default ~/.local/lib/agent-tools); task
-state and process materials live in the data root resolved by
-shared/materials.py. Installs refuse overlapping roots. Each managed tree keeps
+Software lives in the install root (default ~/.local/lib/agent-tools); logs and
+other application data live in the data root (see data_root()). Installs refuse
+overlapping roots. Each managed tree keeps
 a manifest of the files it installed so a reinstall deletes exactly the files a
 previous install wrote and no longer ships; anything else is reported as
 unmanaged and kept. Standard library only.
@@ -32,17 +32,18 @@ PRODUCER = 'agent-tools-installer'
 # Top-level items install.sh ships into the install root.
 SHIPPED_FILES = ('README.md',)
 RELOCATED_SCRIPTS = ('install.sh', 'pack.sh', 'sync_agent_context.py', 'sync_agent_context_cron.sh',
-                     'codex_project_memory.py', 'migrate_codex_provider_bucket.py')
-SHIPPED_DIRS = ('bin', 'scripts', 'config', 'docs', 'skills', 'adapters', 'agent_workflow',
-                'learning_workflow', 'project_adapters', 'shared')
-RETIRED = ('linear_workflow', 'goal_plan', 'experiment_registry',
+                     'migrate_codex_provider_bucket.py')
+SHIPPED_DIRS = ('bin', 'scripts', 'config', 'docs', 'skills', 'adapters', 'shared')
+RETIRED = ('linear_workflow', 'goal_plan', 'experiment_registry', 'agent_workflow', 'learning_workflow',
+           'project_adapters', 'codex_project_memory.py',
            'agent_context_sync.config.example.json')  # old root copy; example now ships in config/
-BUNDLES = ('learning-workflow', 'claude')  # owned by their own installers inside the install root
+BUNDLES = ('claude',)  # generated views owned by the Claude adapter inside the install root
+LEGACY_BUNDLES = ('learning-workflow', 'claude')  # bundle directories earlier releases put in the data root
 GENERATED = ('agent_context_sync.config.json',)  # written by install.sh
 FOREIGN = ('codex_target_guard.py',)  # scripts/codex_fleet_guard.py helper
 DATA = ('tasks.sqlite3', 'tasks.sqlite3-wal', 'tasks.sqlite3-shm', 'tasks.sqlite3-journal',
         'artifacts', 'cleanup', 'archives', 'materials', 'logs')
-SOFTWARE = SHIPPED_FILES + RELOCATED_SCRIPTS + SHIPPED_DIRS + RETIRED + BUNDLES + GENERATED
+SOFTWARE = SHIPPED_FILES + RELOCATED_SCRIPTS + SHIPPED_DIRS + RETIRED + LEGACY_BUNDLES + GENERATED
 LEGACY_DATA_LAYOUT = '.local/share/agent-tools'  # where earlier releases put bundles on Linux/WSL
 
 
@@ -56,8 +57,23 @@ def install_root(home: Path | None = None) -> Path:
 
 
 def data_root() -> Path:
-    from shared import materials
-    return materials.data_root()
+    """AGENT_TOOLS config.json data_root, else the platform data directory."""
+    config = Path(os.environ.get('XDG_CONFIG_HOME', str(Path.home() / '.config'))) / 'agent-tools/config.json'
+    value = None
+    if config.is_file():
+        configured = json.loads(config.read_text()).get('data_root')
+        if configured:
+            value = Path(configured).expanduser()
+    if value is None:
+        if sys.platform == 'win32':
+            value = Path(os.environ.get('LOCALAPPDATA', str(Path.home() / 'AppData/Local'))) / 'agent-tools'
+        elif sys.platform == 'darwin':
+            value = Path.home() / 'Library/Application Support/agent-tools'
+        else:
+            value = Path(os.environ.get('XDG_DATA_HOME', str(Path.home() / '.local/share'))) / 'agent-tools'
+    if not value.is_absolute():
+        raise ValueError('data-root must be absolute')
+    return value.resolve()
 
 
 def overlaps(a: Path, b: Path) -> bool:
@@ -271,13 +287,12 @@ def _blob(data: bytes) -> str:
     return hashlib.sha1(b'blob %d\0' % len(data) + data).hexdigest()
 
 
-def _known(item: Path, name: str, *, source: Path, install: Path, objects: set[str], retired: set[str]) -> bool:
-    """True when every file is a released copy: current source, Git history, or a recorded retired bundle."""
+def _known(item: Path, name: str, *, source: Path, install: Path, objects: set[str]) -> bool:
+    """True when every file is a released copy: current source or Git history."""
     if item.is_dir() and not item.is_symlink() and not tree_files(item):
         return True  # nothing left but empty directories or caches
-    if name in BUNDLES:
-        from scripts import install_learning_workflow as learning  # bundle digest owner
-        return item.is_dir() and learning.digest(item) in retired
+    if name in LEGACY_BUNDLES:
+        return False  # generated or retired bundles are archived, never matched against releases
     if name in GENERATED:
         current = install / name
         return item.is_file() and current.is_file() and item.read_bytes() == current.read_bytes()
@@ -290,15 +305,6 @@ def _known(item: Path, name: str, *, source: Path, install: Path, objects: set[s
         if not (current.is_file() and current.read_bytes() == data) and _blob(data) not in objects:
             return False
     return True
-
-
-def _retired_digests(home: Path) -> set[str]:
-    digests = set()
-    for path in (Path(home) / '.local/state/learning-workflow/install.json',):
-        if path.is_file():
-            data = json.loads(path.read_text())
-            digests |= {entry['digest'] for entry in data.get('retired_bundles', []) if 'digest' in entry}
-    return digests
 
 
 def repoint_script_consumers(source: Path, install: Path, home: Path) -> list[str]:
@@ -370,7 +376,6 @@ def classify(data: Path) -> dict[str, list[str]]:
 
 def migrate(source: Path, install: Path, home: Path, *, stamp: str | None = None) -> dict:
     """Remove released software copies from the data root once no consumer points into them."""
-    from shared import materials
     source, install = Path(source).resolve(), Path(install).resolve()
     data = require_separate(install, source=source)
     report = {'data_root': str(data), 'removed': [], 'archived': [], 'in_use': {}, 'data': [], 'unknown': [],
@@ -380,7 +385,7 @@ def migrate(source: Path, install: Path, home: Path, *, stamp: str | None = None
     report['data'], report['unknown'] = groups['data'], groups['unknown']
     if not groups['software']:
         return report
-    objects, retired = _git_objects(source), _retired_digests(home)
+    objects = _git_objects(source)
     texts, links = consumer_texts(home), consumer_links(home)
     stamp = stamp or datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     archive = data / 'archives' / f'legacy-install-{stamp}'
@@ -391,17 +396,14 @@ def migrate(source: Path, install: Path, home: Path, *, stamp: str | None = None
             report['in_use'][name] = users
             continue
         kind = 'dir' if item.is_dir() and not item.is_symlink() else 'file'
-        if _known(item, name, source=source, install=install, objects=objects, retired=retired):
+        if _known(item, name, source=source, install=install, objects=objects):
             shutil.rmtree(item) if kind == 'dir' else item.unlink()
             report['removed'].append(name)
-            materials.record(item, PRODUCER, 'released software copy removed from the data root', 'removed', kind=kind)
         else:
             archive.mkdir(parents=True, exist_ok=True)
             shutil.move(str(item), str(archive / name))
             report['archived'].append(name)
-            materials.record(item, PRODUCER, f'modified software copy moved to {archive / name}', 'removed', kind=kind)
     if report['archived']:
-        materials.record(archive, PRODUCER, 'software copies from an old data-root install layout', 'created', kind='dir')
         report['archive'] = str(archive)
     return report
 
@@ -413,7 +415,7 @@ def check(source: Path, install: Path, home: Path) -> dict:
     software = classify(data)['software']
     texts, links = consumer_texts(home), consumer_links(home)
     pointing = {}
-    for path in [data / name for name in software] + [Path(home) / LEGACY_DATA_LAYOUT / b for b in BUNDLES]:
+    for path in [data / name for name in software] + [Path(home) / LEGACY_DATA_LAYOUT / b for b in LEGACY_BUNDLES]:
         users = references(home, path, texts=texts, links=links)
         if users:
             pointing[str(path)] = users

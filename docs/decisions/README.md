@@ -36,13 +36,14 @@ task, not from writing an ADR. Record actual decisions, not invented alternative
 
 ## Current records
 
-- [Current delivery scope for teaching validation](0002-current-delivery-validation.md)
+- [Current delivery scope for teaching validation](0002-current-delivery-validation.md) (superseded in part by 0012)
 - [One reader-facing writing contract](0003-reader-facing-writing.md)
-- [Task state, application storage and process-material retirement](0004-task-runtime-application-storage.md)
+- [Task state, application storage and process-material retirement](0004-task-runtime-application-storage.md) (superseded in part by 0012)
 - [Retire Linear Workflow (source removed 2026-10-03)](0006-retire-linear-workflow.md)
-- [One learning workflow with domain-specific methods](0009-learning-domain-ownership.md)
-- [Record written materials in one application ledger](0010-material-ledger.md)
+- [One learning workflow with domain-specific methods](0009-learning-domain-ownership.md) (superseded in part by 0012)
+- [Record written materials in one application ledger](0010-material-ledger.md) (superseded by 0012)
 - [Keep machine proxy configuration in dedicated repositories](0011-proxy-configuration-ownership.md)
+- [Retire the task runtime, work reports and Codex desktop patches](0012-retire-workflow-runtime.md)
 
 The 2026-09-30 consolidation folded 0001 and 0005 into 0004. Operational content
 from 0007 and 0008 remains in component guides and CONTRIBUTING; the applicable

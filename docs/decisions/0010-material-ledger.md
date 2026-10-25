@@ -2,7 +2,7 @@
 
 Date: 2026-10-03
 
-Status: Accepted
+Status: Superseded by [ADR 0012](0012-retire-workflow-runtime.md) (the material ledger and its producers were removed).
 
 Applies to Task Runtime, work-report and learning-workflow. Extends the
 process-material retirement boundary in

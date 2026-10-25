@@ -92,18 +92,20 @@ from fresh keys/Base URLs, follow `docs/CLI_SERVER_BOOTSTRAP.md`.
 
 `scripts/install.sh` copies the software into the install root
 `~/.local/lib/agent-tools` (override with `--install-dir` or
-`AGENT_TOOLS_INSTALL_ROOT`); the learning bundle and Claude views go to
-`learning-workflow/` and `claude/` inside it. Task state, materials, archives
-and logs stay in the data root (`~/.local/share/agent-tools` on Linux/WSL).
-The installer refuses an install root that equals, contains or lies inside the
+`AGENT_TOOLS_INSTALL_ROOT`); the Claude context view goes to `claude/` inside it.
+Logs stay in the data root (`~/.local/share/agent-tools` on Linux/WSL). The
+installer refuses an install root that equals, contains or lies inside the
 data root. Each reinstall syncs against the manifest
 `.agent-tools-manifest.json`: files an earlier install wrote and no longer
-ships are deleted, other files are listed as unmanaged and kept. When an
+ships (for example the retired task runtime and learning runtime
+packages) are deleted, other files are listed as unmanaged and kept. When an
 earlier release was installed with `--install-dir <data root>`, the installer
-repoints skills, hooks, launchers, the Codex instruction block and crontab,
-then deletes the released software copies from the data root (modified copies
-move to `archives/legacy-install-<stamp>/`) and records each removal in the
-material ledger. Data and unknown items are listed and left alone.
+repoints launchers, instruction files and crontab, then deletes the released
+software copies from the data root (modified copies move to
+`archives/legacy-install-<stamp>/`). Data and unknown items are listed and left
+alone. The learning and writing skills are linked from the install root into
+`~/.agents/skills/` (`--no-learning-skills` skips this); see
+[learning and writing skills](LEARNING_WORKFLOW.md).
 `scripts/install.sh --check` reports install-root drift and software left in the data
 root.
 

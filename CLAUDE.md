@@ -29,6 +29,11 @@ The section below is copied verbatim from `AGENTS.md`.
 
 Use docs/README.md for current system docs and decisions.
 
+- Automatic Codex and Claude Code memory is disabled by the user's decision.
+  Do not enable it during installation or provider switching. Maintain project
+  rules in project instructions/docs and unfinished work in task state, rather
+  than generating a separate memory library.
+
 - Machine proxy configuration belongs to `win11-v2rayn` and
   `server-proxy-config` (ADR 0011). Do not reintroduce the retired Win11 relay,
   reverse SSH dependency or BWG/OVH selector stack into Agent Tools. General
@@ -36,8 +41,11 @@ Use docs/README.md for current system docs and decisions.
 
 - Linear Workflow is retired and its source was removed (ADR 0006). Do not
   invoke stale `linear-plan` or `linear-deliver` copies; old Batch approvals
-  do not reactivate it. Use the current task runtime and the user's task
-  instructions for ongoing work.
+  do not reactivate it. Use the user's task instructions for ongoing work.
+
+- The task runtime, work reports, the development skills and the learning runtime
+  were retired (ADR 0012). Agent Tools registers no Claude or Codex hooks and
+  keeps no task state; do not reintroduce them without a new explicit decision.
 
 - Linux and WSL2 machine bootstrap must persist tmux mouse mode for the Unix
   user running the tools. The durable config is a managed block in
@@ -80,10 +88,9 @@ Use docs/README.md for current system docs and decisions.
   `supports_websockets = true`, and `wire_api = "responses"`. Keep cc-switch's
   current Codex provider on this same custom bearer-token provider so
   reinstalling agent-tools or CC Switch cannot overwrite the working Win11
-  config with an unusable official/empty provider. Use `scripts/install-win11.ps1`
-  for this path. Never run the Win11 configurator against a Linux/WSL
-  `~/.codex`; Win11 `CODEX_HOME`, `USERPROFILE`, and the CC Switch DB must all
-  resolve to the same native Windows profile.
+  config with an unusable official/empty provider. Win11 `CODEX_HOME`,
+  `USERPROFILE`, and the CC Switch DB must all resolve to the same native
+  Windows profile; `scripts/install-win11.ps1` checks this before it writes.
 - Before any Agent Tools installer, Skill deployment, or Codex/CC Switch
   configuration helper writes state, run `scripts/codex_target_guard.py` on
   the target platform. It binds `.codex` and `.cc-switch/cc-switch.db` to one

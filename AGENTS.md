@@ -14,8 +14,11 @@ Use docs/README.md for current system docs and decisions.
 
 - Linear Workflow is retired and its source was removed (ADR 0006). Do not
   invoke stale `linear-plan` or `linear-deliver` copies; old Batch approvals
-  do not reactivate it. Use the current task runtime and the user's task
-  instructions for ongoing work.
+  do not reactivate it. Use the user's task instructions for ongoing work.
+
+- The task runtime, work reports, the development skills and the learning runtime
+  were retired (ADR 0012). Agent Tools registers no Claude or Codex hooks and
+  keeps no task state; do not reintroduce them without a new explicit decision.
 
 - Linux and WSL2 machine bootstrap must persist tmux mouse mode for the Unix
   user running the tools. The durable config is a managed block in

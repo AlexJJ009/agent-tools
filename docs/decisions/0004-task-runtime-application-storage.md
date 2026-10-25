@@ -2,7 +2,7 @@
 
 Date: 2026-09-30
 
-Status: Accepted
+Status: Accepted; superseded in part by [ADR 0012](0012-retire-workflow-runtime.md) (the Task Runtime and process-material retirement were removed; the install-root/data-root separation remains).
 
 Consolidated on 2026-09-30 from records 0001, 0004 and 0005. Earlier rationale
 and the original runtime-owned-only deletion boundary remain in Git history;

@@ -2124,6 +2124,9 @@ Options:
   --no-codex-here          Do not install ~/.local/bin/codex-here.
   --no-agent-wt            Do not install the agent-wt launcher or
                            the current-scope Codex manage-worktrees Skill.
+  --no-codex-app-fast-mode, --codex-desktop-connection-fast-mode ARG, --no-codex-sqlite-log-guard, ...
+                           Removed (ADR 0012): the Codex desktop/Fast mode/SQLite guard options
+                           are accepted and ignored so old invocations keep working.
   --no-learning-skills     Do not link the learning/writing skills into ~/.agents/skills.
   --linear-workflow, --linear-workflow-only
                            Removed: rejected. --no-linear-workflow is a no-op.
@@ -2238,6 +2241,14 @@ while [[ $# -gt 0 ]]; do
     --no-agent-wt)
       INSTALL_AGENT_WT=0
       shift
+      ;;
+    --no-codex-app-fast-mode|--no-codex-desktop-connection-fast-mode|--launch-codex-desktop-fast-mode|--no-codex-sqlite-log-guard|--disable-codex-sqlite-log-guard|--codex-sqlite-log-guard-vacuum)
+      echo "Removed option ignored (ADR 0012): $1" >&2
+      shift
+      ;;
+    --codex-app-fast-wsl-windows|--codex-desktop-connection-fast-mode|--codex-desktop-fast-shortcut-scope|--codex-desktop-fast-shortcut-name|--codex-sqlite-log-guard-wsl-windows)
+      echo "Removed option ignored (ADR 0012): $1" >&2
+      shift 2
       ;;
     --no-learning-skills)
       INSTALL_LEARNING_SKILLS=0

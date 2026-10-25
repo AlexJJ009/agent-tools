@@ -2,7 +2,7 @@
 
 Date: 2026-09-29
 
-Status: Accepted
+Status: Accepted; superseded in part by [ADR 0012](0012-retire-workflow-runtime.md) (Work Report and reviewer-brief were removed; the shared contract and academic-writing copy remain).
 
 ## Context and Problem Statement
 

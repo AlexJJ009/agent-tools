@@ -298,6 +298,17 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             self.assertIn("Experiment Registry installation was removed", result.stderr)
             self.assertEqual(self.installation_snapshot(home), before)
 
+    def test_removed_codex_patch_options_are_accepted_and_ignored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            result = self.run_isolated_unix_install(home, extra_args=(
+                "--no-codex-app-fast-mode", "--codex-desktop-connection-fast-mode", "never",
+                "--codex-sqlite-log-guard-wsl-windows", "never", "--no-codex-sqlite-log-guard"))
+            self.assertIn("Removed option ignored (ADR 0012): --codex-desktop-connection-fast-mode", result.stderr)
+            self.assertIn("Removed option ignored (ADR 0012): --codex-sqlite-log-guard-wsl-windows", result.stderr)
+            self.assertNotIn("unknown argument", result.stderr)
+            self.assertTrue((home / ".codex/skills/manage-worktrees/SKILL.md").is_file())
+
     @staticmethod
     def stage_installer_source(destination):
         # Execute the real installer and guard. Replace only the migration helper:

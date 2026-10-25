@@ -6,6 +6,11 @@ param(
   [switch]$NoAgentWt,
   [switch]$LinearWorkflow,
   [switch]$NoLinearWorkflow,
+  # Removed with the Win11 Codex configurator and SQLite log guard (ADR 0012); accepted and ignored.
+  [switch]$NoCodexConfig,
+  [switch]$NoCodexSqliteLogGuard,
+  [switch]$DisableCodexSqliteLogGuard,
+  [switch]$CodexSqliteLogGuardVacuum,
   [switch]$NoCodexManualRemoteConnect,
   [string]$ManualRemoteConnectScript = "C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1",
   [switch]$NoCodexProviderBucketMigration,

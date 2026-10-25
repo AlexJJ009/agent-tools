@@ -144,7 +144,7 @@ class ClaudeInstallTests(unittest.TestCase):
         self.assertFalse((self.lib / 'claude/native_hook.py').exists())
         self.assertFalse((self.home / adapter.OLD_STATE).exists())
 
-    def test_unmanaged_directory_in_the_way_is_preserved_without_failing_the_install(self):
+    def test_unmanaged_directory_in_the_way_is_preserved_and_reported(self):
         self.write(self.home / '.claude/skills/task-routing/SKILL.md', 'user copy')
         with self.assertRaisesRegex(ValueError, 'Claude skill links missing or changed: task-routing'):
             self.install()  # the final check reports the preserved entry

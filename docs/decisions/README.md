@@ -37,7 +37,7 @@ task, not from writing an ADR. Record actual decisions, not invented alternative
 ## Current records
 
 - [Current delivery scope for teaching validation](0002-current-delivery-validation.md) (superseded in part by 0012)
-- [One reader-facing writing contract](0003-reader-facing-writing.md)
+- [One reader-facing writing contract](0003-reader-facing-writing.md) (superseded in part by 0012)
 - [Task state, application storage and process-material retirement](0004-task-runtime-application-storage.md) (superseded in part by 0012)
 - [Retire Linear Workflow (source removed 2026-10-03)](0006-retire-linear-workflow.md)
 - [One learning workflow with domain-specific methods](0009-learning-domain-ownership.md) (superseded in part by 0012)

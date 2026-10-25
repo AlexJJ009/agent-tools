@@ -63,7 +63,6 @@ Partial skips remain visible and do not establish platform coverage.
 | `reports` | Report evidence, receipt invalidation, scheduling and delivery state must agree at their actual boundaries | Parser rules plus representative real runtime/finalizer integration. Stub Judges do not prove writing quality |
 | `installation` | Cross-profile writes, unsafe defaults and destructive removal of foreign installations affect user state | Isolated profiles and real helpers on installer/dependency changes. Native-platform source checks remain limited |
 | `worktrees` | Git worktree operations must respect paths, ownership, unsupported flags and existing state | Temporary Git repositories on component/installer changes |
-| `win11-patch` | Patcher parsing, state preservation and snapshot payloads protect native update preparation | Component-only fixture checks; Linux CI does not prove native App activation or rollback |
 | `evaluation-fixtures` | Historical-case oracles and the optional evaluation driver must reject deliberately broken outputs | Only their own/fixture changes; evaluator tests are not Agent evaluations |
 | `test-runner` | Wrong suite selection, empty discovery and swallowed failure/skip results would hide missing coverage | Fast tests on runner/CI changes; not a second product acceptance suite |
 

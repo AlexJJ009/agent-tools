@@ -54,13 +54,6 @@ Sync one project:
 python3 scripts/sync_agent_context.py sync /path/to/project --direction bidirectional
 ```
 
-Initialize project-level Codex memory:
-
-```bash
-python3 scripts/codex_project_memory.py sync /path/to/project --direction both
-python3 scripts/sync_agent_context.py sync /path/to/project --direction bidirectional
-```
-
 ## Conflict Policy
 
 The default heartbeat is conservative:

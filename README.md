@@ -35,15 +35,13 @@ It installs skills under `~/.agents/skills/` and runtime under
 | Component | Source and entry points | Guide |
 |---|---|---|
 | Project context sync | `scripts/sync_agent_context.py`, `scripts/sync_agent_context_cron.sh` | [Context synchronization](docs/CONTEXT_SYNC.md) |
-| Project memory | `scripts/codex_project_memory.py` | [Memory sync and migration](docs/CODEX_PROJECT_MEMORY.md) |
 | Task state and material inventory | `agent_workflow/`, installed `agent-workflow` | [Task runtime](docs/TASK_RUNTIME.md) |
 | Development skills | `skills/{intent-to-contract,infra-verification,cleaner,acceptance-gate,reviewer-brief}/` | [Agent workflow](docs/AGENT_WORKFLOW.md) |
 | Learning and writing | `learning_workflow/`, `skills/` | [Learning workflow](docs/LEARNING_WORKFLOW.md) |
 | Work Report | `skills/work-report/` | [Reports](docs/WORK_REPORT.md), [timer](docs/WORK_REPORT_LIGHT_TIMER.md) |
 | Managed worktrees | `bin/agent-wt`, `skills/manage-worktrees/` | [Worktrees](docs/GIT_WORKTREE_AND_AGENT_WT_GUIDE.md) |
 | Claude Code adapter | `adapters/claude/`, `scripts/install_claude.py` | [Claude adapter](docs/CLAUDE_CODE_ADAPTER.md) |
-| Win11 Codex patch safety | `skills/codex-win11-patch-safety/` | [Versioned patch workflow](skills/codex-win11-patch-safety/SKILL.md) |
-| Codex setup and repair | `scripts/configure_codex_*.py`, `scripts/migrate_codex_provider_bucket.py` | [Platform guides](docs/README.md#platform-and-operation-guides) |
+| Codex setup and repair | `scripts/migrate_codex_provider_bucket.py` | [Platform guides](docs/README.md#platform-and-operation-guides) |
 | Workspace launcher | `bin/codex-here` | [Remote control](docs/CODEX_REMOTE_CONTROL.md) |
 
 Software installs under `~/.local/lib/agent-tools`; application data and logs

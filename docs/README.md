@@ -25,10 +25,6 @@ private reports describe bounded development work and are not deployment proof.
 - [Codex defaults](CODEX_AUTOREVIEW_DEFAULT.md): approval posture, streams and configuration.
 - [WSL2 proxy](CODEX_WSL2_PROXY.md): host-specific Windows proxy access.
 - [Remote control](CODEX_REMOTE_CONTROL.md): standalone CLI and app-server setup.
-- [SQLite log guard](CODEX_SQLITE_LOG_GUARD.md): temporary diagnostic-log protection.
-- [macOS Fast Mode](CODEX_APP_FAST_MODE_MACOS_GUIDE.md): local and SSH configuration.
-- [Connections Fast diagnostics](CODEX_DESKTOP_CONNECTION_FAST_MODE_PATCH.md): historical bundle behavior and provider verification.
-- [Win11 versioned patch safety](../skills/codex-win11-patch-safety/SKILL.md): exact release selection, same-profile staging and activation.
 - [Browser tools](CODEX_PLAYWRIGHT_TOOLS.md): machine-local Playwright/Chromium setup.
 - [Managed worktrees](GIT_WORKTREE_AND_AGENT_WT_GUIDE.md): admission, layout and audit.
 

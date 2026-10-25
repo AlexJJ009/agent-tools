@@ -58,10 +58,9 @@ Use docs/README.md for current system docs and decisions.
   `supports_websockets = true`, and `wire_api = "responses"`. Keep cc-switch's
   current Codex provider on this same custom bearer-token provider so
   reinstalling agent-tools or CC Switch cannot overwrite the working Win11
-  config with an unusable official/empty provider. Use `scripts/install-win11.ps1`
-  for this path. Never run the Win11 configurator against a Linux/WSL
-  `~/.codex`; Win11 `CODEX_HOME`, `USERPROFILE`, and the CC Switch DB must all
-  resolve to the same native Windows profile.
+  config with an unusable official/empty provider. Win11 `CODEX_HOME`,
+  `USERPROFILE`, and the CC Switch DB must all resolve to the same native
+  Windows profile; `scripts/install-win11.ps1` checks this before it writes.
 - Before any Agent Tools installer, Skill deployment, or Codex/CC Switch
   configuration helper writes state, run `scripts/codex_target_guard.py` on
   the target platform. It binds `.codex` and `.cc-switch/cc-switch.db` to one

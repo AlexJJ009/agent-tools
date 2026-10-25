@@ -32,7 +32,7 @@ PRODUCER = 'agent-tools-installer'
 # Top-level items install.sh ships into the install root.
 SHIPPED_FILES = ('README.md',)
 RELOCATED_SCRIPTS = ('install.sh', 'pack.sh', 'sync_agent_context.py', 'sync_agent_context_cron.sh',
-                     'codex_project_memory.py', 'migrate_codex_provider_bucket.py')
+                     'migrate_codex_provider_bucket.py')
 SHIPPED_DIRS = ('bin', 'scripts', 'config', 'docs', 'skills', 'adapters', 'agent_workflow',
                 'learning_workflow', 'project_adapters', 'shared')
 RETIRED = ('linear_workflow', 'goal_plan', 'experiment_registry',

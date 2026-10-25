@@ -31,7 +31,6 @@ SUITES = {
     **{name: 'tests' for name in ROOT_GROUPS},
     'reports': 'skills/work-report/tests',
     'worktrees': 'skills/manage-worktrees/tests',
-    'win11-patch': 'skills/codex-win11-patch-safety/tests',
 }
 ACTIVE = tuple(name for name in SUITES if name not in ('repository', 'workflow-acceptance'))
 
@@ -88,8 +87,6 @@ def select_suites(paths):
             selected.update(('reports', 'report-integration'))
         elif path.startswith(('skills/manage-worktrees/', 'bin/agent-wt')):
             selected.update(('worktrees', 'installation'))
-        elif path.startswith('skills/codex-win11-patch-safety/'):
-            selected.update(('win11-patch', 'installation'))
         elif path.startswith(('skills/teaching-', 'skills/task-routing/', 'skills/retrieval-practice/',
                               'skills/evidence-anchor/', 'skills/learning-artifact-compiler/')):
             selected.add('learning')

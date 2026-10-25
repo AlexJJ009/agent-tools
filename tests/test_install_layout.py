@@ -16,7 +16,6 @@ from scripts import install_layout as layout  # noqa: E402
 # Last main revision before the install root existed: its installer builds the old layout.
 OLD_RELEASE = '9ee7745'
 FLAGS = ('--no-fail2ban-hardening', '--no-cc-switch-update', '--no-codex-config', '--no-codex-here',
-         '--no-codex-app-fast-mode', '--no-codex-desktop-connection-fast-mode', '--no-codex-sqlite-log-guard',
          '--codex-proxy-wrapper', 'never', '--no-codex-remote-control', '--no-claude-desktop-ssh', '--no-agent-core')
 
 

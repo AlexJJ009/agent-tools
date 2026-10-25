@@ -35,31 +35,6 @@ class DirectConfigurationTargetGuardTests(unittest.TestCase):
             self.assertIn("CODEX_TARGET_GUARD=RED", completed.stdout + completed.stderr)
             self.assertEqual(snapshot(), before)
 
-    def test_fast_mode_direct_script_rejects_polluted_profile_without_writes(self):
-        self.assert_rejected_before_write(
-            ROOT / "scripts" / "configure_codex_app_fast_mode.py",
-            "--codex-home",
-            CODEX_HOME_PLACEHOLDER,
-        )
-
-    def test_sqlite_guard_direct_script_rejects_polluted_profile_without_writes(self):
-        self.assert_rejected_before_write(
-            ROOT / "scripts" / "configure_codex_sqlite_log_guard.py",
-            "--mode",
-            "enable",
-            "--codex-home",
-            CODEX_HOME_PLACEHOLDER,
-        )
-
-    def test_win11_bearer_script_requires_native_windows(self):
-        self.assert_rejected_before_write(
-            ROOT / "scripts" / "configure_codex_win11_subscription.py",
-            "--codex-home",
-            CODEX_HOME_PLACEHOLDER,
-            "--cc-switch-db",
-            CC_SWITCH_DB_PLACEHOLDER,
-        )
-
     def test_provider_bucket_apply_rejects_polluted_profile_without_writes(self):
         self.assert_rejected_before_write(
             ROOT / "scripts" / "migrate_codex_provider_bucket.py",

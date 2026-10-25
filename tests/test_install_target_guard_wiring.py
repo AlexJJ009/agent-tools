@@ -39,8 +39,6 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             "--root", str(home / "projects"),
             "--no-fail2ban-hardening", "--no-cc-switch-update",
             "--no-codex-config", "--no-codex-here",
-            "--no-codex-app-fast-mode", "--no-codex-desktop-connection-fast-mode",
-            "--no-codex-sqlite-log-guard",
             "--codex-proxy-wrapper", "never", "--no-codex-remote-control",
             "--no-claude-desktop-ssh",
             "--no-agent-core",
@@ -100,8 +98,6 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             self.assertFalse(legacy.exists())
             self.assertFalse((home / "test-crontab").exists())
             self.assertFalse(claude.exists())
-            is_wsl = "microsoft" in Path("/proc/version").read_text().lower()
-            self.assertEqual((home / ".codex/skills/codex-win11-patch-safety").exists(), is_wsl)
             self.assertTrue((home / ".local" / "bin" / "agent-wt").exists())
             for client in (".codex", ".claude"):
                 for skill in ("linear-plan", "linear-deliver"):

@@ -25,8 +25,8 @@ missing context needed for its next judgment. Apply **claim–evidence–warrant
 state the claim, show the observation, and explain the inferential connection,
 including limits and adverse evidence. A reverse outline can expose missing
 paragraph purposes or transitions during revision. These methods also apply to
-short explanations without activating manuscript drafting, CARS, teaching, a
-formal reporting, or an independent Judge. Read this contract when it is not
+short explanations without activating manuscript drafting, CARS, teaching,
+formal reporting or an independent Judge. Read this contract when it is not
 already in context; reuse it thereafter and judge the actual prose.
 
 A **readback** is an actual observed value or state, not an expected-value echo.

@@ -3,7 +3,7 @@
 One central Agent Tools installation per machine mirrors Claude Code
 (`CLAUDE.md`, `.claude/`) and Codex (`AGENTS.md`, `.codex/`) project context.
 Projects receive bridge files and mirrored configuration rather than full tool
-copies. Project memory is a separate component; see [project memory](CODEX_PROJECT_MEMORY.md).
+copies.
 
 ## Config
 

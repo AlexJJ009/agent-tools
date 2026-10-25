@@ -83,7 +83,7 @@ select_python_bin() {
   fi
 
   # Prefer 3.11+; 3.10 still works for the installer helpers.
-  # python -P). uv-managed interpreters count when the system one is older;
+  # uv-managed interpreters count when the system one is older;
   # glob them read-only, since running uv may write its cache before the guard.
   local minor uv_dir="${UV_PYTHON_INSTALL_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/uv/python}"
   local -a uv_pythons=()
@@ -2124,8 +2124,7 @@ Options:
   --no-codex-here          Do not install ~/.local/bin/codex-here.
   --no-agent-wt            Do not install the agent-wt launcher or
                            the current-scope Codex manage-worktrees Skill.
-  --no-codex-app-fast-mode, --codex-desktop-connection-fast-mode ARG, --no-codex-sqlite-log-guard, ...
-                           Removed (ADR 0012): the Codex desktop/Fast mode/SQLite guard options
+  Codex desktop, Fast mode and SQLite log guard options (removed, ADR 0012)
                            are accepted and ignored so old invocations keep working.
   --no-learning-skills     Do not link the learning/writing skills into ~/.agents/skills.
   --linear-workflow, --linear-workflow-only
@@ -2248,7 +2247,8 @@ while [[ $# -gt 0 ]]; do
       ;;
     --codex-app-fast-wsl-windows|--codex-desktop-connection-fast-mode|--codex-desktop-fast-shortcut-scope|--codex-desktop-fast-shortcut-name|--codex-sqlite-log-guard-wsl-windows)
       echo "Removed option ignored (ADR 0012): $1" >&2
-      shift 2
+      shift
+      [[ $# -gt 0 ]] && shift
       ;;
     --no-learning-skills)
       INSTALL_LEARNING_SKILLS=0

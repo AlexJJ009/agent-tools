@@ -69,6 +69,9 @@ and `~/.local/state/learning-workflow` on WSL was archived first in
 - Each prompt and Bash call no longer starts agent-tools Python hook processes.
 - Long-horizon autonomous runs have no persisted checklist or report timer. Long
   work is decomposed by the user and supervised by Claude instead.
+- `install.sh` links the seven kept learning and writing skills into
+  `~/.agents/skills` on every machine by default, and `--check` expects those
+  links; pass `--no-learning-skills` where they are not wanted.
 - Learning sessions no longer persist routes across sessions; the user restates
   context when resuming.
 - Git history before this record holds the removed implementation. A new

@@ -131,7 +131,9 @@ def context(home: Path, core_source: Path | None = None) -> str:
             + "Use the installed Agent Tools skills when the current request matches their descriptions. "
             "Their source is the Agent Tools install root; Claude discovery links are views.\n\n"
             + f"For all reader-facing output, follow the [shared writing contract](<{contract.as_posix()}>). "
-            "Read it when not already in context; this does not activate formal reporting or teaching.\n")
+            "Read it when not already in context; this does not activate formal reporting or teaching.\n\n"
+            "After pushing a GitHub PR, start `ci-watch <PR> --repo OWNER/NAME` with `run_in_background` and act on "
+            "its exit: 1 prints the failure to fix, 2 means no check ran (not a pass).\n")
 
 
 def install_cli() -> None:

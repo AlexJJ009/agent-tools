@@ -67,6 +67,7 @@ AGENT_CORE_DIR="${AGENT_CORE_HOME:-$HOME/agent-core}"
 INSTALL_AGENT_CORE_ENTRIES=1
 AGENT_CORE_ENTRIES_STATUS=""
 AGENT_WT_STATUS=""
+CI_WATCH_STATUS=""
 LOCAL_BIN_PATH_STATUS=""
 CC_SWITCH_CODEX_PROVIDER_SYNC_STATUS=""
 CLAUDE_DESKTOP_SSH_STATUS=""
@@ -1955,6 +1956,20 @@ install_agent_wt() {
   AGENT_WT_STATUS="$launcher_target; Codex=$codex_skill_target"
 }
 
+install_ci_watch() {
+  local launcher_source="$INSTALL_REAL/bin/ci-watch"
+  local launcher_target="${CI_WATCH_PATH:-$HOME/.local/bin/ci-watch}"
+
+  if [[ ! -x "$launcher_source" ]]; then
+    CI_WATCH_STATUS="failed: missing executable $launcher_source"
+    echo "ci-watch not installed: missing executable $launcher_source" >&2
+    return 1
+  fi
+
+  backup_and_link "$launcher_source" "$launcher_target"
+  CI_WATCH_STATUS="$launcher_target"
+}
+
 backup_and_copy_managed() {
   local source="$1"
   local target="$2"
@@ -2122,8 +2137,8 @@ Options:
                            matching, 3 failures within 1 hour, permanent ban,
                            DROP, and loopback-only ignoreip.
   --no-codex-here          Do not install ~/.local/bin/codex-here.
-  --no-agent-wt            Do not install the agent-wt launcher or
-                           the current-scope Codex manage-worktrees Skill.
+  --no-agent-wt            Do not install the agent-wt or ci-watch launchers,
+                           or the current-scope Codex manage-worktrees Skill.
   Codex desktop, Fast mode and SQLite log guard options (removed, ADR 0012)
                            are accepted and ignored so old invocations keep working.
   --no-learning-skills     Do not link the learning/writing skills into ~/.agents/skills.
@@ -2464,6 +2479,7 @@ fi
 configure_claude_desktop_ssh
 if [[ "$INSTALL_AGENT_WT" -eq 1 ]]; then
   install_agent_wt
+  install_ci_watch
 fi
 select_python_bin
 "$PYTHON_BIN" "$INSTALL_REAL/scripts/retired_package_cleanup.py" remove \
@@ -2573,8 +2589,10 @@ else
 fi
 if [[ "$INSTALL_AGENT_WT" -eq 1 ]]; then
   echo "agent-wt: $AGENT_WT_STATUS"
+  echo "ci-watch: $CI_WATCH_STATUS"
 else
   echo "agent-wt not installed (--no-agent-wt)."
+  echo "ci-watch not installed (--no-agent-wt)."
 fi
 if [[ "$INSTALL_CRON" -eq 1 ]]; then
   echo "Cron: $SCHEDULE $INSTALL_REAL/scripts/sync_agent_context_cron.sh"

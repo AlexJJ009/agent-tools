@@ -1,0 +1,4 @@
+regression	Run affected component regressions	﻿2026-10-04T09:34:55.9163164Z ##[group]Run if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+regression	Run affected component regressions	2026-10-04T09:34:55.9163677Z [36;1mif [[ "$EVENT_NAME" == workflow_dispatch ]]; then[0m
+regression	Run affected component regressions	2026-10-04T09:36:48.6768297Z }
+regression	Run affected component regressions	2026-10-04T09:36:48.6963858Z ##[error]Process completed with exit code 1.

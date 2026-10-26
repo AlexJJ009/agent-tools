@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""Wait for GitHub checks using gh's native watch commands."""
+import argparse
+from collections import defaultdict, deque
+import json
+import math
+from pathlib import Path
+import re
+import subprocess
+import sys
+import time
+from urllib.parse import quote
+
+FIELDS = 'name,state,bucket,link,workflow'
+RUN_FIELDS = 'databaseId,name,status,conclusion,url,headSha'
+BAD = {'failure', 'cancelled', 'timed_out', 'action_required', 'startup_failure', 'stale'}
+
+
+def duration(value):
+    number = float(value)
+    if not math.isfinite(number) or number < 0:
+        raise argparse.ArgumentTypeError('duration must be finite and nonnegative')
+    return number
+
+
+def gh(args, repo):
+    return ['gh', *args] + (['--repo', repo] if repo and args[0] not in {'api', 'repo'} else [])
+
+
+def query(args, repo, no_checks=False):
+    result = subprocess.run(gh(args, repo), capture_output=True, text=True)
+    # gh uses exit 1 and stderr for an empty PR check list, but also for errors.
+    if no_checks and result.returncode == 1 and 'no checks reported' in result.stderr:
+        return []
+    if result.returncode not in (0, 1, 8) or not result.stdout.strip():
+        raise RuntimeError(result.stderr.strip() or 'gh returned no JSON')
+    try:
+        data = json.loads(result.stdout)
+    except ValueError as exc:
+        raise RuntimeError(result.stderr.strip() or 'invalid gh JSON') from exc
+    if result.returncode and not no_checks:
+        raise RuntimeError(result.stderr.strip() or 'gh query failed')
+    return data
+
+
+def failed_logs(run_id, repo, job_id=None):
+    args = ['run', 'view', run_id, '--log-failed']
+    if job_id:
+        args += ['--job', job_id]
+    # Stream the full response, retaining only each job's tail in memory.
+    tails = defaultdict(lambda: deque(maxlen=80))
+    with subprocess.Popen(gh(args, repo), stdout=subprocess.PIPE, text=True) as proc:
+        for line in proc.stdout:
+            tails[line.split('\t', 1)[0]].append(line.rstrip('\n'))
+        code = proc.wait()
+    for lines in tails.values():
+        print('\n'.join(lines))
+    if code:
+        print(f'ci-watch: failed to read logs for run {run_id}', file=sys.stderr)
+
+
+def report_failures(checks, repo, runs=False):
+    seen = set()
+    for check in checks:
+        link = check['url'] if runs else check['link']
+        print(f"Failed: {check['name']} {link}", flush=True)
+        match = re.search(r'/actions/runs/(\d+)(?:/job/(\d+))?', link)
+        run_id = str(check['databaseId']) if runs else (match[1] if match else None)
+        job_id = match[2] if match else None
+        key = (run_id, job_id)
+        if run_id and key not in seen:
+            seen.add(key)
+            failed_logs(run_id, repo, job_id)
+
+
+def worker(args):
+    repo = args.repo
+    if not repo:
+        repo = query(['repo', 'view', '--json', 'nameWithOwner'], None)['nameWithOwner']
+    pr = args.pr
+    sha = args.sha
+    if not pr:
+        ref = args.branch or sha
+        info = query(['api', f'repos/{repo}/commits/{quote(ref, safe="")}'], repo)
+        sha = info['sha']
+        # Commit-associated PRs also work for branch heads and closed PRs.
+        prs = query(['api', f'repos/{repo}/commits/{sha}/pulls'], repo)
+        pr = next((str(p['number']) for p in prs if p['head']['sha'] == sha), None)
+    def checks():
+        if pr:
+            return query(['pr', 'checks', pr, '--json', FIELDS], repo, no_checks=True)
+        return query(['run', 'list', '--commit', sha, '--limit', '1000', '--json', RUN_FIELDS], repo)
+
+    grace_end = time.monotonic() + args.grace_seconds
+    rows = checks()
+    while not rows and time.monotonic() < grace_end:
+        time.sleep(min(10, max(0, grace_end - time.monotonic())))
+        rows = checks()
+    if not rows:
+        print('No checks appeared within the grace period; this is not a pass.')
+        return 2
+    watch_failed = False
+    watched = set()
+    while True:
+        watches = [['pr', 'checks', pr, '--watch']] if pr else [
+            ['run', 'watch', str(row['databaseId']), '--exit-status']
+            for row in rows if row['databaseId'] not in watched]
+        for watch in watches:
+            result = subprocess.run(gh(watch, repo), stdout=subprocess.DEVNULL)
+            if result.returncode not in (0, 1):
+                raise RuntimeError(f'gh watch exited {result.returncode}')
+            watch_failed |= result.returncode != 0
+        watched.update(row['databaseId'] for row in rows if not pr)
+        final = checks()
+        if pr or all(row['databaseId'] in watched for row in final):
+            break
+        # A workflow registered while another was watched. Hand it to gh too;
+        # no polling or sleeping after the initial grace period.
+        rows = final
+    failed = [row for row in final if (row['bucket'] in {'fail', 'cancel'} if pr
+                                      else row['conclusion'] in BAD)]
+    pending = [row for row in final if (row['bucket'] == 'pending' if pr
+                                       else row['status'] != 'completed')]
+    if failed:
+        report_failures(failed, repo, runs=not pr)
+        return 1
+    if not final or pending or watch_failed:
+        raise RuntimeError('watch ended without a complete passing check result')
+    print('All checks passed.')
+    return 0
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, epilog=(
+        'Exit codes: 0 passed, 1 a check failed, 2 no checks (not a pass), 3 timeout, '
+        '4 ci-watch or gh error (no verdict). '
+        'Requires gh and coreutils timeout. Skipped/neutral checks follow gh pass semantics.'))
+    parser.add_argument('pr', nargs='?', help='PR number')
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument('--branch')
+    mode.add_argument('--sha')
+    parser.add_argument('--repo', help='OWNER/NAME (default: current repository)')
+    parser.add_argument('--timeout', type=duration, default=60, metavar='MIN',
+                        help='overall deadline in minutes (default: 60)')
+    parser.add_argument('--grace-seconds', type=duration, default=120, metavar='SEC',
+                        help='wait for initial checks, probing every 10 seconds (default: 120)')
+    parser.add_argument('--worker', action='store_true', help=argparse.SUPPRESS)
+    args = parser.parse_args()
+    if bool(args.pr) + bool(args.branch) + bool(args.sha) != 1:
+        parser.error('provide exactly one PR number, --branch or --sha')
+    if args.timeout == 0:
+        parser.error('--timeout must be positive')
+    try:
+        if args.worker:
+            return worker(args)
+        result = subprocess.run(['timeout', '--kill-after=5s', f'{args.timeout * 60}s',
+                                 sys.executable, str(Path(__file__).resolve()),
+                                 *sys.argv[1:], '--worker'])
+        if result.returncode in (124, 137):
+            print('Timed out waiting for checks.')
+            return 3
+        return result.returncode
+    except Exception as exc:  # any crash is "no verdict", never a check failure
+        print(f'ci-watch: {exc}', file=sys.stderr)
+        return 4
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -21,6 +21,7 @@ private reports describe bounded development work and are not deployment proof.
 - [Remote control](CODEX_REMOTE_CONTROL.md): standalone CLI and app-server setup.
 - [Browser tools](CODEX_PLAYWRIGHT_TOOLS.md): machine-local Playwright/Chromium setup.
 - [Managed worktrees](GIT_WORKTREE_AND_AGENT_WT_GUIDE.md): admission, layout and audit.
+- [ci-watch](CI_WATCH.md): wait for a PR's GitHub checks in the background; exit codes.
 
 ## Documentation Responsibilities
 

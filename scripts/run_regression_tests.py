@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 ROOT_GROUPS = {
     'claude-adapter': ('test_install_claude.py',),
     'project-evals': ('test_project_eval_skills.py',),
+    'ci-watch': ('test_ci_watch.py',),
     'learning': ('test_teaching_*', 'test_writing_contract_*'),
     'test-runner': ('test_regression_runner.py',),
     'installation': ('test_install_*', 'test_codex_*', 'test_direct_configuration_*', 'test_retired_*'),
@@ -57,6 +58,8 @@ def select_suites(paths):
                               'skills/evidence-anchor/', 'skills/learning-artifact-compiler/',
                               'tests/fixtures/teaching/')):
             selected.update(('learning', 'installation'))
+        elif path == 'bin/ci-watch':
+            selected.update(('ci-watch', 'installation'))
         elif path.startswith(('skills/manage-worktrees/', 'bin/agent-wt')):
             selected.update(('worktrees', 'installation'))
         elif path.startswith(('scripts/', 'config/', 'bin/')):

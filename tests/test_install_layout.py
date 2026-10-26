@@ -202,17 +202,28 @@ class InstallerLayoutTests(unittest.TestCase):
             return layout.consumer_links(self.home)
 
     def test_fresh_install_keeps_software_out_of_the_data_root(self):
-        self.run_install('--cron')
+        installed = self.run_install('--cron')
+        self.assertIn('ci-watch: ', installed.stdout)
         self.assertTrue((self.lib / 'scripts/install.sh').is_file())
         self.assertTrue((self.lib / layout.MANIFEST).is_file())
         self.assertFalse(any(self.data.glob('*.sh')) if self.data.exists() else False)
         self.assertEqual(layout.classify(self.data)['software'], [])
         self.assertIn(str(self.lib / 'scripts/sync_agent_context_cron.sh'), (self.home / 'test-crontab').read_text())
-        self.assertEqual(os.path.realpath(self.home / '.local/bin/agent-wt'), str(self.lib / 'bin/agent-wt'))
+        for launcher in ('agent-wt', 'ci-watch'):
+            installed_launcher = self.home / '.local/bin' / launcher
+            self.assertTrue(installed_launcher.is_symlink())
+            self.assertEqual(installed_launcher.resolve(), self.lib / 'bin' / launcher)
+            self.assertTrue(os.access(installed_launcher, os.X_OK))
         self.assertEqual(self.run_install('--check').returncode, 0)
         before = snapshot(self.home)
         self.run_install('--cron')
         self.assertEqual(snapshot(self.home), before)
+
+    def test_no_agent_wt_skips_both_launchers(self):
+        installed = self.run_install('--no-agent-wt')
+        for launcher in ('agent-wt', 'ci-watch'):
+            self.assertFalse((self.home / '.local/bin' / launcher).exists())
+            self.assertIn(f'{launcher} not installed (--no-agent-wt).', installed.stdout)
 
     def test_overlapping_install_dir_is_refused_before_writes(self):
         for target in (self.data, self.data / 'software', self.home / '.local/share'):

@@ -41,6 +41,8 @@ class ComponentSelectionTests(unittest.TestCase):
             'tests/test_install_claude.py': {'claude-adapter'},
             '.agents/skills/build-eval/SKILL.md': {'project-evals'},
             'tests/test_project_eval_skills.py': {'project-evals'},
+            'bin/ci-watch': {'ci-watch', 'installation'},
+            'tests/test_ci_watch.py': {'ci-watch'},
             'skills/teaching-reconstruction/scripts/validate_teaching_artifact.py': {'learning', 'installation'},
             'skills/manage-worktrees/scripts/agent_wt.py': {'worktrees', 'installation'},
             'config/retired-packages/linear-workflow.json': {'installation'},

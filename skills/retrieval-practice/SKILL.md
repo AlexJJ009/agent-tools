@@ -16,7 +16,7 @@ Choose practice that fits the target skill and the learner's requested effort. D
 
 Record what the response actually demonstrates and how much assistance was supplied. A correct choice does not establish independent writing ability; cloze completion does not establish an unaided argument. Fade scaffolding or change formats when useful for the objective; no fixed progression is required.
 
-Read `references/practice-design.md` for check types and scoring notes. Use `../teaching-reconstruction/references/artifact-contract.md` only for legacy v1 ReadPapers manifests; new non-ReadPapers durable learning may use `../teaching-reconstruction/references/portable-learning-record.md`.
+Read `references/practice-design.md` for check types and scoring notes. Durable learning may use `../teaching-reconstruction/references/portable-learning-record.md`.
 
 Read `references/domain-practice.md` when selecting paper, code/architecture, tool-use, or writing exercises. Read `references/review-follow-through.md` for actual attempts, repeated practice, and later-review follow-up. These rules share one practice owner while preserving different domain objectives; they do not create a scheduler or grant permission to send reminders.
 

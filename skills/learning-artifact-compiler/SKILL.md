@@ -21,6 +21,6 @@ Deliver a complete, coherent first draft at the requested scope, introducing the
 
 Write the finished note to the destination the user named. Drafting in a source project and exporting to a knowledge directory are separate steps; when the request names a destination directory, put the file there and read it back to verify its content. Publication and Zotero ingestion remain separate actions requiring their own scope.
 
-Read `references/artifact-compilation.md` for artifact patterns. Use `../teaching-reconstruction/references/artifact-contract.md` only for legacy v1 ReadPapers manifests; use `../teaching-reconstruction/references/portable-learning-record.md` for new portable learning records when a durable record is needed.
+Read `references/artifact-compilation.md` for artifact patterns. Use `../teaching-reconstruction/references/portable-learning-record.md` when a durable learning record is needed.
 
-Use `../teaching-reconstruction/assets/learning-artifact-template.md` only when a v1 ReadPapers artifact is appropriate. The shared writing contract applies. A blog draft is a writing artifact; external publication needs its own authorization.
+The shared writing contract applies. A blog draft is a writing artifact; external publication needs its own authorization.

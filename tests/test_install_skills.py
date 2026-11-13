@@ -40,9 +40,9 @@ class LinkSkillsTests(unittest.TestCase):
         self.base.mkdir(parents=True)
         (self.base / 'academic-writing').symlink_to(bundle / 'academic-writing')
         (self.base / 'knowledge-deposition-doc').symlink_to(self.home / 'gone-bundle/knowledge-deposition-doc')
-        foreign = self.home / 'mine/evidence-anchor'
+        foreign = self.home / 'mine/teaching-dag-builder'
         self.write(foreign / 'SKILL.md', 'mine')
-        (self.base / 'evidence-anchor').symlink_to(foreign)
+        (self.base / 'teaching-dag-builder').symlink_to(foreign)
         self.write(self.base / 'retrieval-practice/SKILL.md', 'a real directory')
         self.write(self.base / 'cleaner/SKILL.md', 'a real retired directory')
         unrelated = self.home / 'elsewhere/work-report'
@@ -51,8 +51,8 @@ class LinkSkillsTests(unittest.TestCase):
         result = skills.link_skills(self.home, self.base, self.install)
         self.assertEqual(os.readlink(self.base / 'academic-writing'), str(self.install / 'skills/academic-writing'))
         self.assertFalse((self.base / 'knowledge-deposition-doc').is_symlink())
-        self.assertEqual(sorted(result['preserved']), ['evidence-anchor', 'retrieval-practice'])
-        self.assertEqual(os.readlink(self.base / 'evidence-anchor'), str(foreign))
+        self.assertEqual(sorted(result['preserved']), ['retrieval-practice', 'teaching-dag-builder'])
+        self.assertEqual(os.readlink(self.base / 'teaching-dag-builder'), str(foreign))
         self.assertEqual((self.base / 'retrieval-practice/SKILL.md').read_text(), 'a real directory')
         self.assertTrue((self.base / 'cleaner/SKILL.md').is_file())  # copies are the operator's to remove
         self.assertTrue((self.base / 'work-report').is_symlink())

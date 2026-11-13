@@ -1,8 +1,8 @@
 # Learning and writing skills
 
-Seven skills carry the learning and writing methods: `task-routing`,
+Six skills carry the learning and writing methods: `task-routing`,
 `academic-writing`, `teaching-reconstruction`, `teaching-dag-builder`,
-`evidence-anchor`, `retrieval-practice` and `learning-artifact-compiler`. They are
+`retrieval-practice` and `learning-artifact-compiler`. They are
 plain skills: instructions and reference files with no CLI, hooks, background
 service or stored state. Each session works from the user's request and the
 conversation; when a session resumes, the user restates the context
@@ -33,12 +33,9 @@ Practice follow-through is an Agent instruction, not a background service. Nothi
 schedules review, delivers notifications, captures answers or synchronizes
 calendar events; existing queues remain with their owning project.
 
-The `read-paper` skill (Zotero library, formal close reading, ZotLit notes)
-belongs to the ReadPapers tooling repository, not to Agent Tools. The teaching
-skill keeps the frozen v1 ReadPapers artifact contract and its standalone
-validator, `skills/teaching-reconstruction/scripts/validate_teaching_artifact.py`
-(also used by the vault pre-commit asset). Existing ZotLit managed regions are
-never rewritten.
+Paper library work (Zotero, formal close reading, ZotLit notes) belongs to the
+ReadPapers tooling repository; Agent Tools carries no ReadPapers contract,
+template or validator ([ADR 0013](decisions/0013-retire-evidence-anchor-and-readpapers-v1.md)).
 
 ## Writing contract
 

@@ -36,7 +36,7 @@ changed. The target guard runs before installation.
 |---|---|
 | `~/.claude/CLAUDE.md` | Existing Core entry and its native `@` imports; linked to Core only if missing |
 | `~/.claude/rules/agent-tools.md` | Link to the generated view `~/.local/lib/agent-tools/claude/context.md` |
-| `~/.claude/skills/<name>` | Link to `~/.local/lib/agent-tools/skills/<name>` for the seven [learning and writing skills](LEARNING_WORKFLOW.md) |
+| `~/.claude/skills/<name>` | Link to `~/.local/lib/agent-tools/skills/<name>` for the six [learning and writing skills](LEARNING_WORKFLOW.md) |
 | `~/.claude/settings.json` | `autoMemoryEnabled = false`; retired hook entries removed; nothing else changed |
 
 The context view imports Core through native `@` syntax when the global entry does

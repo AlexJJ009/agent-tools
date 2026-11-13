@@ -14,7 +14,7 @@ ROOT_GROUPS = {
     'claude-adapter': ('test_install_claude.py',),
     'project-evals': ('test_project_eval_skills.py',),
     'ci-watch': ('test_ci_watch.py',),
-    'learning': ('test_teaching_*', 'test_writing_contract_*'),
+    'learning': ('test_writing_contract_*',),
     'test-runner': ('test_regression_runner.py',),
     'installation': ('test_install_*', 'test_codex_*', 'test_direct_configuration_*', 'test_retired_*'),
 }
@@ -55,8 +55,7 @@ def select_suites(paths):
         elif path.startswith(('shared/writing/', 'skills/academic-writing/', 'scripts/sync_writing_contract.py')):
             selected.update(('learning', 'claude-adapter', 'installation'))
         elif path.startswith(('skills/teaching-', 'skills/task-routing/', 'skills/retrieval-practice/',
-                              'skills/evidence-anchor/', 'skills/learning-artifact-compiler/',
-                              'tests/fixtures/teaching/')):
+                              'skills/learning-artifact-compiler/')):
             selected.update(('learning', 'installation'))
         elif path == 'bin/ci-watch':
             selected.update(('ci-watch', 'installation'))

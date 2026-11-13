@@ -2086,7 +2086,7 @@ Options:
                            are accepted and ignored so old invocations keep working.
   --no-learning-skills     Do not link the learning/writing skills into ~/.agents/skills.
   --no-cc-switch-update    Do not update cc-switch-cli from the latest GitHub
-                           release before Codex provider migration.
+                           release.
   --cc-switch-update-proxy MODE
                            Proxy mode for the cc-switch GitHub release update:
                            auto|always|never. Default: auto.

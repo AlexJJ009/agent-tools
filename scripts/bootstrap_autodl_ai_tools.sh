@@ -435,7 +435,6 @@ run_agent_tools_install() {
     --no-codex-config \
     --no-codex-remote-control \
     --no-registry \
-    --no-cron \
     --no-agent-core \
     --no-cc-switch-update)
 }
@@ -836,15 +835,6 @@ print(json.dumps({
     "goals_1": goal_changed,
 }, ensure_ascii=False, sort_keys=True))
 PY
-
-  python3 "$AGENT_TOOLS_DIR/scripts/migrate_codex_provider_bucket.py" \
-    --target "$CODEX_MODEL_PROVIDER_ID" \
-    --all-non-target-providers \
-    --skip-live-config \
-    --skip-cc-switch \
-    --allow-running-codex \
-    --apply \
-    --yes
 
   python3 - <<'PY'
 import sqlite3

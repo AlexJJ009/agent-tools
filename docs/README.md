@@ -8,7 +8,6 @@ private reports describe bounded development work and are not deployment proof.
 - [Learning and writing skills](LEARNING_WORKFLOW.md): the plain skills that remain, their ownership and installation.
 - [Architecture decisions](decisions/README.md): adopted choices and their reasons.
 - [Installation](INSTALLATION.md): general installers, target guards and machine defaults.
-- [Context synchronization](CONTEXT_SYNC.md): bridge configuration, commands, conflicts and cron.
 - [CLI server bootstrap](CLI_SERVER_BOOTSTRAP.md): server setup.
 - [Claude Code adapter](CLAUDE_CODE_ADAPTER.md): context view and skill links on Linux/WSL (no hooks).
 - [Repository overview](../README.md): other maintained tools and platform guides.
@@ -27,7 +26,7 @@ private reports describe bounded development work and are not deployment proof.
 
 The two README files serve different entry points; neither is a second progress
 register. The [repository README](../README.md) introduces the tools, file map
-and setup entry points. Detailed context-sync usage belongs in [its component guide](CONTEXT_SYNC.md). This README is the navigation index for
+and setup entry points. This README is the navigation index for
 current component guides and architectural decisions; it does not repeat their
 commands, behavior descriptions or decision status.
 

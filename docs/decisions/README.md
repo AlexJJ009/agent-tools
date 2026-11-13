@@ -45,6 +45,7 @@ task, not from writing an ADR. Record actual decisions, not invented alternative
 - [Keep machine proxy configuration in dedicated repositories](0011-proxy-configuration-ownership.md)
 - [Retire the task runtime, work reports and Codex desktop patches](0012-retire-workflow-runtime.md)
 - [Retire evidence-anchor and the ReadPapers v1 teaching material](0013-retire-evidence-anchor-and-readpapers-v1.md)
+- [Remove one-off installer machinery and context sync](0014-remove-one-off-installer-machinery.md)
 
 The 2026-09-30 consolidation folded 0001 and 0005 into 0004. Operational content
 from 0007 and 0008 remains in component guides and CONTRIBUTING; the applicable

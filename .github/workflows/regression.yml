@@ -24,12 +24,10 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: "3.12"
-      - name: Resolve comparison base and check whitespace
-        id: scope
+      - name: Check whitespace
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
-          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           base_sha="$PR_BASE_SHA"
@@ -40,20 +38,5 @@ jobs:
             base_sha="$(git rev-parse HEAD^)"
           fi
           git diff --check "$base_sha" HEAD
-          echo "base=$base_sha" >> "$GITHUB_OUTPUT"
-          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
-            suites="$(python scripts/run_regression_tests.py active --list)"
-          else
-            suites="$(python scripts/run_regression_tests.py active --changed-from "$base_sha" --list)"
-          fi
-          echo "suites=$suites" >> "$GITHUB_OUTPUT"
-      - name: Run affected component regressions
-        env:
-          BASE_SHA: ${{ steps.scope.outputs.base }}
-          EVENT_NAME: ${{ github.event_name }}
-        run: |
-          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
-            python scripts/run_regression_tests.py active
-          else
-            python scripts/run_regression_tests.py active --changed-from "$BASE_SHA"
-          fi
+      - name: Run component regressions
+        run: python scripts/run_regression_tests.py active

@@ -31,19 +31,16 @@ SCHEMA = 'agent-tools.install-manifest/1'
 PRODUCER = 'agent-tools-installer'
 # Top-level items install.sh ships into the install root.
 SHIPPED_FILES = ('README.md',)
-RELOCATED_SCRIPTS = ('install.sh', 'pack.sh', 'sync_agent_context.py', 'sync_agent_context_cron.sh',
-                     'migrate_codex_provider_bucket.py')
+RELOCATED_SCRIPTS = ('install.sh', 'pack.sh')
 SHIPPED_DIRS = ('bin', 'scripts', 'config', 'docs', 'skills', 'adapters', 'shared')
-RETIRED = ('linear_workflow', 'goal_plan', 'experiment_registry', 'agent_workflow', 'learning_workflow',
-           'project_adapters', 'codex_project_memory.py',
-           'agent_context_sync.config.example.json')  # old root copy; example now ships in config/
+RETIRED = ('goal_plan', 'experiment_registry', 'agent_workflow', 'learning_workflow',
+           'project_adapters', 'codex_project_memory.py')
 BUNDLES = ('claude',)  # generated views owned by the Claude adapter inside the install root
 LEGACY_BUNDLES = ('learning-workflow', 'claude')  # bundle directories earlier releases put in the data root
-GENERATED = ('agent_context_sync.config.json',)  # written by install.sh
 FOREIGN = ('codex_target_guard.py',)  # scripts/codex_fleet_guard.py helper
 DATA = ('tasks.sqlite3', 'tasks.sqlite3-wal', 'tasks.sqlite3-shm', 'tasks.sqlite3-journal',
         'artifacts', 'cleanup', 'archives', 'materials', 'logs')
-SOFTWARE = SHIPPED_FILES + RELOCATED_SCRIPTS + SHIPPED_DIRS + RETIRED + LEGACY_BUNDLES + GENERATED
+SOFTWARE = SHIPPED_FILES + RELOCATED_SCRIPTS + SHIPPED_DIRS + RETIRED + LEGACY_BUNDLES
 LEGACY_DATA_LAYOUT = '.local/share/agent-tools'  # where earlier releases put bundles on Linux/WSL
 
 
@@ -293,9 +290,6 @@ def _known(item: Path, name: str, *, source: Path, install: Path, objects: set[s
         return True  # nothing left but empty directories or caches
     if name in LEGACY_BUNDLES:
         return False  # generated or retired bundles are archived, never matched against releases
-    if name in GENERATED:
-        current = install / name
-        return item.is_file() and current.is_file() and item.read_bytes() == current.read_bytes()
     files = {name: item} if item.is_file() else {f'{name}/{k}': v for k, v in tree_files(item).items()}
     for rel, path in files.items():
         if path.is_symlink():
@@ -316,32 +310,8 @@ def repoint_script_consumers(source: Path, install: Path, home: Path) -> list[st
                          + r')(?![\w./-])')
     updated = []
     texts = consumer_texts(home)
-    relative_commands = {}
-    config_path = install / 'agent_context_sync.config.json'
-    if config_path.is_file():
-        from scripts.sync_agent_context import scan_projects, GENERATED_MARKER
-        config = json.loads(config_path.read_text())
-        for root in config.get('scan_roots', []):
-            for state in scan_projects(Path(root).expanduser(), int(config.get('max_depth', 3)), True):
-                for path in (state.root / 'AGENTS.md', state.root / 'CLAUDE.md', state.root / '.codex/README.md'):
-                    if path.is_file():
-                        content = path.read_text()
-                        if GENERATED_MARKER in content:
-                            texts[str(path)] = content
-                            commands = {}
-                            for root in (Path(source).resolve(), Path(install).resolve(), data_root()):
-                                if root.is_relative_to(state.root):
-                                    relative = root.relative_to(state.root)
-                                    old = str(relative / 'sync_agent_context.py')
-                                    new = str(relative / 'scripts/sync_agent_context.py')
-                                    commands[old] = new
-                            relative_commands[str(path)] = commands
     for filename, content in texts.items():
         changed = pattern.sub(lambda match: replacements[match.group()], content)
-        for old, new in relative_commands.get(filename, {}).items():
-            command = re.compile(r'^(python\d*(?:\.\d+)* )' + re.escape(old)
-                                 + r'(?= sync \. --direction bidirectional(?:\s|$))', re.MULTILINE)
-            changed = command.sub(lambda match: match.group(1) + new, changed)
         if changed == content:
             continue
         if filename == 'crontab':
@@ -358,15 +328,6 @@ def repoint_script_consumers(source: Path, install: Path, home: Path) -> list[st
     return updated
 
 
-def repoint_crontab(data: Path, install: Path) -> bool:
-    cron = _crontab()
-    old, new = str(data / 'sync_agent_context_cron.sh'), str(install / 'scripts/sync_agent_context_cron.sh')
-    if not cron or old not in cron or not Path(new).is_file():
-        return False
-    subprocess.run(['crontab', '-'], input=cron.replace(old, new), text=True, check=True)
-    return True
-
-
 def classify(data: Path) -> dict[str, list[str]]:
     groups = {'software': [], 'data': [], 'unknown': []}
     for child in sorted(data.iterdir()) if data.is_dir() else []:
@@ -379,8 +340,7 @@ def migrate(source: Path, install: Path, home: Path, *, stamp: str | None = None
     source, install = Path(source).resolve(), Path(install).resolve()
     data = require_separate(install, source=source)
     report = {'data_root': str(data), 'removed': [], 'archived': [], 'in_use': {}, 'data': [], 'unknown': [],
-              'repointed_script_consumers': repoint_script_consumers(source, install, home),
-              'crontab_repointed': repoint_crontab(data, install)}
+              'repointed_script_consumers': repoint_script_consumers(source, install, home)}
     groups = classify(data)
     report['data'], report['unknown'] = groups['data'], groups['unknown']
     if not groups['software']:
@@ -411,7 +371,7 @@ def migrate(source: Path, install: Path, home: Path, *, stamp: str | None = None
 def check(source: Path, install: Path, home: Path) -> dict:
     source, install = Path(source).resolve(), Path(install).resolve()
     data = require_separate(install, source=source)
-    drift = {} if source == install else check_tree(install, source_files(source), keep=BUNDLES + GENERATED + FOREIGN)
+    drift = {} if source == install else check_tree(install, source_files(source), keep=BUNDLES + FOREIGN)
     software = classify(data)['software']
     texts, links = consumer_texts(home), consumer_links(home)
     pointing = {}
@@ -448,7 +408,7 @@ def main(argv=None) -> int:
             print(install)
         elif args.command == 'sync':
             require_separate(install, source=args.source)
-            report = sync_tree(install, source_files(args.source), keep=BUNDLES + GENERATED + FOREIGN)
+            report = sync_tree(install, source_files(args.source), keep=BUNDLES + FOREIGN)
             report['repointed_consumers'] = repoint_script_consumers(args.source, install, args.home)
             _print(report)
         elif args.command == 'migrate':

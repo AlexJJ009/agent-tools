@@ -29,10 +29,6 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             "CC_SWITCH_DB_PATH": str(home / ".cc-switch" / "cc-switch.db"),
             "TMUX_CONF": str(home / ".tmux.conf"),
             "CODEX_MODEL_PROVIDER_ID": "custom",
-            "AGENT_TOOLS_CODEX_PROVIDER_BUCKET_APPLY": "1",
-            "AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALL_NON_TARGET": "1",
-            "AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALLOW_RUNNING": "0",
-            "AGENT_TOOLS_CODEX_PROVIDER_BUCKET_KILL_RUNNING": "0",
         })
         command = [
             "bash", str((source_root or ROOT) / "scripts/install.sh"),
@@ -84,28 +80,14 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
     def test_isolated_unix_install_creates_exactly_one_current_scope_skill(self):
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary)
-            stale = [home / "agent-tools-installed" / name for name in (
-                "linear_workflow/VERSION", "config/managed-packages/linear-workflow.json",
-                "scripts/managed_package_installer.py", "docs/linear-workflow/README.md")]
-            for path in stale:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_text("removed release")
             self.run_isolated_unix_install(home)
             current = home / ".codex" / "skills" / "manage-worktrees"
             legacy = home / ".agents" / "skills" / "manage-worktrees"
             claude = home / ".claude" / "skills" / "manage-worktrees"
             self.assertTrue((current / "SKILL.md").is_file())
             self.assertFalse(legacy.exists())
-            self.assertFalse((home / "test-crontab").exists())
             self.assertFalse(claude.exists())
             self.assertTrue((home / ".local" / "bin" / "agent-wt").exists())
-            for client in (".codex", ".claude"):
-                for skill in ("linear-plan", "linear-deliver"):
-                    self.assertFalse((home / client / "skills" / skill).exists())
-            self.assertFalse((home / ".local/bin/linear-workflow").exists())
-            self.assertTrue((home / "agent-tools-installed/config/retired-packages/linear-workflow.json").is_file())
-            for path in stale:
-                self.assertFalse(path.parent.exists() if path.parent.name != "scripts" else path.exists(), path)
 
     def test_isolated_unix_install_rejects_legacy_duplicate(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -239,14 +221,11 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
                             with self.assertRaises(ValueError):
                                 module.install(ROOT, home, home / ".codex", "win11")
 
-    def test_static_windows_launcher_and_migration_wiring(self):
+    def test_static_windows_launcher_wiring(self):
         launcher = (ROOT / "bin/agent-wt.ps1").read_text()
         self.assertNotIn(".agents/skills/manage-worktrees", launcher)
         self.assertIn("$env:CODEX_HOME", launcher)
         self.assertIn(".codex/skills/manage-worktrees", launcher)
-        installer = (ROOT / "scripts/install-win11.ps1").read_text()
-        self.assertIn("($ApplyCodexProviderBucketMigration -or $DryRunCodexProviderBucketMigration -or $KillRunningCodexProviderBucketMigration)", installer)
-        self.assertIn("$KillRunningCodexProviderBucketMigration -and -not $NoKillRunningCodexProviderBucketMigration", installer)
 
     @unittest.skipUnless(shutil.which("pwsh"), "PowerShell unavailable")
     def test_win11_installer_rejects_mismatched_write_profiles_before_writes(self):
@@ -281,13 +260,6 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
                     self.assertEqual(list(root.iterdir()), [wrapper])
                     self.assertEqual(wrapper.read_text(), wrapper_text)
 
-    def test_explicit_cron_uses_only_isolated_crontab(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            home = Path(tmp)
-            self.run_isolated_unix_install(home, extra_args=("--cron",))
-            self.assertIn("17 * * * *", (home / "test-crontab").read_text())
-            self.assertIn("sync_agent_context_cron.sh", (home / "test-crontab").read_text())
-
     def test_removed_registry_flag_rejects_before_any_install_writes(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
@@ -308,56 +280,6 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             self.assertIn("Removed option ignored (ADR 0012): --codex-sqlite-log-guard-wsl-windows", result.stderr)
             self.assertNotIn("unknown argument", result.stderr)
             self.assertTrue((home / ".codex/skills/manage-worktrees/SKILL.md").is_file())
-
-    @staticmethod
-    def stage_installer_source(destination):
-        # Execute the real installer and guard. Replace only the migration helper:
-        # invoking it with --kill-running-codex would affect the test host.
-        destination.mkdir()
-        for name in (
-            "bin", "scripts", "config", "skills", "shared",
-        ):
-            source = ROOT / name
-            if source.is_dir():
-                shutil.copytree(source, destination / name, ignore=shutil.ignore_patterns("__pycache__"))
-            else:
-                shutil.copy2(source, destination / name)
-        (destination / "scripts" / "migrate_codex_provider_bucket.py").write_text(
-            "import json, os, sys\n"
-            "from pathlib import Path\n"
-            "with (Path(os.environ['HOME']) / 'migration-calls.jsonl').open('a') as output:\n"
-            "    output.write(json.dumps(sys.argv[1:]) + '\\n')\n"
-        )
-
-    def test_provider_migration_requires_opt_in_and_passes_only_requested_authority(self):
-        cases = (
-            ((), None),
-            (("--dry-run-codex-provider-bucket-migration",),
-             ["--target", "custom", "--all-non-target-providers"]),
-            (("--apply-codex-provider-bucket-migration",),
-             ["--target", "custom", "--apply", "--yes", "--all-non-target-providers"]),
-            (("--kill-running-codex-provider-bucket-migration",),
-             ["--target", "custom", "--apply", "--yes", "--kill-running-codex", "--all-non-target-providers"]),
-            (("--kill-running-codex-provider-bucket-migration", "--no-kill-running-codex-provider-bucket-migration"),
-             ["--target", "custom", "--apply", "--yes", "--all-non-target-providers"]),
-        )
-        with tempfile.TemporaryDirectory() as temporary:
-            source = Path(temporary) / "source"
-            self.stage_installer_source(source)
-            for index, (flags, expected) in enumerate(cases):
-                with self.subTest(flags=flags):
-                    home = Path(temporary) / str(index)
-                    codex = home / ".codex"
-                    codex.mkdir(parents=True)
-                    config = codex / "config.toml"
-                    config.write_text('model_provider = "custom"\n')
-                    self.run_isolated_unix_install(home, extra_args=flags, source_root=source)
-                    calls = home / "migration-calls.jsonl"
-                    if expected is None:
-                        self.assertFalse(calls.exists(), "ordinary installation must not invoke history migration")
-                    else:
-                        self.assertEqual([json.loads(line) for line in calls.read_text().splitlines()], [expected])
-                    self.assertEqual(config.read_text(), 'model_provider = "custom"\n')
 
 
 if __name__ == "__main__":

@@ -109,8 +109,6 @@ alone. The learning and writing skills are linked from the install root into
 `scripts/install.sh --check` reports install-root drift and software left in the data
 root.
 
-The installer writes `agent_context_sync.config.json` using the actual paths on the current machine. Context synchronization is manual by default; use `--cron` only to explicitly enable an hourly heartbeat. See [context synchronization](CONTEXT_SYNC.md) for configuration and commands.
-
 On ordinary Linux hosts with `sshd`, the installer also checks `fail2ban` in
 auto mode. If it is missing and a supported package manager is available, it
 installs it. It then enforces a strict `sshd` jail through
@@ -142,10 +140,7 @@ Installed user-level locations are separate:
   `requires_openai_auth = true`, `supports_websockets = true`,
   `wire_api = "responses"`, and the live credential in
   `experimental_bearer_token`. The installer also keeps cc-switch's current
-  Codex provider on this same custom bearer-token provider. Use
-  `-DryRunCodexProviderBucketMigration` to inspect history first, or
-  `-AllowRunningCodexProviderBucketMigration` when running from inside an
-  active Codex conversation.
+  Codex provider on this same custom bearer-token provider.
 
 ## Codex Fleet Target Guard
 
@@ -155,9 +150,8 @@ read-only: it verifies the platform, Unix/Windows profile boundary, Codex
 provider shape, CC Switch database validation, and current provider without
 printing secrets.
 
-The standalone provider-bucket script calls the same guard themselves before writes. The guard therefore
-remains effective when a script is invoked outside `scripts/install.sh`; it is not a
-convention that callers may skip.
+Each helper calls the same guard before writes, so the guard stays effective when a
+helper is invoked outside `scripts/install.sh`; it is not a convention that callers may skip.
 
 For a Linux/WSL/SSH fleet, copy
 `config/codex-fleet.targets.example.json` to an untracked local manifest and
@@ -259,18 +253,9 @@ stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 ```
 
-Before running the Codex provider-bucket migration, the installer updates
-`cc-switch-cli` from the latest GitHub release installer. Use
+The installer updates `cc-switch-cli` from the latest GitHub release installer. Use
 `--no-cc-switch-update` only when the target machine cannot or should not reach
 GitHub during install.
-
-Provider-bucket migration is a separate, explicit repair operation. Ordinary
-installation neither migrates history nor terminates running Codex processes.
-Use `--dry-run-codex-provider-bucket-migration` to inspect a proposed migration,
-then `--apply-codex-provider-bucket-migration` when that repair is intended.
-Stopping running Codex additionally requires
-`--kill-running-codex-provider-bucket-migration`. These options also work with
-`--no-codex-config`; model configuration and history repair are separate.
 
 This configures the following defaults:
 

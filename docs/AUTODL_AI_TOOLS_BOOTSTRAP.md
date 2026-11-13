@@ -33,7 +33,7 @@ configuration. The real binary is available as:
 claude.real
 ```
 
-Codex stays on one stable provider bucket:
+Codex stays on one stable provider id:
 
 ```toml
 model_provider = "custom"

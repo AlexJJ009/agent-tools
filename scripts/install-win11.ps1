@@ -4,8 +4,6 @@ param(
   [string]$CodexHome = (Join-Path $env:USERPROFILE ".codex"),
   [string]$CcSwitchDb = (Join-Path $env:USERPROFILE ".cc-switch\cc-switch.db"),
   [switch]$NoAgentWt,
-  [switch]$LinearWorkflow,
-  [switch]$NoLinearWorkflow,
   [switch]$NoCodexManualRemoteConnect,
   [string]$ManualRemoteConnectScript = "C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1",
   # Removed with the Win11 Codex configurator and SQLite log guard (ADR 0012); accepted and ignored.
@@ -13,20 +11,10 @@ param(
   [switch]$NoCodexConfig,
   [switch]$NoCodexSqliteLogGuard,
   [switch]$DisableCodexSqliteLogGuard,
-  [switch]$CodexSqliteLogGuardVacuum,
-  [switch]$NoCodexProviderBucketMigration,
-  [switch]$ApplyCodexProviderBucketMigration,
-  [switch]$KillRunningCodexProviderBucketMigration,
-  [switch]$DryRunCodexProviderBucketMigration,
-  [switch]$AllowRunningCodexProviderBucketMigration,
-  [switch]$NoKillRunningCodexProviderBucketMigration
+  [switch]$CodexSqliteLogGuardVacuum
 )
 
 $ErrorActionPreference = "Stop"
-
-if ($LinearWorkflow) {
-  throw "Linear Workflow was removed; installation is not supported."
-}
 
 function Get-PythonCommand {
   $python = Get-Command python -ErrorAction SilentlyContinue
@@ -181,35 +169,6 @@ function Install-CodexManualRemoteConnect {
   Write-Host "Codex manual remote-connect helper installed: $TargetScript"
 }
 
-function Invoke-CodexProviderBucketMigration {
-  param(
-    [Parameter(Mandatory = $true)][string]$RepoRoot,
-    [Parameter(Mandatory = $true)][string]$TargetCodexHome,
-    [Parameter(Mandatory = $true)][string]$TargetCcSwitchDb
-  )
-
-  $script = Join-Path $RepoRoot "scripts\migrate_codex_provider_bucket.py"
-  $args = @(
-    "--target", "custom",
-    "--codex-dir", $TargetCodexHome,
-    "--cc-switch-db", $TargetCcSwitchDb,
-    "--all-non-target-providers",
-    "--repair-resume-index",
-    "--skip-cc-switch"
-  )
-
-  if (-not $DryRunCodexProviderBucketMigration) {
-    $args += @("--apply", "--yes")
-    if ($AllowRunningCodexProviderBucketMigration) {
-      $args += "--allow-running-codex"
-    } elseif ($KillRunningCodexProviderBucketMigration -and -not $NoKillRunningCodexProviderBucketMigration) {
-      $args += "--kill-running-codex"
-    }
-  }
-
-  Invoke-AgentToolsPython $script @args
-}
-
 Assert-CodexTargetGuard -RepoRoot $Root -TargetUserHome $UserHome -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
 
 if (-not $NoAgentWt) {
@@ -218,17 +177,8 @@ if (-not $NoAgentWt) {
   Write-Host "agent-wt not installed (-NoAgentWt)."
 }
 
-Invoke-AgentToolsPython (Join-Path $Root "scripts\retired_package_cleanup.py") remove --record (Join-Path $Root "config\retired-packages\linear-workflow.json") --repo-root $Root --home $UserHome --platform win11
-Write-Host "Linear Workflow removed; verified client copies cleaned, runtime data retained."
-
 if (-not $NoCodexManualRemoteConnect) {
   Install-CodexManualRemoteConnect -RepoRoot $Root -TargetHome $UserHome -TargetScript $ManualRemoteConnectScript
 } else {
   Write-Host "Codex manual remote-connect helper not installed (-NoCodexManualRemoteConnect)."
-}
-
-if (-not $NoCodexProviderBucketMigration -and ($ApplyCodexProviderBucketMigration -or $DryRunCodexProviderBucketMigration -or $KillRunningCodexProviderBucketMigration)) {
-  Invoke-CodexProviderBucketMigration -RepoRoot $Root -TargetCodexHome $CodexHome -TargetCcSwitchDb $CcSwitchDb
-} else {
-  Write-Host "Codex provider bucket migration not run (opt-in only)."
 }

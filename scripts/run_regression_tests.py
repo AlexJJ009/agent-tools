@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run scoped component regressions."""
+"""Run component regression suites: all active suites, or one named suite."""
 import argparse
 import fnmatch
 from pathlib import Path
@@ -14,9 +14,7 @@ ROOT_GROUPS = {
     'claude-adapter': ('test_install_claude.py',),
     'project-evals': ('test_project_eval_skills.py',),
     'ci-watch': ('test_ci_watch.py',),
-    'learning': ('test_writing_contract_*',),
-    'test-runner': ('test_regression_runner.py',),
-    'installation': ('test_install_*', 'test_codex_*', 'test_direct_configuration_*', 'test_retired_*'),
+    'installation': ('test_install_*', 'test_codex_*'),
 }
 SUITES = {
     'repository': 'tests',
@@ -31,43 +29,6 @@ def root_group(filename):
         if any(fnmatch.fnmatchcase(filename, pattern) for pattern in patterns):
             return name
     raise ValueError(f'Unclassified top-level test module: {filename}')
-
-
-def select_suites(paths):
-    """Conservative component dependencies, not a claim of line-level coverage."""
-    selected = set()
-    for path in paths:
-        nested = next((name for name, directory in SUITES.items()
-                       if name not in ROOT_GROUPS and name != 'repository'
-                       and path.startswith(directory + '/')), None)
-        if nested:
-            selected.add(nested)
-            continue
-        if path.startswith('.github/') or path in ('scripts/install.sh', 'scripts/install-win11.ps1',
-                                                  'scripts/run_regression_tests.py', 'scripts/codex_target_guard.py'):
-            return ACTIVE
-        if path.startswith('.agents/skills/'):
-            selected.add('project-evals')
-        elif path.startswith(('adapters/claude/', 'scripts/install_claude.py', 'scripts/install_skills.py')):
-            selected.update(('claude-adapter', 'installation'))
-        elif path.startswith('tests/test_'):
-            selected.add(root_group(Path(path).name))
-        elif path.startswith(('shared/writing/', 'skills/academic-writing/', 'scripts/sync_writing_contract.py')):
-            selected.update(('learning', 'claude-adapter', 'installation'))
-        elif path.startswith(('skills/teaching-', 'skills/task-routing/', 'skills/retrieval-practice/',
-                              'skills/learning-artifact-compiler/')):
-            selected.update(('learning', 'installation'))
-        elif path == 'bin/ci-watch':
-            selected.update(('ci-watch', 'installation'))
-        elif path.startswith(('skills/manage-worktrees/', 'bin/agent-wt')):
-            selected.update(('worktrees', 'installation'))
-        elif path.startswith(('scripts/', 'config/', 'bin/')):
-            selected.add('installation')
-        elif path.startswith('docs/') or path in ('README.md', 'CONTRIBUTING.md', 'AGENTS.md', 'CLAUDE.md', 'LICENSE'):
-            continue  # Documentation edits need semantic review, not unchanged runtimes.
-        else:
-            return ACTIVE  # Unknown production paths must not silently lose coverage.
-    return tuple(name for name in ACTIVE if name in selected)
 
 
 class ExecutionResult(unittest.TextTestResult):
@@ -106,20 +67,16 @@ def run_directory(directory, stream=None, group=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('suite', choices=('active', *SUITES), default='active', nargs='?')
-    parser.add_argument('--list', action='store_true', help='Print selected active suites without executing')
-    parser.add_argument('--changed-from', help='Select affected active suites from a Git base revision')
+    parser.add_argument('--list', action='store_true', help='Print the active suites without executing')
     args = parser.parse_args()
-    if (args.changed_from or args.list) and args.suite != 'active':
-        parser.error('--changed-from/--list apply only to active')
+    if args.list and args.suite != 'active':
+        parser.error('--list applies only to active')
     if args.suite == 'active':
         selected = ACTIVE
-        if args.changed_from:
-            paths = subprocess.check_output(['git', 'diff', '--name-only', '-z', args.changed_from, 'HEAD', '--'], cwd=ROOT)
-            selected = select_suites(paths.decode().rstrip('\0').split('\0') if paths else [])
         if args.list:
             print(' '.join(selected))
             return 0
-        print('Selected component suites: ' + (', '.join(selected) or 'none; documentation or manual-only scope'), flush=True)
+        print('Selected component suites: ' + ', '.join(selected), flush=True)
         codes = [subprocess.run([sys.executable, __file__, name], cwd=ROOT).returncode for name in selected]
         return int(any(codes))
     sys.path.insert(0, str(ROOT))

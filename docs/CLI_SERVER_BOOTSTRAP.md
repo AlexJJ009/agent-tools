@@ -130,7 +130,6 @@ receive this system-level compatibility patch.
   --no-codex-config \
   --no-codex-remote-control \
   --no-registry \
-  --no-cron \
   --no-agent-core
 ```
 
@@ -228,15 +227,15 @@ codex_home = Path(os.environ.get("CODEX_HOME", home / ".codex")).expanduser()
 providers = json.loads(os.environ["CODEX_PROVIDERS_JSON"])
 default_provider = os.environ["CODEX_DEFAULT_PROVIDER"]
 default_model = os.environ.get("CODEX_MODEL", "gpt-5.5")
-codex_provider_bucket = os.environ.get("CODEX_MODEL_PROVIDER_ID", "custom")
+codex_provider_id = os.environ.get("CODEX_MODEL_PROVIDER_ID", "custom")
 safe_id = re.compile(r"^[A-Za-z0-9_.-]+$")
 
 if not providers:
     raise SystemExit("CODEX_PROVIDERS_JSON must contain at least one provider")
 if default_provider not in {p["id"] for p in providers}:
     raise SystemExit(f"default provider not found: {default_provider}")
-if not safe_id.match(codex_provider_bucket):
-    raise SystemExit(f"invalid CODEX_MODEL_PROVIDER_ID: {codex_provider_bucket}")
+if not safe_id.match(codex_provider_id):
+    raise SystemExit(f"invalid CODEX_MODEL_PROVIDER_ID: {codex_provider_id}")
 
 codex_home.mkdir(parents=True, exist_ok=True)
 
@@ -253,7 +252,7 @@ if not default_api_key:
     raise SystemExit(f"default provider {default_provider} has an empty api_key")
 
 provider_block = f"""
-[model_providers.{codex_provider_bucket}]
+[model_providers.{codex_provider_id}]
 name = "{default_provider_name}"
 base_url = "{default_base_url}"
 wire_api = "responses"
@@ -270,7 +269,7 @@ approvals_reviewer = "auto_review"
 model = "{default_model}"
 model_reasoning_effort = "high"
 service_tier = "priority"
-model_provider = "{codex_provider_bucket}"
+model_provider = "{codex_provider_id}"
 
 [features]
 fast_mode = true
@@ -311,10 +310,10 @@ for index, provider in enumerate(providers, start=1):
 
     snippet = f"""
 model = "{model}"
-model_provider = "{codex_provider_bucket}"
+model_provider = "{codex_provider_id}"
 model_reasoning_effort = "high"
 
-[model_providers.{codex_provider_bucket}]
+[model_providers.{codex_provider_id}]
 name = "{name}"
 base_url = "{base_url}"
 wire_api = "responses"
@@ -445,62 +444,6 @@ codex exec --strict-config \
   -s read-only --skip-git-repo-check --ephemeral \
   'Reply exactly OK'
 ```
-
-## Existing History Migration
-
-The migration script performs a read-only target guard before every `--apply`:
-the Codex home and CC Switch database must belong to the current Unix user.
-For a remote host, run it through the host's own Agent Tools checkout or the
-batch-only fleet preflight; never point a local/WSL process at another
-machine's or Windows profile's state.
-
-If the machine already used Codex before the stable `custom` bucket convention,
-run the local migration script once after closing Codex:
-
-```bash
-python3 ~/agent-tools/scripts/migrate_codex_provider_bucket.py --target custom
-python3 ~/agent-tools/scripts/migrate_codex_provider_bucket.py --target custom --all-non-target-providers
-python3 ~/agent-tools/scripts/migrate_codex_provider_bucket.py --target custom --all-non-target-providers --apply --yes --kill-running-codex
-```
-
-The dry-run shows every source bucket and every cc-switch template that would
-change. It also reports resume index health: whether every `threads.rollout_path`
-exists and whether every rollout `session_meta` has a `state_5.sqlite` row.
-It prints `session_index.jsonl` coverage too, but that file can be sparse in
-newer Codex builds; missing `state_5.sqlite` rows or missing rollout files are
-the usual reasons `codex resume` cannot see older sessions.
-
-The apply run backs up `config.toml`, `state_5.sqlite`, changed JSONL session
-files, and the cc-switch DB under `~/.cc-switch/backups/`. It rewrites Codex
-history to `custom`, updates live `~/.codex/config.toml`, and changes
-cc-switch Codex provider templates so future switches keep
-`model_provider = "custom"` / `[model_providers.custom]`. It should terminate
-running Codex processes before writing; otherwise a process that already loaded
-the old config/key can keep using the old in-memory provider until restarted.
-
-If the dry-run reports missing resume index data, repair it explicitly:
-
-```bash
-python3 ~/agent-tools/scripts/migrate_codex_provider_bucket.py \
-  --target custom \
-  --all-non-target-providers \
-  --repair-resume-index \
-  --apply --yes --kill-running-codex
-```
-
-This repair is for a local Codex home where the rollout JSONL files already
-exist. It can fix moved `rollout_path` values, backfill missing
-`state_5.sqlite.threads` rows from `session_meta`, and append missing
-`session_index.jsonl` entries. It does not copy history from another machine;
-for cross-machine migration, first transfer the resume data as described in
-`docs/AUTODL_AI_TOOLS_BOOTSTRAP.md`.
-
-`scripts/install.sh` does not migrate provider history during ordinary installation.
-Use `--dry-run-codex-provider-bucket-migration` for inspection and
-`--apply-codex-provider-bucket-migration` for an explicitly selected repair.
-Stopping running Codex requires the separate
-`--kill-running-codex-provider-bucket-migration` option. These repair options
-remain independent of `--no-codex-config`.
 
 ## Troubleshooting
 

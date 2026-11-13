@@ -40,8 +40,7 @@ template or validator ([ADR 0013](decisions/0013-retire-evidence-anchor-and-read
 ## Writing contract
 
 W1-W9 are maintained at `shared/writing/reader-facing-contract.md`.
-`scripts/sync_writing_contract.py --write` regenerates the copy packaged in
-`academic-writing` (`--check` detects drift). `academic-writing` supports direct
+`academic-writing` supports direct
 draft, revision and argument review without teaching state.
 
 ## Installation

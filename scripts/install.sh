@@ -4,13 +4,7 @@ set -euo pipefail
 SOURCE_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 # Empty: scripts/install_layout.py resolves the software install root (~/.local/lib/agent-tools).
 INSTALL_DIR="${AGENT_TOOLS_HOME:-}"
-SCHEDULE="17 * * * *"
 MAX_DEPTH="3"
-SCOPE="all"
-DIRECTION="bidirectional"
-PREFER="none"
-MODE="symlink"
-INSTALL_CRON=0
 INSTALL_FAIL2BAN_HARDENING="${INSTALL_FAIL2BAN_HARDENING:-auto}"
 FAIL2BAN_SSHD_MAXRETRY="${FAIL2BAN_SSHD_MAXRETRY:-3}"
 FAIL2BAN_SSHD_FINDTIME="${FAIL2BAN_SSHD_FINDTIME:-1h}"
@@ -31,11 +25,6 @@ CC_SWITCH_UPDATE_RETRY_DELAY="${CC_SWITCH_UPDATE_RETRY_DELAY:-2}"
 CC_SWITCH_UPDATE_SPEED_LIMIT="${CC_SWITCH_UPDATE_SPEED_LIMIT:-10240}"
 CC_SWITCH_UPDATE_SPEED_TIME="${CC_SWITCH_UPDATE_SPEED_TIME:-30}"
 CC_SWITCH_UPDATE_PROXY_TEST_URL="${CC_SWITCH_UPDATE_PROXY_TEST_URL:-https://github.com/saladday/cc-switch-cli/releases/latest/download/install.sh}"
-INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=0
-APPLY_CODEX_PROVIDER_BUCKET_MIGRATION="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_APPLY:-1}"
-CODEX_PROVIDER_BUCKET_ALL_NON_TARGET="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALL_NON_TARGET:-1}"
-CODEX_PROVIDER_BUCKET_ALLOW_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_ALLOW_RUNNING:-0}"
-CODEX_PROVIDER_BUCKET_KILL_RUNNING="${AGENT_TOOLS_CODEX_PROVIDER_BUCKET_KILL_RUNNING:-0}"
 INSTALL_CODEX_PROXY_WRAPPER="${INSTALL_CODEX_PROXY_WRAPPER:-auto}"
 INSTALL_CODEX_REMOTE_CONTROL="${INSTALL_CODEX_REMOTE_CONTROL:-1}"
 INSTALL_CLAUDE_DESKTOP_SSH="${INSTALL_CLAUDE_DESKTOP_SSH:-1}"
@@ -1694,47 +1683,6 @@ for path in changed:
 PY
 }
 
-run_codex_provider_bucket_migration() {
-  local script="$INSTALL_REAL/scripts/migrate_codex_provider_bucket.py"
-  local args=()
-  local status
-
-  if [[ ! -x "$script" ]]; then
-    echo "Codex provider bucket migration skipped: missing $script" >&2
-    return
-  fi
-
-  if [[ "$CODEX_PROVIDER_BUCKET_ALLOW_RUNNING" == "1" && "$CODEX_PROVIDER_BUCKET_KILL_RUNNING" == "1" ]]; then
-    echo "Codex provider bucket migration skipped: allow-running and kill-running conflict." >&2
-    return 2
-  fi
-  if [[ "$CODEX_PROVIDER_BUCKET_ALLOW_RUNNING" == "1" ]]; then
-    args+=(--allow-running-codex)
-  fi
-  if [[ "$CODEX_PROVIDER_BUCKET_KILL_RUNNING" == "1" ]]; then
-    args+=(--kill-running-codex)
-  fi
-  if [[ "$CODEX_PROVIDER_BUCKET_ALL_NON_TARGET" == "1" ]]; then
-    args+=(--all-non-target-providers)
-  fi
-
-  if [[ "$APPLY_CODEX_PROVIDER_BUCKET_MIGRATION" == "1" ]]; then
-    set +e
-    "$PYTHON_BIN" "$script" --target "$CODEX_MODEL_PROVIDER_ID" --apply --yes "${args[@]}"
-    status=$?
-    set -e
-    if [[ "$status" -eq 0 ]]; then
-      return
-    fi
-    if [[ "$status" -ne 2 ]]; then
-      return "$status"
-    fi
-    echo "Codex provider bucket migration apply was blocked, usually because Codex is running; falling back to dry-run." >&2
-  fi
-
-  "$PYTHON_BIN" "$script" --target "$CODEX_MODEL_PROVIDER_ID" "${args[@]}"
-}
-
 probe_codex_proxy_url() {
   local proxy_url="$1"
   local status
@@ -2122,11 +2070,6 @@ Options:
                            Refused when PATH and the data root overlap.
   --root PATH              Add a scan root. Repeatable. Default: current directory.
   --max-depth N            Directory scan depth. Default: 3.
-  --schedule CRON_EXPR     Cron schedule. Default: "17 * * * *".
-  --scope VALUE            needs-sync|claude-only|codex-only|all. Default: all.
-  --direction VALUE        claude-to-codex|codex-to-claude|bidirectional. Default: bidirectional.
-  --prefer VALUE           none|claude|codex. Default: none.
-  --mode VALUE             symlink|copy. Default: symlink.
   --no-codex-config        Do not patch Codex default config (approval policy,
                            sandbox mode, approvals reviewer, model + reasoning
                            effort, context window / auto compact threshold,
@@ -2142,31 +2085,11 @@ Options:
   Codex desktop, Fast mode and SQLite log guard options (removed, ADR 0012)
                            are accepted and ignored so old invocations keep working.
   --no-learning-skills     Do not link the learning/writing skills into ~/.agents/skills.
-  --linear-workflow, --linear-workflow-only
-                           Removed: rejected. --no-linear-workflow is a no-op.
   --no-cc-switch-update    Do not update cc-switch-cli from the latest GitHub
                            release before Codex provider migration.
   --cc-switch-update-proxy MODE
                            Proxy mode for the cc-switch GitHub release update:
                            auto|always|never. Default: auto.
-  --no-codex-provider-bucket-migration
-                           Do not scan/migrate Codex history and cc-switch
-                           provider templates to the custom model_provider bucket.
-  --codex-provider-bucket-trusted-sources-only
-                           Only migrate inferred cc-switch third-party buckets;
-                           default is every non-target bucket, including openai.
-  --apply-codex-provider-bucket-migration
-                           Opt in and apply Codex provider bucket migration.
-  --dry-run-codex-provider-bucket-migration
-                           Scan only and do not write migration changes.
-  --allow-running-codex-provider-bucket-migration
-                           Allow applying the migration while Codex is running.
-  --kill-running-codex-provider-bucket-migration
-                           Opt in and terminate Codex before applying; default
-                           installation never runs migration or kills Codex.
-  --no-kill-running-codex-provider-bucket-migration
-                           Do not terminate Codex before migration; if Codex is
-                           running, apply falls back to dry-run.
   --codex-proxy-wrapper MODE
                            Install Codex proxy wrapper: auto|always|never. Default: auto.
   --codex-proxy-url URL    Use a specific proxy URL, e.g. http://127.0.0.1:7897.
@@ -2177,8 +2100,6 @@ Options:
                            Desktop SSH root/bypass compatibility.
   --no-registry            Compatibility no-op; registry installation was removed.
   --registry-init-db       Rejected; registry installation was removed.
-  --cron                   Install the context-sync cron heartbeat (opt-in).
-  --no-cron                Do not add cron (default); existing jobs are unchanged.
   --no-agent-core          Do not auto-verify or run ~/agent-core/scripts/install.sh.
   --check                  Install nothing. Byte-compare the install root and
                            managed skill copies against the source tree, flag
@@ -2193,13 +2114,6 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --linear-workflow|--linear-workflow-only)
-      echo "Linear Workflow was removed; installation is not supported." >&2
-      exit 2
-      ;;
-    --no-linear-workflow)
-      shift
-      ;;
     --install-dir)
       INSTALL_DIR="$2"
       shift 2
@@ -2211,34 +2125,6 @@ while [[ $# -gt 0 ]]; do
     --max-depth)
       MAX_DEPTH="$2"
       shift 2
-      ;;
-    --schedule)
-      SCHEDULE="$2"
-      shift 2
-      ;;
-    --scope)
-      SCOPE="$2"
-      shift 2
-      ;;
-    --direction)
-      DIRECTION="$2"
-      shift 2
-      ;;
-    --prefer)
-      PREFER="$2"
-      shift 2
-      ;;
-    --mode)
-      MODE="$2"
-      shift 2
-      ;;
-    --cron)
-      INSTALL_CRON=1
-      shift
-      ;;
-    --no-cron)
-      INSTALL_CRON=0
-      shift
       ;;
     --no-codex-config)
       INSTALL_CODEX_CONFIG=0
@@ -2276,38 +2162,6 @@ while [[ $# -gt 0 ]]; do
     --cc-switch-update-proxy)
       CC_SWITCH_UPDATE_PROXY_MODE="$2"
       shift 2
-      ;;
-    --no-codex-provider-bucket-migration)
-      INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=0
-      shift
-      ;;
-    --codex-provider-bucket-trusted-sources-only)
-      CODEX_PROVIDER_BUCKET_ALL_NON_TARGET=0
-      shift
-      ;;
-    --apply-codex-provider-bucket-migration)
-      INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=1
-      APPLY_CODEX_PROVIDER_BUCKET_MIGRATION=1
-      shift
-      ;;
-    --dry-run-codex-provider-bucket-migration)
-      INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=1
-      APPLY_CODEX_PROVIDER_BUCKET_MIGRATION=0
-      shift
-      ;;
-    --allow-running-codex-provider-bucket-migration)
-      CODEX_PROVIDER_BUCKET_ALLOW_RUNNING=1
-      shift
-      ;;
-    --kill-running-codex-provider-bucket-migration)
-      INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION=1
-      CODEX_PROVIDER_BUCKET_KILL_RUNNING=1
-      APPLY_CODEX_PROVIDER_BUCKET_MIGRATION=1
-      shift
-      ;;
-    --no-kill-running-codex-provider-bucket-migration)
-      CODEX_PROVIDER_BUCKET_KILL_RUNNING=0
-      shift
       ;;
     --codex-proxy-wrapper)
       INSTALL_CODEX_PROXY_WRAPPER="$2"
@@ -2371,7 +2225,6 @@ case "$CLAUDE_CODE_MODE" in
 esac
 run_codex_target_guard before
 
-EXPLICIT_SCAN_ROOTS="${#SCAN_ROOTS[@]}"
 if [[ ${#SCAN_ROOTS[@]} -eq 0 ]]; then
   SCAN_ROOTS+=("$(pwd)")
 fi
@@ -2387,14 +2240,8 @@ DATA_ROOT="$("$PYTHON_BIN" "$LAYOUT" data-root)"
 if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
   SOURCE_REAL="$(cd "$SOURCE_DIR" && pwd -P)"
   export AGENT_TOOLS_INSTALL_ROOT="$INSTALL_DIR"
-  linear_status=0
   claude_status=0
   select_python_bin
-  if ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/retired_package_cleanup.py" check \
-    --record "$SOURCE_REAL/config/retired-packages/linear-workflow.json" \
-    --repo-root "$SOURCE_REAL" --home "$HOME" --platform unix; then
-    linear_status=1
-  fi
   if [[ "$CLAUDE_CODE_MODE" != never ]] && ! "$PYTHON_BIN" "$SOURCE_REAL/scripts/install_claude.py" --check; then
     claude_status=1
   fi
@@ -2403,7 +2250,7 @@ if [[ "${CHECK_ONLY:-0}" -eq 1 ]]; then
   fi
   layout_status=0
   "$PYTHON_BIN" "$LAYOUT" check --source "$SOURCE_REAL" --install-root "$INSTALL_DIR" || layout_status=1
-  [[ "$linear_status" -eq 0 && "$claude_status" -eq 0 && "$layout_status" -eq 0 ]]
+  [[ "$claude_status" -eq 0 && "$layout_status" -eq 0 ]]
   exit "$?"
 fi
 
@@ -2412,10 +2259,6 @@ SOURCE_REAL="$(cd "$SOURCE_DIR" && pwd -P)"
 INSTALL_REAL="$(mkdir -p "$INSTALL_DIR" && cd "$INSTALL_DIR" && pwd -P)"
 
 if [[ "$SOURCE_REAL" != "$INSTALL_REAL" ]]; then
-  # Linear Workflow source was removed; drop copies left by earlier releases.
-  rm -rf "$INSTALL_REAL/linear_workflow" "$INSTALL_REAL/docs/linear-workflow" "$INSTALL_REAL/docs/linear-templates" \
-    "$INSTALL_REAL/config/managed-packages/linear-workflow.json" "$INSTALL_REAL/scripts/managed_package_installer.py"
-  rmdir "$INSTALL_REAL/config/managed-packages" 2>/dev/null || true
   # Manifest sync: update changed files, delete files the previous install wrote
   # that are no longer shipped, and report (never delete) unmanaged files.
   "$PYTHON_BIN" "$LAYOUT" sync --source "$SOURCE_REAL" --install-root "$INSTALL_REAL"
@@ -2423,7 +2266,7 @@ fi
 # The Python installers resolve the same install root.
 export AGENT_TOOLS_INSTALL_ROOT="$INSTALL_REAL"
 
-chmod +x "$INSTALL_REAL/scripts/sync_agent_context.py" "$INSTALL_REAL/scripts/sync_agent_context_cron.sh" "$INSTALL_REAL/scripts/migrate_codex_provider_bucket.py" "$INSTALL_REAL/scripts/install.sh"
+chmod +x "$INSTALL_REAL/scripts/install.sh"
 if [[ -d "$INSTALL_REAL/bin" ]]; then
   chmod +x "$INSTALL_REAL"/bin/*
 fi
@@ -2457,11 +2300,6 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   start_codex_remote_control
   run_codex_target_guard after
 fi
-if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
-  select_python_bin
-  run_codex_provider_bucket_migration
-  run_codex_target_guard after
-fi
 if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
   verify_agent_core_entries
 fi
@@ -2482,10 +2320,6 @@ if [[ "$INSTALL_AGENT_WT" -eq 1 ]]; then
   install_ci_watch
 fi
 select_python_bin
-"$PYTHON_BIN" "$INSTALL_REAL/scripts/retired_package_cleanup.py" remove \
-  --record "$INSTALL_REAL/config/retired-packages/linear-workflow.json" \
-  --repo-root "$INSTALL_REAL" --home "$HOME" --platform unix
-select_python_bin
 if [[ "$INSTALL_LEARNING_SKILLS" -eq 1 ]]; then
   "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_skills.py" \
     || echo "WARNING: learning/writing skills were not linked into ~/.agents/skills." >&2
@@ -2496,52 +2330,14 @@ if [[ "$(uname -s)" == Linux && "$CLAUDE_CODE_MODE" == never && -f "$HOME/.local
     || echo "WARNING: Claude adapter not migrated; retired hook entries may remain in ~/.claude/settings.json." >&2
 fi
 
-"$PYTHON_BIN" - "$INSTALL_REAL/agent_context_sync.config.json" "$DATA_ROOT/agent_context_sync.config.json" "$EXPLICIT_SCAN_ROOTS" "$MAX_DEPTH" "$SCOPE" "$DIRECTION" "$PREFER" "$MODE" "${SCAN_ROOTS[@]}" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-config_path = Path(sys.argv[1])
-legacy_path = Path(sys.argv[2])  # written into the data root by earlier releases
-explicit_roots = sys.argv[3] != "0"
-max_depth = int(sys.argv[4])
-scope = sys.argv[5]
-direction = sys.argv[6]
-prefer = sys.argv[7]
-mode = sys.argv[8]
-roots = [str(Path(root).expanduser().resolve()) for root in sys.argv[9:]]
-if not explicit_roots and not config_path.exists() and legacy_path.is_file():
-    try:
-        roots = json.loads(legacy_path.read_text(encoding="utf-8"))["scan_roots"] or roots
-    except (ValueError, KeyError, TypeError):
-        pass
-
-config = {
-    "scan_roots": roots,
-    "max_depth": max_depth,
-    "scope": scope,
-    "direction": direction,
-    "prefer": prefer,
-    "mode": mode,
-    "include_config_only": False,
-}
-config_path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
-PY
-
-if [[ "$INSTALL_CRON" -eq 1 ]]; then
-  CRON_CMD="$INSTALL_REAL/scripts/sync_agent_context_cron.sh"
-  (crontab -l 2>/dev/null | grep -v 'sync_agent_context_cron.sh' || true; printf '%s %s\n' "$SCHEDULE" "$CRON_CMD") | crontab -
-fi
-
 # All consumers now point at the install root; remove software left in the data
 # root by earlier --install-dir <data root> installs. Data and unknown items stay.
 "$PYTHON_BIN" "$INSTALL_REAL/scripts/install_layout.py" migrate --source "$SOURCE_REAL" --install-root "$INSTALL_REAL"
 
 
 
-echo "Installed agent context sync tools in $INSTALL_REAL"
+echo "Installed agent-tools in $INSTALL_REAL"
 echo "Data root (logs): $DATA_ROOT"
-echo "Config: $INSTALL_REAL/agent_context_sync.config.json"
 echo "tmux mouse mode: ${TMUX_CONF:-$HOME/.tmux.conf}"
 echo "agent-tools PATH: $LOCAL_BIN_PATH_STATUS"
 echo "fail2ban hardening: $FAIL2BAN_HARDENING_STATUS"
@@ -2571,11 +2367,6 @@ if [[ "$INSTALL_CODEX_CONFIG" -eq 1 ]]; then
   echo "Codex model provider: ${CODEX_HOME:-$HOME/.codex}/config.toml -> ${CODEX_MODEL_PROVIDER_ID} (WebSocket enabled)"
   echo "Codex [features]: fast_mode=${CODEX_FEATURE_FAST_MODE} hooks=${CODEX_FEATURE_HOOKS} memories=${CODEX_FEATURE_MEMORIES} goals=${CODEX_FEATURE_GOALS} terminal_resize_reflow=${CODEX_FEATURE_TERMINAL_RESIZE_REFLOW} remote_control=${CODEX_FEATURE_REMOTE_CONTROL}"
   echo "Codex target guard: ${CODEX_TARGET_GUARD_STATUS}"
-  if [[ "$INSTALL_CODEX_PROVIDER_BUCKET_MIGRATION" -eq 1 ]]; then
-    echo "Codex provider bucket migration: target=${CODEX_MODEL_PROVIDER_ID}, apply=${APPLY_CODEX_PROVIDER_BUCKET_MIGRATION}, all_non_target=${CODEX_PROVIDER_BUCKET_ALL_NON_TARGET}"
-  else
-    echo "Codex provider bucket migration not run (opt-in only)."
-  fi
   echo "Codex proxy wrapper mode: $INSTALL_CODEX_PROXY_WRAPPER"
   echo "Codex proxy port candidates: $CODEX_PROXY_PORTS"
 else
@@ -2594,15 +2385,9 @@ else
   echo "agent-wt not installed (--no-agent-wt)."
   echo "ci-watch not installed (--no-agent-wt)."
 fi
-if [[ "$INSTALL_CRON" -eq 1 ]]; then
-  echo "Cron: $SCHEDULE $INSTALL_REAL/scripts/sync_agent_context_cron.sh"
-else
-  echo "Cron not added (opt in with --cron; existing jobs unchanged)."
-fi
 
 if [[ "$INSTALL_AGENT_CORE_ENTRIES" -eq 1 ]]; then
   echo "agent-core entries ($AGENT_CORE_DIR): ${AGENT_CORE_ENTRIES_STATUS}"
 else
   echo "agent-core entries not checked (--no-agent-core)."
 fi
-echo "Linear Workflow removed; verified client copies cleaned, runtime data retained."

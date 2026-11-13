@@ -29,7 +29,7 @@ def private(path):
         return True
     if name.startswith('.env') and not name.endswith(('.example', '.sample', '.template')):
         return True
-    if path.as_posix() in {'agent_context_sync.config.json', 'config/codex-fleet.targets.json',
+    if path.as_posix() in {'config/codex-fleet.targets.json',
                                'auth.json', 'config/auth.json', 'config/credentials.json'}:
         return True
     return name.endswith(('.pyc', '.pyo', '.sqlite', '.sqlite3', '.sqlite-wal', '.sqlite-shm',

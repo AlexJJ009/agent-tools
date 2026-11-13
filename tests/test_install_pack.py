@@ -18,7 +18,7 @@ class PortablePackageTests(unittest.TestCase):
                 (source / 'scripts').mkdir(parents=True)
                 shutil.copy2(ROOT / 'scripts/pack.sh', source / 'scripts/pack.sh')
                 (source / '.gitignore').write_text('ignored-private.txt\ndocs/_local/\n')
-                public = ('scripts/install.sh', 'scripts/sync_agent_context.py',
+                public = ('scripts/install.sh', 'scripts/install_claude.py',
                           '.agents/skills/build-eval/SKILL.md', '.claude/skills/public/SKILL.md')
                 for name in public:
                     path = source / name
@@ -29,7 +29,7 @@ class PortablePackageTests(unittest.TestCase):
                     subprocess.run(['git', '-C', str(source), 'add', '.'], check=True)
                     # Include uncommitted, unignored new sources, including moved entrypoints.
                     (source / 'scripts/new-source.py').write_text('new public source')
-                private = ('docs/_local/evidence.txt', 'agent_context_sync.config.json',
+                private = ('docs/_local/evidence.txt',
                            'config/codex-fleet.targets.json', '.env', '.env.production',
                            '.codex/auth.json', '.claude/worktrees/private/secret.txt',
                            'logs/local.log', '__pycache__/cached.pyc', 'credential.pem',

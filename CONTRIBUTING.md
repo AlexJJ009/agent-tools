@@ -40,12 +40,10 @@ The suites need no third-party packages.
 
 ```bash
 python scripts/run_regression_tests.py active
-python scripts/run_regression_tests.py active --changed-from origin/main --list
-python scripts/run_regression_tests.py active --changed-from origin/main
+python scripts/run_regression_tests.py <suite>
 ```
 
-`--changed-from` compares committed revisions, not uncommitted edits. Omit it
-for a full active run or pass one suite name below for local work. Each suite
+`active` runs every active suite; pass one suite name below for local work. Each suite
 runs in its own process to avoid Python module-name collisions. A root test
 module has one owner; a new unclassified module fails explicitly. Empty or
 entirely skipped selected suites, failed imports and failed assertions fail.
@@ -54,23 +52,16 @@ Partial skips remain visible and do not establish platform coverage.
 | Suite | Reason to keep this boundary | Thinner execution / limits |
 |---|---|---|
 | `claude-adapter` | Settings edits, skill links and the generated context view touch the user's Claude profile and must keep foreign settings and entries | Temporary profiles with fixture install roots; no Claude CLI and no hook execution |
-| `learning` | The kept teaching artifact validator, vault pre-commit check and the shared writing contract copy must stay consistent | Rule matrices use direct validator calls; a few CLI/Git cases check integration. No teaching-quality claim |
 | `installation` | Cross-profile writes, unsafe defaults, skill-link replacement and destructive removal of foreign installations affect user state | Isolated profiles and real helpers on installer/dependency changes. Native-platform source checks remain limited |
 | `worktrees` | Git worktree operations must respect paths, ownership, unsupported flags and existing state | Temporary Git repositories on component/installer changes |
 | `project-evals` | Project-local build-eval and hillclimb skills must reject deliberately broken outputs | Only their own changes; evaluator tests are not Agent evaluations |
-| `test-runner` | Wrong suite selection, empty discovery and swallowed failure/skip results would hide missing coverage | Fast tests on runner/CI changes; not a second product acceptance suite |
 
-The selector in `scripts/run_regression_tests.py` owns component dependencies.
-Shared installer/guard/CI changes and unknown production paths conservatively
-select all active suites; known component changes select their consumers.
-Documentation-only changes run whitespace checking and still need content
-review; unchanged runtimes are not evidence about prose. No selector or green CI
-run establishes coverage of product behavior for which no test exists.
+No green CI run establishes coverage of product behavior for which no test exists.
 
 ## CI and historical checks
 
-`agent-tools-regression` runs affected suites on PRs and main pushes. Manual
-workflow dispatch runs all active suites. The `main` ruleset requires its
+`agent-tools-regression` checks whitespace and runs all active suites on PRs, main pushes
+and manual dispatch. The `main` ruleset requires its
 `regression` status check; renaming the job requires changing the ruleset in the
 same step. CI repeats regression tests; it is not another independent
 test population. Independent review evaluates requirements, implementation and
@@ -85,7 +76,4 @@ They must not be claimed from these deterministic suites.
 
 ## Shared writing contract
 
-`shared/writing/reader-facing-contract.md` is the single maintained source. The
-copy in `skills/academic-writing/references/` is generated so that skill installs
-on its own: run `scripts/sync_writing_contract.py --write` after editing the
-source, or `--check` to detect drift.
+`shared/writing/reader-facing-contract.md` is the single source of the shared writing contract.

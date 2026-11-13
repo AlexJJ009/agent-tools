@@ -9,10 +9,10 @@ adapter.
 
 Run as the intended Unix user, without sudo. Agent Core should be available at
 `~/agent-core`, or select it with `--agent-core-home`. The adapter links the
-software copy in the install root, so run the machine installer first:
+software copy in the install root, so run the installer first:
 
 ```sh
-./scripts/install.sh --root ~/projects --claude-code existing   # or: latest
+./scripts/install.sh --claude-code existing   # or: latest
 python3 ~/.local/lib/agent-tools/scripts/install_claude.py --check
 ```
 

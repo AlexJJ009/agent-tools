@@ -9,9 +9,14 @@ managed worktrees and machine setup. [System guides](docs/README.md) describe cu
 From the repository checkout, install for the intended Unix user:
 
 ```bash
-./scripts/install.sh --root "$HOME/projects" --max-depth 3
+./scripts/install.sh
 ./scripts/install.sh --check
 ```
+
+`install.sh` installs Agent Tools only. Codex, cc-switch and host setup are
+separate scripts you run on purpose (`scripts/setup/codex.sh`,
+`scripts/setup/cc-switch.sh`, `scripts/setup/host.sh`; each has `--help`); see
+[ADR 0015](docs/decisions/0015-split-install-from-machine-setup.md).
 
 Native Win11 uses `scripts/install-win11.ps1` from Windows PowerShell.
 WSL installs target the Unix profile. Read [installation](docs/INSTALLATION.md)

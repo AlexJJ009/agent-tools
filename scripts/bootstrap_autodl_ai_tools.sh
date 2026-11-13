@@ -429,14 +429,17 @@ configure_github_and_clone() {
 run_agent_tools_install() {
   log "Running agent-tools install.sh"
   (cd "$AGENT_TOOLS_DIR" && ./scripts/install.sh \
-    --root "$HOME" \
-    --max-depth 3 \
-    --codex-proxy-wrapper never \
-    --no-codex-config \
-    --no-codex-remote-control \
     --no-registry \
-    --no-agent-core \
-    --no-cc-switch-update)
+    --no-agent-core)
+  # Machine setup is separate from the install. Codex config, the proxy wrapper,
+  # remote control and cc-switch are configured later from the transferred
+  # provider state, so only host setup and codex-here run here.
+  log "Running agent-tools setup/host.sh and setup/codex.sh"
+  (cd "$AGENT_TOOLS_DIR" && ./scripts/setup/host.sh \
+    && ./scripts/setup/codex.sh \
+      --no-config \
+      --proxy-wrapper never \
+      --no-remote-control)
 }
 
 run_codex_target_guard() {

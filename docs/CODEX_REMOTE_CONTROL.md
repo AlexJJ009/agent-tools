@@ -93,11 +93,11 @@ Do not assume every host uses port `7897`. Probe the current host first, or set
 the exact proxy URL:
 
 ```bash
-CODEX_PROXY_URL=http://127.0.0.1:7897 ./scripts/install.sh --codex-proxy-wrapper always
-CODEX_PROXY_PORTS="7897 7890 7891 10809 10808 8080" ./scripts/install.sh --codex-proxy-wrapper auto
+./scripts/setup/codex.sh --proxy-wrapper always --proxy-url http://127.0.0.1:7897
+CODEX_PROXY_PORTS="7897 7890 7891 10809 10808 8080" ./scripts/setup/codex.sh --proxy-wrapper auto
 ```
 
-The installer probes candidate ports against:
+`setup/codex.sh` probes candidate ports against:
 
 ```text
 https://chatgpt.com/backend-api/codex/responses
@@ -106,35 +106,35 @@ https://chatgpt.com/backend-api/codex/responses
 A healthy route usually returns an API-layer response such as `405 Allow: POST`
 instead of a Cloudflare JavaScript challenge.
 
-## Installer
+## Codex setup script
 
 For WSL2 with automatic proxy detection:
 
 ```bash
 cd ~/agent-tools
-./scripts/install.sh --root ~/projects --codex-proxy-wrapper auto
+./scripts/setup/codex.sh --root ~/projects --proxy-wrapper auto
 ```
 
 For a known proxy port:
 
 ```bash
-CODEX_PROXY_URL=http://127.0.0.1:7897 ./scripts/install.sh --root ~/projects --codex-proxy-wrapper always
+./scripts/setup/codex.sh --root ~/projects --proxy-wrapper always --proxy-url http://127.0.0.1:7897
 ```
 
 For a normal Linux server with no local proxy:
 
 ```bash
-./scripts/install.sh --root /data-1 --codex-proxy-wrapper never
+./scripts/setup/codex.sh --root /data-1 --proxy-wrapper never
 ```
 
-The installer patches Codex config, optionally installs the proxy wrapper, and
+`codex.sh` patches Codex config, optionally installs the proxy wrapper, and
 by default runs:
 
 ```bash
 codex remote-control start
 ```
 
-Use `--no-codex-remote-control` if the machine should be configured but not
+Use `--no-remote-control` if the machine should be configured but not
 start the daemon yet.
 
 ## Start In The Current Directory
@@ -147,7 +147,7 @@ cd /path/to/project
 codex-here
 ```
 
-The launcher installed by `agent-tools/scripts/install.sh` lives at:
+The launcher installed by `agent-tools/scripts/setup/codex.sh` lives at:
 
 ```bash
 ~/.local/bin/codex-here
@@ -245,5 +245,5 @@ codex app-server daemon restart
 ```
 
 If rerunning the standalone installer replaces `~/.local/bin/codex` with a
-symlink to the standalone binary, rerun `agent-tools/scripts/install.sh` to restore the
+symlink to the standalone binary, rerun `agent-tools/scripts/setup/codex.sh` to restore the
 proxy wrapper.

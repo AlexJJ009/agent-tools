@@ -22,69 +22,82 @@ mkdir -p ~/agent-tools
 tar -xzf agent-tools-portable.tar.gz -C ~/
 ```
 
-Then install for the local machine's project roots:
+Then install:
 
 ```bash
 cd ~/agent-tools
-./scripts/install.sh --root ~/projects --root /data-1 --max-depth 3
+./scripts/install.sh
+./scripts/install.sh --check
 ```
 
-If the machine only has one root:
+`install.sh` installs Agent Tools and nothing else (see
+[ADR 0015](decisions/0015-split-install-from-machine-setup.md)). It does not
+touch Codex or cc-switch configuration or the host. Machine setup is a separate
+script per area, run explicitly. With no flags each one does its full job; each
+has `--help` and `--no-<step>` flags to skip parts.
+
+| Script | Does | Skip with |
+|---|---|---|
+| `scripts/setup/cc-switch.sh` | updates `cc-switch-cli`, normalizes Codex provider templates, applies the current Codex provider to `config.toml` | `--no-update`, `--no-templates`, `--no-sync` |
+| `scripts/setup/codex.sh` | patches Codex `config.toml` defaults and features, scans project configs under `--root`, installs the proxy wrapper and `codex-here`, starts remote control | `--no-config`, `--no-project-hooks`, `--no-here`, `--no-remote-control`, `--proxy-wrapper never` |
+| `scripts/setup/host.sh` | fail2ban sshd hardening, tmux mouse mode, Claude Desktop SSH shim | `--no-fail2ban`, `--no-tmux`, `--no-desktop-ssh` |
+
+On a machine that uses cc-switch, run `cc-switch.sh` before `codex.sh`: the
+provider sync rewrites `config.toml` from the provider template, and `codex.sh`
+then applies the managed defaults on top.
 
 ```bash
-./scripts/install.sh --root /workspace
+./scripts/setup/cc-switch.sh
+./scripts/setup/codex.sh --root ~/projects --root /data-1 --max-depth 3
+./scripts/setup/host.sh
 ```
 
-For WSL2, typical roots may be:
+If the machine only has one project root: `./scripts/setup/codex.sh --root /workspace`.
+For WSL2: `./scripts/setup/codex.sh --root ~/projects --root /mnt/d/projects`.
 
-```bash
-./scripts/install.sh --root ~/projects --root /mnt/d/projects
-```
-
-For WSL2 Codex remote control through a local Windows proxy, let the installer
+For WSL2 Codex remote control through a local Windows proxy, let `codex.sh`
 probe common proxy ports before installing the Codex wrapper:
 
 ```bash
 CODEX_PROXY_PORTS="7897 7890 7891 10809 10808 8080" \
-  ./scripts/install.sh --root ~/projects --codex-proxy-wrapper auto
+  ./scripts/setup/codex.sh --root ~/projects --proxy-wrapper auto
 ```
 
 If the host's proxy port is known, pass it explicitly:
 
 ```bash
-CODEX_PROXY_URL=http://127.0.0.1:7897 \
-  ./scripts/install.sh --root ~/projects --codex-proxy-wrapper always
+./scripts/setup/codex.sh --root ~/projects --proxy-wrapper always --proxy-url http://127.0.0.1:7897
 ```
 
 For ordinary Linux servers without a local proxy wrapper:
 
 ```bash
-./scripts/install.sh --root /data-1 --codex-proxy-wrapper never
+./scripts/setup/codex.sh --root /data-1 --proxy-wrapper never
 ```
 
-The installer writes the Codex Fast defaults (`service_tier`, `[features].fast_mode`) into the
+`codex.sh` writes the Codex Fast defaults (`service_tier`, `[features].fast_mode`) into the
 current platform's Codex home config. A WSL2 run does not write a mounted Windows Codex
 profile: run `scripts\install-win11.ps1` from native Windows for Win11 state.
-When running installer helpers, `scripts/install.sh` probes for a working Python 3.10+
+When running installer helpers, `scripts/install.sh` and `scripts/setup/lib.sh` probe for a working Python 3.10+
 binary first (`python3.13` through `python3.10`, then version-checked
 `python3`/`python`) before falling back, which avoids hosts where the default
 `python3` is too old but a newer Python is already installed.
 
-If Claude Code is already installed on the machine, the installer also prepares
+If Claude Code is already installed on the machine, `setup/host.sh` also prepares
 it for Claude Desktop SSH sessions. It writes `IS_SANDBOX=1` into
 `/etc/environment` so non-interactive SSH sessions inherit the root guard
 escape hatch, and it exposes the existing `claude` binary through
 `/usr/local/bin/claude` so root sessions do not depend on shell startup files or
 temporary fnm paths. This step does not install Claude Code; when `claude` is not
-already on `PATH`, it skips cleanly. Use `--no-claude-desktop-ssh` to skip this
+already on `PATH`, it skips cleanly. Use `--no-desktop-ssh` to skip this
 system-level compatibility patch.
 
-The installer updates `cc-switch-cli` from GitHub releases by default. That
+`setup/cc-switch.sh` updates `cc-switch-cli` from GitHub releases. That
 step uses bounded curl timeouts/retries and, in `auto` mode, probes the same
 local proxy candidates used by the Codex wrapper. Use
-`--cc-switch-update-proxy never` to force direct GitHub access,
-`--cc-switch-update-proxy always` to require a working local proxy, or
-`--no-cc-switch-update` to skip the update.
+`--update-proxy never` to force direct GitHub access,
+`--update-proxy always` to require a working local proxy, or
+`--no-update` to skip the update.
 
 For a full repeatable server setup that also installs the latest Codex CLI,
 Claude Code, GitHub CLI, `cc-switch-cli`, `ripgrep`, and Codex API providers
@@ -109,17 +122,17 @@ alone. The learning and writing skills are linked from the install root into
 `scripts/install.sh --check` reports install-root drift and software left in the data
 root.
 
-On ordinary Linux hosts with `sshd`, the installer also checks `fail2ban` in
+On ordinary Linux hosts with `sshd`, `setup/host.sh` also checks `fail2ban` in
 auto mode. If it is missing and a supported package manager is available, it
 installs it. It then enforces a strict `sshd` jail through
 `/etc/fail2ban/jail.d/zzz-agent-tools-sshd-hardening.local`: aggressive SSH
 matching, 3 failures within 1 hour, permanent ban, and `DROP` rather than
 `REJECT`. The managed `ignoreip` defaults to loopback-only
-(`127.0.0.1/8 ::1`); the installer does not guess trusted public IPs. It does,
+(`127.0.0.1/8 ::1`); `host.sh` does not guess trusted public IPs. It does,
 however, preserve the ones you added yourself: on every run it merges the
 default with the managed file's current `ignoreip` and the live effective list,
 so reinstalling never drops a peer you had already whitelisted. Use
-`--no-fail2ban-hardening` only on hosts where agent-tools should not touch
+`--no-fail2ban` only on hosts where agent-tools should not touch
 system SSH protection, or set `INSTALL_FAIL2BAN_HARDENING=always` when a
 non-standard server should be forced through the same check.
 
@@ -207,10 +220,10 @@ C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1
 
 ## Machine Defaults
 
-Every Linux/WSL2 install must persist tmux mouse mode for the Unix user running
+Every Linux/WSL2 machine setup must persist tmux mouse mode for the Unix user running
 the tools. This makes mouse-wheel scrolling work inside tmux.
 
-The installer enforces this in `~/.tmux.conf` with a managed block:
+`setup/host.sh` enforces this in `~/.tmux.conf` with a managed block (`--no-tmux` skips it):
 
 ```tmux
 # BEGIN agent-tools tmux mouse
@@ -219,11 +232,11 @@ set -g mouse on
 # END agent-tools tmux mouse
 ```
 
-Re-running the installer refreshes the block and leaves other tmux settings
-alone. If a tmux server is already running, the installer also tries to source
+Re-running `host.sh` refreshes the block and leaves other tmux settings
+alone. If a tmux server is already running, it also tries to source
 the config and set the live global `mouse` option.
 
-The installer also patches the Codex user config for the Unix user running it:
+`setup/codex.sh` patches the Codex user config for the Unix user running it:
 
 ```toml
 approval_policy = "on-request"
@@ -253,9 +266,9 @@ stream_idle_timeout_ms = 1800000
 stream_max_retries = 20
 ```
 
-The installer updates `cc-switch-cli` from the latest GitHub release installer. Use
-`--no-cc-switch-update` only when the target machine cannot or should not reach
-GitHub during install.
+`setup/cc-switch.sh` updates `cc-switch-cli` from the latest GitHub release
+installer. Use `--no-update` only when the target machine cannot or should not
+reach GitHub.
 
 This configures the following defaults:
 
@@ -275,16 +288,16 @@ This configures the following defaults:
   Codex provider-switching convention, so history stays visible across
   third-party providers.
 - **Feature flags** (`[features]` block). Enables `fast_mode`, `hooks`, `memories`,
-  `goals`, `terminal_resize_reflow`, and `remote_control`. The installer also
+  `goals`, `terminal_resize_reflow`, and `remote_control`. `codex.sh` also
   removes the deprecated `codex_hooks` key if present.
 
-The installer also installs:
+`setup/codex.sh` also installs:
 
 ```bash
 ~/.local/bin/codex-here
 ```
 
-It also adds a managed PATH block for `~/.local/bin` to `~/.profile` and to
+`install.sh` adds a managed PATH block for `~/.local/bin` to `~/.profile` and to
 existing shell rc files such as `~/.bashrc` or `~/.zshrc`. This matters on fresh
 Linux and WSL installs where `~/.local/bin` is not always active in new shells.
 
@@ -299,12 +312,12 @@ codex-here
 `codex-here` is deliberately separate from the base `codex` command. It runs
 `codex -C "$PWD" "$@"`, so management commands such as
 `codex remote-control start` and `codex app-server daemon restart` keep their
-normal behavior. Pass `--no-codex-here` to skip installing this launcher.
+normal behavior. Pass `--no-here` to `setup/codex.sh` to skip installing this launcher.
 
 It preserves project trust entries and other TOML tables (e.g.
 `[mcp_servers.*]`, `[tui]`, `[notice]`) while managing the top-level
 `service_tier` setting.
-Use `--no-codex-config` to skip this step, or override individual defaults via
+Use `--no-config` to skip this step, or override individual defaults via
 env vars: `CODEX_APPROVAL_POLICY`, `CODEX_SANDBOX_MODE`,
 `CODEX_APPROVALS_REVIEWER`, `CODEX_MODEL`, `CODEX_MODEL_REASONING_EFFORT`,
 `CODEX_SERVICE_TIER`,
@@ -314,21 +327,21 @@ env vars: `CODEX_APPROVAL_POLICY`, `CODEX_SANDBOX_MODE`,
 `CODEX_FEATURE_TERMINAL_RESIZE_REFLOW` / `CODEX_FEATURE_REMOTE_CONTROL`
 (each accepts `true` or `false`).
 
-`--no-codex-config` skips the broader default rewrite, proxy wrapper and
-remote-control start. Explicit provider-migration options remain independent.
+`--no-config` skips the config.toml rewrite only; the proxy wrapper, `codex-here`
+and remote-control start have their own flags.
 
-When Codex config patching is enabled, the installer also scans existing
+When Codex config patching is enabled, `codex.sh` also scans existing
 project-level `.codex/config.toml` files under the configured `--root` paths and
 migrates hook-enabled projects from deprecated `[features].codex_hooks` to
 `[features].hooks`. It only updates existing project config files that already
 contain hook config or the deprecated key.
 
-The installer can also install a WSL2 Codex proxy wrapper before starting remote
-control. The wrapper mode is controlled by `--codex-proxy-wrapper auto|always|never`.
+`codex.sh` can also install a WSL2 Codex proxy wrapper before starting remote
+control. The wrapper mode is controlled by `--proxy-wrapper auto|always|never`.
 In `auto` mode, it probes `CODEX_PROXY_PORTS` on `CODEX_PROXY_HOST` and installs
 the wrapper only when a candidate reaches the Codex backend. Use
-`CODEX_PROXY_URL` for a known host-specific proxy URL. By default the installer
-runs `codex remote-control start`; pass `--no-codex-remote-control` to only
+`--proxy-url` (or `CODEX_PROXY_URL`) for a known host-specific proxy URL. By default
+`codex.sh` runs `codex remote-control start`; pass `--no-remote-control` to only
 write configuration. See `docs/CODEX_REMOTE_CONTROL.md` for standalone binary
 and daemon validation details.
 

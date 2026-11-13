@@ -15,8 +15,10 @@ from scripts import install_layout as layout  # noqa: E402
 
 # Last main revision before the install root existed: its installer builds the old layout.
 OLD_RELEASE = '9ee7745'
-FLAGS = ('--no-fail2ban-hardening', '--no-cc-switch-update', '--no-codex-config', '--no-codex-here',
-         '--codex-proxy-wrapper', 'never', '--no-codex-remote-control', '--no-claude-desktop-ssh', '--no-agent-core')
+FLAGS = ('--no-agent-core',)
+# The old release's installer still configures the machine unless told not to.
+OLD_FLAGS = ('--no-fail2ban-hardening', '--no-cc-switch-update', '--no-codex-config', '--no-codex-here',
+             '--codex-proxy-wrapper', 'never', '--no-codex-remote-control', '--no-claude-desktop-ssh', '--no-agent-core')
 
 
 def profile_env(home):
@@ -126,8 +128,10 @@ class InstallerLayoutTests(unittest.TestCase):
         self.lib = self.home / '.local/lib/agent-tools'
 
     def run_install(self, *args, source=ROOT, check=True, env=None):
-        result = subprocess.run(['bash', str(source / ('scripts/install.sh' if (source / 'scripts/install.sh').is_file() else 'install.sh')), '--root', str(self.home / 'projects'),
-                                 *FLAGS, *args], env=env or self.env, text=True, capture_output=True, timeout=300)
+        script = source / 'scripts/install.sh' if (source / 'scripts/install.sh').is_file() else source / 'install.sh'
+        flags = FLAGS if source == ROOT else ('--root', str(self.home / 'projects'), *OLD_FLAGS)
+        result = subprocess.run(['bash', str(script), *flags, *args], env=env or self.env, text=True,
+                                capture_output=True, timeout=300)
         if check:
             self.assertEqual(result.returncode, 0, result.stdout[-3000:] + result.stderr[-3000:])
         return result

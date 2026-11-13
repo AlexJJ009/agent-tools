@@ -32,11 +32,6 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
         })
         command = [
             "bash", str((source_root or ROOT) / "scripts/install.sh"),
-            "--root", str(home / "projects"),
-            "--no-fail2ban-hardening", "--no-cc-switch-update",
-            "--no-codex-config", "--no-codex-here",
-            "--codex-proxy-wrapper", "never", "--no-codex-remote-control",
-            "--no-claude-desktop-ssh",
             "--no-agent-core",
         ]
         return subprocess.run(
@@ -270,16 +265,26 @@ class InstallTargetGuardWiringTests(unittest.TestCase):
             self.assertIn("Experiment Registry installation was removed", result.stderr)
             self.assertEqual(self.installation_snapshot(home), before)
 
-    def test_removed_codex_patch_options_are_accepted_and_ignored(self):
+    def test_flags_that_moved_to_setup_scripts_are_rejected_before_any_install_writes(self):
+        # Moved machine-setup flags and the ADR 0012 no-op flags are no longer accepted.
+        for flag in ("--no-codex-config", "--no-fail2ban-hardening", "--codex-proxy-wrapper",
+                     "--root", "--no-codex-app-fast-mode", "--no-codex-sqlite-log-guard"):
+            with self.subTest(flag=flag), tempfile.TemporaryDirectory() as tmp:
+                home = Path(tmp)
+                (home / "keep.txt").write_text("existing user content")
+                before = self.installation_snapshot(home)
+                result = self.run_isolated_unix_install(home, check=False, extra_args=(flag,))
+                self.assertEqual(result.returncode, 2)
+                self.assertIn(f"unknown argument: {flag}", result.stderr)
+                self.assertEqual(self.installation_snapshot(home), before)
+
+    def test_install_leaves_machine_configuration_to_the_setup_scripts(self):
         with tempfile.TemporaryDirectory() as tmp:
             home = Path(tmp)
-            result = self.run_isolated_unix_install(home, extra_args=(
-                "--no-codex-app-fast-mode", "--codex-desktop-connection-fast-mode", "never",
-                "--codex-sqlite-log-guard-wsl-windows", "never", "--no-codex-sqlite-log-guard"))
-            self.assertIn("Removed option ignored (ADR 0012): --codex-desktop-connection-fast-mode", result.stderr)
-            self.assertIn("Removed option ignored (ADR 0012): --codex-sqlite-log-guard-wsl-windows", result.stderr)
-            self.assertNotIn("unknown argument", result.stderr)
-            self.assertTrue((home / ".codex/skills/manage-worktrees/SKILL.md").is_file())
+            self.run_isolated_unix_install(home)
+            self.assertFalse((home / ".codex" / "config.toml").exists())
+            self.assertFalse((home / ".tmux.conf").exists())
+            self.assertFalse((home / ".local" / "bin" / "codex-here").exists())
 
 
 if __name__ == "__main__":

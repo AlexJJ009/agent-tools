@@ -16,4 +16,4 @@ Identify the requested genre, audience, section, language, evidence packet, and 
 
 Direct draft, revise, and argument review do not require prerequisites, retrieval checks, or a teaching manifest. When the current activity is guided learning, coordinate with `teaching-reconstruction` and `retrieval-practice` only for the requested exercise. Keep answer text separate from an exercise prompt until the appropriate stage.
 
-The [shared writing contract](references/writing-contract.md) applies, adapted to manuscript and teaching genres; Work Report's sections and Judge do not. The deliverable follows the requested language and genre.
+The [shared writing contract](references/writing-contract.md) applies, adapted to manuscript and teaching genres. The deliverable follows the requested language and genre.

@@ -1,12 +1,7 @@
 # Shared writing contract
 
-This is the canonical maintained source for reader-facing work: teaching, academic
-writing and any other output a reader must act on. The copy packaged in
-academic-writing is generated so that skill can be installed independently.
-Academic Writing owns the reusable expression methods; this contract is their
-single maintained expression source, not a reporting workflow. Run
-`scripts/sync_writing_contract.py --write` from the repository to regenerate the
-copy, or `--check` to detect drift.
+This contract covers reader-facing work: teaching, academic writing and any
+other output a reader must act on.
 
 | ID | Required writing behavior |
 |---|---|
@@ -25,8 +20,8 @@ missing context needed for its next judgment. Apply **claim–evidence–warrant
 state the claim, show the observation, and explain the inferential connection,
 including limits and adverse evidence. A reverse outline can expose missing
 paragraph purposes or transitions during revision. These methods also apply to
-short explanations without activating manuscript drafting, CARS, teaching,
-formal reporting or an independent Judge. Read this contract when it is not
+short explanations without activating manuscript drafting, CARS or teaching.
+Read this contract when it is not
 already in context; reuse it thereafter and judge the actual prose.
 
 A **readback** is an actual observed value or state, not an expected-value echo.
@@ -51,8 +46,5 @@ another genre. Use plain paragraphs for a simple
 finding; tables and figures serve a real comparison. No quota rewards length,
 jargon or decoration.
 
-Machine checks cover structure, snapshots and version binding. Independent
-readers assess argument and readability. A schema-valid review cannot establish
-reviewer identity or actual source-isolated reading. Preserve actual host review
-traces and revise from real user feedback without claiming the user understood
-or accepted an item they did not inspect.
+Revise from real user feedback without claiming the user understood or accepted
+an item they did not inspect.

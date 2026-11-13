@@ -22,11 +22,11 @@ if str(ROOT) not in sys.path:
 
 from scripts import install_layout as layout  # noqa: E402
 
-KEPT = ("academic-writing", "teaching-reconstruction", "evidence-anchor", "retrieval-practice",
+KEPT = ("academic-writing", "teaching-reconstruction", "retrieval-practice",
         "teaching-dag-builder", "learning-artifact-compiler", "task-routing")
-# Skills removed by ADR 0012; only discovery symlinks that point at agent-tools locations are removed.
+# Skills removed by ADR 0012 and 0013; only discovery symlinks that point at agent-tools locations are removed.
 RETIRED = ("intent-to-contract", "acceptance-gate", "infra-verification", "reviewer-brief", "cleaner",
-           "work-report", "knowledge-deposition-doc", "codex-win11-patch-safety")
+           "work-report", "knowledge-deposition-doc", "codex-win11-patch-safety", "evidence-anchor")
 
 
 def run_target_guard(home: Path) -> None:

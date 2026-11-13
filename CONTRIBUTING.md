@@ -1,7 +1,6 @@
 # Contributing
 
-Follow the current user-authorized task scope. Linear Workflow is retired and
-its source was removed; no Linear Batch is required.
+Follow the current user-authorized task scope.
 
 ## Reconcile documentation before delivery
 
@@ -73,8 +72,7 @@ run establishes coverage of product behavior for which no test exists.
 `agent-tools-regression` runs affected suites on PRs and main pushes. Manual
 workflow dispatch runs all active suites. The `main` ruleset requires its
 `regression` status check; renaming the job requires changing the ruleset in the
-same step. There is no
-Linear planning gate. CI repeats regression tests; it is not another independent
+same step. CI repeats regression tests; it is not another independent
 test population. Independent review evaluates requirements, implementation and
 gaps, not another numerical suite.
 
@@ -84,3 +82,10 @@ preserve modified/user-owned files.
 
 Native Windows deployment, writing quality and live service behavior need their own real-scene checks.
 They must not be claimed from these deterministic suites.
+
+## Shared writing contract
+
+`shared/writing/reader-facing-contract.md` is the single maintained source. The
+copy in `skills/academic-writing/references/` is generated so that skill installs
+on its own: run `scripts/sync_writing_contract.py --write` after editing the
+source, or `--check` to detect drift.

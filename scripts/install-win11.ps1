@@ -5,13 +5,7 @@ param(
   [string]$CcSwitchDb = (Join-Path $env:USERPROFILE ".cc-switch\cc-switch.db"),
   [switch]$NoAgentWt,
   [switch]$NoCodexManualRemoteConnect,
-  [string]$ManualRemoteConnectScript = "C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1",
-  # Removed with the Win11 Codex configurator and SQLite log guard (ADR 0012); accepted and ignored.
-  # This script no longer writes Win11 Codex config, so -NoCodexConfig has nothing to skip.
-  [switch]$NoCodexConfig,
-  [switch]$NoCodexSqliteLogGuard,
-  [switch]$DisableCodexSqliteLogGuard,
-  [switch]$CodexSqliteLogGuardVacuum
+  [string]$ManualRemoteConnectScript = "C:\AppsExternal\automation\_diagnostics\restart-codex-manual-remote.ps1"
 )
 
 $ErrorActionPreference = "Stop"

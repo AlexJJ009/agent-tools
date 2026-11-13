@@ -3,11 +3,10 @@
 This runbook configures Codex so new conversations use the local default
 permission posture and tolerate long compression or streaming pauses.
 
-`scripts/install.sh` manages these defaults when the corresponding options are
-enabled. Existing provider/auth and approval-reviewer settings, platform-specific
+`scripts/setup/codex.sh` manages these defaults unless `--no-config` is passed. Existing provider/auth and approval-reviewer settings, platform-specific
 paths and explicit overrides affect the result; the example below is not an
-exact rewrite guarantee. Use `--check` and inspect the target user's actual
-configuration after installation. Manual fallback belongs to the same target
+exact rewrite guarantee. Inspect the target user's actual
+configuration after running it. Manual fallback belongs to the same target
 profile and must preserve its existing credentials.
 Historical baseline: `codex-cli 0.130.0`; check the target CLI before relying on
 version-sensitive options.
@@ -71,7 +70,7 @@ Meaning:
   The stable `custom` bucket also matches cc-switch's Codex provider-switching
   convention, so resume history is not split across third-party provider IDs.
 - `[features]` enables Codex lifecycle hooks, the memory layer, goal tracking,
-  terminal resize reflow, and remote control. The installer removes the
+  terminal resize reflow, and remote control. `codex.sh` removes the
   deprecated `[features].codex_hooks` key if present. Do not use top-level
   `remote_control = true`, and do not write `remote_connections = true`;
   current Codex CLI remote control is started through the `codex remote-control`
@@ -107,13 +106,13 @@ Codex is actually launched.
 
 ## One-Shot Setup
 
-The recommended path is `./scripts/install.sh` from the agent-tools checkout, which
+The recommended path is `./scripts/setup/codex.sh` from the agent-tools checkout, which
 applies the entire target state (top-level keys, provider block, `[features]`)
 in one pass and re-runs cleanly any number of times:
 
 ```bash
 cd ~/agent-tools
-./scripts/install.sh --root ~/projects --max-depth 3
+./scripts/setup/codex.sh --root ~/projects --max-depth 3
 ```
 
 To override individual defaults without editing the script, set the matching
@@ -137,9 +136,9 @@ env var before running:
 | `[features].terminal_resize_reflow` | `CODEX_FEATURE_TERMINAL_RESIZE_REFLOW` | `true` |
 | `[features].remote_control` | `CODEX_FEATURE_REMOTE_CONTROL` | `true` |
 
-Pass `--no-codex-config` to skip the Codex patch entirely.
+Pass `--no-config` to skip the Codex patch entirely.
 
-The installer replaces the managed keys above, including top-level
+`codex.sh` replaces the managed keys above, including top-level
 `service_tier = "priority"` and `[features].fast_mode = true`. Do not put
 `service_tier` under `[features]`. It preserves existing project trust entries
 and other TOML tables (`[mcp_servers.*]`, `[tui]`, `[notice]`, etc.) and the
@@ -235,30 +234,30 @@ Default flow:
 When asked to apply this on a new server or WSL2 machine:
 
 1. Confirm which Unix user launches Codex.
-2. Run `./scripts/install.sh` (with appropriate `--root` flags). It writes all eight
+2. Run `./scripts/setup/codex.sh` (with appropriate `--root` flags). It writes all eight
    managed top-level keys (`approval_policy`, `sandbox_mode`,
    `approvals_reviewer`, `model`, `model_reasoning_effort`,
    `service_tier`, `stream_idle_timeout_ms`, `stream_max_retries`,
    `model_provider`), the `custom` provider, and the full `[features]` block
    (`fast_mode`, `hooks`,
    `memories`, `goals`, `terminal_resize_reflow`, `remote_control`).
-3. If `scripts/install.sh` cannot run, use the One-Shot Setup or Manual Setup block
+3. If `scripts/setup/codex.sh` cannot run, use the One-Shot Setup or Manual Setup block
    above to patch `${CODEX_HOME:-$HOME/.codex}/config.toml` directly.
 4. Preserve `[projects.*]`, `[mcp_servers.*]`, `[tui]`, `[notice]`, and other
-   TOML tables. The installer already does this.
+   TOML tables. `codex.sh` already does this.
 5. Remove top-level `remote_control` and any `remote_connections` key if present.
 6. Validate with `codex features list`.
 7. Tell the user that only new Codex sessions pick up the new default.
 
 To deviate from the defaults, set the matching env var before running
-`scripts/install.sh`:
+`scripts/setup/codex.sh`:
 `CODEX_APPROVAL_POLICY`, `CODEX_SANDBOX_MODE`, `CODEX_APPROVALS_REVIEWER`,
 `CODEX_MODEL`, `CODEX_MODEL_REASONING_EFFORT`, `CODEX_SERVICE_TIER`,
 `CODEX_STREAM_IDLE_TIMEOUT_MS`, `CODEX_STREAM_MAX_RETRIES`,
 `CODEX_MODEL_PROVIDER_ID`, `CODEX_FEATURE_FAST_MODE`, `CODEX_FEATURE_HOOKS`,
 `CODEX_FEATURE_MEMORIES`, `CODEX_FEATURE_GOALS`,
 `CODEX_FEATURE_TERMINAL_RESIZE_REFLOW`, `CODEX_FEATURE_REMOTE_CONTROL`. Use
-`--no-codex-config` to skip the codex patch entirely.
+`--no-config` to skip the codex patch entirely.
 
 ## Rollback
 

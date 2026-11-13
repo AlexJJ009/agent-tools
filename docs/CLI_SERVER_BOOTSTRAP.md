@@ -97,19 +97,20 @@ fi
 cd "$HOME/agent-tools"
 ```
 
-Run the machine defaults, but let the provider script below own Codex API
-provider config. Use `--codex-proxy-wrapper never` on ordinary Linux servers.
-Only use the WSL2 proxy wrapper modes from `CODEX_REMOTE_CONTROL.md` when the
-host actually needs that topology. `scripts/install.sh` updates `cc-switch-cli` from
-the latest GitHub release by default. That update uses bounded curl
-timeouts/retries and probes local proxy candidates in `auto` mode, which helps
-hosts where direct `release-assets.githubusercontent.com` downloads are slow.
-Pass `--cc-switch-update-proxy never` to force direct GitHub access,
-`--cc-switch-update-proxy always` to require a working local proxy, or
-`--no-cc-switch-update` only when the machine cannot reach GitHub during this
-step.
+Install Agent Tools, then run the machine setup scripts you need. Let the
+provider script below own Codex API provider config, so skip the Codex config
+patch with `codex.sh --no-config`, and use `--proxy-wrapper never` on ordinary
+Linux servers. Only use the WSL2 proxy wrapper modes from
+`CODEX_REMOTE_CONTROL.md` when the host actually needs that topology.
+`scripts/setup/cc-switch.sh` updates `cc-switch-cli` from the latest GitHub
+release by default. That update uses bounded curl timeouts/retries and probes
+local proxy candidates in `auto` mode, which helps hosts where direct
+`release-assets.githubusercontent.com` downloads are slow. Pass
+`--update-proxy never` to force direct GitHub access, `--update-proxy always` to
+require a working local proxy, or `--no-update` only when the machine cannot
+reach GitHub during this step.
 
-When Claude Code is already installed, the same installer also prepares the host
+When Claude Code is already installed, `scripts/setup/host.sh` also prepares the host
 for Claude Desktop SSH sessions:
 
 - `/etc/environment` gets `IS_SANDBOX=1`, which is inherited by new
@@ -119,18 +120,13 @@ for Claude Desktop SSH sessions:
   multishell paths.
 
 This does not install Claude Code. If `claude` is not already on `PATH`, the
-step skips cleanly. Use `--no-claude-desktop-ssh` only for hosts that should not
+step skips cleanly. Use `--no-desktop-ssh` only for hosts that should not
 receive this system-level compatibility patch.
 
 ```bash
-./scripts/install.sh \
-  --root "$HOME" \
-  --max-depth 3 \
-  --codex-proxy-wrapper never \
-  --no-codex-config \
-  --no-codex-remote-control \
-  --no-registry \
-  --no-agent-core
+./scripts/install.sh --no-registry --no-agent-core
+./scripts/setup/host.sh
+./scripts/setup/codex.sh --no-config --proxy-wrapper never --no-remote-control
 ```
 
 The software copy goes to `~/.local/lib/agent-tools`; task data stays in
@@ -139,15 +135,15 @@ root: the installer refuses overlapping roots. A host installed that way by an
 earlier release is migrated on the next run (see the README install section);
 check it afterwards with `./scripts/install.sh --check`.
 
-On ordinary Linux SSH servers, this installer also installs or hardens
+On ordinary Linux SSH servers, `setup/host.sh` also installs or hardens
 `fail2ban` for `sshd`. The managed jail is intentionally strict:
 `sshd[mode=aggressive]`, `maxretry = 3`, `findtime = 1h`, `bantime = -1`, and
 DROP bans. The managed `ignoreip` defaults to loopback-only
 (`127.0.0.1/8 ::1`); do not add guessed public allowlists in shared automation.
-Any allowlist the operator already installed is preserved: the installer merges
+Any allowlist the operator already installed is preserved: `host.sh` merges
 rather than overwrites `ignoreip`, so re-running it on a host with an
 established SSH mesh cannot lock those peers out. Use
-`--no-fail2ban-hardening` only when a host's SSH protection is managed
+`--no-fail2ban` only when a host's SSH protection is managed
 elsewhere.
 
 ## Provider Inputs

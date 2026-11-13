@@ -213,7 +213,10 @@ unset GITHUB_PAT CODEX_KEY CODEX_PROVIDERS_JSON
 5. Installs `with-proxy`.
 6. Installs `gh`, `cc-switch`, Codex CLI, and Claude Code.
 7. Authenticates `gh` and clones or updates `~/agent-tools`.
-8. Runs `~/agent-tools/scripts/install.sh` with server-safe flags.
+8. Runs `~/agent-tools/scripts/install.sh`, then `scripts/setup/host.sh` and
+   `scripts/setup/codex.sh --no-config --proxy-wrapper never --no-remote-control`
+   (tmux, fail2ban, Claude Desktop SSH shim and `codex-here`; no Codex config,
+   proxy wrapper or cc-switch update).
 9. Configures Codex provider config from either transfer tarball or JSON.
 10. Optionally imports Codex resume history from `CODEX_RESUME_TRANSFER_TGZ`.
 11. Validates tools, proxy ports, Codex config, and cc-switch provider state.

@@ -70,7 +70,7 @@ Use docs/README.md for current system docs and decisions.
   interactive CC Switch form through SSH. WSL install defaults must not copy
   Skills/plugins or mutate Codex config under `/mnt/c`; run
   `scripts/install-win11.ps1` natively for Win11 state.
-- Linux server installs must check `fail2ban` for SSH protection. If `fail2ban`
+- Linux server setup (`scripts/setup/host.sh`) must check `fail2ban` for SSH protection. If `fail2ban`
   is missing and a supported package manager is available, install it. The
   managed sshd jail should be strict by default: aggressive sshd filter,
   `maxretry = 3`, `findtime = 1h`, `bantime = -1`, DROP bans, and loopback-only
@@ -79,8 +79,8 @@ Use docs/README.md for current system docs and decisions.
 - Never shrink an existing `ignoreip`. fail2ban resolves it by replacement, not
   union, so rewriting the managed jail file with the default would silently
   un-whitelist every address the operator had already trusted — and with
-  `bantime = -1` those peers stay locked out. The installer merges the
+  `bantime = -1` those peers stay locked out. `host.sh` merges the
   requested value with the managed file's current value and the live effective
   list, so a reinstall can only ever grow the allowlist. This is not a
-  contradiction of the rule above: the installer still contributes no addresses
+  contradiction of the rule above: `host.sh` still contributes no addresses
   of its own, it only refuses to discard the operator's.

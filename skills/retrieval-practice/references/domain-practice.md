@@ -1,6 +1,6 @@
 # Practice by domain
 
-Choose the exercise from the capability the learner wants to retain. Domain methods share attempt tracking and feedback, not a universal question template or mandatory mixture. Work with inspected evidence and preserve its version or source locator.
+Choose the exercise from the capability the learner wants to retain. Domain methods share attempt tracking and feedback. Work with inspected evidence and preserve its version or source locator.
 
 | Domain and objective | Useful task | What to assess |
 |---|---|---|
@@ -18,4 +18,4 @@ For code learning, replace filename-recall quizzes with an executable or inspect
 
 Examples may use code snippets, a partial call trace, a diagram to repair, a failing test, or a small proposed patch. State whether source access, hints, execution, or an agent are allowed. Creating a code-learning exercise does not authorize modifying production code or launching jobs. If the learner delegates the whole answer back to the agent, record assisted study rather than independent performance.
 
-Vary the case on later review so repetition asks the learner to recall or apply the principle. Reuse the underlying ability and evidence instead of inventing an unrelated quiz each time. A short discrimination task is useful when effort is low; move to reconstruction or application when that is the intended capability. Do not require every session to pass through every format.
+Vary the case on later review so repetition asks the learner to recall or apply the principle. Reuse the underlying ability and evidence instead of inventing an unrelated quiz each time. A short discrimination task is useful when effort is low; move to reconstruction or application when that is the intended capability.

@@ -14,7 +14,7 @@ Give feedback on what the learner actually produced. Identify the failed reasoni
 
 Reuse the owning note or learning record and its existing queue/index. Keep a stable target/check identifier, a short prompt, source/context link, attempt or response reference, assistance supplied, observed result, and next review date or explicit trigger when relevant. Records may distinguish `independent_pass`, `hinted_pass`, `fail`, and `untested`; these are learning observations, not the queue's active/archived status.
 
-Choose retained targets with the learner. A current request or established ongoing authorization may cover recording and follow-up; reuse it rather than asking again at every step. A request for an explanation alone does not authorize permanent knowledge judgments, new queue entries, calendar events, or notifications. Do not migrate old records or rewrite ReadPapers' frozen v1 schema as a side effect of practice.
+Choose retained targets with the learner. A current request or established ongoing authorization may cover recording and follow-up; reuse it rather than asking again at every step. A request for an explanation alone does not authorize permanent knowledge judgments, new queue entries, calendar events, or notifications. Do not migrate old records as a side effect of practice.
 
 `skip` or no reply leaves the result untested or preserves the previous result. `snooze` changes the next opportunity only within the agreed scheduling scope. Neither means failure or completion. Use the actual response and assistance to choose the next difficulty and review interval; repeated recall should eventually include a changed case rather than only rereading the answer. Do not prescribe a universal spacing schedule without an agreed need.
 

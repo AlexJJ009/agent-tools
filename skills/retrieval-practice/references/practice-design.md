@@ -13,7 +13,7 @@ Match the response format to the skill being practiced. Recognition, reconstruct
 | Express a bounded claim | Write or revise a short paragraph from source facts | Record any supplied outline, wording, or model answer |
 | Apply the idea in another setting | A near- or far-transfer task using a changed example | One successful example does not establish broad mastery |
 
-For a user who explicitly wants a low-effort round, comparing three short versions can be enough. Make alternatives differ on the intended issue, such as causal overclaiming or the scope of a conclusion, rather than on an obviously silly distractor. Do not announce the answer before the attempt unless the user asks for a worked example. When drafting is the objective, leave space for the user's wording instead of replacing every attempt with selection questions. Vary formats across objectives; do not impose quotas or every format in one session.
+For a user who explicitly wants a low-effort round, comparing three short versions can be enough. Make alternatives differ on the intended issue, such as causal overclaiming or the scope of a conclusion, rather than on an obviously silly distractor. Do not announce the answer before the attempt unless the user asks for a worked example. When drafting is the objective, leave space for the user's wording instead of replacing every attempt with selection questions. Vary formats across objectives.
 
 ## Check types
 

@@ -1,6 +1,6 @@
 # Code and architecture learning
 
-Use this method after Main selects learning. Source inspection for a bug fix, API lookup, or implementation task does not itself select teaching or require a document. This reference consolidates the engineering-learning methods previously kept in Agent Core's deposition skill.
+Use this method after Main selects learning. Source inspection for a bug fix, API lookup, or implementation task does not itself select teaching or require a document.
 
 ## Questions the explanation should answer
 

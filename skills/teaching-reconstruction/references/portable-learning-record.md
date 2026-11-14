@@ -1,6 +1,6 @@
 # Portable learning record
 
-Use this small `learning-record/1` JSON document for new durable learning in code, architecture, logs, or other material outside the ReadPapers library. It is separate from the frozen `teaching-reconstruction:v1` manifest. The v1 validator continues to validate v1 documents only. Never silently convert or rewrite old notes.
+Use this small `learning-record/1` JSON document for new durable learning in code, architecture, logs, or other material outside the ReadPapers library. Do not convert existing notes into this format.
 
 ```json
 {
@@ -17,7 +17,7 @@ Use this small `learning-record/1` JSON document for new durable learning in cod
 }
 ```
 
-Use only fields needed for the actual learning task. A source reference must distinguish verified observations from provisional ones and give a recheckable locator. Keep attempts and assistance separate; only observed user behavior supports a learner-state change. A plain short answer needs no durable record. ReadPapers notes may continue to use the v1 envelope where its Zotero and Obsidian fields are meaningful.
+Use only fields needed for the actual learning task. A source reference must distinguish verified observations from provisional ones and give a recheckable locator. Keep attempts and assistance separate; only observed user behavior supports a learner-state change. A plain short answer needs no durable record.
 
 For authorized later review, follow the sibling `retrieval-practice` skill's
 `references/review-follow-through.md`. Reuse `learner_state.observed_attempts`,
@@ -25,4 +25,4 @@ For authorized later review, follow the sibling `retrieval-practice` skill's
 in several stores. Keep material review and reading progress separate from
 attempt results; a complete document may have no observed attempts. Additional
 follow-up fields are optional conventions, not a validated schema
-or automatic scheduler. Do not retrofit them into frozen v1 manifests.
+or automatic scheduler.
